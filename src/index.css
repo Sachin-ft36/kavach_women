@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-bg: #000000;
+  --color-card-bg: #0d0d0d;
+  --color-accent-red: #ff3b30;
+  --color-accent-blue: #0A84FF;
+  --color-text-main: #ffffff;
+  --color-text-dim: #888888;
+  --color-border: rgba(255, 255, 255, 0.08);
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text-main antialiased selection:bg-accent-blue/30;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans tracking-tight leading-tight uppercase font-black italic;
+  }
+}
+
+.leaflet-container {
+  @apply grayscale invert brightness-90 contrast-125;
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .bento-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+}
+
+.bento-card {
+  @apply bg-card-bg border border-border/50 rounded-xl p-5 md:p-6 relative overflow-hidden transition-all duration-200;
+}
+
+.bento-card:active {
+  @apply scale-[0.99] bg-white/5;
+}
+
+.bento-card-title {
+  @apply text-[9px] font-mono font-bold uppercase tracking-[2px] text-accent-blue mb-4 flex justify-between items-center;
+}
+
+/* Tactical Marker System */
+.sos-marker-container {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Victim marker ko map par highlight karne ke liye (Rescue Pulse) */
+.victim-pulse-icon {
+  background: none !important;
+  border: none !important;
+}
+
+.victim-pulse-icon div {
+  box-shadow: 0 0 0 0 rgba(255, 59, 48, 1);
+  animation: pulse-red 2s infinite;
+  background-color: #ff3b30 !important;
+  border-radius: 50%;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+}
+
+.sos-marker-inner {
+  @apply w-12 h-12 bg-accent-red rounded-lg flex items-center justify-center text-white border-2 border-white/20 z-10;
+  animation: tactical-blink 0.8s infinite alternate steps(2);
+}
+
+/* Animations */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes tactical-blink {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.7; transform: scale(1.05); background-color: #ff0000; }
+}
+
+.animate-tactical-blink {
+  animation: tactical-blink 0.8s infinite alternate steps(2);
+}
+
+/* Command Feed Aesthetics */
+.command-feed-item {
+  @apply border-l-2 border-accent-blue pl-4 py-2 bg-white/2 hover:bg-white/5 transition-all;
+}
+
+.telemetry-value {
+  @apply font-mono text-accent-blue font-bold;
+}
+
+/* MHA National Emergency Protocol */
+.sos-blink-hard {
+  animation: mha-sos-blink-hard 0.4s infinite alternate steps(1) !important;
+}
+
+@keyframes mha-sos-blink-hard {
+  from { background-color: #E63946; border-color: white; }
+  to { background-color: black; border-color: #E63946; }
+}
