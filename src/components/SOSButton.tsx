@@ -10,7 +10,9 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { registerPlugin } from '@capacitor/core';
+import { useKavachStore } from '../store/useKavachStore';
 import { useCall } from '../contexts/CallContext';
+import { reverseGeocode } from '../utils/geoUtils';
 
 interface KavachNativePlugin {
   // Permissions
@@ -47,10 +49,11 @@ const KavachNative = registerPlugin<KavachNativePlugin>('KavachPlugin');
 export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }) {
   const { t, language } = useLanguage();
   const { answerCall, declineCall, hangupCall, callState, callerName } = useCall();
+  const { incrementFalseSOS, setSOSActive } = useKavachStore();
   
   // State 
   const [isTriggered, setIsTriggered] = useState(false);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(10);
   const [isLive, setIsLive] = useState(false);
   const [showFakeCall, setShowFakeCall] = useState(false);
   const [fakeCaller, setFakeCaller] = useState('Home (Mom)');
@@ -98,7 +101,23 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
         callListener.then(l => l.remove());
       };
     }
-  }, [isTriggered]); // Dependency on isTriggered to ensure we only chain if active
+  }, [isTriggered]); 
+
+  useEffect(() => {
+    const handleSilent = () => {
+      if (!isTriggered) triggerSOS('silent');
+    };
+    const handleImpact = (data: any) => {
+      if (!isTriggered) triggerSOS('shake'); // Use shake logic for impact
+      setCountdown(5); // Rapid countdown for crash/impact
+    };
+    window.addEventListener('sos-silent-trigger', handleSilent);
+    window.addEventListener('sos-impact-trigger', handleImpact);
+    return () => {
+      window.removeEventListener('sos-silent-trigger', handleSilent);
+      window.removeEventListener('sos-impact-trigger', handleImpact);
+    };
+  }, [isTriggered]);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -377,21 +396,40 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
         const existingId = existingDoc.id;
         console.log("KAVACH Logic: Active SOS session found. Updating existing mission:", existingId);
         
+        let readableLocation = 'Live Tracking Active';
+        try {
+          const geo = await reverseGeocode(userPos[0], userPos[1]);
+          if (geo) readableLocation = `${geo.city}, ${geo.state}`;
+        } catch (e) {
+          console.warn("Geocoding failed during resume:", e);
+        }
+
         await updateDoc(doc(db, 'alerts', existingId), {
           lastTriggered: serverTimestamp(),
           coords: userPos,
+          location: readableLocation,
           lastUpdated: serverTimestamp(),
           'metadata.battery': batteryValue
         });
         
         setActiveAlertId(existingId);
+        setSOSActive(true, existingId);
         localStorage.setItem('kavach_sos_active', 'true');
         localStorage.setItem('kavach_active_alert_id', existingId);
       } else {
         // START NEW SESSION
+        let readableLocation = 'Locating Victim...';
+        try {
+          const geo = await reverseGeocode(userPos[0], userPos[1]);
+          if (geo) readableLocation = `${geo.city}, ${geo.state}`;
+        } catch (e) {
+          console.warn("Geocoding failed for new session:", e);
+          readableLocation = "GPS Pulse: " + userPos[0].toFixed(4) + ", " + userPos[1].toFixed(4);
+        }
+
         const alertData = {
           type: 'SOS TRIGGER',
-          location: 'Live Tracking Active',
+          location: readableLocation,
           coords: userPos,
           timestamp: serverTimestamp(),
           severity: 'High',
@@ -411,6 +449,7 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
         
         const docRef = await addDoc(collection(db, 'alerts'), alertData);
         setActiveAlertId(docRef.id);
+        setSOSActive(true, docRef.id);
         localStorage.setItem('kavach_sos_active', 'true');
         localStorage.setItem('kavach_active_alert_id', docRef.id);
       }
@@ -441,6 +480,7 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
     if (timerRef.current) clearInterval(timerRef.current);
     setIsTriggered(false);
     setIsLive(false);
+    setSOSActive(false, null);
     localStorage.removeItem('kavach_sos_active');
     localStorage.removeItem('kavach_active_alert_id');
 
@@ -450,8 +490,12 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
     }
   };
 
-  const triggerSOS = (method: 'button' | 'shake' | 'voice' = 'button') => {
-    const initialCountdown = method === 'button' ? 3 : 10;
+  const triggerSOS = (method: 'button' | 'shake' | 'voice' | 'silent' = 'button') => {
+    if (method === 'silent') {
+      goLive();
+      return;
+    }
+    const initialCountdown = method === 'button' ? 10 : 3;
     setTriggerMethod(method);
     setIsTriggered(true);
     setCountdown(initialCountdown);
@@ -611,31 +655,35 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
   };
 
   const startDeactivate = () => {
-    setIsDeactivating(true);
-    setDeactivateProgress(0);
-    deactivateTimerRef.current = setInterval(() => {
-      setDeactivateProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(deactivateTimerRef.current!);
-          
-          if (!isLive) {
-            // Activation doesn't require biometric (Zero-friction emergency)
+    if (!isLive) {
+      // For immediate activation when NOT live (optional, but keep it for UX consistency if needed)
+      setIsDeactivating(true);
+      setDeactivateProgress(0);
+      deactivateTimerRef.current = setInterval(() => {
+        setDeactivateProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(deactivateTimerRef.current!);
             triggerSOS('button');
-          } else {
-            // Deactivation REQUIRES Biometric (High Security)
-            handleSecureAbort();
+            return 100;
           }
-          return 100;
-        }
-        return prev + 2.5; 
-      });
-    }, 100);
+          return prev + 5; 
+        });
+      }, 50);
+    }
   };
 
   const stopDeactivate = () => {
-    if (deactivateTimerRef.current) clearInterval(deactivateTimerRef.current);
-    setIsDeactivating(false);
-    setDeactivateProgress(0);
+    if (!isLive) {
+      if (deactivateTimerRef.current) clearInterval(deactivateTimerRef.current);
+      setIsDeactivating(false);
+      setDeactivateProgress(0);
+    }
+  };
+
+  const handleAbortClick = () => {
+    if (isLive) {
+      handleSecureAbort();
+    }
   };
 
   // Effects
@@ -1021,13 +1069,9 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
                     </div>
                     <div className="p-8 border-t border-white/10 bg-black/60 backdrop-blur-xl flex flex-col items-center w-full">
                       <button
-                        onMouseDown={startDeactivate}
-                        onMouseUp={stopDeactivate}
-                        onTouchStart={startDeactivate}
-                        onTouchEnd={stopDeactivate}
+                        onClick={handleAbortClick}
                         className="group relative w-full h-24 bg-red-600/10 border-2 border-red-600/60 rounded-3xl overflow-hidden transition-all active:scale-95 shadow-[0_0_30px_rgba(220,38,38,0.2)]"
                       >
-                        <motion.div className="absolute inset-y-0 left-0 bg-red-600/50" animate={{ width: `${deactivateProgress}%` }} />
                         <div className="relative flex items-center justify-center gap-5">
                            <div className="p-3 bg-red-600 rounded-2xl shadow-lg group-active:scale-90 transition-transform">
                               <Fingerprint size={32} className="text-white" />
@@ -1037,7 +1081,7 @@ export default function SOSButton({ ghostMode = false }: { ghostMode?: boolean }
                                {isDeactivating ? "VERIFYING IDENTITY..." : "TACTICAL ABORT"}
                              </p>
                              <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1">
-                               {isDeactivating ? "HOLD SENSOR" : "SECURED BY BIOMETRIC"}
+                               {isDeactivating ? "AUTHENTICATING..." : "TAP TO STOP"}
                              </p>
                            </div>
                         </div>

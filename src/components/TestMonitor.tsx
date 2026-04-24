@@ -3,7 +3,7 @@ import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { Map, Shield, User, Navigation, X, ExternalLink, Activity, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import RakshakMap from './RakshakMap';
+import ProtectorMap from './maps/ProtectorMap';
 import { cn } from '../lib/utils';
 
 export default function TestMonitor() {
@@ -82,7 +82,7 @@ export default function TestMonitor() {
                 </div>
               </div>
               <div className="h-full opacity-60">
-                <RakshakMap hideHeader centerOverride={selectedAlertCoords} />
+                <ProtectorMap hideHeader />
               </div>
               <div className="absolute bottom-4 right-4 z-20">
                 <button 

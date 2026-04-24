@@ -8,7 +8,6 @@ const config: CapacitorConfig = {
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ['google.com', 'phone'],
-      googleClientId: "1052169617522-6ubmqvfcifqejt7bd4tae0h8tscuao7o.apps.googleusercontent.com",
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],

@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import SOSButton from './components/SOSButton';
-import RakshakMap from './components/RakshakMap';
+import VictimMap from './components/maps/VictimMap';
 import EvidenceVault from './components/EvidenceVault';
 import EmergencyContacts from './components/EmergencyContacts';
 import Onboarding from './components/Onboarding';
 import ProtectorDashboard from './components/ProtectorDashboard';
 import SuperCellDashboard from './components/SuperCellDashboard';
 import Rewards from './components/Rewards';
+import AuthScreen from './screens/AuthScreen';
+import DashboardScreen from './screens/DashboardScreen';
+import SOSScreen from './screens/SOSScreen';
+import SpecialCellScreen from './screens/SpecialCellScreen';
+import ProtectorVerify from './components/ProtectorVerify';
+import DecoyCalculator from './components/DecoyCalculator';
+import ProtectorsRadarScreen from './screens/ProtectorsRadarScreen';
+import { syncTelemetry, startBackgroundTracking } from './services/locationService';
+import { executeEmergencyBlast } from './services/sosService';
+import { useKavachStore } from './store/useKavachStore';
+import { useEvidenceEngine } from './hooks/useEvidenceEngine';
+import { useThreatSentinel } from './hooks/useThreatSentinel';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, Lock, MapPin, Camera, AlertTriangle, LayoutDashboard, Users, Languages, LogIn, Fingerprint, TrendingUp, Trophy, Map as MapIcon, ChevronRight, Navigation, Phone, Activity, Smartphone, ShieldCheck } from 'lucide-react';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -36,55 +48,28 @@ const KavachPlugin = registerPlugin<any>('KavachPlugin');
 export default function App() {
   const { t } = useLanguage();
 
-  const executeEmergencyBlast = async (data?: any) => {
-    console.log("🚨 KAVACH EXECUTING EMERGENCY BLAST:", data || "MANUAL");
-    
-    // 1. TACTICAL VIBRATION: Confirm trigger to user instantly
-    if (Capacitor.isNativePlatform()) {
-      // Powerful triple pulse for confirmation
-      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 500]);
-      // playActivationVoice(); // Assuming this helper exists in context or scope
-    }
+  // Emergency Blast logic moved to sosService.ts
 
-    // 2. CODE RED BYPASS: Fire SMS and Calls directly via Tunnel
-    const KavachDirect = (window as any).KavachDirect;
-    if (KavachDirect) {
-      console.log("KAVACH: Engaging Direct Tunnel SOS Blast...");
-      
-      const guardiansStr = localStorage.getItem('emergency_contacts');
-      const guardians = guardiansStr ? JSON.parse(guardiansStr) : [];
-      const userPosStr = localStorage.getItem('kavach_last_pos') || "28.6139,77.2090";
-      
-      const mapLink = `https://www.google.com/maps?q=${userPosStr}`;
-      const message = `🚨 CRITICAL EMERGENCY SOS (SHAKE TRIGGER) 🚨\nI am in danger! Help needed!\n\n📍 Location: ${mapLink}\n\n🛡️ Sent via KAVACH National Grid`;
+  const {
+    user, setUser,
+    role, setRole,
+    gender, setGender,
+    isRegistered, setRegistered,
+    isVerified, setVerified,
+    userPos, setUserPos,
+    batteryLevel, setBatteryLevel,
+    isLocked, setLocked,
+    biometricAvailable, setBiometricAvailable,
+    isGhostMode, setGhostMode,
+    activeTab, setActiveTab,
+    isSOSActive, setSOSActive,
+    loading, setLoading,
+    handleManualUnlock,
+  } = useKavachStore();
 
-      // SUPERCHARGE: Fire all guardians in parallel waves
-      Promise.all(guardians.map(async (g: any) => {
-        if (g.phone) {
-          console.log(`SOS: Bypassing to send SMS to ${g.phone}`);
-          KavachDirect.directSmsBypass(g.phone, message);
-        }
-      })).then(() => {
-        if (guardians[0]?.phone) {
-          console.log(`SOS: Bypassing to initiate Call to ${guardians[0].phone}`);
-          KavachDirect.directCallBypass(guardians[0].phone);
-        }
-      });
-    }
-  };
+  useEvidenceEngine();
+  useThreatSentinel();
 
-  const [isGhostMode, setIsGhostMode] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [role, setRole] = useState<'citizen' | 'protector' | 'admin'>('citizen');
-  const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(true);
-  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
-  const [isLocked, setIsLocked] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [gender, setGender] = useState<'female' | 'male' | null>(null);
-  const [userPos, setUserPos] = useState<[number, number]>([28.6139, 77.2090]);
   const [authStatus, setAuthStatus] = useState<'idle' | 'signaling' | 'verifying' | 'locking' | 'saving' | 'error'>('idle');
   const [isHardwareSynced, setIsHardwareSynced] = useState<boolean>(() => {
     return localStorage.getItem('kavach_hardware_synced') === 'true';
@@ -92,6 +77,15 @@ export default function App() {
   const urlListenerRef = useRef<any>(null);
 
   useEffect(() => {
+    // PHOENIX PROTOCOL: Detect SOS-in-progress during cold start/crash
+    const wasSOSActive = localStorage.getItem('kavach_sos_active') === 'true';
+    const savedAlertId = localStorage.getItem('kavach_active_alert_id');
+    if (wasSOSActive && savedAlertId) {
+      console.log("🛡️ KAVACH Phoenix Protocol: Resuming interrupted mission.");
+      setActiveTab('sos');
+      setSOSActive(true, savedAlertId);
+    }
+
     // Check for redirect result on mount
     const checkRedirect = async () => {
       try {
@@ -105,20 +99,23 @@ export default function App() {
         }
       }
     };
+
     checkRedirect();
 
-    // 🔗 CAPACITOR DEEP LINK HANDLER: Essential for Auth Redirects on Android
-    const setupUrlListener = async () => {
+    // 📡 MISSION SYNC SENTINEL: Detects network return and flushes local evidence vault
+    const handleReconnection = async () => {
+      console.log("📡 KAVACH: Network Link Re-established. Synchronizing local evidence...");
       if (Capacitor.isNativePlatform()) {
-        urlListenerRef.current = await CapApp.addListener('appUrlOpen', (data: any) => {
-          console.log("KAVACH: Received Deep Link URL:", data.url);
-          // If the URL contains an auth token/state, let Firebase JS SDK handle it
-          // getRedirectResult will pick it up on the next tick
-        });
+        const KavachNative = registerPlugin<any>('KachPlugin');
+        KavachNative.syncEvidence().catch(() => {});
       }
     };
-    setupUrlListener();
-    checkRedirect();
+    window.addEventListener('online', handleReconnection);
+
+    return () => {
+      window.removeEventListener('online', handleReconnection);
+      if (urlListenerRef.current) urlListenerRef.current.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -129,9 +126,9 @@ export default function App() {
             const data = await KavachPlugin.consumeTrigger();
             if (data) {
                console.log("⚡ KAVACH COLD-START: Buffered Trigger Neutralized and Executed.");
-               setIsLocked(false); // BYPASS LOCK ON EMERGENCY
+               setLocked(false); // BYPASS LOCK ON EMERGENCY
                setActiveTab('sos');
-               executeEmergencyBlast(data);
+               executeEmergencyBlast(user, userPos, data);
                clearInterval(pulseInterval);
             }
          } catch (e) {}
@@ -143,9 +140,9 @@ export default function App() {
       // 2. LIVE LISTENER: Catch real-time shakes (OPEN STATE)
       const sosListener = KavachPlugin.addListener('sosTriggered', async (data: any) => {
         console.log("🚨 KAVACH LIVE SHAKE: Executing Supercharged Blast.");
-        setIsLocked(false); // BYPASS LOCK ON EMERGENCY
+        setLocked(false); // BYPASS LOCK ON EMERGENCY
         setActiveTab('sos');
-        await executeEmergencyBlast(data);
+        await executeEmergencyBlast(user, userPos, data);
       });
 
       // Delay push notification request so it doesn't collide with
@@ -162,8 +159,24 @@ export default function App() {
             PushNotifications.addListener('registration', (token) => {
               localStorage.setItem('kavach_fcm_token', token.value);
             });
-            PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            PushNotifications.addListener('pushNotificationReceived', async (notification) => {
               console.log('🚨 KAVACH Signal Received:', notification);
+              
+              // TACTICAL SIREN: If this is a nearby SOS alert for a Protector
+              if (notification.data?.type === 'VICTIM_SOS_SIGNAL' || notification.title?.includes('SOS')) {
+                console.log("🛡️ MISSION CRITICAL: Remote Triggering Hardware Siren...");
+                try {
+                  await KavachPlugin.triggerAlarmStation({
+                    title: "🚨 URGENT: RESCUE MISSION",
+                    body: "A victim needs help within 1km! Tap to intercept.",
+                    sound: "police_siren_persistent",
+                    importance: 'high'
+                  });
+                } catch (e) {
+                  // Fallback: Start local continuous siren if plugin allows
+                  if (KavachPlugin.startContinuousSiren) KavachPlugin.startContinuousSiren();
+                }
+              }
             });
           }
         } catch (e) {
@@ -189,60 +202,22 @@ export default function App() {
     let telemetryInterval: NodeJS.Timeout;
     let startTimer: NodeJS.Timeout;
 
-    const syncTelemetry = async () => {
-      if (!user || !isRegistered) return;
-      try {
-        // Check if location permission is already granted before requesting
-        // This prevents a surprise dialog mid-session that can crash the WebView
-        if (Capacitor.isNativePlatform()) {
-          const state = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
-          if (state && state.state === 'denied') {
-            console.warn('KAVACH Telemetry: Location permission denied. Skipping GPS sync.');
-            return;
-          }
-        }
-
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 30000
-          });
-        });
-
-        setUserPos([position.coords.latitude, position.coords.longitude]);
-        localStorage.setItem('kavach_last_pos', `${position.coords.latitude},${position.coords.longitude}`);
-
-        const telemetryData = {
-          coords: [position.coords.latitude, position.coords.longitude],
-          battery: batteryLevel,
-          lastSeen: serverTimestamp(),
-          role,
-          status: 'Optimal',
-          accuracy: position.coords.accuracy,
-          isOnline: navigator.onLine
-        };
-
-        await setDoc(doc(db, 'users', user.uid), {
-          telemetry: telemetryData,
-          lastActive: serverTimestamp()
-        }, { merge: true });
-
-        console.log('KAVACH Neural Link: Telemetry synced.');
-      } catch (error) {
-        // Silent fail — don't crash app if location is unavailable
-        console.warn('KAVACH Telemetry Interrupted:', error);
-      }
+    const runSync = async () => {
+      const pos = await syncTelemetry(user, role, batteryLevel);
+      if (pos) setUserPos(pos);
     };
 
     if (user && isRegistered) {
-      // ⏱ Delay first telemetry by 5 seconds so:
-      //   • Push notification dialog (fires at 3s) finishes first
-      //   • App is fully rendered and stable
-      //   • No simultaneous permission dialogs
+      // 🛰️ START BACKGROUND SENTINEL
+      startBackgroundTracking(user.uid);
+
+      // PILLAR 2: ADAPTIVE TACTICAL FREQUENCY (45s Normal / 3s SOS)
+      const missionFrequency = isSOSActive ? 3000 : 45000;
+
+      // Sequential delay to avoid permission dialog collisions
       startTimer = setTimeout(() => {
-        syncTelemetry();
-        telemetryInterval = setInterval(syncTelemetry, 45000);
+        runSync();
+        telemetryInterval = setInterval(runSync, missionFrequency);
       }, 5000);
     }
 
@@ -250,7 +225,7 @@ export default function App() {
       clearTimeout(startTimer);
       clearInterval(telemetryInterval);
     };
-  }, [user, isRegistered, batteryLevel, role]);
+  }, [user, isRegistered, batteryLevel, role, isSOSActive]);
 
 
   useEffect(() => {
@@ -274,7 +249,9 @@ export default function App() {
             console.log("KAVACH Auth: Verified Citizen Profile Found.");
             setRole(userData.role || 'citizen');
             setGender(userData.gender || 'female');
-            setIsRegistered(true);
+            setRegistered(true);
+            setVerified(userData.isVerified || false);
+            
             localStorage.setItem('kavach_role', userData.role || 'citizen');
             localStorage.setItem('kavach_gender', userData.gender || 'female');
             localStorage.setItem('kavach_phone', userData.phoneNumber || '');
@@ -282,7 +259,7 @@ export default function App() {
             localStorage.setItem('kavach_uid', firebaseUser.uid);
           } else {
             console.log("KAVACH Auth: No Mission Profile. Redirecting to Onboarding.");
-            setIsRegistered(false);
+            setRegistered(false);
           }
         } catch (error) {
           console.error("KAVACH Auth: Firestore Check Failed:", error);
@@ -291,7 +268,7 @@ export default function App() {
         setUser(firebaseUser);
       } else {
         setUser(null);
-        setIsRegistered(false);
+        setRegistered(false);
       }
       setLoading(false);
     });
@@ -314,7 +291,7 @@ export default function App() {
       const now = Date.now();
       if (now - lastSuccessTime.current < 3000) {
         console.log("KAVACH: Biometric Grace Window Active. Skipping Prompt.");
-        setIsLocked(false);
+        setLocked(false);
         return;
       }
 
@@ -331,7 +308,7 @@ export default function App() {
         });
         
         lastSuccessTime.current = Date.now();
-        setIsLocked(false);
+        setLocked(false);
         console.log("KAVACH: Neural Gate Unlocked successfully.");
       } catch (e) {
         console.error("Biometric verification failed:", e);
@@ -383,18 +360,7 @@ export default function App() {
     };
   }, [user, isRegistered]);
 
-  const handleManualUnlock = async () => {
-    try {
-      await NativeBiometric.verifyIdentity({
-        reason: "Unlock KAVACH Shield",
-        title: "Biometric Authentication",
-        useFallback: true
-      });
-      setIsLocked(false);
-    } catch (e) {
-      console.warn("Manual unlock failed:", e);
-    }
-  };
+  // Manual unlock logic moved to store/useKavachStore.ts
 
   useEffect(() => {
     const getBattery = async () => {
@@ -488,7 +454,7 @@ export default function App() {
 
   const handleOnboardingComplete = () => {
     console.log("KAVACH: Mission Onboarding Success. Finalizing Core Systems.");
-    setIsRegistered(true);
+    setRegistered(true);
     setIsHardwareSynced(true);
     localStorage.setItem('kavach_hardware_synced', 'true');
     playActivationVoice();
@@ -531,44 +497,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center space-y-6">
-            <div className="w-20 h-20 bg-accent-red rounded-xl flex items-center justify-center font-black text-4xl mx-auto shadow-2xl">K</div>
-            <div className="space-y-4">
-              <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none">KAVACH Woman</h1>
-              <p className="text-text-dim font-bold uppercase tracking-[3px] text-[10px] leading-relaxed max-w-[280px] mx-auto opacity-80">
-                {t('national_grid')}
-              </p>
-            </div>
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-4"
-          >
-            <button 
-              onClick={handleLogin}
-              className="w-full py-5 bg-white text-black rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-xl"
-            >
-              <LogIn size={20} /> {t('login_google')}
-            </button>
-
-            <div className="pt-4 text-center">
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
-                Identity Anchoring via Neural Link <br/> Secured by KAVACH Defense Systems
-              </p>
-            </div>
-          </motion.div>
-
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed text-center">
-            By logging in, you agree to the KAVACH Protocol for real-time emergency response and evidence collection.
-          </p>
-        </div>
-      </div>
-    );
+    return <AuthScreen handleLogin={handleLogin} />;
   }
 
   return (
@@ -580,33 +509,24 @@ export default function App() {
           isReturningUser={isRegistered && !isHardwareSynced} 
         />
       ) : (isLocked && activeTab !== 'sos') ? (
-        <div className="min-h-screen bg-[#060000] flex flex-col items-center justify-center p-8 text-center">
-          <div className="relative mb-12">
-            <div className="relative w-24 h-24 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-accent-blue shadow-2xl">
-              <Lock size={48} className="animate-pulse" />
-            </div>
-          </div>
-          <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-4">{t('shield_locked')}</h2>
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-[3px] mb-12 opacity-60">{t('identity_verification')}</p>
-          <button 
-            onClick={handleManualUnlock}
-            className="px-10 py-5 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-4 active:scale-95 transition-all shadow-2xl"
-          >
-            <Fingerprint size={20} /> {t('use_biometrics')}
-          </button>
-        </div>
+        <SOSScreen 
+          isLocked={isLocked} 
+          activeTab={activeTab} 
+          isGhostMode={isGhostMode} 
+          handleManualUnlock={handleManualUnlock} 
+        />
       ) : (
         <CallProvider>
           <Layout 
             isGhostMode={isGhostMode} 
-            onToggleGhost={() => setIsGhostMode(!isGhostMode)}
+            onToggleGhost={() => setGhostMode(!isGhostMode)}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             role={role}
             setRole={setRole}
             setGender={setGender}
           >
-            <TabContent activeTab={activeTab} setActiveTab={setActiveTab} role={role} isGhostMode={isGhostMode} batteryLevel={batteryLevel} gender={gender} userPos={userPos} />
+            <TabContent />
           </Layout>
         </CallProvider>
       ) }
@@ -614,167 +534,21 @@ export default function App() {
   );
 }
 
-function Dashboard({ setActiveTab, batteryLevel, gender, userPos }: { setActiveTab: (tab: string) => void, batteryLevel: number | null, gender: 'female' | 'male' | null, userPos: [number, number] }) {
-  const { t } = useLanguage();
+// DashboardScreen replaces Dashboard, SensorStat, and ShieldItem
 
-  return (
-    <div className="bento-grid">
-
-      {/* National Neural Network Status */}
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-4 p-4 sm:p-6 bg-gradient-to-r from-card-bg to-[#0d0d0f] border-accent-blue/20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-accent-blue rounded-full animate-pulse shadow-[0_0_10px_rgba(0,122,255,0.5)]" />
-            <span className="text-[9px] font-mono font-bold uppercase tracking-[3px] text-accent-blue">{t('neural_online')}</span>
-          </div>
-          <div className="flex gap-6 justify-between sm:justify-end">
-            <div className="text-left sm:text-right">
-              <p className="text-[8px] text-text-dim font-bold uppercase tracking-wider">{t('background_sync') || "Background Sync"}</p>
-              <p className="text-[10px] font-black italic text-green-500 uppercase tracking-tight">{t('active_persistent')}</p>
-            </div>
-            <div className="text-left sm:text-right">
-              <p className="text-[8px] text-text-dim font-bold uppercase tracking-wider">{t('threat_level')}</p>
-              <p className="text-[10px] font-black italic text-accent-blue uppercase tracking-tight">{t('optimal_secure')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SOS Hero Card - THE CORE TACTICAL COMPONENT */}
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,#1a0a0a_0%,#0F0F11_100%)] border-2 border-accent-red/10 min-h-[340px] shadow-2xl">
-        <div className="bento-card-title absolute top-6 left-6 right-6">
-          <span>{t('emergency_response')}</span>
-          <div className="flex gap-1">
-            <div className="w-1 h-1 bg-accent-red rounded-full animate-ping" />
-            <div className="w-1 h-1 bg-accent-red rounded-full opacity-50" />
-          </div>
-        </div>
-        
-        {/* HARD LOCK: SOS only for Women */}
-        {gender === 'female' ? (
-          <SOSButton />
-        ) : (
-          <div className="text-center p-8 space-y-6">
-            <div className="w-20 h-20 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center mx-auto shadow-inner">
-              <Shield size={40} className="text-white opacity-20" />
-            </div>
-            <div>
-              <h3 className="font-black italic uppercase text-accent-blue leading-tight mb-2 tracking-tighter text-xl">{t('tactical_disabled')}</h3>
-              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[2px] leading-relaxed max-w-[200px] mx-auto opacity-60">
-                Unauthorized Identity detected. Emergency response reserved for authorized female citizens.
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Safety Score & Leaderboard - MISSION TELEMETRY */}
-      <div className="col-span-1 md:col-span-2 lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
-        <section className="bento-card border-l-4 border-l-accent-blue">
-          <div className="bento-card-title">
-            <span>{t('neural_link_link')}</span>
-            <Activity size={14} className="text-accent-blue animate-pulse" />
-          </div>
-          <div className="mt-4">
-            <div className="text-2xl font-black italic text-accent-blue leading-none uppercase tracking-tighter">{t('synced') || "SYNCED"}</div>
-            <p className="text-[8px] text-gray-500 font-mono font-bold uppercase mt-3 tracking-widest opacity-60">
-              LOC: {userPos?.[0]?.toFixed(3)}N / {userPos?.[1]?.toFixed(3)}E
-            </p>
-          </div>
-        </section>
-
-        <section className="bento-card border-l-4 border-l-green-600">
-          <div className="bento-card-title">
-            <span>{t('grid_status')}</span>
-            <ShieldCheck size={14} className="text-green-600" />
-          </div>
-          <div className="mt-4">
-            <div className="text-2xl font-black italic text-green-600 leading-none tracking-tighter uppercase">{t('optimal_secure')?.split('/')[0] || "OPTIMAL"}</div>
-            <p className="text-[8px] text-gray-500 font-mono font-bold uppercase mt-3 tracking-widest opacity-60">SHIELD: {t('verified') || "VERIFIED"}</p>
-          </div>
-        </section>
-      </div>
-
-      {/* Map Card */}
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 p-0 group overflow-hidden min-h-[240px]">
-        <div className="absolute inset-0 z-10 pointer-events-none p-5">
-          <div className="bento-card-title">
-            <span>{t('rakshak_network')}</span>
-            <MapIcon size={14} />
-          </div>
-        </div>
-        <div className="h-full opacity-60 grayscale invert brightness-90 contrast-125 group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-700 active:opacity-100 active:grayscale-0">
-          <RakshakMap hideHeader />
-        </div>
-      </section>
-
-      {/* Lower Tactical Grid */}
-      <div className="col-span-1 md:col-span-2 lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
-        {/* Vault Card */}
-        <section className="bento-card aspect-square sm:aspect-auto flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('vault')}>
-          <div className="bento-card-title">{t('vault')}</div>
-          <div>
-            <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white mb-2">
-              <Lock size={18} />
-            </div>
-            <p className="text-lg font-black italic italic">4.2 GB</p>
-            <p className="text-[8px] text-accent-blue font-bold uppercase tracking-widest mt-1">Encrypted Logs</p>
-          </div>
-        </section>
-
-        {/* Guardians Card */}
-        <section className="bento-card aspect-square sm:aspect-auto flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('contacts')}>
-          <div className="bento-card-title">CIRCLE</div>
-          <div>
-            <div className="flex -space-x-2 mb-2">
-              {[1, 2].map(i => (
-                <div key={i} className="w-8 h-8 rounded-full border-2 border-card-bg bg-accent-blue/20 flex items-center justify-center text-[10px] font-bold">G{i}</div>
-              ))}
-            </div>
-            <h3 className="text-sm font-black italic uppercase leading-none mb-1">Guardians</h3>
-            <p className="text-[8px] text-text-dim font-bold uppercase tracking-widest">3 Active Links</p>
-          </div>
-        </section>
-      </div>
-
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 grid grid-cols-3 gap-4">
-        <div className="bento-card-title col-span-3">MISSION TELEMETRY</div>
-        <SensorStat value="ACTIVE" label={t('sensor_scanner')} />
-        <SensorStat value="0.02G" label={t('sensor_gforce')} />
-        <SensorStat value={batteryLevel ? `${batteryLevel}%` : "SYNC"} label={t('sensor_battery')} />
-      </section>
-
-      {/* Shield Protocols */}
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2">
-        <div className="bento-card-title">DEFENSE PROTOCOLS</div>
-        <div className="space-y-4 mt-6">
-          <ShieldItem label={t('protocol_ai')} status="ACTIVE" />
-          <ShieldItem label={t('protocol_mask')} status={t('verified') || "ENABLED"} />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function SensorStat({ value, label }: { value: string, label: string }) {
-  return (
-    <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
-      <span className="text-xl font-bold block">{value}</span>
-      <span className="text-[9px] text-text-dim font-bold uppercase tracking-tighter">{label}</span>
-    </div>
-  );
-}
-
-function ShieldItem({ label, status }: { label: string, status: string }) {
-  return (
-    <div className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
-      <span className="text-[12px] text-text-dim">{label}</span>
-      <span className="text-[10px] font-bold text-accent-blue tracking-widest">{status}</span>
-    </div>
-  );
-}
-
-function TabContent({ activeTab, setActiveTab, role, isGhostMode, batteryLevel, gender, userPos }: { activeTab: string, setActiveTab: (tab: string) => void, role: 'citizen' | 'protector' | 'admin', isGhostMode: boolean, batteryLevel: number | null, gender: 'female' | 'male' | null, userPos: [number, number] }) {
+function TabContent() {
+  const { 
+    activeTab, 
+    setActiveTab, 
+    role, 
+    isGhostMode, 
+    batteryLevel, 
+    gender, 
+    userPos,
+    isLocked,
+    handleManualUnlock
+  } = useKavachStore();
+  
   const isAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
   const isCitizenOnlyTab = ['sos', 'vault', 'ai', 'contacts'].includes(activeTab);
   
@@ -786,14 +560,18 @@ function TabContent({ activeTab, setActiveTab, role, isGhostMode, batteryLevel, 
   switch (activeTab) {
     case 'dashboard': 
       if (role === 'admin' && isAdmin) return <SuperCellDashboard />;
-      return role === 'protector' ? <ProtectorDashboard /> : <Dashboard setActiveTab={setActiveTab} batteryLevel={batteryLevel} gender={gender} userPos={userPos} />;
-    case 'sos': return <div className="max-w-md mx-auto"><SOSButton ghostMode={isGhostMode} /></div>;
-    case 'map': return <div className="max-w-2xl mx-auto"><RakshakMap /></div>;
+      return role === 'protector' ? <ProtectorDashboard /> : <DashboardScreen />;
+    case 'sos': return <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />;
+    case 'map': return <div className="h-[calc(100vh-210px)] w-full"><VictimMap /></div>;
     case 'vault': return <div className="max-w-2xl mx-auto"><EvidenceVault /></div>;
     case 'contacts': return <div className="max-w-2xl mx-auto"><EmergencyContacts /></div>;
+    case 'special_cell': return <div className="max-w-2xl mx-auto"><SpecialCellScreen /></div>;
+    case 'decoy': return <div className="max-w-2xl mx-auto"><DecoyCalculator /></div>;
     case 'rewards': return <div className="max-w-2xl mx-auto"><Rewards /></div>;
+    case 'radar': return <div className="max-w-4xl mx-auto px-4"><ProtectorsRadarScreen /></div>;
+    case 'verify': return role === 'admin' && isAdmin ? <div className="max-w-4xl mx-auto"><ProtectorVerify /></div> : <ProtectorDashboard />;
     default: 
       if (role === 'admin' && isAdmin) return <SuperCellDashboard />;
-      return role === 'protector' ? <ProtectorDashboard /> : <Dashboard setActiveTab={setActiveTab} batteryLevel={batteryLevel} gender={gender} userPos={userPos} />;
+      return role === 'protector' ? <ProtectorDashboard /> : <DashboardScreen />;
   }
 }

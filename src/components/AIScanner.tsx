@@ -1,223 +1,192 @@
-import React, { useState } from 'react';
-import { Camera, ShieldCheck, AlertTriangle, Search, FileText, Brain, Sparkles } from 'lucide-react';
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
-import { motion } from 'motion/react';
-import { cn } from '../lib/utils';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Brain, ShieldAlert, Zap, AlertCircle, CheckCircle2, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useKavachStore } from '../store/useKavachStore';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const ai = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
+const API_KEY = process.env.GEMINI_API_KEY || "";
+const genAI = new GoogleGenerativeAI(API_KEY);
 
-export default function AIScanner() {
-  const { t, language } = useLanguage();
-  const [isScanning, setIsScanning] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [sosAnalysis, setSosAnalysis] = useState<any>(null);
-  const [isAnalyzingSOS, setIsAnalyzingSOS] = useState(false);
+interface SOSAnalysis {
+  threatLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'POTENTIAL';
+  probability: number;
+  reasoning: string;
+  safetyPlan: string[];
+}
 
-  const [aiError, setAiError] = useState<string | null>(null);
+export default function AIScanner({ context, imageData }: { context: string, imageData?: string }) {
+  const { t } = useLanguage();
+  const { userPos, batteryLevel } = useKavachStore();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<SOSAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const analyzeSOS = async (context: string) => {
-    setIsAnalyzingSOS(true);
-    setAiError(null);
-    const languageNames: Record<string, string> = { 
-      en: 'English', ml: 'Malayalam', hi: 'Hindi', ta: 'Tamil', te: 'Telugu', 
-      kn: 'Kannada', mr: 'Marathi', gu: 'Gujarati', bn: 'Bengali', pa: 'Punjabi' 
-    };
-    const targetLang = languageNames[language] || 'English';
+  const analyzeSituation = async () => {
+    if (!API_KEY) {
+      setError("AI Engine Offline: Mission-critical API key missing.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
-        contents: `Analyze this SOS trigger context: ${context}. Determine if it's a real emergency or a mistake based on common patterns. Also provide immediate safety advice for a woman in this situation. IMPORTANT: Respond in ${targetLang} language.`,
-        config: {
-          systemInstruction: `You are a high-intelligence safety AI. Analyze SOS triggers for authenticity. Return JSON with 'probability' (0-100), 'verdict' (Real/Mistake), 'reasoning', and 'safetyPlan' (array of steps). IMPORTANT: All text fields ('verdict', 'reasoning', 'safetyPlan') MUST be in ${targetLang} language.`,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              probability: { type: Type.NUMBER },
-              verdict: { type: Type.STRING },
-              reasoning: { type: Type.STRING },
-              safetyPlan: { type: Type.ARRAY, items: { type: Type.STRING } }
-            }
-          }
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+      
+      const tacticalContext = `
+        MISSION TELEMETRY:
+        Position: ${userPos?.[0]}, ${userPos?.[1]}
+        Battery: ${batteryLevel}%
+        Event Context: ${context}
+        Timestamp: ${new Date().toISOString()}
+      `;
+
+      const prompt = `
+        ACT AS KAVACH TACTICAL AI. ANALYZE THIS SOS EVENT IMMEDIATELY.
+        DATA PROVIDED: ${tacticalContext}
+        
+        GOAL: Identify the threat level and provide a 3-step life-saving survival plan.
+        
+        OUTPUT RULES: Return ONLY a JSON object with this exact structure:
+        {
+          "threatLevel": "CRITICAL" | "HIGH" | "MEDIUM" | "POTENTIAL",
+          "probability": number (0-100),
+          "reasoning": "brief high-tech explanation",
+          "safetyPlan": ["step 1", "step 2", "step 3"]
         }
-      });
-      setSosAnalysis(JSON.parse(response.text!));
-    } catch (error: any) {
-      console.error("SOS Analysis Error:", error);
-      if (error.message?.includes('429') || error.status === 'RESOURCE_EXHAUSTED') {
-        setAiError("AI Quota Exceeded. Using tactical defaults.");
-        setSosAnalysis({
-          probability: 85,
-          verdict: language === 'hi' ? 'वास्तविक' : 'Real',
-          reasoning: language === 'hi' ? 'एआई उपलब्ध नहीं है, लेकिन स्थिति गंभीर है।' : 'Situation analysis indicates high-priority threat level.',
-          safetyPlan: language === 'hi' ? ['सुरक्षित स्थान ढूंढें', 'मदद आने तक छुपे रहें'] : ['Find immediate secure location', 'Stay hidden until response unit arrives']
-        });
+      `;
+
+      const result = await model.generateContent([
+        prompt,
+        ...(imageData ? [{ inlineData: { data: imageData.split(',')[1], mimeType: "image/png" } }] : [])
+      ]);
+
+      const response = await result.response;
+      const text = response.text().replace(/```json|```/g, "").trim();
+      setAnalysis(JSON.parse(text));
+    } catch (err: any) {
+      console.error("AI Analysis Failed:", err);
+      if (err.message?.includes('429')) {
+        setError("Neural Grid Congested: Switching to Local Safety Protocols.");
+      } else {
+        setError("AI Neural Link Interrupted.");
       }
     } finally {
-      setIsAnalyzingSOS(false);
+      setIsAnalyzing(false);
     }
   };
 
-  const handleScan = async () => {
-    setIsScanning(true);
-    setAiError(null);
-    const languageNames: Record<string, string> = { 
-      en: 'English', ml: 'Malayalam', hi: 'Hindi', ta: 'Tamil', te: 'Telugu', 
-      kn: 'Kannada', mr: 'Marathi', gu: 'Gujarati', bn: 'Bengali', pa: 'Punjabi' 
-    };
-    const targetLang = languageNames[language] || 'English';
+  useEffect(() => {
+    analyzeSituation();
+  }, [context, imageData]);
 
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
-        contents: "Analyze this chat for grooming: 'Don't tell anyone we talk. If you love me, you will send it. Prove your love.'",
-        config: {
-          systemInstruction: `You are a safety expert. Identify red flags in messages. Return JSON with 'riskLevel' (Low, Medium, High), 'flags' (array of strings), and 'advice'. IMPORTANT: All text fields MUST be in ${targetLang} language.`,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              riskLevel: { type: Type.STRING },
-              flags: { type: Type.ARRAY, items: { type: Type.STRING } },
-              advice: { type: Type.STRING }
-            }
-          }
-        }
-      });
-
-      setResult(JSON.parse(response.text!));
-    } catch (error: any) {
-      console.error("Scan Error:", error);
-      if (error.message?.includes('429') || error.status === 'RESOURCE_EXHAUSTED') {
-        setAiError("AI Pattern Index busy. Using heuristic scan.");
-        setResult({
-          riskLevel: 'High',
-          flags: language === 'hi' ? ['गोपनीयता दबाव', 'धमकी'] : ['Isolation attempt', 'Coercive pressure'],
-          advice: language === 'hi' ? 'यह बातचीत असुरक्षित है।' : 'Conversational patterns match predatory grooming profile.'
-        });
-      }
-    } finally {
-      setIsScanning(false);
-    }
-  };
+  if (error) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }}
+        className="p-4 bg-accent-red/10 border border-accent-red/20 rounded-2xl flex items-start gap-3"
+      >
+        <AlertTriangle className="text-accent-red shrink-0" size={18} />
+        <div>
+          <p className="text-[10px] font-black uppercase text-accent-red tracking-widest">Fallback Engaged</p>
+          <p className="text-xs font-bold text-white/80 mt-1">1. Seek crowded area. 2. Contact 112. 3. Trust your instincts.</p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="space-y-4 sm:space-y-6 h-full">
-      <section className="bento-card flex flex-col justify-center">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-accent-blue/5 border border-accent-blue/20 rounded-2xl flex items-center justify-center shrink-0">
-            <Search className="text-accent-blue" size={24} />
+    <div className="space-y-4">
+      {/* Analysis Status HUD */}
+      <section className="bg-card-bg/50 border border-white/5 rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-accent-blue rounded-full animate-pulse" />
+            <h3 className="text-[10px] font-black uppercase tracking-[3px] text-accent-blue">Neural Scanner</h3>
           </div>
-          <div>
-            <h3 className="font-black italic uppercase text-lg leading-none">{t('ai_scanner')}</h3>
-            <p className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Grooming & Pattern Analysis</p>
-          </div>
+          {isAnalyzing && <Loader2 size={14} className="animate-spin text-accent-blue" />}
         </div>
 
-        {!result ? (
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
-          >
-            {isScanning ? (
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
-                <Search size={20} />
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            {isAnalyzing ? (
+              <motion.div 
+                key="analyzing"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center py-8 space-y-4"
+              >
+                <div className="relative">
+                   <div className="w-16 h-16 border-4 border-accent-blue/10 rounded-full" />
+                   <div className="absolute inset-0 w-16 h-16 border-t-4 border-accent-blue rounded-full animate-spin" />
+                   <Brain className="absolute inset-0 m-auto text-accent-blue" size={24} />
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-accent-blue animate-pulse">Analyzing Threat Vector...</p>
+                  <p className="text-[8px] text-gray-500 font-bold uppercase tracking-[2px] mt-1">Gemini 2.0 Neural Link Active</p>
+                </div>
               </motion.div>
-            ) : (
-              <Camera size={20} />
-            )}
-            {isScanning ? "PROBING..." : "SCAN SCREENSHOT"}
-          </button>
-        ) : (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
-            <div className={cn(
-              "p-5 rounded-3xl border-2",
-              result.riskLevel === 'High' ? "bg-red-600/5 border-red-600/30" : "bg-orange-500/5 border-orange-500/30"
-            )}>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-text-dim">Risk Level</span>
-                <span className={cn(
-                  "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest italic",
-                  result.riskLevel === 'High' ? "bg-red-600 text-white" : "bg-orange-500 text-black"
-                )}>{result.riskLevel}</span>
-              </div>
-              <ul className="space-y-3">
-                {result.flags?.map((flag: string, i: number) => (
-                  <li key={i} className="flex items-start gap-3 text-xs font-medium text-white/80">
-                    <AlertTriangle size={14} className="text-orange-500 shrink-0 mt-0.5" />
-                    {flag}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="bg-accent-blue/5 border border-accent-blue/20 p-4 rounded-2xl">
-              <p className="text-xs text-accent-blue font-bold italic">"{result.advice}"</p>
-            </div>
+            ) : analysis ? (
+              <motion.div 
+                key="result"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                {/* Probability Meter */}
+                <div className="flex items-center justify-between">
+                   <div>
+                      <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">SOS Probability</p>
+                      <h4 className={`text-2xl font-black italic mt-1 ${analysis.probability > 70 ? 'text-accent-red' : 'text-accent-blue'}`}>
+                        {analysis.probability}% {analysis.threatLevel}
+                      </h4>
+                   </div>
+                   <div className={`p-3 rounded-xl ${analysis.threatLevel === 'CRITICAL' ? 'bg-accent-red/20 border border-accent-red/30' : 'bg-accent-blue/20 border border-accent-blue/30'}`}>
+                      <ShieldAlert size={24} className={analysis.threatLevel === 'CRITICAL' ? 'text-accent-red' : 'text-accent-blue'} />
+                   </div>
+                </div>
 
-            <button
-              onClick={() => setResult(null)}
-              className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors"
-            >
-              SCAN ANOTHER
-            </button>
-          </motion.div>
-        )}
-      </section>
+                {/* Tactical Reasoning */}
+                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                   <p className="text-[8px] text-accent-blue font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                     <Sparkles size={10} /> AI Reasoning
+                   </p>
+                   <p className="text-xs font-bold text-white/80 leading-relaxed italic uppercase tracking-tight">
+                     "{analysis.reasoning}"
+                   </p>
+                </div>
 
-      {/* SOS AI Analyzer Section */}
-      <section className="bento-card border-accent-red/20">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-accent-red/5 border border-accent-red/20 rounded-2xl flex items-center justify-center">
-            <Brain className="text-accent-red" size={24} />
-          </div>
-          <div>
-            <h3 className="font-black italic uppercase text-lg leading-none">SOS PROBABILITY</h3>
-            <p className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Neural Threat Indexing</p>
-          </div>
+                {/* Safety Plan Checklist */}
+                <div className="space-y-3">
+                   <p className="text-[10px] font-black text-accent-red uppercase tracking-widest flex items-center gap-2">
+                     <Zap size={12} className="fill-current" /> Survival Protocol:
+                   </p>
+                   <div className="grid gap-2">
+                      {analysis.safetyPlan.map((step, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ x: -20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="flex items-center gap-3 p-3 bg-red-600/5 border border-red-600/10 rounded-xl"
+                        >
+                          <div className="w-5 h-5 rounded-lg bg-red-600 flex items-center justify-center text-[10px] font-black text-white italic">
+                            {idx + 1}
+                          </div>
+                          <p className="text-[10px] font-black uppercase tracking-tighter text-white/90">
+                            {step}
+                          </p>
+                        </motion.div>
+                      ))}
+                   </div>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
-
-        {!sosAnalysis ? (
-          <button
-            onClick={() => analyzeSOS("SOS triggered in high-threat zone at 11 PM. Movement velocity 15km/h.")}
-            disabled={isAnalyzingSOS}
-            className="w-full h-16 bg-accent-red text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-accent-red/20"
-          >
-            {isAnalyzingSOS ? <Sparkles className="animate-spin" size={20} /> : <Brain size={20} />}
-            {isAnalyzingSOS ? "THINKING..." : "ANALYZE ACTIVE ALERT"}
-          </button>
-        ) : (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-text-dim uppercase tracking-widest">Verdict</span>
-                <span className={cn("font-black italic text-lg", sosAnalysis.verdict === 'Real' ? "text-accent-red" : "text-green-500")}>
-                  {sosAnalysis.verdict.toUpperCase()}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-black text-text-dim uppercase tracking-widest">Confidence</span>
-                <span className="block font-black text-2xl italic">{sosAnalysis.probability}%</span>
-              </div>
-            </div>
-            
-            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-              <p className="text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">Internal Analysis</p>
-              <p className="text-xs font-medium leading-relaxed italic">{sosAnalysis.reasoning}</p>
-            </div>
-
-            <button
-              onClick={() => setSosAnalysis(null)}
-              className="w-full py-2 text-[8px] font-black text-white/20 uppercase tracking-[0.3em] hover:text-white transition-colors"
-            >
-              RESET ENGINE
-            </button>
-          </motion.div>
-        )}
       </section>
     </div>
   );

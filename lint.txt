@@ -1,0 +1,10 @@
+﻿
+> react-example@1.1.0 lint
+> tsc --noEmit
+
+capacitor.config.ts(11,7): error TS2353: Object literal may only specify known properties, and 'googleClientId' does not exist in type '{ authDomain?: string; skipNativeAuth?: boolean; providers?: string[]; }'.
+src/components/TestMonitor.tsx(6,24): error TS2307: Cannot find module './RakshakMap' or its corresponding type declarations.
+src/screens/DashboardScreen.tsx(2,8): error TS2300: Duplicate identifier 'SOSButton'.
+src/screens/DashboardScreen.tsx(3,8): error TS2300: Duplicate identifier 'SOSButton'.
+src/screens/DashboardScreen.tsx(5,8): error TS2300: Duplicate identifier 'RideModeHUD'.
+src/screens/DashboardScreen.tsx(6,8): error TS2300: Duplicate identifier 'RideModeHUD'.

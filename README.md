@@ -51,6 +51,15 @@ Integrated a secured evidence system that captures high-frequency snapshots and 
 
 ---
 
+## 🔮 Future Roadmap (Mission-Critical)
+
+To ensure **absolute True Immutability** and eliminate "God-Mode" developer deletions, the following architectural upgrades are mapped for the next deployment phase:
+
+*   **Google Cloud WORM Storage (Object Lock):** Implement Write-Once-Read-Many policies on Evidence Storage buckets. Once evidence is captured, it cannot be deleted or modified by anyone (including the Super Admin/Developer) for a mandated legal retention period (e.g., 10 years).
+*   **Blockchain / IPFS Integration:** Generate a cryptographic `SHA-256 Hash` of all forensic assets and publish them to a decentralized public ledger (e.g., Ethereum/Polygon). This guarantees mathematically verifiable zero-tampering proof for high-level court proceedings.
+
+---
+
 ## 🔧 Installation & Deployment
 
 1.  **Sync Dependencies**:

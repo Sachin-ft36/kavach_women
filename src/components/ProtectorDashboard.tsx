@@ -1,61 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, MapPin, AlertCircle, Users, Bell, Phone, Navigation, CheckCircle2, Activity, ShieldAlert, User, Lock, Zap, PhoneCall, ShieldCheck, Trophy, Star } from 'lucide-react';
+import { Shield, MapPin, AlertCircle, Users, Bell, Phone, Navigation, CheckCircle2, Activity, ShieldAlert, User, Lock, Zap, PhoneCall, ShieldCheck, Trophy, Star, FileText, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import RakshakMap from './RakshakMap';
+import ProtectorMap from './maps/ProtectorMap';
 import { useLanguage } from '../contexts/LanguageContext';
 import { cn } from '../lib/utils';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, orderBy, limit, doc, updateDoc, arrayUnion, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, doc, updateDoc, addDoc, arrayUnion, increment, serverTimestamp } from 'firebase/firestore';
 import { registerPlugin } from '@capacitor/core';
-
+import { useKavachStore } from '../store/useKavachStore';
 import { useCall } from '../contexts/CallContext';
 
 export default function ProtectorDashboard() {
   const { t } = useLanguage();
   const { initiateCall, callState, hangupCall } = useCall();
+  const { user, userPos, isVerified, loading } = useKavachStore();
+  
   const [mapFocus, setMapFocus] = useState<[number, number] | null>(null);
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [acceptedMissionId, setAcceptedMissionId] = useState<string | null>(null);
   const [proximityAlert, setProximityAlert] = useState<any>(null);
   const [points, setPoints] = useState(0);
   const [rank, setRank] = useState(42);
-  const user = auth.currentUser;
 
-  useEffect(() => {
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
-      },
-      (err) => console.error("KAVACH Patrol Error:", err),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  const [incidentReport, setIncidentReport] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        setIsAuthReady(true);
-        console.log("KAVACH: Auth Handshake verified. Engaging Grid.");
-      } else {
-        setIsAuthReady(false);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    if (user) {
+      setIsAuthReady(true);
+      const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          setPoints(data.xp || 0);
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
 
-  useEffect(() => {
-    if (!user || !isAuthReady) return;
-    const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setPoints(data.xp || 0);
-      }
-    });
-    return () => unsubscribe();
-  }, [user, isAuthReady]);
+  if (!isVerified && !loading) {
+     return (
+       <div className="min-h-[80vh] flex flex-col items-center justify-center p-8 text-center space-y-8">
+         <div className="relative">
+           <div className="w-32 h-32 bg-accent-blue/10 border-2 border-accent-blue/30 rounded-[40px] flex items-center justify-center text-accent-blue shadow-2xl">
+             <Shield size={64} className="animate-pulse" />
+           </div>
+           <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-accent-red rounded-2xl flex items-center justify-center shadow-lg border-4 border-[#0a0a0a]">
+             <Lock size={20} className="text-white" />
+           </div>
+         </div>
+         
+         <div className="max-w-xs space-y-4">
+           <h2 className="text-3xl font-black italic uppercase tracking-tighter leading-none">{t('verification_pending' as any) || "Identity Lock Active"}</h2>
+           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[2px] leading-relaxed">
+             Neural Link is waiting for administrative validation. <br/> Access to the Rakshak Grid is restricted until your Protector identity is verified by the Super Cell.
+           </p>
+         </div>
+
+         <div className="w-full max-w-xs h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <motion.div 
+              initial={{ x: '-100%' }}
+              animate={{ x: '100%' }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className="w-1/2 h-full bg-accent-blue shadow-[0_0_15px_#007aff]"
+            />
+         </div>
+         
+         <p className="text-[8px] text-accent-blue font-mono uppercase tracking-[4px] animate-pulse">Scanning National Records...</p>
+       </div>
+     );
+  }
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371;
@@ -73,8 +89,6 @@ export default function ProtectorDashboard() {
   useEffect(() => {
     if (!isAuthReady) return;
     
-    console.log("KAVACH: Initiating Secure Alert Feed...");
-    // Listen for ALL active alerts
     const q = query(
       collection(db, 'alerts'), 
       where('status', '==', 'active'), 
@@ -86,7 +100,6 @@ export default function ProtectorDashboard() {
       const alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllAlerts(alerts);
     }, (error) => {
-      console.warn("KAVACH: Firestore Handshake Delay. Retrying...");
       handleFirestoreError(error, OperationType.LIST, 'alerts');
     });
     
@@ -102,7 +115,6 @@ export default function ProtectorDashboard() {
       
       if (start) {
         setIsAlarmActive(true);
-        // Engagement: Try Plugin then Fallback
         try { await KavachPlugin.startContinuousSiren(); }
         catch { if (KavachDirect?.startSirenBypass) KavachDirect.startSirenBypass(); }
       } else {
@@ -115,16 +127,14 @@ export default function ProtectorDashboard() {
     }
   };
 
-  // Reactive Proximity Filter: Updates as the Protector MOVES or NEW ALERTS arrive
   useEffect(() => {
-    if (!userLocation || !user) return;
+    if (!userPos || !user) return;
 
     const proximate = allAlerts.map(alert => {
-      const dist = alert.coords ? calculateDistance(userLocation[0], userLocation[1], alert.coords[0], alert.coords[1]) : null;
+      const dist = alert.coords ? calculateDistance(userPos[0], userPos[1], alert.coords[0], alert.coords[1]) : null;
       return { ...alert, distanceKm: dist, isProximate: dist !== null && dist <= 1.0 };
-    }).filter(a => a.isProximate && a.victimUid !== user.uid); // SELF-FILTER: Don't show own mission alerts
+    }).filter(a => a.isProximate && a.victimUid !== user.uid);
 
-    // Continuous Alarm Logic: Trigger if NEW proximate alert is detected
     const hasNewAlert = proximate.some(a => !activeAlerts.some(existing => existing.id === a.id));
     if (hasNewAlert && !isAlarmActive) {
       toggleSiren(true);
@@ -132,13 +142,12 @@ export default function ProtectorDashboard() {
 
     setActiveAlerts(proximate);
 
-    // Dynamic Focus: Focus map on newest proximate alerts
     const newest = proximate.find(a => !activeAlerts.some(existing => existing.id === a.id));
     if (newest) {
       setProximityAlert(newest);
       setMapFocus(newest.coords);
     }
-  }, [allAlerts, userLocation]);
+  }, [allAlerts, userPos]);
 
   const handleCall = (e: React.MouseEvent, alert: any) => {
     e.stopPropagation();
@@ -156,7 +165,38 @@ export default function ProtectorDashboard() {
       await updateDoc(doc(db, 'alerts', alertId), {
         responders: arrayUnion({ uid: auth.currentUser.uid, name: auth.currentUser.displayName || 'Protector', timestamp: new Date().toISOString() })
       });
+      // Optionally store in an audit log
     } catch (err) { console.warn("MHA Logging Failed:", err); }
+  };
+
+  const handleAcceptMission = async (alertId: string) => {
+    setAcceptedMissionId(alertId);
+    await logDeployment(alertId);
+    alert("Mission Accepted. Your identity has been logged with the National Command Center. Intercept tools UNLOCKED.");
+  };
+
+  const submitIncidentReport = async () => {
+    if (!incidentReport.trim()) return;
+    if (!auth.currentUser) return;
+    
+    setIsSubmittingReport(true);
+    try {
+      await addDoc(collection(db, 'special_cell_reports'), {
+        uid: auth.currentUser.uid,
+        userName: user?.displayName || auth.currentUser.displayName || 'Protector',
+        text: `[PROTECTOR FEEDBACK]: ${incidentReport}`,
+        priority: 'MEDIUM',
+        timestamp: serverTimestamp(),
+        status: 'pending'
+      });
+      alert('Feedback submitted directly to Super Cell intelligence hub. Our administrators will review your report shortly.');
+      setIncidentReport('');
+    } catch (e) {
+      console.error("Failed to submit report:", e);
+      alert('Failed to transmit feedback. Ensure you have an active network connection.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   return (
@@ -271,7 +311,7 @@ export default function ProtectorDashboard() {
           </div>
         </div>
         <div className="relative h-full w-full group-hover:scale-105 transition-all duration-700">
-          <RakshakMap hideHeader centerOverride={mapFocus} />
+          <ProtectorMap hideHeader nearbyAlerts={activeAlerts} acceptedSOSId={acceptedMissionId} />
         </div>
       </section>
 
@@ -321,47 +361,60 @@ export default function ProtectorDashboard() {
               )}
 
               <div className="flex gap-2 pt-4 border-t border-white/5">
-                <button 
-                  onClick={(e) => handleNavigate(e, alert.coords)} 
-                  className="px-6 py-4 rounded-xl bg-white text-black font-black flex items-center justify-center transition-all active:scale-95 shadow-lg"
-                  title={t('navigate')}
-                >
-                  <Navigation size={18} />
-                </button>
-                <button 
-                  onClick={(e) => handleCall(e, alert)} 
-                  className="px-6 py-4 rounded-xl bg-white/5 text-white flex items-center justify-center border border-white/10 transition-all active:scale-95"
-                  title={t('call')}
-                >
-                  <Phone size={18} />
-                </button>
-                <button onClick={async (e) => { 
-                  e.stopPropagation(); 
-                  const resolverEmail = auth.currentUser?.email || 'Protector';
-                  
-                  if(confirm(t('confirm_safety'))) {
-                    try {
-                      // MISSION AUDIT & RESOLUTION
-                      await updateDoc(doc(db, 'alerts', alert.id), { 
-                        status: 'resolved',
-                        resolvedAt: serverTimestamp(),
-                        resolvedBy: resolverEmail
-                      });
+                {acceptedMissionId !== alert.id ? (
+                  <button
+                    onClick={() => handleAcceptMission(alert.id)}
+                    className="w-full py-4 rounded-xl bg-accent-blue text-white font-black flex items-center justify-center gap-2 border border-accent-blue/30 transition-all active:scale-95 shadow-[0_0_20px_rgba(0,122,255,0.3)] text-[10px] uppercase tracking-[2px]"
+                  >
+                    <ShieldCheck size={18} /> ACCEPT MISSION & INTERCEPT
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={(e) => handleNavigate(e, alert.coords)} 
+                      className="px-6 py-4 rounded-xl bg-white text-black font-black flex items-center justify-center transition-all active:scale-95 shadow-lg"
+                      title={t('navigate')}
+                    >
+                      <Navigation size={18} />
+                    </button>
+                    <button 
+                      onClick={(e) => handleCall(e, alert)} 
+                      className="px-6 py-4 rounded-xl bg-white/5 text-white flex items-center justify-center border border-white/10 transition-all active:scale-95"
+                      title={t('call')}
+                    >
+                      <Phone size={18} />
+                    </button>
+                    <button onClick={async (e) => { 
+                      e.stopPropagation(); 
+                      const resolverEmail = auth.currentUser?.email || 'Protector';
                       
-                      // ATOMIC MERIT AWARD (Grant points only on successful resolve)
-                      if (user) {
-                        await updateDoc(doc(db, 'users', user.uid), {
-                          xp: increment(100)
-                        });
-                        console.log("KAVACH: Mission Merit XP Granted.");
+                      if(confirm(t('confirm_safety'))) {
+                        try {
+                          // MISSION AUDIT & RESOLUTION
+                          await updateDoc(doc(db, 'alerts', alert.id), { 
+                            status: 'resolved',
+                            resolvedAt: serverTimestamp(),
+                            resolvedBy: resolverEmail
+                          });
+                          
+                          setAcceptedMissionId(null);
+                          
+                          // ATOMIC MERIT AWARD (Grant points only on successful resolve)
+                          if (user) {
+                            await updateDoc(doc(db, 'users', user.uid), {
+                              xp: increment(100)
+                            });
+                            console.log("KAVACH: Mission Merit XP Granted.");
+                          }
+                        } catch (err) {
+                          console.error("Resolution sync failed:", err);
+                        }
                       }
-                    } catch (err) {
-                      console.error("Resolution sync failed:", err);
-                    }
-                  }
-                }} className="flex-1 py-4 rounded-xl bg-green-600/10 text-green-500 flex items-center justify-center gap-2 border border-green-500/20 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all">
-                  <CheckCircle2 size={16} /> {t('resolve')}
-                </button>
+                    }} className="flex-1 py-4 rounded-xl bg-green-600/10 text-green-500 flex items-center justify-center gap-2 border border-green-500/20 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all">
+                      <CheckCircle2 size={16} /> {t('resolve')}
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           ))}
@@ -423,6 +476,53 @@ export default function ProtectorDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Incident Report / Feedback Form */}
+      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 bg-[#1a0a0a] border-red-500/20 mt-4 p-6 sm:p-8">
+        <div className="flex items-center gap-3 mb-4">
+          <FileText size={20} className="text-red-500" />
+          <h3 className="text-sm font-black uppercase tracking-widest text-white">Tactical Incident Report</h3>
+        </div>
+        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+          Did you face harassment from Police? Was It a decoy/fake SOS? File a direct report to the National Super Cell (Ministry of Home Affairs).
+        </p>
+        <div className="space-y-3">
+          <textarea 
+            value={incidentReport}
+            onChange={(e) => setIncidentReport(e.target.value)}
+            placeholder="DESCRIBE THE INCIDENT IN DETAIL. INCLUDE THE MISSION LOCATION AND EXACT TIME..."
+            className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-red-500/50 min-h-[120px] resize-none"
+          />
+          <button 
+            onClick={submitIncidentReport}
+            disabled={isSubmittingReport || !incidentReport.trim()}
+            className="w-full sm:w-auto px-8 py-4 bg-red-600/20 text-red-500 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all hover:bg-red-600 hover:text-white border border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Send size={16} />
+            {isSubmittingReport ? "TRANSMITTING..." : "SUBMIT REPORT TO SUPER CELL"}
+          </button>
+        </div>
+      </section>
+
+      {/* Good Samaritan Law Banner */}
+      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 bg-[#020510] border border-blue-500/20 mt-4 p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/30 shrink-0 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+            <ShieldCheck size={32} className="text-blue-500" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-black uppercase tracking-tighter italic text-white mb-2">⚖️ Good Samaritan Law (BNSS/MV Act)</h3>
+            <p className="text-xs sm:text-sm font-medium text-blue-200 leading-relaxed mb-3">
+              KAVACH operations are backed by the Good Samaritan Guidelines under Indian Law. You are legally protected from civil and criminal liability when saving a victim.
+            </p>
+            <ul className="text-[10px] font-mono text-gray-400 space-y-1.5 uppercase tracking-widest list-disc pl-4">
+              <li>You cannot be harassed by Police or compelled to reveal your identity publicly.</li>
+              <li>You cannot be forced into endless court cases or cross-examinations.</li>
+              <li>Your intervention is considered a noble act of National Duty.</li>
+            </ul>
           </div>
         </div>
       </section>

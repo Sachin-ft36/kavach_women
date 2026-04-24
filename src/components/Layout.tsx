@@ -16,7 +16,9 @@ import {
   Zap,
   Navigation,
   Globe,
-  Trophy
+  Trophy,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -202,7 +204,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   return (
     <div className="min-h-screen bg-bg text-text-main font-sans selection:bg-accent-red selection:text-white p-4 sm:p-6 pb-32">
       {/* Top Bar */}
-      <header className="flex justify-between items-center mb-4 sm:mb-6 max-w-7xl mx-auto px-1 sm:px-0">
+      <header className="relative z-[9999] flex justify-between items-center mb-4 sm:mb-6 max-w-7xl mx-auto px-1 sm:px-0">
         <div className="flex flex-col">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className={cn(
@@ -376,27 +378,32 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
             icon={<LayoutDashboard size={20} />}
             label={t('home')}
           />
-          <NavButton 
-            active={activeTab === 'map'} 
-            onClick={() => setActiveTab('map')}
-            icon={<MapPin size={20} />}
-            label={t('tactical')}
-          />
           
           {role === 'citizen' && (
             <>
               <NavButton 
-                active={activeTab === 'sos'} 
-                onClick={() => setActiveTab('sos')}
-                icon={<AlertTriangle size={24} />}
-                label="SOS"
-                isSOS
+                active={activeTab === 'radar'} 
+                onClick={() => setActiveTab('radar')}
+                icon={<Globe size={20} className="text-accent-blue" />}
+                label="RADAR"
+              />
+              <NavButton 
+                active={activeTab === 'contacts'} 
+                onClick={() => setActiveTab('contacts')}
+                icon={<Users size={20} />}
+                label="CONTACTS"
+              />
+              <NavButton 
+                active={activeTab === 'special_cell'} 
+                onClick={() => setActiveTab('special_cell')}
+                icon={<ShieldCheck size={20} className="text-purple-500" />}
+                label="POLICE"
               />
               <NavButton 
                 active={activeTab === 'vault'} 
                 onClick={() => setActiveTab('vault')}
-                icon={<Settings size={20} />}
-                label={t('more')}
+                icon={<Upload size={20} />}
+                label="VAULT"
               />
             </>
           )}
@@ -411,12 +418,20 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           )}
 
           {role === 'admin' && (
-            <NavButton 
-              active={activeTab === 'rewards'} 
-              onClick={() => setActiveTab('rewards')}
-              icon={<Trophy size={20} />}
-              label="Audit Rewards"
-            />
+            <>
+              <NavButton 
+                active={activeTab === 'verify'} 
+                onClick={() => setActiveTab('verify')}
+                icon={<UserCheck size={20} />}
+                label="VERIFY"
+              />
+              <NavButton 
+                active={activeTab === 'rewards'} 
+                onClick={() => setActiveTab('rewards')}
+                icon={<Trophy size={20} />}
+                label="Audit Rewards"
+              />
+            </>
           )}
         </div>
       </nav>

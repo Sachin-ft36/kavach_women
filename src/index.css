@@ -25,7 +25,8 @@
 }
 
 .leaflet-container {
-  @apply grayscale invert brightness-90 contrast-125;
+  @apply rounded-[32px];
+  background: #080808 !important;
 }
 
 .bento-grid {
