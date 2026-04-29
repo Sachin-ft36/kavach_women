@@ -50,6 +50,9 @@ dependencies {
     
     // High-Precision Location Engine (The Master Fix for Accuracy)
     implementation "com.google.android.gms:play-services-location:21.3.0"
+    
+    // Identity Engineering (Free SIM-Hint Verification)
+    implementation "com.google.android.gms:play-services-auth:21.2.0"
 }
 
 apply from: 'capacitor.build.gradle'

@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useKavachStore } from '../store/useKavachStore';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const API_KEY = process.env.GEMINI_API_KEY || "";
+const API_KEY = "AIzaSyCNEVlQJY-dtfXHOYKZzpIn36xwtqpf0Ks"; // TACTICAL OVERRIDE
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 interface SOSAnalysis {
@@ -32,46 +32,55 @@ export default function AIScanner({ context, imageData }: { context: string, ima
     setError(null);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+      // TACTICAL FIX: gemini-1.5-flash + json enforcement
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        generationConfig: { 
+          responseMimeType: "application/json",
+          temperature: 0.1 // Precision Mode
+        }
+      });
       
-      const tacticalContext = `
-        MISSION TELEMETRY:
+      const prompt = `
+        ACT AS KAVACH TACTICAL NEURAL COMMANDER.
+        ANALYZE THIS EMERGENCY SOS EVENT IMMEDIATELY.
+        
+        MISSION_TELEMETRY:
         Position: ${userPos?.[0]}, ${userPos?.[1]}
         Battery: ${batteryLevel}%
         Event Context: ${context}
-        Timestamp: ${new Date().toISOString()}
-      `;
+        Evidence: ${imageData ? "Visual Proof Attached" : "Telemetry Only"}
 
-      const prompt = `
-        ACT AS KAVACH TACTICAL AI. ANALYZE THIS SOS EVENT IMMEDIATELY.
-        DATA PROVIDED: ${tacticalContext}
+        GOAL: Assess threat level and return a 3-step life-saving survival protocol.
         
-        GOAL: Identify the threat level and provide a 3-step life-saving survival plan.
-        
-        OUTPUT RULES: Return ONLY a JSON object with this exact structure:
+        YOU MUST RETURN ONLY A VALID JSON OBJECT WITH THIS STRUCTURE:
         {
           "threatLevel": "CRITICAL" | "HIGH" | "MEDIUM" | "POTENTIAL",
           "probability": number (0-100),
-          "reasoning": "brief high-tech explanation",
-          "safetyPlan": ["step 1", "step 2", "step 3"]
+          "reasoning": "string (tactical assessment)",
+          "safetyPlan": ["3 clear tactical steps"]
         }
       `;
 
-      const result = await model.generateContent([
-        prompt,
-        ...(imageData ? [{ inlineData: { data: imageData.split(',')[1], mimeType: "image/png" } }] : [])
-      ]);
+      const parts = [prompt];
+      if (imageData) {
+        parts.push({
+          inlineData: {
+            data: imageData.split(',')[1],
+            mimeType: "image/png"
+          }
+        } as any);
+      }
 
+      const result = await model.generateContent(parts);
       const response = await result.response;
-      const text = response.text().replace(/```json|```/g, "").trim();
+      const text = response.text();
+      
+      // With application/json, we get clean data
       setAnalysis(JSON.parse(text));
     } catch (err: any) {
       console.error("AI Analysis Failed:", err);
-      if (err.message?.includes('429')) {
-        setError("Neural Grid Congested: Switching to Local Safety Protocols.");
-      } else {
-        setError("AI Neural Link Interrupted.");
-      }
+      setError(`Neural Failure: ${err.message || "Interruption"}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -126,7 +135,7 @@ export default function AIScanner({ context, imageData }: { context: string, ima
                 </div>
                 <div className="text-center">
                   <p className="text-[10px] font-black uppercase tracking-widest text-accent-blue animate-pulse">Analyzing Threat Vector...</p>
-                  <p className="text-[8px] text-gray-500 font-bold uppercase tracking-[2px] mt-1">Gemini 2.0 Neural Link Active</p>
+                  <p className="text-[8px] text-gray-500 font-bold uppercase tracking-[2px] mt-1">KAVACH Neural Link Active</p>
                 </div>
               </motion.div>
             ) : analysis ? (

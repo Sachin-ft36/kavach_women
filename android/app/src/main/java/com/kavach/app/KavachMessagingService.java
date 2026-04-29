@@ -21,12 +21,26 @@ public class KavachMessagingService extends FirebaseMessagingService {
         super.onMessageReceived(remoteMessage);
         Log.i(TAG, "SIGNAL RECEIVED: Processing background tactical data...");
 
+        // 🛡️ CPU SHOCK: Wake the processor for 10s to ensure service transition
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP, "Kavach:FCMWakeup");
+            wl.acquire(10000); // Hold for 10 sec
+        }
+
         // Tactical Action Check
         if (remoteMessage.getData().size() > 0) {
             String action = remoteMessage.getData().get("action");
-            if ("start_siren".equals(action)) {
+            String type = remoteMessage.getData().get("type");
+            String customTitle = remoteMessage.getData().get("title");
+            String customBody = remoteMessage.getData().get("body");
+            
+            if ("start_siren".equals(action) || "SOS_ALERT".equals(type)) {
                 Log.i(TAG, "CODE RED: Background Siren Triggered via FCM.");
-                showEmergencyNotification("🚨 SIREN ACTIVATED", "KAVACH has detected a nearby mission alert!");
+                String displayTitle = customTitle != null ? customTitle : "🚨 SIREN ACTIVATED";
+                String displayBody = customBody != null ? customBody : "KAVACH has detected a nearby mission alert!";
+                
+                showEmergencyNotification(displayTitle, displayBody);
                 triggerServiceSiren(KavachService.ACTION_START_SIREN);
             } else if ("stop_siren".equals(action)) {
                 Log.i(TAG, "MISSION CLEAR: Background Siren Silenced via FCM.");
@@ -42,15 +56,23 @@ public class KavachMessagingService extends FirebaseMessagingService {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (notificationManager == null) return;
 
-        Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.tactical_siren);
+        // Sound resource for the notification itself
+        int resId = getResources().getIdentifier("tactical_siren", "raw", getPackageName());
+        Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + resId);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(channelId, "Emergency Siren", NotificationManager.IMPORTANCE_HIGH);
             channel.setDescription("Continuous Emergency Siren Alerts");
-            channel.setSound(soundUri, new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+            
+            // Set sound for the channel
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .build();
+            channel.setSound(soundUri, audioAttributes);
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 500, 200, 500});
+            
             notificationManager.createNotificationChannel(channel);
         }
 
@@ -61,11 +83,22 @@ public class KavachMessagingService extends FirebaseMessagingService {
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setSound(soundUri)
+                .setVibrate(new long[]{0, 1000, 500, 1000})
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .build();
 
         notificationManager.notify(1002, notification);
+        
+        // Trigger haptic pulse via Vibrator service
+        android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (v != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(1000, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                v.vibrate(1000);
+            }
+        }
     }
 
     private void triggerServiceSiren(String action) {

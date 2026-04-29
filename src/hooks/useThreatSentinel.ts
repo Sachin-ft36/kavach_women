@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const KavachNative = registerPlugin<any>('KavachPlugin');
 
 /**
  * KAVACH THREAT SENTINEL
@@ -56,7 +59,9 @@ export function useThreatSentinel() {
           console.error("SENTINEL: Pulse Unacknowledged. SOS.");
           window.dispatchEvent(new CustomEvent('sos-pulse-failed'));
         } else if (timeSincePulse > ONE_HOUR) {
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          if (Capacitor.isNativePlatform() && useKavachStore.getState().isHubReady) {
+            KavachNative.triggerHapticPulse().catch(() => {});
+          }
         }
       }
     };
@@ -87,7 +92,9 @@ export function useThreatSentinel() {
 
         if (recentTaps.length >= 3) {
            resetSentinelPulse();
-           if (navigator.vibrate) navigator.vibrate(100);
+           if (Capacitor.isNativePlatform() && useKavachStore.getState().isHubReady) {
+             KavachNative.triggerHapticPulse().catch(() => {});
+           }
            tapSequenceRef.current = [];
         }
       }

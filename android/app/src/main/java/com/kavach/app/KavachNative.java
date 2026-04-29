@@ -14,17 +14,25 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import com.google.android.gms.auth.api.identity.GetPhoneNumberHintIntentRequest;
+import com.google.android.gms.auth.api.identity.Identity;
+import android.app.Activity;
+import android.content.IntentSender;
 
 @CapacitorPlugin(
     name = "KavachPlugin",
     permissions = {
         @Permission(alias = "sms",  strings = {Manifest.permission.SEND_SMS}),
-        @Permission(alias = "call", strings = {Manifest.permission.CALL_PHONE})
+        @Permission(alias = "call", strings = {Manifest.permission.CALL_PHONE}),
+        @Permission(alias = "microphone", strings = {Manifest.permission.RECORD_AUDIO}),
+        @Permission(alias = "phone_state", strings = {Manifest.permission.READ_PHONE_STATE})
     }
 )
 public class KavachNative extends Plugin {
 
     private static final String TAG = "KavachNative";
+    private static final int PHONE_HINT_REQUEST_CODE = 9001;
+    private PluginCall savedCall;
 
     // ── Permissions ───────────────────────────────────────────────────────
 
@@ -33,12 +41,14 @@ public class KavachNative extends Plugin {
         JSObject ret = new JSObject();
         ret.put("sms",  getPermissionState("sms").toString());
         ret.put("call", getPermissionState("call").toString());
+        ret.put("microphone", getPermissionState("microphone").toString());
         call.resolve(ret);
     }
 
     @PluginMethod
     public void requestSensitivePermissions(PluginCall call) {
-        requestPermissionForAliases(new String[]{"sms", "call"}, call, "permissionsCallback");
+        // Bridges to Manifest.permission.SEND_SMS, CALL_PHONE, and RECORD_AUDIO
+        requestPermissionForAliases(new String[]{"sms", "call", "microphone"}, call, "permissionsCallback");
     }
 
     @PermissionCallback
@@ -74,27 +84,44 @@ public class KavachNative extends Plugin {
     public void sendSilentSMS(PluginCall call) {
         String phone   = call.getString("number");
         String message = call.getString("message");
-        if (phone == null || message == null) { call.reject("Phone and message required"); return; }
+        if (phone == null || message == null) {
+            call.reject("Phone and message required");
+            return;
+        }
+
         try {
+            // Hardened SMS Selection: Prefer Subscription-based manager to avoid Dual-SIM deadlock
             SmsManager sm;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 sm = getContext().getSystemService(SmsManager.class);
             } else {
+                // Fallback for older APIs — using default for initial tactical release
                 sm = SmsManager.getDefault();
             }
-            if (sm == null) { call.reject("SmsManager unavailable"); return; }
 
-            // Split long messages automatically
-            if (message.length() > 160) {
-                java.util.ArrayList<String> parts = sm.divideMessage(message);
-                sm.sendMultipartTextMessage(phone, null, parts, null, null);
-            } else {
-                sm.sendTextMessage(phone, null, message, null, null);
+            if (sm == null) {
+                call.reject("CRITICAL: SmsManager unavailable on this hardware tier.");
+                return;
             }
-            Log.i(TAG, "SMS dispatched to " + phone);
+
+            // Clean number — Ensure no strange characters break the telephony stack
+            String cleanPhone = phone.replaceAll("[^0-9+]", "");
+
+            // MISSION: Dispatch Tactical Intel
+            if (message.length() > 70 || message.codePointCount(0, message.length()) != message.length()) {
+                // SMS Standard: Multi-part required for long or Unicode (Emoji) messages
+                java.util.ArrayList<String> parts = sm.divideMessage(message);
+                sm.sendMultipartTextMessage(cleanPhone, null, parts, null, null);
+                Log.i(TAG, "TACTICAL DISPATCH [MULTI-PART]: " + parts.size() + " segments sent to " + cleanPhone);
+            } else {
+                sm.sendTextMessage(cleanPhone, null, message, null, null);
+                Log.i(TAG, "TACTICAL DISPATCH [SINGLE]: Sent to " + cleanPhone);
+            }
+            
             call.resolve();
         } catch (Exception e) {
-            call.reject("SMS failed: " + e.getMessage());
+            Log.e(TAG, "DISPATCH FAILURE: " + e.getMessage());
+            call.reject("SMS Dispatch Failed: " + e.getMessage());
         }
     }
 
@@ -187,37 +214,30 @@ public class KavachNative extends Plugin {
             getContext().startActivity(intent);
             call.resolve();
         } catch (Exception e) {
-            try {
-                Intent fallback = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(fallback);
-                call.resolve();
-            } catch (Exception e2) { call.reject(e2.getMessage()); }
+            Intent fallback = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(fallback);
+            call.resolve();
         }
     }
 
     @PluginMethod
-    public void openOverlaySettings(PluginCall call) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getContext().getPackageName()));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(intent);
-            }
-            call.resolve();
-        } catch (Exception e) { call.reject(e.getMessage()); }
+    public void isIgnoringBatteryOptimizations(PluginCall call) {
+        JSObject ret = new JSObject();
+        android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+        ret.put("isExempt", pm.isIgnoringBatteryOptimizations(getContext().getPackageName()));
+        call.resolve(ret);
     }
 
     @PluginMethod
-    public void openAppSettings(PluginCall call) {
-        try {
-            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+    public void openOverlaySettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getContext().getPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
-            call.resolve();
-        } catch (Exception e) { call.reject(e.getMessage()); }
+        }
+        call.resolve();
     }
 
     @PluginMethod
@@ -226,17 +246,6 @@ public class KavachNative extends Plugin {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             ret.put("granted", android.provider.Settings.canDrawOverlays(getContext()));
         } else { ret.put("granted", true); }
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void isIgnoringBatteryOptimizations(PluginCall call) {
-        JSObject ret = new JSObject();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            android.os.PowerManager pm = (android.os.PowerManager)
-                    getContext().getSystemService(android.content.Context.POWER_SERVICE);
-            ret.put("isExempt", pm.isIgnoringBatteryOptimizations(getContext().getPackageName()));
-        } else { ret.put("isExempt", true); }
         call.resolve(ret);
     }
 
@@ -316,5 +325,87 @@ public class KavachNative extends Plugin {
             nm.notify(999, notif);
             call.resolve();
         } catch (Exception e) { call.reject("Alarm station failure: " + e.getMessage()); }
+    }
+
+    @PluginMethod
+    public void updateGuardianContacts(PluginCall call) {
+        String contactsJson = call.getString("contacts");
+        if (contactsJson == null) {
+            call.reject("Contacts JSON required");
+            return;
+        }
+
+        try {
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("KavachPrefs", android.content.Context.MODE_PRIVATE);
+            prefs.edit().putString("guardian_contacts", contactsJson).apply();
+            Log.i(TAG, "MISSION CONTROL: Guardian contacts synced to hardware cache.");
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Sync failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void triggerHapticPulse(PluginCall call) {
+        try {
+            android.os.Vibrator v = (android.os.Vibrator) getContext().getSystemService(android.content.Context.VIBRATOR_SERVICE);
+            if (v != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    v.vibrate(200);
+                }
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Haptic failure: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getPhoneHint(PluginCall call) {
+        saveCall(call);
+        GetPhoneNumberHintIntentRequest request = GetPhoneNumberHintIntentRequest.builder().build();
+
+        Identity.getSignInClient(getContext())
+            .getPhoneNumberHintIntent(request)
+            .addOnSuccessListener(result -> {
+                try {
+                    getBridge().getActivity().startIntentSenderForResult(
+                        result.getIntentSender(),
+                        9001,
+                        null, 0, 0, 0
+                    );
+                } catch (Exception e) {
+                    call.reject("ERROR_LAUNCHING_HINT: " + e.getMessage());
+                }
+            })
+            .addOnFailureListener(e -> {
+                Log.e(TAG, "Phone hint unavailable: " + e.getMessage());
+                call.reject("IDENTITY_UNAVAILABLE");
+            });
+    }
+
+    @Override
+    protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
+        super.handleOnActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == 9001) {
+            PluginCall call = getSavedCall();
+            if (call == null) return;
+
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                try {
+                    String phoneNumber = Identity.getSignInClient(getContext()).getPhoneNumberFromIntent(data);
+                    JSObject ret = new JSObject();
+                    ret.put("number", phoneNumber);
+                    call.resolve(ret);
+                } catch (Exception e) {
+                    call.reject("ERROR_PARSING_NUMBER");
+                }
+            } else {
+                call.reject("USER_CANCELLED");
+            }
+        }
     }
 }

@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useKavachStore } from '../../store/useKavachStore';
 
 const mapboxgl = (window as any).mapboxgl;
-const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaHlxcmcwMHRpMnNxdnQ4YThsYmE2In0.C1n-oZWeUvxlOkXbNeFUTA";
+const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
 
-const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHeader?: boolean, radarProtectors?: any[] }) => {
+const VictimMap = ({ hideHeader = false, radarProtectors = [] }: { hideHeader?: boolean, radarProtectors?: any[] }) => {
   const { t } = useLanguage();
   const { userPos } = useKavachStore();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -14,19 +14,37 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
   const victimMarker = useRef<any>(null);
   const protectorMarkers = useRef<{ [key: string]: any }>({});
 
+  // 1. Initialize Map with Persistence
   useEffect(() => {
-    if (!mapContainer.current || !mapboxgl) return;
+    const initMap = () => {
+      const mb = (window as any).mapboxgl;
+      if (!mapContainer.current || !mb || !mb.Map) {
+        setTimeout(initMap, 500);
+        return;
+      }
 
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: [userPos?.[1] || 77.2090, userPos?.[0] || 28.6139],
-      zoom: 16,
-      pitch: 45
-    });
+      mb.accessToken = MAPBOX_TOKEN;
+      
+      // PERSISTENT ANCHOR: Force start from exact User Anchor (Global Store)
+      const initialCoords = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937]; 
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+      map.current = new mb.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: initialCoords as [number, number],
+        zoom: userPos ? 16 : 4,
+        pitch: 60,
+        antialias: true
+      });
+
+      map.current.on('load', () => {
+        map.current.resize();
+      });
+
+      map.current.addControl(new mb.NavigationControl(), 'bottom-right');
+    };
+
+    initMap();
 
     return () => {
       Object.values(protectorMarkers.current).forEach(m => m.remove());
@@ -35,33 +53,41 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
     };
   }, []);
 
-  // Sync Victim Marker with Pulse Effect
+  // 2. High-Precision Auto-Follow Loop (1s Sync)
   useEffect(() => {
-    if (!map.current || !userPos || !mapboxgl) return;
+    if (!map.current || !userPos) return;
 
-    if (!victimMarker.current) {
+    // TACTICAL FOLLOW: Smoothly pan to victim coordinates in real-time
+    map.current.easeTo({
+      center: [userPos[1], userPos[0]],
+      zoom: map.current.getZoom() < 10 ? 16 : map.current.getZoom(),
+      duration: 1000, 
+      essential: true
+    });
+
+    // Sync Marker position
+    const mb = (window as any).mapboxgl;
+    if (!victimMarker.current && mb) {
       const el = document.createElement('div');
       el.className = 'victim-pulse-container';
+      el.style.zIndex = "999";
       el.innerHTML = `
         <div class="pulse-ring"></div>
-        <div style="background: #0A84FF; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; position: relative; z-index: 2;"></div>
+        <div style="background: #0A84FF; width: 26px; height: 26px; border-radius: 50%; border: 4px solid white; position: relative; z-index: 2; box-shadow: 0 0 25px rgba(10, 132, 255, 0.8);"></div>
       `;
       
-      victimMarker.current = new mapboxgl.Marker(el)
+      victimMarker.current = new mb.Marker(el)
         .setLngLat([userPos[1], userPos[0]])
         .addTo(map.current);
-    } else {
+    } else if (victimMarker.current) {
       victimMarker.current.setLngLat([userPos[1], userPos[0]]);
     }
-
-    map.current.easeTo({ center: [userPos[1], userPos[0]], duration: 1000 });
   }, [userPos]);
 
-  // Sync Protectors (With Proper Cleanup)
+  // 3. Sync Protectors on Radar
   useEffect(() => {
     if (!map.current || !mapboxgl) return;
 
-    // 1. Remove protectors who left the radar
     const activeProtIds = radarProtectors.map(p => p.id || p.uid);
     Object.keys(protectorMarkers.current).forEach(id => {
       if (!activeProtIds.includes(id)) {
@@ -70,7 +96,6 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
       }
     });
 
-    // 2. Add or Update protectors
     radarProtectors.forEach(p => {
       const coords = [p.lastLocation?.lng, p.lastLocation?.lat];
       if (!coords[0] || !coords[1]) return;
@@ -87,7 +112,6 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
           .setLngLat([coords[0], coords[1]])
           .addTo(map.current!);
       } else {
-        // Smoothly move the protector icon
         protectorMarkers.current[pid].setLngLat([coords[0], coords[1]]);
       }
     });
@@ -104,20 +128,15 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
             <div>
                <h3 className="text-sm font-black italic uppercase tracking-tighter text-white">Security Radar</h3>
                <p className="text-[8px] text-blue-400 font-bold uppercase tracking-[2px] leading-none">
-                {radarProtectors.length} Protectors Nearby
+                {radarProtectors.length} {t('protectors_nearby') || 'Protectors Nearby'}
                </p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex-1 relative rounded-[32px] overflow-hidden border border-white/10 bg-[#0b0c10] shadow-inner">
-        <div ref={mapContainer} className="absolute inset-0" />
-        
-        {/* Radar Scanning Overlay Effect */}
-        <div className="absolute inset-0 pointer-events-none border-[1px] border-blue-500/10 rounded-[32px] overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-blue-500/5 to-transparent"></div>
-        </div>
+      <div className="flex-1 relative rounded-[32px] overflow-hidden border border-white/10 bg-[#0d0d0d] shadow-inner min-h-[450px]">
+        <div ref={mapContainer} className="absolute inset-0 w-full h-full" style={{ zIndex: 10 }} />
       </div>
 
       <style>{`
@@ -143,6 +162,6 @@ const VictimMap = memo(({ hideHeader = false, radarProtectors = [] }: { hideHead
       `}</style>
     </div>
   );
-});
+};
 
 export default VictimMap;

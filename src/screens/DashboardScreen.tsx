@@ -2,12 +2,12 @@ import React from 'react';
 import SOSButton from '../components/SOSButton';
 import VictimMap from '../components/maps/VictimMap';
 import RideModeHUD from '../components/RideModeHUD';
-import { Shield, Activity, ShieldCheck, Map as MapIcon, Lock, Smartphone } from 'lucide-react';
+import { Shield, Activity, ShieldCheck, Map as MapIcon, Lock, Smartphone, Phone } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useKavachStore } from '../store/useKavachStore';
 
 export default function DashboardScreen() {
-  const { setActiveTab, batteryLevel, gender, userPos, syncLocation } = useKavachStore();
+  const { setActiveTab, batteryLevel, gender, userPos, syncLocation, setFakeCallActive } = useKavachStore();
   const { t } = useLanguage();
 
   // Force high-accuracy sync on dashboard entry
@@ -26,7 +26,7 @@ export default function DashboardScreen() {
           </div>
           <div className="flex gap-6 justify-between sm:justify-end">
             <div className="text-left sm:text-right">
-              <p className="text-[8px] text-text-dim font-bold uppercase tracking-wider">{t('background_sync') || "Background Sync"}</p>
+              <p className="text-[8px] text-text-dim font-bold uppercase tracking-wider">{t('background_sync')}</p>
               <p className="text-[10px] font-black italic text-green-500 uppercase tracking-tight">{t('active_persistent')}</p>
             </div>
             <div className="text-left sm:text-right">
@@ -46,7 +46,7 @@ export default function DashboardScreen() {
             <div className="w-1 h-1 bg-accent-red rounded-full opacity-50" />
           </div>
         </div>
-        
+
         {gender === 'female' ? (
           <SOSButton />
         ) : (
@@ -57,7 +57,7 @@ export default function DashboardScreen() {
             <div>
               <h3 className="font-black italic uppercase text-accent-blue leading-tight mb-2 tracking-tighter text-xl">{t('tactical_disabled')}</h3>
               <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[2px] leading-relaxed max-w-[200px] mx-auto opacity-60">
-                Unauthorized Identity detected. Emergency response reserved for authorized female citizens.
+                {t('unauthorized_desc')}
               </p>
             </div>
           </div>
@@ -77,7 +77,7 @@ export default function DashboardScreen() {
             <Activity size={14} className="text-accent-blue animate-pulse" />
           </div>
           <div className="mt-4">
-            <div className="text-2xl font-black italic text-accent-blue leading-none uppercase tracking-tighter">{t('synced') || "SYNCED"}</div>
+            <div className="text-2xl font-black italic text-accent-blue leading-none uppercase tracking-tighter">{t('synced')}</div>
             <p className="text-[8px] text-gray-500 font-mono font-bold uppercase mt-3 tracking-widest opacity-60">
               LOC: {userPos?.[0]?.toFixed(3)}N / {userPos?.[1]?.toFixed(3)}E
             </p>
@@ -106,7 +106,7 @@ export default function DashboardScreen() {
             </span>
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-accent-blue rounded-full animate-pulse" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-accent-blue">Satellite High-Def</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-accent-blue">{t('scanning_satellite')}</span>
             </div>
           </div>
         </div>
@@ -123,27 +123,27 @@ export default function DashboardScreen() {
             <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white mb-2">
               <Lock size={18} />
             </div>
-            <p className="text-lg font-black italic">4.2 GB</p>
-            <p className="text-[8px] text-accent-blue font-bold uppercase tracking-widest mt-1">Encrypted Logs</p>
+            <p className="text-lg font-black italic">{t('cloud_secured')}</p>
+            <p className="text-[8px] text-accent-blue font-bold uppercase tracking-widest mt-1">{t('bns_nodes')}</p>
           </div>
         </section>
 
         <section className="bento-card aspect-square sm:aspect-auto flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('contacts')}>
-          <div className="bento-card-title">CIRCLE</div>
+          <div className="bento-card-title">{t('guardians')}</div>
           <div>
             <div className="flex -space-x-2 mb-2">
               {[1, 2].map(i => (
                 <div key={i} className="w-8 h-8 rounded-full border-2 border-card-bg bg-accent-blue/20 flex items-center justify-center text-[10px] font-bold">G{i}</div>
               ))}
             </div>
-            <h3 className="text-sm font-black italic uppercase leading-none mb-1">Guardians</h3>
-            <p className="text-[8px] text-text-dim font-bold uppercase tracking-widest">3 Active Links</p>
+            <h3 className="text-sm font-black italic uppercase leading-none mb-1">{t('guardians')}</h3>
+            <p className="text-[8px] text-text-dim font-bold uppercase tracking-widest">{t('active_links')}</p>
           </div>
         </section>
-        
+
         <section className="bento-card col-span-2 sm:col-span-1 md:col-span-2 lg:col-span-2 bg-[#020512] border-accent-blue/20 cursor-pointer group" onClick={() => setActiveTab('radar')}>
           <div className="bento-card-title flex justify-between items-center text-accent-blue">
-            <span>PROTECTOR RADAR</span>
+            <span>{t('radar')}</span>
             <div className="w-1.5 h-1.5 bg-accent-blue rounded-full animate-pulse shadow-[0_0_10px_#0A84FF]" />
           </div>
           <div className="mt-4 flex items-center gap-4">
@@ -151,24 +151,24 @@ export default function DashboardScreen() {
               <Activity size={24} />
             </div>
             <div>
-              <p className="text-lg font-black uppercase tracking-tight italic">Scan 1KM Radius</p>
-              <p className="text-xs text-text-dim leading-tight">View and secure-call verified protectors near you.</p>
+              <p className="text-lg font-black uppercase tracking-tight italic">{t('scan_radius')}</p>
+              <p className="text-xs text-text-dim leading-tight">{t('scan_desc')}</p>
             </div>
           </div>
         </section>
       </div>
 
       <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 grid grid-cols-3 gap-4">
-        <div className="bento-card-title col-span-3">MISSION TELEMETRY</div>
+        <div className="bento-card-title col-span-3">{t('mission_telemetry')}</div>
         <SensorStat value="ACTIVE" label={t('sensor_scanner')} />
         <SensorStat value="0.02G" label={t('sensor_gforce')} />
-        <SensorStat value={batteryLevel ? `${batteryLevel}%` : "SYNC"} label={t('sensor_battery' as any)} />
+        <SensorStat value={batteryLevel ? `${batteryLevel}%` : "SYNC"} label={t('sensor_battery')} />
       </section>
 
       {/* Special Cell — Direct Anonymous Help */}
       <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 bg-gradient-to-br from-[#1a0a2e] to-black border-purple-500/20 cursor-pointer group" onClick={() => setActiveTab('special_cell')}>
         <div className="bento-card-title flex justify-between items-center">
-          <span>SPECIAL CELL</span>
+          <span>{t('special_cell')}</span>
           <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse shadow-[0_0_10px_#a855f7]" />
         </div>
         <div className="mt-4 flex items-center gap-4">
@@ -177,23 +177,39 @@ export default function DashboardScreen() {
           </div>
           <div>
             <p className="text-sm font-black italic uppercase tracking-tighter">Zero-FIR Node</p>
-            <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">Anonymous Report Active</p>
+            <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">{t('anonymous_report')}</p>
           </div>
         </div>
       </section>
 
-      {/* Decoy Calculator — Silent System */}
-      <section className="bento-card col-span-1 border-white/5 cursor-pointer group" onClick={() => setActiveTab('decoy')}>
-        <div className="bento-card-title">PRECISION</div>
-        <div className="mt-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-black transition-all">
-            <Smartphone size={18} />
+      {/* Stealth Section — Silent Tools */}
+      <div className="col-span-1 md:col-span-2 lg:col-span-4 grid grid-cols-2 gap-3 sm:gap-4 mb-10">
+        <section className="bento-card border-white/5 cursor-pointer group" onClick={() => setActiveTab('decoy')}>
+          <div className="bento-card-title">{t('precision') || 'PRECISION'}</div>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-black transition-all">
+              <Smartphone size={18} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest">{t('calc_utility') || 'Calc Utility'}</p>
+              <p className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">{t('decoy_mode')}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest">Calc Utility</p>
+        </section>
+
+        <section className="bento-card bg-gradient-to-br from-[#0a1a10] to-black border-green-500/10 cursor-pointer group" onClick={() => setFakeCallActive(true)} >
+          <div className="bento-card-title text-green-500/50">{t('stealth_tools') || 'STEALTH'}</div>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-500/10 rounded-xl border border-green-500/20 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-black transition-all">
+              <Phone size={18} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest">{t('fake_call')}</p>
+              <p className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">{t('trigger_incoming')}</p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -203,15 +219,6 @@ function SensorStat({ value, label }: { value: string, label: string }) {
     <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
       <span className="text-xl font-bold block">{value}</span>
       <span className="text-[9px] text-text-dim font-bold uppercase tracking-tighter">{label}</span>
-    </div>
-  );
-}
-
-function ShieldItem({ label, status }: { label: string, status: string }) {
-  return (
-    <div className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
-      <span className="text-[12px] text-text-dim">{label}</span>
-      <span className="text-[10px] font-bold text-accent-blue tracking-widest">{status}</span>
     </div>
   );
 }

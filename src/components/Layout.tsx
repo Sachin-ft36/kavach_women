@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, 
-  MapPin, 
-  Camera, 
-  Users, 
-  Settings, 
+import {
+  Shield,
+  MapPin,
+  Camera,
+  Users,
+  Settings,
   AlertTriangle,
   EyeOff,
   Eye,
@@ -18,14 +18,15 @@ import {
   Globe,
   Trophy,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  BookOpen
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,8 +34,8 @@ interface LayoutProps {
   onToggleGhost: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  role: 'citizen' | 'protector' | 'admin';
-  setRole: (role: 'citizen' | 'protector' | 'admin') => void;
+  role: 'citizen' | 'protector' | 'admin' | 'super_cell';
+  setRole: (role: 'citizen' | 'protector' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
 }
 
@@ -60,7 +61,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     if (!user) return;
     try {
       const newRole = role === 'citizen' ? 'protector' : 'citizen';
-      
+
       // Update Firestore
       await updateDoc(doc(db, 'users', user.uid), {
         role: newRole,
@@ -69,13 +70,13 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
       // Update Local State in App.tsx
       setRole(newRole);
-      
+
       // Update local storage for persistence
       localStorage.setItem('kavach_role', newRole);
-      
+
       // Close profile menu
       setIsProfileOpen(false);
-      
+
       console.log(`KAVACH: Mission Mode Switched to ${newRole.toUpperCase()}`);
     } catch (error) {
       console.error("Role switch failed:", error);
@@ -85,6 +86,12 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
   const handleLogout = async () => {
     try {
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          status: 'offline',
+          lastActive: serverTimestamp()
+        });
+      }
       await signOut(auth);
       localStorage.clear();
       window.location.reload();
@@ -96,7 +103,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const userPhoto = user?.photoURL || userData?.photoURL;
   const uid = userData?.aadhaarMasked || 'XXXX-XXXX-XXXX';
   const gender = userData?.gender || 'female';
-  const displayName = user?.displayName || userData?.name || 'Kavach User';
+  const displayName = user?.displayName || userData?.name || t('kavach_user');
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,7 +125,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           <header className="flex justify-between items-center mb-6">
             <h1 className="text-xl font-bold lowercase tracking-tight">Weather</h1>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shadow-sm"
               >
@@ -129,7 +136,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
               </button>
             </div>
           </header>
-          
+
           <AnimatePresence>
             {isProfileOpen && (
               <motion.div
@@ -147,7 +154,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                     <p className="text-[10px] text-gray-400 font-mono">ID: {(uid || "").replace(/-/g, '').slice(0, 8)}</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={handleLogout}
                   className="w-full py-3 bg-gray-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg"
                 >
@@ -172,7 +179,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
               <span>UV: High</span>
             </div>
           </div>
-          
+
           <div className="space-y-4">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hourly Forecast</p>
             <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
@@ -184,7 +191,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                 </div>
               ))}
             </div>
-            
+
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Local News</p>
             {[1, 2, 3].map((i) => (
               <div key={i} className="p-4 bg-gray-50 rounded-2xl flex gap-4 items-center">
@@ -209,12 +216,14 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           <div className="flex items-center gap-2 sm:gap-3">
             <div className={cn(
               "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-black text-base sm:text-lg shrink-0",
-              role === 'admin' ? "bg-accent-blue shadow-[0_0_15px_rgba(0,122,255,0.5)]" : "bg-accent-red shadow-[0_4px_12px_rgba(255,59,48,0.2)]"
+              role === 'super_cell' ? "bg-purple-600 shadow-[0_0_20px_rgba(147,51,234,0.5)]" :
+                role === 'admin' ? "bg-accent-blue shadow-[0_0_15px_rgba(0,122,255,0.5)]" :
+                  "bg-accent-red shadow-[0_4px_12px_rgba(255,59,48,0.2)]"
             )}>
-              {role === 'admin' ? <Shield size={16} /> : 'K'}
+              {role === 'super_cell' ? <Zap size={16} /> : role === 'admin' ? <Shield size={16} /> : 'K'}
             </div>
             <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tighter truncate italic">
-              {role === 'admin' ? 'CELL-9' : 'KAVACH'} 
+              {role === 'super_cell' ? 'COMMAND' : role === 'admin' ? 'CELL-9' : 'KAVACH'}
             </h1>
           </div>
           <div className="mt-1 flex items-center gap-2">
@@ -224,21 +233,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-card-bg border border-border/50 rounded-lg p-0.5">
-            {['en', 'hi', 'ml'].map((lang) => (
-              <button
-                key={lang}
-                onClick={() => setLanguage(lang as any)}
-                className={cn(
-                  "px-2 py-1 rounded text-[8px] font-bold uppercase transition-all",
-                  language === lang ? "bg-accent-blue text-white" : "text-gray-600 hover:text-gray-400"
-                )}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-          <button 
+          <button
             onClick={onToggleGhost}
             className="p-2 sm:p-2.5 bg-card-bg border border-border hover:bg-white/10 rounded-xl sm:rounded-2xl transition-all"
             title="Ghost Mode"
@@ -247,14 +242,14 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           </button>
 
           <div className="relative">
-            <button 
+            <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-1.5 sm:gap-2 bg-card-bg border border-border hover:bg-white/10 p-1 pr-3 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-2xl transition-all"
             >
               <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-accent-blue/20 flex items-center justify-center overflow-hidden border border-accent-blue/30">
                 {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={14} className="text-accent-blue" />}
               </div>
-              <span className="text-[9px] font-black text-accent-blue uppercase tracking-widest hidden xs:inline">Profile</span>
+              <span className="text-[9px] font-black text-accent-blue uppercase tracking-widest hidden xs:inline">{t('profile')}</span>
             </button>
 
             <AnimatePresence>
@@ -281,7 +276,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                           {displayName}
                         </h3>
                         <p className="text-[9px] text-accent-blue font-bold uppercase tracking-[2px] mt-1 font-mono">
-                          {role === 'admin' ? t('admin') : role === 'protector' ? t('protector') : t('citizen')} // {gender.toUpperCase()}
+                          {role === 'super_cell' ? 'SPECIAL CELL' : role === 'admin' ? t('admin') : role === 'protector' ? t('protector') : t('citizen')} // {gender.toUpperCase()}
                         </p>
                       </div>
                     </div>
@@ -294,44 +289,43 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">Tactical Phone</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">{t('tactical_phone')}</span>
                         <span className="text-[10px] font-mono text-accent-blue font-black">
-                          {userData?.phoneNumber || 'NOT ANCHORED'}
+                          {userData?.phoneNumber || t('not_anchored')}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">Aadhaar Link</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">{t('aadhaar_link')}</span>
                         <span className="text-[10px] font-mono text-white">
-                          {userData?.aadhaar ? `**** ${userData.aadhaar.slice(-4)}` : 'NO LINK'}
+                          {userData?.aadhaar ? `**** ${userData.aadhaar.slice(-4)}` : t('no_link')}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-gray-500 font-bold uppercase">Status</span>
-                        <span className="text-[10px] font-black text-green-500 italic uppercase tracking-widest">Shield Active</span>
+                        <span className="text-[10px] font-black text-green-500 italic uppercase tracking-widest">{t('shield_active_status')}</span>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      {/* GENDER-BASED MISSION LOCK: Only females can switch roles freely */}
                       {gender === 'female' && (
-                        <button 
+                        <button
                           onClick={handleRoleSwitch}
                           className={cn(
                             "w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border shadow-sm",
-                            role === 'citizen' 
-                              ? "bg-accent-blue text-white border-accent-blue/30" 
+                            role === 'citizen'
+                              ? "bg-accent-blue text-white border-accent-blue/30"
                               : "bg-accent-red text-white border-accent-red/30"
                           )}
                         >
                           {role === 'citizen' ? (
-                            <><Zap size={14} /> {t('join_protector')}</>
+                            <><Zap size={14} /> {t('join_protector') || 'JOIN PROTECTOR'}</>
                           ) : (
-                            <><Shield size={14} /> {t('home')}</>
+                            <><Shield size={14} /> {t('home') || 'HOME'}</>
                           )}
                         </button>
                       )}
 
-                      <button 
+                      <button
                         onClick={handleLogout}
                         className="w-full py-4 bg-white/5 text-gray-500 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                       >
@@ -344,7 +338,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
             </AnimatePresence>
           </div>
 
-          <button 
+          <button
             onClick={onToggleGhost}
             className="p-2.5 bg-card-bg border border-border hover:bg-white/10 rounded-2xl transition-all"
             title="Ghost Mode"
@@ -372,64 +366,112 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-50 p-4 sm:p-6 pointer-events-none">
         <div className="max-w-md mx-auto bg-card-bg/90 backdrop-blur-3xl border border-border rounded-3xl p-2 flex justify-between items-center shadow-2xl pointer-events-auto">
-          <NavButton 
-            active={activeTab === 'dashboard'} 
-            onClick={() => setActiveTab('dashboard')}
-            icon={<LayoutDashboard size={20} />}
-            label={t('home')}
-          />
-          
           {role === 'citizen' && (
             <>
-              <NavButton 
-                active={activeTab === 'radar'} 
+              <NavButton
+                active={activeTab === 'dashboard'}
+                onClick={() => setActiveTab('dashboard')}
+                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('dashboard')}
+              />
+              <NavButton
+                active={activeTab === 'radar'}
                 onClick={() => setActiveTab('radar')}
-                icon={<Globe size={20} className="text-accent-blue" />}
-                label="RADAR"
+                icon={<Globe className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
+                label={t('radar')}
               />
-              <NavButton 
-                active={activeTab === 'contacts'} 
+              <NavButton
+                active={activeTab === 'contacts'}
                 onClick={() => setActiveTab('contacts')}
-                icon={<Users size={20} />}
-                label="CONTACTS"
+                icon={<Users className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('contacts')}
               />
-              <NavButton 
-                active={activeTab === 'special_cell'} 
+              <NavButton
+                active={activeTab === 'guide'}
+                onClick={() => setActiveTab('guide')}
+                icon={<BookOpen className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('guide') || 'GUIDE'}
+              />
+              <NavButton
+                active={activeTab === 'special_cell'}
                 onClick={() => setActiveTab('special_cell')}
-                icon={<ShieldCheck size={20} className="text-purple-500" />}
-                label="POLICE"
+                icon={<ShieldCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-purple-500" />}
+                label={t('special_cell')}
               />
-              <NavButton 
-                active={activeTab === 'vault'} 
+              <NavButton
+                active={activeTab === 'vault'}
                 onClick={() => setActiveTab('vault')}
-                icon={<Upload size={20} />}
-                label="VAULT"
+                icon={<Upload className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('vault')}
               />
             </>
           )}
 
           {role === 'protector' && (
-            <NavButton 
-              active={activeTab === 'rewards'} 
-              onClick={() => setActiveTab('rewards')}
-              icon={<Trophy size={20} />}
-              label={t('rakshak_merit') || 'Merit'}
-            />
+            <>
+              <NavButton
+                active={activeTab === 'dashboard'}
+                onClick={() => setActiveTab('dashboard')}
+                icon={<Navigation className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
+                label="TACTICAL MAP"
+              />
+              <NavButton
+                active={activeTab === 'rewards'}
+                onClick={() => setActiveTab('rewards')}
+                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label="REWARDS"
+              />
+              <NavButton
+                active={activeTab === 'guide'}
+                onClick={() => setActiveTab('guide')}
+                icon={<BookOpen className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label="GUIDE"
+              />
+              <NavButton
+                active={activeTab === 'grievance'}
+                onClick={() => setActiveTab('grievance')}
+                icon={<AlertTriangle className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-red" />}
+                label="REPORT"
+              />
+            </>
+          )}
+
+          {role === 'super_cell' && (
+            <>
+              <NavButton
+                active={activeTab === 'dashboard'}
+                onClick={() => setActiveTab('dashboard')}
+                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label="OPS"
+              />
+              <NavButton
+                active={activeTab === 'rewards'}
+                onClick={() => setActiveTab('rewards')}
+                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
+                label="HONOURS"
+              />
+            </>
           )}
 
           {role === 'admin' && (
             <>
-              <NavButton 
-                active={activeTab === 'verify'} 
-                onClick={() => setActiveTab('verify')}
-                icon={<UserCheck size={20} />}
-                label="VERIFY"
+              <NavButton
+                active={activeTab === 'dashboard'}
+                onClick={() => setActiveTab('dashboard')}
+                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('dashboard')}
               />
-              <NavButton 
-                active={activeTab === 'rewards'} 
+              <NavButton
+                active={activeTab === 'verify'}
+                onClick={() => setActiveTab('verify')}
+                icon={<UserCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('verify') || 'VERIFY'}
+              />
+              <NavButton
+                active={activeTab === 'rewards'}
                 onClick={() => setActiveTab('rewards')}
-                icon={<Trophy size={20} />}
-                label="Audit Rewards"
+                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
+                label={t('audit_rewards') || 'Rewards'}
               />
             </>
           )}
@@ -441,30 +483,30 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
 function NavButton({ active, onClick, icon, label, isSOS }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, isSOS?: boolean }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center flex-1 h-14 transition-all duration-300 relative",
+        "flex flex-col items-center justify-center flex-1 h-12 sm:h-14 transition-all duration-300 relative",
         active ? "text-white" : "text-text-dim",
         isSOS && "text-accent-red"
       )}
     >
       <div className={cn(
-        "p-2 rounded-xl transition-all duration-300",
-        active && !isSOS && "bg-accent-blue/10 scale-110",
-        active && isSOS && "bg-accent-red/10 scale-125"
+        "p-1.5 sm:p-2 rounded-xl transition-all duration-300",
+        active && !isSOS && "bg-accent-blue/10 scale-105 sm:scale-110",
+        active && isSOS && "bg-accent-red/10 scale-115 sm:scale-125"
       )}>
         {icon}
       </div>
       <span className={cn(
-        "text-[8px] font-black uppercase tracking-[0.15em] mt-1 transition-opacity",
-        active ? "opacity-100" : "opacity-0"
+        "text-[7px] sm:text-[8px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] mt-0.5 sm:mt-1 transition-all duration-500",
+        active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
       )}>{label}</span>
-      
+
       {active && (
-        <motion.div 
+        <motion.div
           layoutId="activeTab"
-          className="absolute -bottom-1 w-1 h-1 bg-current rounded-full"
+          className="absolute bottom-0 sm:-bottom-1 w-1 h-1 bg-current rounded-full"
         />
       )}
     </button>

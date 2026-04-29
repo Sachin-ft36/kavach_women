@@ -18,7 +18,7 @@ async function startServer() {
     }
   });
 
-  const PORT = Number(process.env.PORT) || 3001;
+  const PORT = Number(process.env.PORT) || 8085;
 
   app.use(express.json());
 
@@ -44,11 +44,12 @@ async function startServer() {
 
     // ── Identity Registration ──────────────────────────────────────────────
     socket.on("join", ({ userId, role, coords }: { userId: string; role: string, coords?: [number, number] }) => {
+      if (!userId) return; // Prevent anchoring undefined users
       userSocketMap.set(userId, socket.id);
       socketRoleMap.set(socket.id, role || "citizen");
       if (coords) userLocationMap.set(socket.id, coords);
-      socket.join(`role:${role}`); // join role room for broadcasts
-      console.log(`KAVACH: ${role} ${userId} anchored → ${socket.id}`);
+      socket.join(`role:${role || "citizen"}`); 
+      console.log(`KAVACH: ${role || "citizen"} ${userId} anchored → ${socket.id}`);
     });
 
     socket.on("update-location", ({ coords }: { coords: [number, number] }) => {

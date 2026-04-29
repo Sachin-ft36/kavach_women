@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { auth } from '../firebase';
+import { useKavachStore } from '../store/useKavachStore';
 
 interface CallContextType {
   initiateCall: (targetUserId: string, targetName: string) => Promise<void>;
@@ -31,13 +32,15 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [callerName, setCallerName] = useState<string | null>(null);
   const [activeCallUserId, setActiveCallUserId] = useState<string | null>(null);
   
+  const { user, role, userPos } = useKavachStore();
+  
   const localStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => {
     // Determine signaling server URL (same as backend)
     const socketUrl = window.location.origin.includes('localhost') 
-      ? 'http://localhost:3001' 
+      ? 'http://localhost:8085' 
       : window.location.origin;
 
     const newSocket = io(socketUrl);
@@ -45,8 +48,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     newSocket.on('connect', () => {
       console.log('KAVACH Signal: Connected to neural hub');
-      if (auth.currentUser) {
-        newSocket.emit('join', auth.currentUser.uid);
+      const currentState = useKavachStore.getState();
+      if (currentState.user) {
+        newSocket.emit('join', { 
+          userId: currentState.user.uid, 
+          role: currentState.role,
+          coords: currentState.userPos
+        });
       }
     });
 
@@ -98,10 +106,14 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Re-sync socket join if user changes
   useEffect(() => {
-    if (socket && auth.currentUser) {
-      socket.emit('join', auth.currentUser.uid);
+    if (socket && user) {
+      socket.emit('join', { 
+        userId: user.uid, 
+        role, 
+        coords: userPos 
+      });
     }
-  }, [socket, auth.currentUser]);
+  }, [socket, user, role, userPos]);
 
   const createPeerConnection = (targetUserId: string) => {
     const pc = new RTCPeerConnection(STUN_SERVERS);

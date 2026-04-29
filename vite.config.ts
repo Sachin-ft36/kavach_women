@@ -20,9 +20,10 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
+      minify: false,
     },
     server: {
-      port: 3001,
+      port: 8085,
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };

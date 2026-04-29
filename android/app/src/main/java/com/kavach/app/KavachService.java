@@ -18,6 +18,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.telephony.SmsManager;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
@@ -47,7 +48,10 @@ public class KavachService extends Service implements SensorEventListener {
     private long lastShakeTime = 0;
     private int shakeCount = 0;
     private long lastPeakTime = 0;
-    private static final float SHAKE_THRESHOLD = 48f; // Hardened for intentional shake only
+    private static final float MIN_FORCE_G = 14.5f; // Distress Force Level
+    private static final int REQUIRED_SHAKES = 3; // 3 clear hits (Up-Down cycles)
+    private static final int TIME_WINDOW = 2000; // 2s Window
+    private static final int DEBOUNCE_MS = 300; 
 
     // ── Power-Button Counter ─────────────────────────
     private int screenToggleCount = 0;
@@ -133,19 +137,35 @@ public class KavachService extends Service implements SensorEventListener {
                 : 0;
         PendingIntent pi = PendingIntent.getActivity(this, 0, notifIntent, piFlags);
 
+        // 🚨 FULL-SCREEN INTENT: Force UI over Lock Screen
+        Intent fullScreenIntent = new Intent(this, MainActivity.class);
+        fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 0, fullScreenIntent, 
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("System Security Active")
+                .setContentTitle("KAVACH Protection")
                 .setContentText(mediaPlayer != null && mediaPlayer.isPlaying()
                         ? "🚨 CRITICAL OVERRIDE ACTIVE"
                         : "Shielding Neural Grid — Status: VERIFIED")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentIntent(pi)
+                .setFullScreenIntent(fullScreenPendingIntent, true) // ✨ MISSION CRITICAL
                 .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(Notification.CATEGORY_SERVICE)
+                .setPriority(NotificationCompat.PRIORITY_MAX) // 🔥 MAX PRIORITY
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .build();
 
-        startForeground(1, notification);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // Android 14+ mandate for explicit types in startForeground
+            startForeground(1, notification, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE |
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION |
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE |
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
+        } else {
+            startForeground(1, notification);
+        }
 
         // START_STICKY: If OS kills the service, it auto-restarts
         return START_STICKY;
@@ -154,41 +174,43 @@ public class KavachService extends Service implements SensorEventListener {
     // ── Shake detection ───────────────────────────────────────────────────
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER)
-            return;
+        if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER) return;
+
         float x = event.values[0], y = event.values[1], z = event.values[2];
-        double force = Math.sqrt(x * x + y * y + z * z) - SensorManager.GRAVITY_EARTH;
         
-        if (force > SHAKE_THRESHOLD) {
+        // 🛡️ TACTICAL G-FORCE CALCULATION
+        double gForce = Math.sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH;
+
+        if (gForce > MIN_FORCE_G) {
             long now = System.currentTimeMillis();
-            
-            // 1. TEMPORAL GATE: If too much time passed since last peak, reset mission
-            if (now - lastPeakTime > 1200) {
+
+            // 1. TEMPORAL GATE: Reset if no shake in last 1.5s
+            if (now - lastPeakTime > TIME_WINDOW) {
                 shakeCount = 0;
             }
-            
-            // 2. DEBOUNCE: Don't count the same movement twice (min 200ms between peaks)
-            if (now - lastPeakTime > 200) {
+
+            // 2. DEBOUNCE: Ensure distinct forceful movements
+            if (now - lastPeakTime > DEBOUNCE_MS) {
                 shakeCount++;
                 lastPeakTime = now;
-                Log.d(TAG, "PEAK DETECTED [" + shakeCount + "/3] Force: " + force);
+                Log.d(TAG, "TACTICAL PULSE: [" + shakeCount + "/" + REQUIRED_SHAKES + "] Force: " + gForce + "G");
+
+                // Haptic Feedback (Pulse) - System is tracking (70ms Tactical Pulse)
+                long nowPulse = System.currentTimeMillis();
+                android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (v != null && nowPulse - lastShakeTime > 1000) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        v.vibrate(android.os.VibrationEffect.createOneShot(70, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else { v.vibrate(70); }
+                }
             }
 
-            // 3. MISSION EXECUTION: Trigger only on exactly 3 vigorous peaks
-            if (shakeCount >= 3) {
-                if (now - lastShakeTime > 5000) { // Global cooldown per SOS blast
+            // 3. ENFORCEMENT: Trigger on exactly the required number of hits
+            if (shakeCount >= REQUIRED_SHAKES) {
+                if (now - lastShakeTime > 5000) { // Cooldown before next SOS blast
                     lastShakeTime = now;
                     shakeCount = 0;
-                    Log.i(TAG, "KAVACH MISSION: Intelligent Triple-Shake Pattern Verified!");
-                    
-                    // Brief Haptic Feedback
-                    android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-                    if (v != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            v.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
-                        } else { v.vibrate(200); }
-                    }
-                    
+                    Log.i(TAG, "KAVACH MISSION: Pattern VERIFIED (" + gForce + "G)");
                     triggerSOS("shake");
                 }
             }
@@ -200,10 +222,18 @@ public class KavachService extends Service implements SensorEventListener {
     }
 
     // ── SOS Trigger ───────────────────────────────────────────────────────
-    private void triggerSOS(String source) {
+    private void triggerSOS(final String source) {
         Log.i(TAG, "KAVACH SOS: Triggered via " + source);
 
-        // 1. Bring MainActivity to front (High Priority Override)
+        // 1. TACTICAL DECOUPLING: Run SMS dispatch in a dedicated background thread to prevent UI freezing/ANR
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                dispatchEmergencySMS();
+            }
+        }).start();
+
+        // 2. Bring MainActivity to front (High Priority Override)
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -216,46 +246,101 @@ public class KavachService extends Service implements SensorEventListener {
             Log.w(TAG, "Activity start suppressed: " + e.getMessage());
         }
 
-        // 2. Start Stealth Evidence Capture (Cold Start)
+        // 3. Start Stealth Evidence Capture (Cold Start)
         EvidenceEngine.startCapture(this, "alert_" + System.currentTimeMillis());
+    }
 
-        // 3. Notify KavachNative plugin listener if bridge is live
-        // (JS will pick up via addListener('sosTriggered', ...) or consumeTrigger)
+    private void dispatchEmergencySMS() {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
+            String contactsJson = prefs.getString("guardian_contacts", null);
+            if (contactsJson == null) return;
+
+            // 🛡️ HARDENED PARSING: Extract all numbers via Regex to bypass JSON brittleness
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"phone\":\"([^\"]+)\"");
+            java.util.regex.Matcher matcher = pattern.matcher(contactsJson);
+            
+            SmsManager sm;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                sm = getSystemService(SmsManager.class);
+            } else {
+                sm = SmsManager.getDefault();
+            }
+
+            if (sm == null) return;
+
+            while (matcher.find()) {
+                String num = matcher.group(1).replaceAll("[^0-9+]", "");
+                if (num.isEmpty()) continue;
+
+                try {
+                    String message = "🚨 KAVACH CRITICAL SOS! 🚨\nDanger Detected. Time: " + 
+                                     new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()) + 
+                                     "\n📍 Live Grid Anchor Active.";
+                    
+                    if (message.length() > 70) {
+                        java.util.ArrayList<String> parts = sm.divideMessage(message);
+                        sm.sendMultipartTextMessage(num, null, parts, null, null);
+                    } else {
+                        sm.sendTextMessage(num, null, message, null, null);
+                    }
+                    Log.i(TAG, "TACTICAL BACKGROUND DISPATCH: Success -> " + num);
+                    
+                    // Pacing to prevent carrier block
+                    Thread.sleep(1500);
+                } catch (Exception e) {
+                    Log.e(TAG, "Chain Dispatch Error for " + num + ": " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Background Dispatch Error: " + e.getMessage());
+        }
     }
 
     // ── Siren Logic ───────────────────────────────────────────────────────
     private void startSirenLogic() {
-        try {
-            if (mediaPlayer != null) {
-                if (mediaPlayer.isPlaying())
-                    return;
-                mediaPlayer.release();
-            }
-            int resId = getResources().getIdentifier("tactical_siren", "raw", getPackageName());
-            if (resId == 0) {
-                Log.e(TAG, "Siren resource not found");
-                return;
-            }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.i(TAG, "SIREN: Initiating hardware override...");
+                    
+                    // 🔊 COMMAND OVERRIDE: Force MAX Volume on ALARM & MUSIC Streams
+                    AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                    if (am != null) {
+                        int maxAlarm = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                        int maxMusic = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        am.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0);
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0);
+                    }
 
-            mediaPlayer = new MediaPlayer();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mediaPlayer.setAudioAttributes(
-                        new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_ALARM)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build());
-            } else {
-                mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
+                    if (mediaPlayer != null) {
+                        try { mediaPlayer.stop(); mediaPlayer.release(); } catch (Exception ignored) {}
+                    }
+
+                    int resId = getResources().getIdentifier("tactical_siren", "raw", getPackageName());
+                    if (resId == 0) {
+                        Log.e(TAG, "SIREN: Resource 'tactical_siren' NOT FOUND!");
+                        return;
+                    }
+
+                    mediaPlayer = MediaPlayer.create(KavachService.this, resId);
+                    if (mediaPlayer == null) return;
+                    
+                    mediaPlayer.setLooping(true);
+                    mediaPlayer.start();
+                    Log.i(TAG, "SIREN: Loop engaged. Watchdog active.");
+
+                    // ⏲️ AUTO-SILENCE WATCHDOG: 1 Minute Limit
+                    Thread.sleep(60000);
+                    if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                        stopSirenLogic();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "SIREN FAILURE: " + e.getMessage());
+                }
             }
-            mediaPlayer.setDataSource(this,
-                    Uri.parse("android.resource://" + getPackageName() + "/" + resId));
-            mediaPlayer.setLooping(true);
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            Log.i(TAG, "SIREN: Engaged on ALARM stream.");
-        } catch (Exception e) {
-            Log.e(TAG, "Siren start failed: " + e.getMessage());
-        }
+        }).start();
     }
 
     private void stopSirenLogic() {

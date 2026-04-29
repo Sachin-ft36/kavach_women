@@ -3,45 +3,30 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from 
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import { 
-  initializeFirestore,
-  enableMultiTabIndexedDbPersistence,
-  doc, 
-  getDocFromServer, 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
+  getFirestore,
+  doc,
+  collection,
+  addDoc,
+  updateDoc,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
   Timestamp,
   setDoc,
-  collectionGroup
+  collectionGroup,
+  getDocs,
+  getDocsFromCache
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
-// Using initializeFirestore with tactical network settings to fix "code=unavailable" errors.
-// Force long-polling to bypass restrictive proxy filters and ensure data grid availability.
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+// Switching to standard getFirestore to bypass ALL experimental transport bugs
+export const db = getFirestore(app);
 
-// Enable persistence for better offline/mobile reliability
-try {
-  enableMultiTabIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn("Firestore Persistence: Multiple tabs detected. Persistence limited to primary node.");
-    } else if (err.code === 'unimplemented') {
-      console.warn("Firestore Persistence: Client environment does not support IndexedDB.");
-    }
-  });
-} catch (e) {
-  console.warn("Firestore Persistence Initialization failed.");
-}
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
@@ -98,15 +83,3 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-// Connection Test
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. The client is offline.");
-    }
-  }
-}
-testConnection();

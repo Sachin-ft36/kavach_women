@@ -1,0 +1,63 @@
+﻿
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+[Incubating] Problems report is available at: file:///C:/Users/hp/Desktop/kavach_women/android/build/reports/problems/problems-report.html
+./gradlew : 
+At line:1 char:13
++ cd android; ./gradlew 
+assembleDebug -Dorg.gradle
+.java.home="C:/Progra ...
++             ~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+FAILURE: Build failed 
+with an exception.
+
+* What went wrong:
+Cannot locate tasks that 
+match '.gradle.java.home=C
+:/Program 
+Files/Java/jdk-22' as 
+project 
+'.gradle.java.home=C' not 
+found in root project 
+'android'.
+
+* Try:
+> Run gradlew projects to 
+get a list of available 
+projects.
+> For more on name 
+expansion, please refer 
+to https://docs.gradle.org
+/8.14.3/userguide/command_
+line_interface.html#sec:na
+me_abbreviation in the 
+Gradle documentation.
+> Run with --stacktrace 
+option to get the stack 
+trace.
+> Run with --info or 
+--debug option to get 
+more log output.
+> Run with --scan to get 
+full insights.
+> Get more help at 
+https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 7s

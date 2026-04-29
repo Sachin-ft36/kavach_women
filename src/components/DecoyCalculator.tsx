@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useKavachStore } from '../store/useKavachStore';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const KavachNative = registerPlugin<any>('KavachPlugin');
 
 export default function DecoyCalculator() {
   const [display, setDisplay] = useState('0');
   const [history, setHistory] = useState('');
-  const { setSOSActive } = useKavachStore();
+  const { setSOSActive, safetyPin, isHubReady } = useKavachStore();
 
   const handleSOS = () => {
-     // SILENT TRIGGER EMITTED
-     const event = new CustomEvent('sos-silent-trigger');
-     window.dispatchEvent(event);
+    // 📳 TACTICAL CONFIRMATION: Discreet double-pulse vibration
+    if (Capacitor.isNativePlatform() && isHubReady) {
+      KavachNative.triggerHapticPulse().catch(() => {});
+    }
+
+    // SILENT TRIGGER EMITTED
+    const event = new CustomEvent('sos-silent-trigger');
+    window.dispatchEvent(event);
   };
 
   const pressKey = (key: string) => {
@@ -27,8 +35,9 @@ export default function DecoyCalculator() {
         setHistory(display + ' =');
         setDisplay(String(result));
         
-        // SECRET TRIGGER: If the result or input matches the mission code
-        if (display === '911911') {
+        // 🔐 SECRET TACTICAL TRIGGER: Use the user's safetyPin (or default 911911)
+        const secretCode = safetyPin || '911911';
+        if (display === secretCode) {
            handleSOS();
         }
       } catch {

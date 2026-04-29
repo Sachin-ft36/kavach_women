@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- FORENSIC INTEGRITY UTILITY ---
 async function generateForensicHash(data: string) {
@@ -21,18 +22,24 @@ export const useEvidenceEngine = () => {
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const transcriptRef = useRef<string>('');
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (isSOSActive && activeAlertId && user) {
-      console.log("🛡️ KAVACH: SILENT HARDWARE SENTINEL ENGAGED.");
+      console.log("🛡️ KAVACH: SILENT VIDEO SENTINEL ENGAGED.");
       
+
       const initializeStealthHardware = async () => {
         try {
-          // 1. Request combined invisible stream (Video + Audio)
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment' }, // Try back camera first
-            audio: true 
-          });
+          // 1. Request combined invisible stream
+          // TACTICAL DECISION: If on Native, only request Video to avoid Mic clash with EvidenceEngine.java
+          const constraints: MediaStreamConstraints = { 
+            video: { facingMode: 'environment' },
+            audio: !Capacitor.isNativePlatform() 
+          };
+          
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
           
           mediaStreamRef.current = stream;
 
@@ -56,28 +63,33 @@ export const useEvidenceEngine = () => {
             };
 
             recorder.onstop = async () => {
-               // When stopped, upload the chunk
+               // When stopped, upload the chunk to Firebase Storage
                if (audioChunksRef.current.length === 0) return;
                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                audioChunksRef.current = []; // Clear for next sector
                
-               // Convert Audio Blob to Base64 (Because real production Firebase Storage rules vary, Base64 is guaranteed injection)
-               const reader = new FileReader();
-               reader.readAsDataURL(audioBlob);
-               reader.onloadend = async () => {
-                  const base64Audio = reader.result as string;
-                  const forensicHash = await generateForensicHash(`AUDIO-${Date.now()}-${user.uid}`);
+               try {
+                  const timestamp = Date.now();
+                  const forensicHash = await generateForensicHash(`AUDIO-${timestamp}-${user.uid}`);
                   
+                  // UPLOAD TO STORAGE
+                  const audioRef = ref(storage, `alerts/${activeAlertId}/evidence/audio_${timestamp}.webm`);
+                  await uploadBytes(audioRef, audioBlob);
+                  const downloadUrl = await getDownloadURL(audioRef);
+                  
+                  // ANCHOR IN FIRESTORE
                   await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
                     type: 'Audio Log',
                     timestamp: serverTimestamp(),
                     status: 'Immutable Anchor',
                     hash: forensicHash,
                     coords: userPos,
-                    url: base64Audio, // Base64 Audio Source
-                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'TACTICAL_SILENT_AUDIO' }
+                    url: downloadUrl, // Storage Public Link
+                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'TACTICAL_SILENT_AUDIO', storage: 'FIREBASE_BUCKET' }
                   });
-               };
+               } catch (e) {
+                 console.error("KAVACH: Audio Sync to Storage Failed:", e);
+               }
             };
 
             audioRecorderRef.current = recorder;
@@ -105,37 +117,51 @@ export const useEvidenceEngine = () => {
               canvas.height = videoRef.current.videoHeight || 480;
               context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
               
-              // Compress heavily to ensure real-time Firestore transmission via Base64
-              const base64Image = canvas.toDataURL('image/jpeg', 0.5); 
-              
-              const timestamp = Date.now();
-              const forensicContext = `${activeAlertId}-${user.uid}-${userPos.join(',')}-${timestamp}`;
-              const forensicHash = await generateForensicHash(forensicContext);
-              
-              const evidencePayload = {
-                type: 'Snapshot',
-                timestamp: serverTimestamp(),
-                status: 'Immutable Anchor',
-                hash: forensicHash,
-                coords: userPos,
-                url: base64Image, // Directly injecting the Base64 String stream of the REAL camera!
-                metadata: {
-                  auth: 'SHA-256-RSA-VERIFIED',
-                  deviceSync: true,
-                  mode: 'REAL_HARDWARE_CAPTURE'
-                }
-              };
+              // Use ToBlob for Efficient Storage Upload
+              canvas.toBlob(async (blob) => {
+                if (!blob) return;
 
-              await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), evidencePayload);
-              console.log(`📸 KAVACH: Hardware Video Frame Locked [${forensicHash.slice(0, 8)}]`);
+                const timestamp = Date.now();
+                const forensicContext = `${activeAlertId}-${user.uid}-${userPos.join(',')}-${timestamp}`;
+                const forensicHash = await generateForensicHash(forensicContext);
+                
+                try {
+                  // 1. UPLOAD IMAGE TO STORAGE
+                  const snapRef = ref(storage, `alerts/${activeAlertId}/evidence/snap_${timestamp}.jpg`);
+                  await uploadBytes(snapRef, blob);
+                  const downloadUrl = await getDownloadURL(snapRef);
+
+                  // 2. LOG IN FIRESTORE
+                  const evidencePayload = {
+                    type: 'Snapshot',
+                    timestamp: serverTimestamp(),
+                    status: 'Immutable Anchor',
+                    hash: forensicHash,
+                    coords: userPos,
+                    url: downloadUrl, // Storage Public Link
+                    metadata: {
+                      auth: 'SHA-256-RSA-VERIFIED',
+                      deviceSync: true,
+                      mode: 'REAL_HARDWARE_CAPTURE',
+                      storage: 'FIREBASE_BUCKET'
+                    }
+                  };
+
+                  await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), evidencePayload);
+                  // console.log(`📸 KAVACH: Hardware Video Frame Locked [${forensicHash.slice(0, 8)}]`);
+                } catch (e) {
+                  console.error("KAVACH: Snapshot Sync to Storage Failed:", e);
+                }
+              }, 'image/jpeg', 0.5); 
+              
             } catch (e) {
               console.error("Forensic Frame Capture Error:", e);
             }
           }, 3000); // 🚨 3 Seconds Pulse
 
+          initializeStealthHardware();
         } catch (error) {
           console.error("Failed to access native device hardware:", error);
-          // Fallback handled silently
         }
       };
 
@@ -146,6 +172,11 @@ export const useEvidenceEngine = () => {
       console.log("🛑 KAVACH: Releasing Hardware Hooks");
       if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+      
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      }
       
       if (audioRecorderRef.current && audioRecorderRef.current.state !== 'inactive') {
         audioRecorderRef.current.stop();

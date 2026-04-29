@@ -1,6 +1,0 @@
-{
-  "name": "KAVACH",
-  "description": "Zero-Trust AI-Powered National Safety Network. Secure Every Citizen. Empower Every Response. Govern Every Threat.",
-  "requestFramePermissions": ["camera", "microphone", "geolocation"],
-  "majorCapabilities": ["AI Safety", "Real-time Tracking", "Evidence Preservation", "Ministry Oversight"]
-}
