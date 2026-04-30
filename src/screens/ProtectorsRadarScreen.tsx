@@ -138,24 +138,31 @@ export default function ProtectorsRadarScreen() {
                           {protector.name || 'Verified Responder'}
                           <CheckCircle2 size={12} className="text-accent-blue" />
                         </h4>
-                        <p className="text-[10px] font-mono text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-                          Distance: <span className="text-white">{(protector.distanceKm * 1000).toFixed(0)}m</span>
-                        </p>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[9px] font-black text-accent-blue uppercase tracking-widest italic">{protector.profession || 'TACTICAL_OPERATIVE'}</p>
+                          <p className="text-[10px] font-mono text-gray-500 font-bold uppercase tracking-widest">
+                            Distance: <span className="text-white">{(protector.distanceKm * 1000).toFixed(0)}m</span>
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Masked Call Interface */}
-                  <div className="pt-3 border-t border-white/5 flex gap-2">
+                  <div className="pt-3 border-t border-white/5 flex flex-col gap-2">
                     <button
                       onClick={() => {
                         // Masking number - Using App's native VoIP/WebRTC link so no physical number is exposed to either party.
                         initiateCall(protector.uid || protector.id, protector.name || 'Protector');
                       }}
-                      className="w-full py-3 bg-green-600/10 text-green-500 hover:bg-green-600 hover:text-white border border-green-500/20 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                      className="w-full py-4 bg-green-600/10 text-green-500 hover:bg-green-600 hover:text-white border border-green-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-500/10"
                     >
-                      <PhoneCall size={14} /> SECURE MASKED CALL
+                      <PhoneCall size={16} /> INITIATE MASKED CALL
                     </button>
+                    <div className="flex items-center justify-center gap-2 opacity-40">
+                      <Lock size={10} />
+                      <span className="text-[7px] font-bold uppercase tracking-[2px]">E2E Encrypted // Number Masked</span>
+                    </div>
                   </div>
                 </motion.div>
               ))

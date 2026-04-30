@@ -69,7 +69,7 @@ export default function ProtectorGuideScreen() {
         } as ProtectorGuide;
       });
 
-      const all = [...BOOTCAMP_GUIDES, ...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
+      const all = [...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
         if (a.priority === 'CRITICAL' && b.priority !== 'CRITICAL') return -1;
         const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0);
         const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0);
@@ -84,7 +84,6 @@ export default function ProtectorGuideScreen() {
     const unsubC = onSnapshot(qC, (snap) => syncChannel('sos', snap.docs), (err) => { console.warn("P SOS Error:", err); setLoading(false); });
 
     const failSafe = setTimeout(() => setLoading(false), 5000);
-
     return () => { unsubA(); unsubB(); unsubC(); clearTimeout(failSafe); };
   }, []);
 

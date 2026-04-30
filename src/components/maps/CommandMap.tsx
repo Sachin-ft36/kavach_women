@@ -2,13 +2,31 @@ import React, { useEffect, useRef, memo } from 'react';
 
 const mapboxgl = (window as any).mapboxgl;
 const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
-const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverride = null, showVectors = false }: { activeAlerts?: any[], activeProtectors?: any[], centerOverride?: [number, number] | null, showVectors?: boolean }) => {
+const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], activeFirs = [], centerOverride = null, showVectors = false, onAlertClick, onProtectorClick, onFirClick, onHoverId }: {
+  activeAlerts?: any[],
+  activeProtectors?: any[],
+  activeFirs?: any[],
+  centerOverride?: [number, number] | null,
+  showVectors?: boolean,
+  onAlertClick?: (id: string) => void,
+  onProtectorClick?: (id: string) => void,
+  onFirClick?: (id: string) => void,
+  onHoverId?: (id: string | null) => void
+}) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
-  
+
   const alertMarkers = useRef<{ [key: string]: any }>({});
   const protectorMarkers = useRef<{ [key: string]: any }>({});
+  const firMarkers = useRef<{ [key: string]: any }>({});
   const interceptLines = useRef<{ [key: string]: any }>({});
 
   useEffect(() => {
@@ -25,9 +43,9 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
       map.current = new mb.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/dark-v11',
-        center: centerOverride ? [centerOverride[1], centerOverride[0]] : [82.0, 22.0], 
-        zoom: centerOverride ? 12 : 3.3, 
-        maxBounds: VIEW_BOUNDS, 
+        center: centerOverride ? [centerOverride[1], centerOverride[0]] : [82.0, 22.0],
+        zoom: centerOverride ? 12 : 3.3,
+        maxBounds: VIEW_BOUNDS,
         pitch: 0, // Flat national view is clearer for oversight
         antialias: true
       });
@@ -53,6 +71,7 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
     return () => {
       Object.values(alertMarkers.current).forEach(m => m.remove());
       Object.values(protectorMarkers.current).forEach(m => m.remove());
+      Object.values(firMarkers.current).forEach(m => m.remove());
       map.current?.remove();
     };
   }, []);
@@ -62,7 +81,7 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
 
     activeAlerts.forEach(alert => {
       if (!alert.location || !alert.responders) return;
-      
+
       alert.responders.forEach((resp: any, idx: number) => {
         const lineId = `line-${alert.id}-${resp.uid || idx}`;
         const protector = activeProtectors.find(p => p.uid === resp.uid || p.id === resp.uid);
@@ -90,7 +109,7 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
             });
             interceptLines.current[lineId] = true;
           }
-        } catch (e) {}
+        } catch (e) { }
       });
     });
 
@@ -128,6 +147,18 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
         `;
 
         const isStale = alert.isStale;
+
+        // 📏 OPERATIONAL DISTANCE CALCULATION
+        let nearestDist = Infinity;
+        activeProtectors.forEach(p => {
+          const plat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.coords?.[0];
+          const plng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.coords?.[1];
+          if (plat && plng) {
+            const d = getDistance(alert.location.latitude, alert.location.longitude, plat, plng);
+            if (d < nearestDist) nearestDist = d;
+          }
+        });
+
         // 🛡️ TACTICAL HOVER POPUP (SOS)
         const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
           .setHTML(`
@@ -142,25 +173,32 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
                 ${alert.location?.latitude?.toFixed(4) || '0.0000'}, 
                 ${alert.location?.longitude?.toFixed(4) || '0.0000'}
               </p>
-              ${isStale ? `<p style="color: #ff0000; font-size: 7px; font-weight: bold; text-transform: uppercase; margin: 4px 0;">⚠️ CRITICAL: Mission Telemetry Heartbeat Failed</p>` : ''}
+              <div style="background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.2); padding: 6px; border-radius: 8px; margin: 8px 0;">
+                <p style="margin: 0; font-size: 8px; font-weight: 900; color: #ff0000; text-transform: uppercase;">Nearest Support: ${nearestDist === Infinity ? 'SCANNING GRID...' : nearestDist.toFixed(2) + ' KM'}</p>
+              </div>
+              ${isStale ? `<p style="color: #ff0000; font-size: 7px; font-weight: bold; text-transform: uppercase; margin: 4px 0;">⚠️ CRITICAL: Mission Telebeat Failed</p>` : ''}
               <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0;"></div>
               <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                  <span style="background: rgba(255,0,0,0.1); color: #ff0000; padding: 2px 6px; border-radius: 4px; font-size: 7px; font-weight: 900;">${alert.type || 'SENSORY'}</span>
                  <span style="background: rgba(0,112,243,0.1); color: #0070f3; padding: 2px 6px; border-radius: 4px; font-size: 7px; font-weight: 900;">RESP: ${alert.responders?.length || 0}</span>
               </div>
+              <p style="margin-top: 8px; font-size: 7px; color: #777; font-style: italic; text-align: center;">Click marker to focus in sidebar</p>
             </div>
           `);
 
         const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
-        
+
         // HOVER REGISTRY
         el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
         el.addEventListener('mouseleave', () => marker.togglePopup());
-        
+        el.addEventListener('click', () => {
+          if (onAlertClick) onAlertClick(alert.id);
+        });
+
         alertMarkers.current[alert.id] = marker;
       } else {
         if (!isNaN(coords[0]) && !isNaN(coords[1])) {
-           alertMarkers.current[alert.id].setLngLat(coords);
+          alertMarkers.current[alert.id].setLngLat(coords);
         }
       }
     });
@@ -200,7 +238,7 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
         const el = document.createElement('div');
         el.className = 'protector-marker';
         el.innerHTML = `<div style="background: ${signalLost ? '#555' : (isOnMission ? '#00f2ff' : '#0070f3')}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 15px ${signalLost ? '#000' : (isOnMission ? '#00f2ff' : '#0070f3')}; transition: all 0.5s; opacity: ${signalLost ? 0.4 : 1};"></div>`;
-        
+
         // 🛡️ TACTICAL HOVER POPUP (PROTECTOR)
         const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
           .setHTML(`
@@ -219,9 +257,12 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
           `);
 
         const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
-        
+
         el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
         el.addEventListener('mouseleave', () => marker.togglePopup());
+        el.addEventListener('click', () => {
+          if (onProtectorClick) onProtectorClick(pid);
+        });
 
         protectorMarkers.current[pid] = marker;
       } else {
@@ -230,7 +271,58 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
         }
       }
     });
-  }, [activeAlerts, activeProtectors]);
+
+    // ⚖️ JUSTICE GRID (Online FIRs - Green Pulse)
+    const activeFirIds = activeFirs.map(f => f.id);
+    Object.keys(firMarkers.current).forEach(id => {
+      if (!activeFirIds.includes(id)) {
+        firMarkers.current[id].remove();
+        delete firMarkers.current[id];
+      }
+    });
+
+    activeFirs.forEach(fir => {
+      const loc = fir.incidentLocation || fir.location;
+      if (!loc || typeof loc.lat !== 'number' || typeof loc.lng !== 'number') return;
+      const coords: [number, number] = [loc.lng, loc.lat];
+
+      if (!firMarkers.current[fir.id]) {
+        const el = document.createElement('div');
+        el.className = 'fir-pulse-marker';
+        el.innerHTML = `
+          <div style="position: relative;">
+            <div style="position: absolute; inset: -10px; background: rgba(34,197,94,0.4); border-radius: 50%; animation: pulse-ring 2s infinite;"></div>
+            <div style="background: #22c55e; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #22c55e; position: relative; z-index: 2;"></div>
+          </div>
+        `;
+
+        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
+          .setHTML(`
+            <div style="background: #080808; border: 1px solid #22c55e; padding: 12px; border-radius: 12px; color: white; font-family: sans-serif; min-width: 180px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                 <span style="font-size: 8px; font-weight: 900; color: #22c55e; text-transform: uppercase;">⚖️ JUSTICE RECORD</span>
+                 <span style="font-size: 8px; color: grey;">ID: ${fir.firId || fir.id.slice(-6).toUpperCase()}</span>
+              </div>
+              <h4 style="margin: 0; font-size: 14px; font-weight: 900;">${fir.userName}</h4>
+              <p style="margin: 4px 0; font-size: 9px; color: #555;">${fir.offenseType}</p>
+              <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0;"></div>
+              <p style="font-size: 7px; color: #22c55e; font-weight: bold; text-transform: uppercase;">ONLINE FIR VERIFIED</p>
+            </div>
+          `);
+
+        const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
+        el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
+        el.addEventListener('mouseleave', () => marker.togglePopup());
+        el.addEventListener('click', () => {
+          if (onFirClick) onFirClick(fir.id);
+        });
+
+        firMarkers.current[fir.id] = marker;
+      } else {
+        firMarkers.current[fir.id].setLngLat(coords);
+      }
+    });
+  }, [activeAlerts, activeProtectors, activeFirs]);
 
   useEffect(() => {
     if (map.current && centerOverride) {
@@ -240,8 +332,8 @@ const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], centerOverr
 
   return (
     <div className="h-full w-full relative overflow-hidden bg-black">
-       <div ref={mapContainer} className="absolute inset-0" />
-       <style>{`
+      <div ref={mapContainer} className="absolute inset-0" />
+      <style>{`
          @keyframes pulse-ring {
            0% { transform: scale(0.3); opacity: 1; }
            100% { transform: scale(3); opacity: 0; }

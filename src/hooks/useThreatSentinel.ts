@@ -28,7 +28,8 @@ export function useThreatSentinel() {
   const tapSequenceRef = useRef<{time: number, force: number}[]>([]);
 
   useEffect(() => {
-    if (isSOSActive) return;
+    const isCitizen = useKavachStore.getState().role === 'citizen';
+    if (isSOSActive || !isCitizen) return;
 
     const checkThreats = () => {
       // 1. MOTION INACTIVITY CHECK (Ride Mode only)
@@ -71,7 +72,8 @@ export function useThreatSentinel() {
   }, [userPos, isRideModeActive, isSOSActive, isSentinelActive, lastSentinelPulse]);
 
   useEffect(() => {
-    if (isSOSActive) return;
+    const isCitizen = useKavachStore.getState().role === 'citizen';
+    if (isSOSActive || !isCitizen) return;
 
     const handleMotion = (event: DeviceMotionEvent) => {
       const acc = event.accelerationIncludingGravity;

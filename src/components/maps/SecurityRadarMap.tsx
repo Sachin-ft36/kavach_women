@@ -28,7 +28,7 @@ const SecurityRadarMap = memo(({ protectors = [] }: { protectors?: any[] }) => {
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/dark-v11',
           center: initialCoords as [number, number],
-          zoom: userPos ? 16 : 4,
+          zoom: userPos ? 15.5 : 4,
           pitch: 0,
           antialias: true,
           preserveDrawingBuffer: true
@@ -106,7 +106,7 @@ const SecurityRadarMap = memo(({ protectors = [] }: { protectors?: any[] }) => {
 
         if (!protectorMarkers.current[pid]) {
           const el = document.createElement('div');
-          el.innerHTML = `<div style="font-size: 20px; filter: drop-shadow(0 0 5px #3b82f6);">👮</div>`;
+          el.innerHTML = `<div style="background: #0070f3; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 15px #0070f3; transition: all 0.3s ease-out;"></div>`;
           protectorMarkers.current[pid] = new mapboxgl.Marker(el)
             .setLngLat([coords[0], coords[1]])
             .addTo(map.current!);

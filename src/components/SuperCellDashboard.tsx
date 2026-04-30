@@ -4,7 +4,7 @@ import {
   Shield, MapPin, AlertCircle, Users, Bell, CheckCircle2, Navigation, Phone,
   Search, Filter, Activity, Database, Lock, Gavel, History, FileText,
   TrendingUp, X, ShieldCheck, Video, FileVideo, FileAudio, Zap, BookOpen,
-  Layers, Globe, Radio, Cpu, Heart, AlertTriangle, Eye, ChevronRight, SignalHigh, Trophy, Mic, Calendar, Clock
+  Layers, Globe, Radio, Cpu, Heart, AlertTriangle, Eye, ChevronRight, SignalHigh, Trophy, Mic, Calendar, Clock, ShieldAlert
 } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import CommandMap from './maps/CommandMap';
@@ -18,6 +18,137 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { registerPlugin } from '@capacitor/core';
 
+
+// 🛡️ REUSABLE TACTICAL COMPONENTS
+function SecurityLockScreen() {
+  return (
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-12 text-center">
+      <div className="relative mb-10">
+        <div className="absolute inset-0 bg-accent-red blur-3xl opacity-20 animate-pulse" />
+        <div className="w-24 h-24 bg-black border-4 border-accent-red/30 rounded-[32px] flex items-center justify-center relative z-10">
+          <Lock className="text-accent-red" size={48} />
+        </div>
+      </div>
+      <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white mb-3">Clearance Denied</h2>
+      <p className="text-gray-500 text-[10px] font-black uppercase tracking-[5px]">Restricted to National Strategic Command Only</p>
+      <div className="mt-8 flex gap-4">
+        <div className="h-[2px] w-12 bg-accent-red/20" />
+        <div className="h-[2px] w-12 bg-accent-red/40" />
+        <div className="h-[2px] w-12 bg-accent-red/20" />
+      </div>
+    </div>
+  );
+}
+
+
+function QuickStat({ icon, label, value, color, pulse = false }: { icon: any, label: string, value: number, color: string, pulse?: boolean }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <div className={cn("flex items-center gap-2", color)}>
+        {React.cloneElement(icon, { size: 14, className: pulse ? 'animate-pulse' : '' })}
+        <span className="text-[9px] font-black uppercase tracking-[3px] opacity-80">{label}</span>
+      </div>
+      <p className="text-2xl font-black italic text-white tracking-tighter leading-none">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+const TelemetryNode = React.memo(({ icon, label, value }: { icon: any, label: string, value: string }) => {
+  return (
+    <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-3xl flex flex-col gap-1">
+      <div className="flex items-center gap-2 text-gray-500">
+        {React.cloneElement(icon, { size: 12 })}
+        <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
+      </div>
+      <span className="text-md font-black text-white">{value}</span>
+    </div>
+  );
+});
+
+const AlertCard = React.memo(({ alert, isActive, onClick, onResolve, onResolveAll }: { alert: any, isActive: boolean, onClick: () => void, onResolve: (id: string) => void, onResolveAll: (uid: string) => void }) => {
+  return (
+    <motion.div
+      id={`alert-${alert.id}`}
+      onClick={onClick}
+      whileHover={{ scale: 1.01 }}
+      className={cn(
+        "p-4 lg:p-5 rounded-[24px] lg:rounded-[28px] border-2 cursor-pointer transition-all relative overflow-hidden group",
+        isActive
+          ? "bg-accent-red/20 border-accent-red shadow-xl"
+          : "bg-white/[0.03] border-white/5 hover:border-accent-red/30"
+      )}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex gap-3 items-center">
+          <div className={cn("w-2 h-2 rounded-full", isActive ? "bg-accent-red animate-ping" : "bg-accent-red")} />
+          <h4 className="text-[12px] lg:text-[13px] font-black uppercase text-white tracking-tight truncate max-w-[120px]">{alert.victimName}</h4>
+        </div>
+        <span className="text-[8px] font-mono text-white/40">{alert.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[8px] lg:text-[9px] text-gray-500 font-bold uppercase tracking-widest">{alert.state}</p>
+        <p className="text-[7px] font-mono text-accent-red/60 uppercase">SOS: {alert.type || 'BT'}</p>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="flex gap-2 relative z-20">
+          <button
+            onClick={(e) => { e.stopPropagation(); onResolve(alert.id); }}
+            className="px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-500 rounded-lg text-[7px] font-black uppercase hover:bg-green-500 hover:text-white transition-all"
+          >
+            DONE
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onResolveAll(alert.victimUid); }}
+            className="px-3 py-1.5 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue rounded-lg text-[7px] font-black uppercase hover:bg-accent-blue hover:text-black transition-all"
+          >
+            ALL
+          </button>
+        </div>
+        <ChevronRight size={14} className={cn("transition-all", isActive ? "text-accent-red translate-x-1" : "text-gray-700")} />
+      </div>
+    </motion.div>
+  );
+});
+
+function EmptyState({ label, icon }: { label: string, icon: any }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-gray-700 opacity-20 py-20">
+      {React.cloneElement(icon, { size: 48, className: 'mb-4' })}
+      <p className="text-[10px] font-black uppercase tracking-[4px] text-center">{label}</p>
+    </div>
+  );
+}
+
+function StrategicMetric({ label, value, type }: { label: string, value: any, type: 'DANGER' | 'INFO' | 'SUCCESS' | 'NORMAL' }) {
+  const color = type === 'DANGER' ? 'text-accent-red' : type === 'INFO' ? 'text-accent-blue' : type === 'SUCCESS' ? 'text-green-500' : 'text-white/60';
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className="text-[8px] font-black uppercase tracking-[3px] text-white/30">{label}</span>
+      <div className="flex items-center gap-2">
+        {type === 'DANGER' && <div className="w-1.5 h-1.5 rounded-full bg-accent-red animate-ping" />}
+        <span className={cn("text-2xl font-black tracking-tighter italic", color)}>{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function MinistryCard({ label, value, sub, color, icon }: { label: string, value: string, sub: string, color: string, icon: any }) {
+  return (
+    <div className={cn("p-5 bg-white/[0.02] border rounded-[28px] flex items-center gap-5 transition-all hover:bg-white/[0.04]", color)}>
+      <div className="w-10 h-10 flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div>
+        <p className="text-[7px] font-black text-gray-600 uppercase tracking-[4px] mb-1">{label}</p>
+        <p className="text-lg font-black text-white leading-none mb-1">{value}</p>
+        <p className="text-[7px] font-bold text-accent-blue uppercase tracking-widest">{sub}</p>
+      </div>
+    </div>
+  );
+}
+
 // 📡 NATIVE BRIDGE (Already registered in App/SOS)
 // const KavachNative = registerPlugin<any>('KavachPlugin');
 
@@ -30,10 +161,10 @@ const INDIAN_STATES = [
   "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu & Kashmir"
 ];
 
-export default function SuperCellDashboard({ 
-  viewModeOverride, 
-  onTabChange 
-}: { 
+export default function SuperCellDashboard({
+  viewModeOverride,
+  onTabChange
+}: {
   viewModeOverride?: 'OPS' | 'GATEKEEPER' | 'JUSTICE' | 'LEADERBOARD' | 'ALL',
   onTabChange?: (mode: 'OPS' | 'GATEKEEPER' | 'JUSTICE' | 'LEADERBOARD' | 'ALL') => void
 }) {
@@ -49,6 +180,8 @@ export default function SuperCellDashboard({
   const [resolvedHistory, setResolvedHistory] = useState<any[]>([]);
   const [protectorGrievances, setProtectorGrievances] = useState<any[]>([]);
   const [protectorTab, setProtectorTab] = useState<'QUEUE' | 'GRIEVANCES'>('QUEUE');
+  const [opsTab, setOpsTab] = useState<'PULSE' | 'GRIEVANCES'>('PULSE');
+  const [grievanceFilter, setGrievanceFilter] = useState<'ALL' | 'PROTECTOR' | 'WOMEN'>('ALL');
 
   // 🕹️ COMMAND STATES
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
@@ -72,8 +205,29 @@ export default function SuperCellDashboard({
   const [intelContent, setIntelContent] = useState('');
   const [intelCategory, setIntelCategory] = useState<'SAFETY' | 'LEGAL' | 'TACTICAL'>('SAFETY');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [editingIntelId, setEditingIntelId] = useState<string | null>(null);
+  const [guides, setGuides] = useState<any[]>([]);
+  const [protectorGuides, setProtectorGuides] = useState<any[]>([]);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [adminReply, setAdminReply] = useState('');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const deleteIntel = async (id: string, target: 'CITIZEN' | 'PROTECTOR') => {
+    try {
+      const collectionName = target === 'CITIZEN' ? 'guides' : 'protector_guides';
+      await deleteDoc(doc(db, collectionName, id));
+      toast.success("Intel removed from grid.");
+    } catch (e) { toast.error("Failed to remove intel."); }
+  };
+
+  const editIntel = (item: any, target: 'CITIZEN' | 'PROTECTOR') => {
+    setIntelTarget(target);
+    setIntelTitle(item.title);
+    setIntelContent(item.content);
+    setIntelCategory(target === 'CITIZEN' ? item.category : item.type);
+    setEditingIntelId(item.id);
+    toast.info("Intel loaded into publisher.");
+  };
 
   const selectedAlert = useMemo(() =>
     activeAlerts.find(a => a.id === selectedAlertId), [selectedAlertId, activeAlerts]
@@ -82,6 +236,13 @@ export default function SuperCellDashboard({
   const selectedFir = useMemo(() =>
     zeroFirs.find(f => f.id === selectedFirId), [selectedFirId, zeroFirs]
   );
+
+  const filteredGrievances = useMemo(() => {
+    return protectorGrievances.filter((g: any) =>
+      viewMode === 'OPS' ? g.category === 'women' :
+        (grievanceFilter === 'ALL' || (g.category || '').toLowerCase() === grievanceFilter.toLowerCase())
+    );
+  }, [protectorGrievances, viewMode, grievanceFilter]);
 
   // 🛡️ MISSION INITIALIZATION
   useEffect(() => {
@@ -124,7 +285,7 @@ export default function SuperCellDashboard({
       (snap) => {
         const allProtectors = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         // 🛡️ DATA ENFORCEMENT: Only show candidates who have provided Aadhar AND Phone
-        const pending = allProtectors.filter((p: any) => 
+        const pending = allProtectors.filter((p: any) =>
           !p.isVerified && (p.aadhaarMask || p.aadhar) && p.phoneNumber
         );
         setPendingProtectors(pending);
@@ -179,7 +340,7 @@ export default function SuperCellDashboard({
     // 6. RESOLVED MISSIONS HISTORY
     const unsubResolved = onSnapshot(
       query(collection(db, 'alerts'), where('status', '==', 'resolved'), orderBy('resolvedAt', 'desc'), limit(10)),
-      (snap) => setResolvedHistory(snap.docs.map(d => ({ id: d.id, ...doc.data() }))),
+      (snap) => setResolvedHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       (err) => console.error("NCIC History Registry Stream Error:", err)
     );
 
@@ -187,7 +348,7 @@ export default function SuperCellDashboard({
     const unsubGrievances = onSnapshot(
       query(collection(db, 'protector_grievances'), where('status', '==', 'pending')),
       (snap) => {
-        const mainDocs = snap.docs.map(d => ({ id: d.id, ...d.data(), channel: 'main' }));
+        const mainDocs = snap.docs.map(d => ({ id: d.id, ...d.data(), category: 'protector', channel: 'main' }));
         setProtectorGrievances(prev => {
           const bypassDocs = prev.filter(p => (p as any).channel === 'bypass');
           const combined = [...mainDocs, ...bypassDocs];
@@ -204,7 +365,7 @@ export default function SuperCellDashboard({
     const unsubBypassGrievances = onSnapshot(
       query(collection(db, 'special_cell_reports'), where('status', '==', 'pending')),
       (snap) => {
-        const bypassDocs = snap.docs.map(d => ({ id: d.id, ...d.data(), channel: 'bypass' }));
+        const bypassDocs = snap.docs.map(d => ({ id: d.id, ...d.data(), category: 'women', channel: 'bypass' }));
         setProtectorGrievances(prev => {
           const mainDocs = prev.filter(p => (p as any).channel !== 'bypass');
           const combined = [...mainDocs, ...bypassDocs];
@@ -227,9 +388,20 @@ export default function SuperCellDashboard({
       }));
     }, 60000);
 
+    // 9. INTEL REGISTRY (GUIDES)
+    const unsubGuides = onSnapshot(
+      query(collection(db, 'guides'), orderBy('timestamp', 'desc')),
+      (snap) => setGuides(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    const unsubProtectorGuides = onSnapshot(
+      query(collection(db, 'protector_guides'), orderBy('timestamp', 'desc')),
+      (snap) => setProtectorGuides(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
     return () => {
-      unsubAlerts(); unsubPending(); unsubVerified(); unsubFirs(); unsubResolved(); unsubLeaderboard(); 
-      unsubGrievances(); unsubBypassGrievances();
+      unsubAlerts(); unsubPending(); unsubVerified(); unsubFirs(); unsubResolved(); unsubLeaderboard();
+      unsubGrievances(); unsubBypassGrievances(); unsubGuides(); unsubProtectorGuides();
       sirenRef.current?.pause();
       clearInterval(interval);
     };
@@ -259,46 +431,46 @@ export default function SuperCellDashboard({
       toast.error(`Authorization Blocked: ${protector.name || 'Candidate'} has not provided Aadhar or Phone verification.`);
       return;
     }
-    
+
     try {
       // 🛡️ STABLE UPLINK: Explicitly re-asserting 'protector' role during authorization
-      await setDoc(doc(db, 'users', protector.id), { 
-        isVerified: true, 
+      await setDoc(doc(db, 'users', protector.id), {
+        isVerified: true,
         role: 'protector',
         verifiedAt: serverTimestamp(),
         status: 'online'
       }, { merge: true });
 
       toast.success("Protector Authorized in Blue Grid.");
-    } catch (e: any) { 
+    } catch (e: any) {
       console.error("AUTHORIZATION CRITICAL FAILURE:", e);
       if (e.code === 'permission-denied') {
         toast.error("Access Denied: Check Firebase Security Rules.");
       } else {
-        toast.error("Authorization Failed: Protocol Conflict."); 
+        toast.error("Authorization Failed: Protocol Conflict.");
       }
     }
   };
 
   const resolveIncident = async (id: string, victimUid?: string) => {
     const PROJECT_ID = "gen-lang-client-0115433512";
-    
+
     const patchAlert = async (alertId: string) => {
       const apiKey = "AIzaSyDaGseWN-LbqP3OCmZtfnHio4uTjCb7rY0";
       const idToken = await auth.currentUser?.getIdToken();
-      
+
       const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/alerts/${alertId}?key=${apiKey}&updateMask.fieldPaths=status&updateMask.fieldPaths=resolvedAt`;
-      
+
       const body = {
         fields: {
           status: { stringValue: "resolved" },
           resolvedAt: { timestampValue: new Date().toISOString() }
         }
       };
-      
+
       const response = await fetch(url, {
         method: 'PATCH',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`
         },
@@ -317,9 +489,9 @@ export default function SuperCellDashboard({
         toast.success("Incident Archived via REST Uplink.");
       }
       setSelectedAlertId(null);
-    } catch (e) { 
+    } catch (e) {
       console.error("REST FAILED:", e);
-      toast.error("Resolution Failed: Internal SDK Conflict."); 
+      toast.error("Resolution Failed: Internal SDK Conflict.");
     }
   };
 
@@ -340,7 +512,7 @@ export default function SuperCellDashboard({
       toast.error("PLEASE ENTER A COMMAND RESPONSE FIRST.");
       return;
     }
-    
+
     try {
       const collectionName = channel === 'bypass' ? 'special_cell_reports' : 'protector_grievances';
       await updateDoc(doc(db, collectionName, id), {
@@ -389,6 +561,7 @@ export default function SuperCellDashboard({
               leaderboard.map((p, idx) => (
                 <motion.div
                   key={p.id}
+                  id={`protector-${p.id}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.03 }}
@@ -470,12 +643,12 @@ export default function SuperCellDashboard({
           </div>
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 gap-1">
             {(['ALL', 'OPS', 'GATEKEEPER', 'JUSTICE'] as const).map(m => (
-              <button 
-                key={m} 
+              <button
+                key={m}
                 onClick={() => {
                   setViewMode(m);
                   if (onTabChange) onTabChange(m);
-                }} 
+                }}
                 className={cn("px-2 lg:px-4 py-1.5 lg:py-2 rounded-lg text-[7px] lg:text-[9px] font-black transition-all", viewMode === m ? "bg-white text-black" : "text-gray-500 hover:text-white")}
               >
                 {m}
@@ -495,18 +668,18 @@ export default function SuperCellDashboard({
       </header>
 
       {/* 🛡️ NATIONAL STRATEGIC HUD (MINISTRY RIBBON) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4 overflow-hidden">
-        <MinistryCard label="Deployment Health" value="OPTIMAL" sub="12,402 NODES ACTIVE" color="border-green-500/10" icon={<Zap size={12} className="text-green-500" />} />
-        <MinistryCard label="Critical Zones" value="3 REGIONS" sub="MONITORING J&K, ASSAM" color="border-red-500/10" icon={<AlertTriangle size={12} className="text-red-500" />} />
-        <MinistryCard label="Response Latency" value="1.2s avg" sub="NATIONAL GRID LATENCY" color="border-blue-500/10" icon={<Activity size={12} className="text-blue-500" />} />
-        <MinistryCard label="Justice Flow" value={`${zeroFirs.length} NEW`} sub="ZERO-FIR REPLIES" color="border-purple-500/10" icon={<Gavel size={12} className="text-purple-500" />} />
-      </div>
+      {viewMode === 'ALL' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4 overflow-hidden">
+          <MinistryCard label="Deployment Health" value="OPTIMAL" sub="12,402 NODES ACTIVE" color="border-green-500/10" icon={<Zap size={12} className="text-green-500" />} />
+          <MinistryCard label="Critical Zones" value="3 REGIONS" sub="MONITORING J&K, ASSAM" color="border-red-500/10" icon={<AlertTriangle size={12} className="text-red-500" />} />
+          <MinistryCard label="Response Latency" value="1.2s avg" sub="NATIONAL GRID LATENCY" color="border-blue-500/10" icon={<Activity size={12} className="text-blue-500" />} />
+          <MinistryCard label="Justice Flow" value={`${zeroFirs.length} NEW`} sub="ZERO-FIR REPLIES" color="border-purple-500/10" icon={<Gavel size={12} className="text-purple-500" />} />
+        </div>
+      )}
 
       {/* ── CORE BATTLEFIELD LAYOUT ─────────────────────────────────────────── */}
-      <div className="flex-1 grid grid-cols-12 gap-6 min-h-0 overflow-y-auto lg:overflow-hidden pb-32 lg:pb-0">
-
-        {/* LEFT COLUMN: MISSION PULSE & GATEKEEPER */}
-        <aside className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-auto lg:h-[calc(100vh-270px)] xl:h-[calc(100vh-300px)] min-h-0">
+      <div className="flex-1 grid grid-cols-12 gap-6 h-[1200px] min-h-0">
+        <aside className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-full min-h-0">
           <AnimatePresence>
             <motion.div
               key={viewMode}
@@ -517,46 +690,110 @@ export default function SuperCellDashboard({
             >
               {(viewMode === 'OPS' || viewMode === 'ALL') && (
                 /* Mission Pulse Card (Consolidated) */
-                <div className={cn("flex-1 bg-black/40 border border-white/5 rounded-[40px] flex flex-col overflow-hidden shadow-2xl relative", viewMode === 'ALL' && "mb-3 h-[50%]")}>
-                  <div className="p-6 border-b border-white/5 bg-gradient-to-r from-red-950/20 to-transparent flex justify-between items-center">
-                    <h3 className="text-[10px] font-black uppercase tracking-[3px] text-accent-red italic">Emergency Pulse</h3>
-                    <Zap size={14} className="text-accent-red animate-pulse" />
+                <div className={cn("flex-1 bg-black/40 border border-white/5 rounded-[40px] flex flex-col overflow-hidden shadow-2xl relative", viewMode === 'ALL' && "h-[1200px]")}>
+                  <div className="p-4 border-b border-white/5 bg-gradient-to-r from-red-950/20 to-transparent flex flex-col gap-3">
+                    <div className="flex justify-between items-center px-2">
+                      <h3 className="text-[10px] font-black uppercase tracking-[3px] text-accent-red italic">
+                        {opsTab === 'PULSE' ? 'Emergency Pulse' : 'Women Safety Intel'}
+                      </h3>
+                      {opsTab === 'PULSE' ? <Zap size={14} className="text-accent-red animate-pulse" /> : <ShieldAlert size={14} className="text-accent-blue animate-pulse" />}
+                    </div>
+
+                    {viewMode === 'OPS' && (
+                      <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                        <button
+                          onClick={() => setOpsTab('PULSE')}
+                          className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", opsTab === 'PULSE' ? "bg-accent-red text-white" : "text-gray-500")}
+                        >
+                          PULSE ({activeAlerts.length})
+                        </button>
+                        <button
+                          onClick={() => setOpsTab('GRIEVANCES')}
+                          className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", opsTab === 'GRIEVANCES' ? "bg-accent-red text-white" : "text-gray-500")}
+                        >
+                          GRIEVANCES ({protectorGrievances.filter(g => g.category === 'women').length})
+                        </button>
+                      </div>
+                    )}
                   </div>
+
                   <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                    {activeAlerts.filter(alert => filterState === 'ALL' || alert.state === filterState).length === 0 ? 
-                      <EmptyState label={`Sector ${filterState} Clear`} icon={<CheckCircle2 />} /> :
-                      activeAlerts.filter(alert => filterState === 'ALL' || alert.state === filterState).map(alert => (
-                        <AlertCard
-                          key={alert.id} alert={alert}
-                          isActive={selectedAlertId === alert.id}
-                          onClick={() => { setSelectedAlertId(alert.id); setMapFocus([alert.location?.latitude, alert.location?.longitude]); }}
-                          onResolve={(id) => resolveIncident(id)}
-                          onResolveAll={(uid) => resolveIncident('', uid)}
-                        />
-                      ))
-                    }
+                    {opsTab === 'PULSE' || viewMode === 'ALL' ? (
+                      activeAlerts.filter(alert => filterState === 'ALL' || alert.state === filterState).length === 0 ?
+                        <EmptyState label={`Sector ${filterState} Clear`} icon={<CheckCircle2 />} /> :
+                        activeAlerts.filter(alert => filterState === 'ALL' || alert.state === filterState).map(alert => (
+                          <AlertCard
+                            key={alert.id} alert={alert}
+                            isActive={selectedAlertId === alert.id}
+                            onClick={() => { setSelectedAlertId(alert.id); setMapFocus([alert.location?.latitude, alert.location?.longitude]); }}
+                            onResolve={(id) => resolveIncident(id)}
+                            onResolveAll={(uid) => resolveIncident('', uid)}
+                          />
+                        ))
+                    ) : (
+                      <div className="space-y-4">
+                        {filteredGrievances.filter((g: any) => g.category === 'women').length === 0 ? (
+                          <p className="text-[9px] font-black uppercase text-gray-700 text-center py-10 tracking-widest italic opacity-40">No Women Safety Intel Pending</p>
+                        ) : (
+                          filteredGrievances.filter((g: any) => g.category === 'women').map((g: any) => (
+                            <div key={g.id} className="p-4 border border-accent-red/20 bg-accent-red/5 rounded-2xl flex flex-col gap-3 relative overflow-hidden transition-all">
+                              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-all">
+                                <ShieldAlert size={32} className="text-accent-red" />
+                              </div>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[11px] font-black uppercase text-white font-sans">{g.name || (g.isAnonymous ? 'Anonymous Citizen' : (g.userName || 'Verified Citizen'))}</p>
+                                    <span className="text-[6px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase bg-accent-red text-white">
+                                      WOMEN SAFETY
+                                    </span>
+                                  </div>
+                                  <p className="text-[7px] text-gray-500 font-bold tracking-widest mt-1 uppercase italic">ID: {g.uid?.slice(-10).toUpperCase() || g.id.slice(-8).toUpperCase()}</p>
+                                </div>
+                                <button
+                                  onClick={() => resolveGrievance(g.id, g.channel || 'main')}
+                                  className="p-2 rounded-xl transition-all shadow-lg bg-accent-red text-black hover:bg-white"
+                                >
+                                  <CheckCircle2 size={14} />
+                                </button>
+                              </div>
+                              <p className="text-[9px] text-gray-300 leading-relaxed italic">"{g.message || g.text}"</p>
+                              <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
+                                <span className="text-[7px] font-mono text-gray-600">{g.timestamp?.toDate().toLocaleString() || new Date(g.sentAt || 0).toLocaleString()}</span>
+                                <button
+                                  onClick={() => setRespondingTo(g.id)}
+                                  className="px-3 py-1.5 border border-accent-red/20 bg-accent-red/10 rounded-lg text-[8px] font-black uppercase tracking-widest text-accent-red hover:bg-accent-red hover:text-white transition-all"
+                                >
+                                  REPLY & RESOLVE
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {(viewMode === 'GATEKEEPER' || viewMode === 'ALL') && (
+              {viewMode === 'GATEKEEPER' && (
                 /* Gatekeeper Card (Consolidated) */
-                <div className={cn("flex-1 bg-black/40 border border-white/10 rounded-[40px] flex flex-col overflow-hidden border-dashed", viewMode === 'ALL' && "h-[50%]")}>
+                <div className={cn("flex-1 bg-black/40 border border-white/10 rounded-[40px] flex flex-col overflow-hidden border-dashed")}>
                   <div className="p-4 border-b border-white/5 bg-amber-950/10 flex flex-col gap-3">
                     <div className="flex justify-between items-center px-2">
                       <h3 className="text-[10px] font-black uppercase tracking-[3px] text-amber-500 italic">Personnel Ops</h3>
                       <ShieldCheck size={14} className="text-amber-500" />
                     </div>
                     <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
-                      <button 
-                        onClick={() => setProtectorTab('QUEUE')} 
+                      <button
+                        onClick={() => setProtectorTab('QUEUE')}
                         className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", protectorTab === 'QUEUE' ? "bg-amber-500 text-black" : "text-gray-500")}
                       >
                         QUEUE ({pendingProtectors.length})
                       </button>
-                      <button 
-                        onClick={() => setProtectorTab('GRIEVANCES')} 
-                        className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", protectorTab === 'GRIEVANCES' ? "bg-red-500 text-white" : "text-gray-500")}
+                      <button
+                        onClick={() => setProtectorTab('GRIEVANCES')}
+                        className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", protectorTab === 'GRIEVANCES' ? "bg-accent-blue text-white" : "text-gray-500")}
                       >
                         GRIEVANCES ({protectorGrievances.length})
                       </button>
@@ -565,111 +802,150 @@ export default function SuperCellDashboard({
                   <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                     {protectorTab === 'QUEUE' ? (
                       pendingProtectors.length === 0 ? <p className="text-[9px] font-black uppercase text-gray-700 text-center py-10 tracking-widest">No Applications Pending</p> :
-                      pendingProtectors.map(p => (
-                        <div key={p.id} className={cn("p-4 border rounded-2xl flex flex-col gap-3 group transition-all", (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) ? "bg-red-500/5 border-red-500/10" : "bg-white/5 border-white/5")}>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-[11px] font-black uppercase text-white font-sans flex items-center gap-2">
-                                {p.name || 'Anonymous'}
-                                {(!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) && <span className="text-[7px] bg-red-600 text-white px-1.5 py-0.5 rounded-full">INCOMPLETE</span>}
-                              </p>
-                              <p className="text-[8px] text-accent-blue font-bold tracking-widest mt-1 italic">{p.email || 'NO_EMAIL_RECORDED'}</p>
-                            </div>
-                            <button 
-                              onClick={() => approveProtector(p)} 
-                              className={cn(
-                                "p-2 rounded-xl transition-all",
-                                (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) 
-                                  ? "bg-gray-800 text-gray-500 cursor-not-allowed opacity-50" 
-                                  : "bg-accent-blue/20 text-accent-blue hover:bg-accent-blue hover:text-black shadow-lg"
-                              )}
-                            >
-                              <CheckCircle2 size={16} />
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
-                            <div className="flex flex-col">
-                              <span className="text-[7px] text-gray-500 font-black uppercase">Aadhar ID</span>
-                              <span className={cn("text-[9px] font-mono", (p.aadhar || p.aadhaarMask) ? "text-white/60" : "text-red-500 font-bold")}>
-                                {p.aadhar || p.aadhaarMask || 'MISSING'}
-                              </span>
-                            </div>
-                            <div className="flex flex-col text-right">
-                              <span className="text-[7px] text-gray-500 font-black uppercase">Phone</span>
-                              <span className={cn("text-[9px] font-mono", p.phoneNumber ? "text-white/60" : "text-red-500 font-bold")}>{p.phoneNumber || 'MISSING'}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-accent-blue/5 border border-accent-blue/10 rounded-xl">
-                            <MapPin size={10} className="text-accent-blue" />
-                            <span className="text-[8px] font-black text-accent-blue uppercase tracking-widest">
-                              HOME BASE: {p.lastLocation?.lat?.toFixed(4) || p.telemetry?.coords?.[0]?.toFixed(4) || '0.0000'}, {p.lastLocation?.lng?.toFixed(4) || p.telemetry?.coords?.[1]?.toFixed(4) || '0.0000'}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      protectorGrievances.length === 0 ? <p className="text-[9px] font-black uppercase text-gray-700 text-center py-10 tracking-widest">No Active Grievances</p> :
-                      protectorGrievances.map(g => (
-                        <div key={g.id} className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex flex-col gap-3 relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-2 opacity-20"><AlertTriangle size={32} /></div>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-[11px] font-black uppercase text-white font-sans">{g.name || (g.isAnonymous ? 'Anonymous Citizen' : 'Citizen')}</p>
-                                <span className={cn(
-                                  "text-[7px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase",
-                                  g.channel === 'main' || g.category === 'GRIEVANCE_BYPASS' ? "bg-red-500 text-white" : "bg-accent-blue text-white"
-                                )}>
-                                  {g.channel === 'main' || g.category === 'GRIEVANCE_BYPASS' ? 'PROTECTOR' : 'CITIZEN INTEL'}
-                                </span>
+                        pendingProtectors.map(p => (
+                          <div key={p.id} className={cn("p-4 border rounded-2xl flex flex-col gap-3 group transition-all", (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) ? "bg-red-500/5 border-red-500/10" : "bg-white/5 border-white/5")}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[11px] font-black uppercase text-white font-sans flex items-center gap-2">
+                                  {p.name || 'Anonymous'}
+                                  {(!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) && <span className="text-[7px] bg-red-600 text-white px-1.5 py-0.5 rounded-full">INCOMPLETE</span>}
+                                </p>
+                                <p className="text-[8px] text-accent-blue font-bold tracking-widest mt-1 italic">{p.email || 'NO_EMAIL_RECORDED'}</p>
                               </div>
-                              <p className="text-[7px] text-red-400 font-bold tracking-widest mt-1 uppercase italic">ID: {g.uid?.slice(0, 10) || g.realUid?.slice(0, 10) || 'UNKNOWN'}</p>
-                            </div>
-                            <button 
-                              onClick={() => resolveGrievance(g.id, (g as any).channel)}
-                              className="p-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-                            >
-                              <CheckCircle2 size={14} />
-                            </button>
-                          </div>
-                          <p className="text-[9px] text-gray-300 leading-relaxed italic">"{g.message || g.text}"</p>
-                          
-                          {respondingTo === g.id ? (
-                            <div className="mt-2 space-y-2">
-                              <textarea
-                                value={adminReply}
-                                onChange={(e) => setAdminReply(e.target.value)}
-                                placeholder="Enter Command Directive / Reply..."
-                                className="w-full bg-black/50 border border-red-500/30 rounded-xl p-3 text-[10px] text-white outline-none focus:border-red-500 transition-all h-20 placeholder:text-gray-700"
-                              />
-                              <div className="flex gap-2">
-                                <button 
-                                  onClick={() => resolveGrievance(g.id, (g as any).channel)}
-                                  className="flex-1 py-2 bg-red-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-red-500/20"
-                                >
-                                  TRANSMIT & RESOLVE
-                                </button>
-                                <button 
-                                  onClick={() => setRespondingTo(null)}
-                                  className="px-4 py-2 bg-white/5 text-gray-500 rounded-lg text-[9px] font-black uppercase"
-                                >
-                                  CANCEL
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
-                              <span className="text-[7px] font-mono text-gray-500">{g.timestamp?.toDate().toLocaleString() || new Date(g.sentAt).toLocaleString()}</span>
-                              <button 
-                                onClick={() => setRespondingTo(g.id)}
-                                className="px-3 py-1.5 bg-red-500/20 border border-red-500/30 text-red-500 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                              <button
+                                onClick={() => approveProtector(p)}
+                                className={cn(
+                                  "p-2 rounded-xl transition-all",
+                                  (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber)
+                                    ? "bg-gray-800 text-gray-500 cursor-not-allowed opacity-50"
+                                    : "bg-accent-blue/20 text-accent-blue hover:bg-accent-blue hover:text-black shadow-lg"
+                                )}
                               >
-                                REPLY & RESOLVE
+                                <CheckCircle2 size={16} />
                               </button>
                             </div>
-                          )}
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
+                              <div className="flex flex-col">
+                                <span className="text-[7px] text-gray-500 font-black uppercase">Aadhar ID</span>
+                                <span className={cn("text-[9px] font-mono", (p.aadhar || p.aadhaarMask) ? "text-white/60" : "text-red-500 font-bold")}>
+                                  {p.aadhar || p.aadhaarMask || 'MISSING'}
+                                </span>
+                              </div>
+                              <div className="flex flex-col text-right">
+                                <span className="text-[7px] text-gray-500 font-black uppercase">Phone</span>
+                                <span className={cn("text-[9px] font-mono", p.phoneNumber ? "text-white/60" : "text-red-500 font-bold")}>{p.phoneNumber || 'MISSING'}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-accent-blue/5 border border-accent-blue/10 rounded-xl">
+                              <MapPin size={10} className="text-accent-blue" />
+                              <span className="text-[8px] font-black text-accent-blue uppercase tracking-widest">
+                                HOME BASE: {p.lastLocation?.lat?.toFixed(4) || p.telemetry?.coords?.[0]?.toFixed(4) || '0.0000'}, {p.lastLocation?.lng?.toFixed(4) || p.telemetry?.coords?.[1]?.toFixed(4) || '0.0000'}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <div className="flex-1 flex flex-col min-h-0">
+                        {/* 📋 TACTICAL GRIEVANCE FILTERS */}
+                        <div className="flex gap-2 mb-4 shrink-0">
+                          {(['ALL', 'PROTECTOR'] as const).map(f => (
+                            <button
+                              key={f}
+                              onClick={() => setGrievanceFilter(f)}
+                              className={cn(
+                                "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all",
+                                grievanceFilter === f
+                                  ? "bg-accent-blue/20 border-accent-blue text-accent-blue shadow-[0_0_15px_rgba(10,132,255,0.2)]"
+                                  : "bg-white/5 border-white/10 text-gray-500 hover:text-white"
+                              )}
+                            >
+                              {f}
+                            </button>
+                          ))}
                         </div>
-                      ))
+
+                        <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-1">
+                          {(() => {
+                            const filtered = protectorGrievances.filter((g: any) =>
+                              g.category !== 'women' && (grievanceFilter === 'ALL' || (g.category || '').toLowerCase() === grievanceFilter.toLowerCase())
+                            );
+                            if (filtered.length === 0) {
+                              return <p className="text-[9px] font-black uppercase text-gray-700 text-center py-10 tracking-widest italic opacity-40">No {grievanceFilter} Reports Pending</p>;
+                            }
+                            return filtered.map((g: any) => (
+                              <div key={g.id} className={cn(
+                                "p-4 border rounded-2xl flex flex-col gap-3 relative overflow-hidden transition-all bg-accent-blue/5 border-accent-blue/10"
+                              )}>
+                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-all">
+                                  {g.category === 'women' ? <Shield size={32} className="text-accent-red" /> : <ShieldCheck size={32} className="text-accent-blue" />}
+                                </div>
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-[11px] font-black uppercase text-white font-sans">{g.name || (g.isAnonymous ? 'Anonymous Citizen' : (g.userName || 'Verified Citizen'))}</p>
+                                      <span className={cn(
+                                        "text-[6px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase",
+                                        g.category === 'women' ? "bg-accent-red text-white" : "bg-accent-blue text-white"
+                                      )}>
+                                        {g.category || 'PENDING'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[7px] text-gray-500 font-bold tracking-widest mt-1 uppercase italic">ID: {g.uid?.slice(-10).toUpperCase() || g.id.slice(-8).toUpperCase()}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => resolveGrievance(g.id, g.channel || 'main')}
+                                    className={cn(
+                                      "p-2 rounded-xl transition-all shadow-lg",
+                                      g.category === 'women' ? "bg-accent-red text-black hover:bg-white" : "bg-accent-blue text-white hover:bg-blue-600"
+                                    )}
+                                  >
+                                    <CheckCircle2 size={14} />
+                                  </button>
+                                </div>
+                                <p className="text-[9px] text-gray-300 leading-relaxed italic">"{g.message || g.text}"</p>
+
+                                {respondingTo === g.id ? (
+                                  <div className="mt-2 space-y-2">
+                                    <textarea
+                                      value={adminReply}
+                                      onChange={(e) => setAdminReply(e.target.value)}
+                                      placeholder="Enter Strategic Response..."
+                                      className="w-full bg-black/50 border border-accent-blue/30 rounded-xl p-3 text-[10px] text-white outline-none focus:border-accent-blue transition-all h-20 placeholder:text-gray-700"
+                                    />
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => resolveGrievance(g.id, g.channel || 'main')}
+                                        className="flex-1 py-2 bg-accent-blue text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg"
+                                      >
+                                        TRANSMIT REPLY
+                                      </button>
+                                      <button
+                                        onClick={() => setRespondingTo(null)}
+                                        className="px-4 py-2 bg-white/5 text-gray-500 rounded-lg text-[9px] font-black uppercase"
+                                      >
+                                        CANCEL
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
+                                    <span className="text-[7px] font-mono text-gray-600">{g.timestamp?.toDate().toLocaleString() || new Date(g.sentAt || 0).toLocaleString()}</span>
+                                    <button
+                                      onClick={() => setRespondingTo(g.id)}
+                                      className={cn(
+                                        "px-3 py-1.5 border rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
+                                        g.category === 'women' ? "bg-accent-red/10 border-accent-red/20 text-accent-red hover:bg-accent-red hover:text-white" : "bg-accent-blue/10 border-accent-blue/20 text-accent-blue hover:bg-accent-blue hover:text-black"
+                                      )}
+                                    >
+                                      REPLY & RESOLVE
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -687,15 +963,31 @@ export default function SuperCellDashboard({
         </aside>
 
         {/* CENTER COLUMN: THE GOD-VIEW TERMINAL */}
-        <main className="col-span-12 lg:col-span-6 flex flex-col gap-6 relative h-[600px] lg:h-[calc(100vh-270px)] xl:h-[calc(100vh-300px)] min-h-0">
+        <main className="col-span-12 lg:col-span-6 flex flex-col gap-6 relative h-full min-h-0">
           <>
-            <div className="flex-1 bg-black border border-white/5 rounded-[40px] overflow-hidden relative shadow-[0_0_100px_rgba(0,0,0,0.8)] border-2 group">
+            <div className={cn("flex-1 bg-black border border-white/5 rounded-[40px] overflow-hidden relative shadow-[0_0_100px_rgba(0,0,0,0.8)] border-2 group", viewMode === 'ALL' && "h-[60%]")}>
               <div className="absolute inset-0 bg-accent-blue/5 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-10" />
               <CommandMap
                 centerOverride={mapFocus || undefined}
-                activeAlerts={activeAlerts}
-                activeProtectors={verifiedProtectors}
+                activeAlerts={['GATEKEEPER', 'JUSTICE'].includes(viewMode) ? [] : activeAlerts}
+                activeProtectors={['OPS', 'JUSTICE'].includes(viewMode) ? [] : verifiedProtectors}
+                activeFirs={['OPS', 'GATEKEEPER'].includes(viewMode) ? [] : zeroFirs}
                 showVectors={true}
+                onAlertClick={(id) => {
+                  setViewMode('OPS');
+                  setSelectedAlertId(id);
+                  document.getElementById(`alert-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                onProtectorClick={(id) => {
+                  setViewMode('GATEKEEPER');
+                  setProtectorTab('QUEUE');
+                  document.getElementById(`protector-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                onFirClick={(id) => {
+                  setViewMode('JUSTICE');
+                  setSelectedFirId(id);
+                  document.getElementById(`fir-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
               />
 
               {/* Map UI Overlays */}
@@ -718,98 +1010,200 @@ export default function SuperCellDashboard({
               </div>
             </div>
 
+            {viewMode === 'ALL' && (
+              <div className="h-[40%] bg-black/40 border border-white/10 rounded-[40px] flex flex-col overflow-hidden border-dashed shadow-2xl">
+                <div className="p-4 border-b border-white/5 bg-amber-950/10 flex flex-col gap-3">
+                  <div className="flex justify-between items-center px-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-[3px] text-amber-500 italic">Personnel Ops</h3>
+                    <ShieldCheck size={14} className="text-amber-500" />
+                  </div>
+                  <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                    <button
+                      onClick={() => setProtectorTab('QUEUE')}
+                      className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", protectorTab === 'QUEUE' ? "bg-amber-500 text-black" : "text-gray-500")}
+                    >
+                      QUEUE ({pendingProtectors.length})
+                    </button>
+                    <button
+                      onClick={() => setProtectorTab('GRIEVANCES')}
+                      className={cn("flex-1 py-2 rounded-lg text-[8px] font-black transition-all", protectorTab === 'GRIEVANCES' ? "bg-accent-blue text-white" : "text-gray-500")}
+                    >
+                      GRIEVANCES ({protectorGrievances.length})
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                  {protectorTab === 'QUEUE' ? (
+                    pendingProtectors.length === 0 ? <p className="text-[9px] font-black uppercase text-gray-700 text-center py-10 tracking-widest">No Applications Pending</p> :
+                      pendingProtectors.map(p => (
+                        <div key={p.id} className={cn("p-4 border rounded-2xl flex flex-col gap-3 group transition-all", (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) ? "bg-red-500/5 border-red-500/10" : "bg-white/5 border-white/5")}>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-[11px] font-black uppercase text-white font-sans flex items-center gap-2">
+                                {p.name || 'Anonymous'}
+                                {(!(p.aadhaarMask || p.aadhar) || !p.phoneNumber) && <span className="text-[7px] bg-red-600 text-white px-1.5 py-0.5 rounded-full">INCOMPLETE</span>}
+                              </p>
+                              <p className="text-[8px] text-accent-blue font-bold tracking-widest mt-1 italic">{p.email || 'NO_EMAIL_RECORDED'}</p>
+                            </div>
+                            <button
+                              onClick={() => approveProtector(p)}
+                              className={cn(
+                                "p-2 rounded-xl transition-all",
+                                (!(p.aadhaarMask || p.aadhar) || !p.phoneNumber)
+                                  ? "bg-gray-800 text-gray-500 cursor-not-allowed opacity-50"
+                                  : "bg-accent-blue/20 text-accent-blue hover:bg-accent-blue hover:text-black shadow-lg"
+                              )}
+                            >
+                              <CheckCircle2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  ) : (
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <div className="flex gap-2 mb-4 shrink-0">
+                        {(['ALL', 'PROTECTOR'] as const).map(f => (
+                          <button
+                            key={f}
+                            onClick={() => setGrievanceFilter(f)}
+                            className={cn(
+                              "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all",
+                              grievanceFilter === f
+                                ? "bg-accent-blue/20 border-accent-blue text-accent-blue shadow-[0_0_15px_rgba(10,132,255,0.2)]"
+                                : "bg-white/5 border-white/10 text-gray-500 hover:text-white"
+                            )}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-1">
+                        {protectorGrievances.filter((g: any) => g.category !== 'women' && (grievanceFilter === 'ALL' || (g.category || '').toLowerCase() === grievanceFilter.toLowerCase())).map((g: any) => (
+                          <div key={g.id} className="p-4 border rounded-2xl flex flex-col gap-3 relative overflow-hidden transition-all bg-accent-blue/5 border-accent-blue/10">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[11px] font-black uppercase text-white font-sans">{g.name || 'Citizen'}</p>
+                                <p className="text-[7px] text-gray-500 font-bold uppercase italic mt-1">ID: {g.id.slice(-8).toUpperCase()}</p>
+                              </div>
+                              <button
+                                onClick={() => resolveGrievance(g.id, g.channel || 'main')}
+                                className="p-2 bg-accent-blue text-white rounded-xl shadow-lg"
+                              >
+                                <CheckCircle2 size={14} />
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-gray-300 italic">"{g.message || g.text}"</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* 📱 UNIFIED VICTIM PROFILE (SLIDE-UP) */}
             <AnimatePresence>
               {selectedAlert && (
                 <motion.div
-                  initial={{ y: 200, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 200, opacity: 0 }}
-                  className="absolute bottom-6 inset-x-6 z-30 bg-[#080808] border border-white/10 rounded-[40px] shadow-[0_-20px_60px_rgba(0,0,0,0.8)] overflow-hidden"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[150] flex items-center justify-center p-4 lg:p-12"
                 >
-                  <div className="grid grid-cols-12">
-                    <div className="col-span-8 p-8 space-y-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-6 items-center">
-                          <div className="absolute top-5 right-5 flex gap-2">
-                            <button onClick={() => setSelectedAlertId(null)} className="p-2 lg:p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-accent-red transition-all"><X size={16} /></button>
+                  <div onClick={() => setSelectedAlertId(null)} className="absolute inset-0 bg-black/90 backdrop-blur-2xl" />
+
+                  <motion.div
+                    initial={{ scale: 0.9, y: 50 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 50 }}
+                    className="w-full max-w-6xl bg-[#080808] border border-accent-red/30 rounded-[32px] lg:rounded-[40px] shadow-[0_0_100px_rgba(255,0,0,0.15)] overflow-y-auto max-h-[95vh] lg:max-h-none lg:overflow-hidden relative z-10 flex flex-col lg:flex-row custom-scrollbar"
+                  >
+                    <div className="flex-1 p-6 lg:p-10 space-y-6 lg:space-y-8 min-w-0">
+                      <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+                        <div className="flex gap-4 lg:gap-6 items-center min-w-0">
+                          <div className="relative shrink-0">
+                            <div className="absolute inset-0 bg-accent-red blur-xl opacity-20 animate-pulse rounded-full" />
+                            <Heart className="text-accent-red fill-accent-red animate-pulse relative z-10" size={32} />
                           </div>
-                          <Heart className="text-accent-red fill-accent-red animate-pulse" size={40} />
-                          <div>
-                            <div className="flex items-center gap-3">
-                              <h4 className="text-3xl font-black uppercase tracking-tighter text-white">{selectedAlert.victimName}</h4>
-                              <span className="px-3 py-1 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-[8px] font-black rounded-lg">VERIFIED MISSION</span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 lg:gap-3">
+                              <h4 className="text-2xl lg:text-4xl font-black uppercase tracking-tighter text-white truncate">{selectedAlert.victimName}</h4>
+                              <span className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-[7px] lg:text-[8px] font-black rounded-lg">VERIFIED MISSION</span>
                             </div>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[4px] mt-2 italic">AADHAR: {selectedAlert.victimAadhar || 'HARDWARE_LOCK_PENDING'}</p>
+                            <p className="text-[9px] lg:text-[10px] text-gray-500 font-bold uppercase tracking-[3px] lg:tracking-[4px] mt-1 lg:mt-2 italic truncate">AADHAR: {selectedAlert.victimAadhar || 'HARDWARE_LOCK_PENDING'}</p>
                           </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex flex-wrap gap-3 lg:gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                           <TelemetryNode icon={<Zap />} label="BATTERY" value={`${selectedAlert.batteryLevel || 0}%`} />
                           <TelemetryNode icon={<SignalHigh />} label="SIGNAL" value="5G_TACTICAL" />
-                          <div className="px-6 py-4 bg-accent-red/10 border border-accent-red/20 rounded-3xl flex flex-col gap-1 animate-pulse shrink-0">
+                          <div className="px-4 lg:px-6 py-3 lg:py-4 bg-accent-red/10 border border-accent-red/20 rounded-[20px] lg:rounded-3xl flex flex-col gap-1 animate-pulse shrink-0">
                             <div className="flex items-center gap-2 text-accent-red">
                               <Radio size={12} />
-                              <span className="text-[7px] font-black uppercase tracking-widest">EVIDENCE GRID</span>
+                              <span className="text-[7px] font-black uppercase tracking-widest whitespace-nowrap">EVIDENCE GRID</span>
                             </div>
-                            <span className="text-md font-black text-white">ACTIVE LIVE</span>
+                            <span className="text-xs lg:text-md font-black text-white">ACTIVE LIVE</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="relative group">
-                        <div className="absolute -inset-1 bg-accent-blue/10 rounded-[34px] blur opacity-25 group-hover:opacity-50 transition-all pointer-events-none" />
-                        <div className="h-[200px] lg:h-[280px] w-full bg-black/60 border-2 border-accent-blue/20 rounded-3xl p-4 relative overflow-hidden backdrop-blur-xl shadow-2xl">
+                        <div className="absolute -inset-1 bg-accent-blue/10 rounded-[28px] lg:rounded-[34px] blur opacity-25 group-hover:opacity-50 transition-all pointer-events-none" />
+                        <div className="h-[250px] lg:h-[320px] w-full bg-black/60 border-2 border-accent-blue/20 rounded-[24px] lg:rounded-3xl p-4 lg:p-6 relative overflow-hidden backdrop-blur-xl shadow-2xl">
                           <div className="flex items-center justify-between mb-4 px-2">
-                            <h5 className="text-[9px] font-black uppercase tracking-[3px] text-accent-blue flex items-center gap-2">
+                            <h5 className="text-[8px] lg:text-[9px] font-black uppercase tracking-[3px] text-accent-blue flex items-center gap-2">
                               <Database size={10} /> Forensic Intelligence Vault
                             </h5>
                             <span className="text-[7px] font-mono text-white/20">SECURE_LINK: TRUE</span>
                           </div>
-                          <div className="flex-1 overflow-y-auto">
+                          <div className="h-full overflow-y-auto custom-scrollbar pb-10">
                             <CommandVault targetUid={selectedAlert.victimUid} />
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="col-span-4 bg-white/[0.02] border-l border-white/5 p-8 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <h5 className="text-[10px] font-black uppercase tracking-[3px] text-accent-blue">Strategic Intercept</h5>
-                        <div className="p-5 bg-accent-blue/10 border border-accent-blue/20 rounded-3xl">
-                          <div className="flex justify-between items-center mb-3">
+                    <div className="w-full lg:w-[380px] bg-white/[0.02] border-t lg:border-t-0 lg:border-l border-white/5 p-6 lg:p-10 flex flex-col justify-between gap-10 lg:gap-0">
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-[10px] font-black uppercase tracking-[3px] text-accent-blue flex items-center gap-2">
+                            <Zap size={14} /> Strategic Intercept
+                          </h5>
+                          <button onClick={() => setSelectedAlertId(null)} className="p-2 lg:p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-accent-red transition-all lg:hidden"><X size={16} /></button>
+                        </div>
+                        <div className="p-6 bg-accent-blue/10 border border-accent-blue/20 rounded-[28px] lg:rounded-3xl space-y-4 shadow-2xl">
+                          <div className="flex justify-between items-center">
                             <span className="text-[9px] font-black uppercase text-accent-blue">Nearest Protector</span>
-                            <span className="text-[8px] font-mono text-white/40">1.2 KM</span>
+                            <span className="text-[9px] font-mono text-white/40">1.2 KM</span>
                           </div>
-                          <p className="text-sm font-black uppercase text-white">OPERATIVE: VIKRAM</p>
-                          <div className="grid grid-cols-2 gap-3 mt-4">
+                          <p className="text-lg font-black uppercase text-white leading-tight">OPERATIVE: VIKRAM</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                             <button onClick={async () => {
                               try {
                                 await updateDoc(doc(db, 'alerts', selectedAlert.id), { remote_siren: true });
                                 toast.success("Strategic Siren triggered on victim's device.");
                               } catch (e) { toast.error("Command Failed."); }
-                            }} className="py-3 bg-accent-red text-white rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-red-500/20">FORCE SIREN</button>
+                            }} className="py-3.5 bg-accent-red text-white rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-red-500/20">FORCE SIREN</button>
                             <button onClick={() => {
                               toast.success("Strategical Priority Alert dispatched to 5 nearest protectors.");
-                            }} className="py-3 bg-white/10 border border-white/20 text-white rounded-2xl font-black uppercase text-[9px] tracking-tight hover:bg-accent-blue hover:text-black">STRATEGIC NOTIFY</button>
+                            }} className="py-3.5 bg-white/10 border border-white/20 text-white rounded-2xl font-black uppercase text-[9px] tracking-tight hover:bg-accent-blue hover:text-black">STRATEGIC NOTIFY</button>
                           </div>
-                          <button className="w-full mt-3 py-3 bg-accent-blue text-black rounded-2xl font-black uppercase text-[10px] tracking-tight">DISPATCH CORE</button>
+                          <button className="w-full py-4 bg-accent-blue text-black rounded-2xl font-black uppercase text-[10px] tracking-tight shadow-lg shadow-accent-blue/20">DISPATCH CORE</button>
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-3">
                         <button
                           onClick={() => resolveIncident(selectedAlert.id, selectedAlert.victimUid)}
-                          className="w-full py-4 bg-green-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-green-500/20"
+                          className="w-full py-4.5 bg-green-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-green-500/20"
                         >
                           ARCHIVE ALL SESSIONS
                         </button>
                         <div className="flex gap-3">
-                          <button onClick={() => resolveIncident(selectedAlert.id)} className="flex-1 py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all">RESOLVE SELECTED</button>
-                          <button onClick={() => setSelectedAlertId(null)} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-accent-red transition-all group"><X className="group-hover:text-white" size={20} /></button>
+                          <button onClick={() => resolveIncident(selectedAlert.id)} className="flex-1 py-4.5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all">RESOLVE SELECTED</button>
+                          <button onClick={() => setSelectedAlertId(null)} className="p-4.5 bg-white/5 rounded-2xl border border-white/10 hover:bg-accent-red transition-all group shrink-0"><X className="group-hover:text-white" size={20} /></button>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -821,82 +1215,84 @@ export default function SuperCellDashboard({
                   className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-12"
                 >
                   <div onClick={() => setSelectedFirId(null)} className="absolute inset-0 bg-black/90 backdrop-blur-2xl" />
-                  
+
                   <motion.div
                     initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                    className="w-full max-w-5xl bg-[#080808] border border-accent-blue/30 rounded-[40px] shadow-[0_0_100px_rgba(0,122,255,0.15)] overflow-hidden relative z-10 flex flex-col lg:flex-row"
+                    className="w-full max-w-5xl bg-[#080808] border border-accent-blue/30 rounded-[32px] lg:rounded-[40px] shadow-[0_0_100px_rgba(0,122,255,0.15)] overflow-y-auto max-h-[95vh] lg:max-h-none lg:overflow-hidden relative z-10 flex flex-col lg:flex-row custom-scrollbar"
                   >
-                    <div className="col-span-8 p-8 space-y-6 flex-1">
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-6 items-center">
-                          <div className="w-16 h-16 bg-accent-blue/10 border border-accent-blue/20 rounded-[24px] flex items-center justify-center text-accent-blue shadow-lg">
-                            <Gavel size={32} />
+                    <div className="p-6 lg:p-8 space-y-6 flex-1 min-w-0">
+                      <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+                        <div className="flex gap-4 lg:gap-6 items-center min-w-0">
+                          <div className="w-12 h-12 lg:w-16 lg:h-16 bg-accent-blue/10 border border-accent-blue/20 rounded-[20px] lg:rounded-[24px] flex items-center justify-center text-accent-blue shadow-lg shrink-0">
+                            <Gavel size={24} className="lg:w-8 lg:h-8" />
                           </div>
-                          <div>
-                            <div className="flex items-center gap-3">
-                              <h4 className="text-3xl font-black uppercase tracking-tighter text-white">{selectedFir.userName}</h4>
-                              <span className="px-3 py-1 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-[8px] font-black rounded-lg">LEGAL RECORD</span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 lg:gap-3">
+                              <h4 className="text-xl lg:text-3xl font-black uppercase tracking-tighter text-white truncate">{selectedFir.userName}</h4>
+                              <span className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-[7px] lg:text-[8px] font-black rounded-lg whitespace-nowrap">LEGAL RECORD</span>
                             </div>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[4px] mt-2 italic">FIR_ID: {selectedFir.firId}</p>
+                            <p className="text-[8px] lg:text-[10px] text-gray-500 font-bold uppercase tracking-[2px] lg:tracking-[4px] mt-1 lg:mt-2 italic truncate">FIR_ID: {selectedFir.firId}</p>
                           </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex gap-3 lg:gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                           <TelemetryNode icon={<MapPin />} label="STATE" value={selectedFir.state?.toUpperCase() || 'UNKNOWN'} />
                           <TelemetryNode icon={<Calendar />} label="FILED" value={selectedFir.timestamp ? new Date(selectedFir.timestamp?.toMillis ? selectedFir.timestamp.toMillis() : selectedFir.timestamp).toLocaleDateString() : 'N/A'} />
                         </div>
                       </div>
 
                       <div className="relative group">
-                        <div className="absolute -inset-1 bg-accent-blue/10 rounded-[34px] blur opacity-25" />
-                        <div className="bg-black/60 border-2 border-accent-blue/20 rounded-3xl p-8 relative min-h-[200px]">
-                          <h5 className="text-[9px] font-black uppercase tracking-[3px] text-accent-blue mb-4 flex items-center gap-2">
+                        <div className="absolute -inset-1 bg-accent-blue/10 rounded-[28px] lg:rounded-[34px] blur opacity-25" />
+                        <div className="bg-black/60 border-2 border-accent-blue/20 rounded-[24px] lg:rounded-3xl p-6 lg:p-8 relative min-h-[150px] lg:min-h-[200px]">
+                          <h5 className="text-[8px] lg:text-[9px] font-black uppercase tracking-[3px] text-accent-blue mb-4 flex items-center gap-2">
                             <FileText size={12} /> Victim Statement (Verbatim)
                           </h5>
-                          <p className="text-lg font-medium text-white/90 leading-relaxed italic">
+                          <p className="text-sm lg:text-lg font-medium text-white/90 leading-relaxed italic">
                             "{selectedFir.statement}"
                           </p>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6">
-                         <div className="p-6 bg-white/5 border border-white/10 rounded-3xl">
-                            <h6 className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-3">Forensic Meta</h6>
-                            <div className="space-y-2">
-                               <div className="flex justify-between"><span className="text-[9px] text-white/40">OFFENSE:</span><span className="text-[9px] text-white font-black">{selectedFir.offenseType}</span></div>
-                               <div className="flex justify-between"><span className="text-[9px] text-white/40">VICTIM_UID:</span><span className="text-[9px] font-mono text-white">{selectedFir.victimUid?.slice(0,10)}...</span></div>
-                               <div className="flex justify-between"><span className="text-[9px] text-white/40">GRID_ID:</span><span className="text-[9px] font-mono text-accent-blue">KAVACH-NODE-ALPHA</span></div>
-                            </div>
-                         </div>
-                         <div className="p-6 bg-accent-blue/5 border border-accent-blue/10 rounded-3xl">
-                            <h6 className="text-[8px] font-black uppercase tracking-widest text-accent-blue mb-3">Dispatch Destination</h6>
-                            <p className="text-xs font-black text-white uppercase mb-2">LOCAL POLICE STATION: {selectedFir.state || 'PENDING DETECTION'}</p>
-                            <p className="text-[9px] text-gray-500 font-medium">System will auto-route full evidence vault to regional police HQ upon command.</p>
-                         </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+                        <div className="p-5 lg:p-6 bg-white/5 border border-white/10 rounded-[24px] lg:rounded-3xl">
+                          <h6 className="text-[8px] font-black uppercase tracking-widest text-gray-500 mb-3">Forensic Meta</h6>
+                          <div className="space-y-2">
+                            <div className="flex justify-between gap-4"><span className="text-[9px] text-white/40">OFFENSE:</span><span className="text-[9px] text-white font-black text-right">{selectedFir.offenseType}</span></div>
+                            <div className="flex justify-between gap-4"><span className="text-[9px] text-white/40">VICTIM_UID:</span><span className="text-[9px] font-mono text-white text-right">{selectedFir.victimUid?.slice(0, 10)}...</span></div>
+                            <div className="flex justify-between gap-4"><span className="text-[9px] text-white/40">GRID_ID:</span><span className="text-[9px] font-mono text-accent-blue text-right">KAVACH-NODE-ALPHA</span></div>
+                          </div>
+                        </div>
+                        <div className="p-5 lg:p-6 bg-accent-blue/5 border border-accent-blue/10 rounded-[24px] lg:rounded-3xl">
+                          <h6 className="text-[8px] font-black uppercase tracking-widest text-accent-blue mb-3">Dispatch Destination</h6>
+                          <p className="text-[10px] lg:text-xs font-black text-white uppercase mb-2">LOCAL POLICE STATION: {selectedFir.state || 'PENDING DETECTION'}</p>
+                          <p className="text-[8px] lg:text-[9px] text-gray-500 font-medium leading-relaxed">System will auto-route full evidence vault to regional police HQ upon command.</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="w-full lg:w-[320px] bg-white/[0.02] border-l border-white/5 p-8 flex flex-col justify-between">
+                    <div className="w-full lg:w-[320px] bg-white/[0.02] border-t lg:border-t-0 lg:border-l border-white/5 p-6 lg:p-8 flex flex-col justify-between gap-8 lg:gap-0">
                       <div className="space-y-6">
-                        <h5 className="text-[10px] font-black uppercase tracking-[3px] text-accent-blue">Tactical Actions</h5>
+                        <h5 className="text-[10px] font-black uppercase tracking-[3px] text-accent-blue flex items-center gap-2">
+                          <Zap size={14} /> Tactical Actions
+                        </h5>
                         <div className="space-y-3">
-                           <button 
-                             onClick={() => forwardToPolice(selectedFir.id, selectedFir.firId)}
-                             className="w-full py-5 bg-accent-blue text-black rounded-2xl font-black uppercase text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-accent-blue/20"
-                           >
-                             FORWARD TO LOCAL STATION
-                           </button>
-                           <button 
-                             onClick={() => toast.info("Full Evidence Vault Hash generated and attached to record.")}
-                             className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black uppercase text-[9px] tracking-tight hover:bg-white/10"
-                           >
-                             DOWNLOAD FULL VAULT
-                           </button>
+                          <button
+                            onClick={() => forwardToPolice(selectedFir.id, selectedFir.firId)}
+                            className="w-full py-4 lg:py-5 bg-accent-blue text-black rounded-2xl font-black uppercase text-[9px] lg:text-[10px] tracking-tight hover:scale-95 transition-all shadow-lg shadow-accent-blue/20"
+                          >
+                            FORWARD TO LOCAL STATION
+                          </button>
+                          <button
+                            onClick={() => toast.info("Full Evidence Vault Hash generated and attached to record.")}
+                            className="w-full py-3 lg:py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black uppercase text-[8px] lg:text-[9px] tracking-tight hover:bg-white/10"
+                          >
+                            DOWNLOAD FULL VAULT
+                          </button>
                         </div>
                       </div>
 
-                      <button 
+                      <button
                         onClick={() => setSelectedFirId(null)}
-                        className="w-full py-4 bg-white/10 border border-white/20 text-white rounded-2xl font-black uppercase text-[10px] tracking-tight hover:bg-accent-red hover:border-accent-red transition-all"
+                        className="w-full py-3 lg:py-4 bg-white/10 border border-white/20 text-white rounded-2xl font-black uppercase text-[9px] lg:text-[10px] tracking-tight hover:bg-accent-red hover:border-accent-red transition-all"
                       >
                         CLOSE TERMINAL
                       </button>
@@ -908,15 +1304,15 @@ export default function SuperCellDashboard({
           </>
         </main>
 
-        <aside className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-auto lg:h-[calc(100vh-270px)] xl:h-[calc(100vh-300px)] min-h-0">
+        <aside className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[1200px] min-h-0">
           <AnimatePresence>
             {(viewMode === 'JUSTICE' || viewMode === 'ALL') && (
-              <motion.div 
+              <motion.div
                 key="justice-ledger-sidebar"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className={cn("flex flex-col gap-6", viewMode === 'ALL' ? "h-[50%]" : "flex-1")}
+                className={cn("flex flex-col gap-6", viewMode === 'ALL' ? "h-[600px]" : "flex-1")}
               >
                 {/* Zero-FIR Ledger */}
                 <div className="flex-1 bg-black/40 border border-white/5 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
@@ -981,23 +1377,24 @@ export default function SuperCellDashboard({
                       zeroFirs
                         .filter(fir => filterState === 'ALL' || fir.state?.toUpperCase() === filterState.toUpperCase())
                         .map(fir => (
-                          <motion.div 
-                            key={fir.id} 
+                          <motion.div
+                            key={fir.id}
+                            id={`fir-${fir.id}`}
                             onClick={() => setSelectedFirId(fir.id)}
-                            whileHover={{ scale: 1.02 }} 
+                            whileHover={{ scale: 1.02 }}
                             className={cn(
                               "p-4 border rounded-2xl relative cursor-pointer transition-all",
                               selectedFirId === fir.id ? "bg-accent-blue/20 border-accent-blue" : "bg-white/[0.03] border-white/5"
                             )}
                           >
                             <div className="flex justify-between items-start mb-2">
-                               <h5 className="text-[10px] font-black uppercase text-white">{fir.userName}</h5>
-                               <span className="text-[8px] font-mono text-white/30">{fir.firId || 'O-FIR'}</span>
+                              <h5 className="text-[10px] font-black uppercase text-white">{fir.userName}</h5>
+                              <span className="text-[8px] font-mono text-white/30">{fir.firId || 'O-FIR'}</span>
                             </div>
                             <p className="text-[8px] text-gray-500 italic line-clamp-2">"{fir.statement}"</p>
                             <div className="mt-3 flex items-center justify-between">
-                               <span className="text-[7px] font-black text-accent-blue uppercase tracking-widest">{fir.status || 'PENDING'}</span>
-                               <ChevronRight size={12} className="text-gray-700" />
+                              <span className="text-[7px] font-black text-accent-blue uppercase tracking-widest">{fir.status || 'PENDING'}</span>
+                              <ChevronRight size={12} className="text-gray-700" />
                             </div>
                           </motion.div>
                         ))
@@ -1014,12 +1411,12 @@ export default function SuperCellDashboard({
             )}
 
             {(viewMode === 'OPS' || viewMode === 'GATEKEEPER' || viewMode === 'ALL') && (
-              <motion.div 
+              <motion.div
                 key="intel-sidebar"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className={cn("flex flex-col gap-6", viewMode === 'ALL' ? "h-[50%]" : "flex-1")}
+                className={cn("flex flex-col gap-6", viewMode === 'ALL' ? "h-[580px]" : "flex-1")}
               >
                 {/* Intelligence Publisher */}
                 <div className="flex-1 bg-black border border-white/5 rounded-[40px] p-6 flex flex-col shadow-inner">
@@ -1087,68 +1484,31 @@ export default function SuperCellDashboard({
                         setIsPublishing(true);
                         try {
                           const collectionName = intelTarget === 'CITIZEN' ? 'guides' : 'protector_guides';
-                          const now = new Date();
                           const payload: any = {
                             title: intelTitle.toUpperCase(),
                             content: intelContent,
                             priority: 'NORMAL',
                             timestamp: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
                             authorUid: auth.currentUser?.uid || 'SUPER_CELL_CONSOLE'
                           };
 
-                          if (intelTarget === 'CITIZEN') {
-                            payload.category = intelCategory;
-                            payload.updatedAt = serverTimestamp();
-                          } else {
-                            payload.type = intelCategory === 'LEGAL' ? 'ETHICS' : intelCategory;
-                            payload.updatedAt = serverTimestamp();
-                          }
+                          if (intelTarget === 'CITIZEN') payload.category = intelCategory;
+                          else payload.type = intelCategory === 'LEGAL' ? 'ETHICS' : intelCategory;
 
-                          try {
-                            // Tunnel 1: Official Target Registry
+                          if (editingIntelId) {
+                            await updateDoc(doc(db, collectionName, editingIntelId), payload);
+                            toast.success(`INTEL UPDATED ON ${intelTarget} GRID`);
+                          } else {
                             await addDoc(collection(db, collectionName), payload);
                             toast.success(`INTEL BROADCASTED TO ${intelTarget}`);
-                            setIntelTitle('');
-                            setIntelContent('');
-                          } catch (e: any) {
-                            if (e.code === 'permission-denied') {
-                              console.warn("Primary Intel Grid Locked. Attempting Routing via Command Bypass...");
-                              // Tunnel 2: Emergency Intake Tunnel (Lighter permissions for staff logs)
-                              try {
-                                await addDoc(collection(db, 'special_cell_reports'), {
-                                  ...payload,
-                                  type: 'INTEL_BROADCAST',
-                                  originalTarget: intelTarget,
-                                  status: 'unverified_broadcast'
-                                });
-                                toast.success(`BROADCAST ROUTED THROUGH COMMAND BYPASS`);
-                                setIntelTitle('');
-                                setIntelContent('');
-                              } catch (e2: any) {
-                                console.warn("Command Bypass Failed. Attempting SOS Channel Tunnel...");
-                                // Tunnel 3: SOS Emergency Channel (Highest write clearance usually)
-                                try {
-                                  await addDoc(collection(db, 'alerts'), {
-                                    ...payload,
-                                    type: 'INTEL_RESCUE',
-                                    status: 'active',
-                                    severity: 'low',
-                                    location: { latitude: 0, longitude: 0 },
-                                    isTest: true
-                                  });
-                                  toast.success(`INTEL TRANSMITTED VIA SOS CHANNEL`);
-                                  setIntelTitle('');
-                                  setIntelContent('');
-                                } catch (e3: any) {
-                                  console.error("Final Transmission Failure:", e3);
-                                  toast.error(`PERMISSION DENIED: Critical Security Lock.`);
-                                }
-                              }
-                            } else {
-                              console.error("Intel Broadcast Failure:", e);
-                              toast.error(`TRANSMISSION FAILED: ${e.message}`);
-                            }
                           }
+
+                          setIntelTitle('');
+                          setIntelContent('');
+                          setEditingIntelId(null);
+                        } catch (e: any) {
+                          toast.error(`TRANSMISSION FAILED: ${e.message}`);
                         } finally {
                           setIsPublishing(false);
                         }
@@ -1159,8 +1519,30 @@ export default function SuperCellDashboard({
                         intelTarget === 'CITIZEN' ? "bg-accent-red shadow-red-500/20" : "bg-accent-blue shadow-blue-500/20"
                       )}
                     >
-                      {isPublishing ? <span className="animate-spin">⏳</span> : `SYNC ${intelTarget} GRID`}
+                      {isPublishing ? <span className="animate-spin">⏳</span> : editingIntelId ? 'UPDATE GRID NODE' : `SYNC ${intelTarget} GRID`}
                     </button>
+
+                    <div className="pt-6 border-t border-white/5 space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+                      <div className="flex items-center justify-between px-2">
+                        <h5 className="text-[8px] font-black uppercase text-gray-500 tracking-widest">Active {intelTarget} Intel</h5>
+                        {editingIntelId && <button onClick={() => { setEditingIntelId(null); setIntelTitle(''); setIntelContent(''); }} className="text-[7px] font-black text-accent-red uppercase">Cancel Edit</button>}
+                      </div>
+                      {(intelTarget === 'CITIZEN' ? guides : protectorGuides).map(item => (
+                        <div key={item.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl group relative">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h6 className="text-[10px] font-black text-white uppercase tracking-tight">{item.title}</h6>
+                              <span className="text-[7px] text-accent-blue font-bold uppercase">{item.category || item.type}</span>
+                            </div>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                              <button onClick={() => editIntel(item, intelTarget)} className="p-1.5 bg-accent-blue/10 text-accent-blue rounded-lg hover:bg-accent-blue hover:text-black"><FileText size={10} /></button>
+                              <button onClick={() => deleteIntel(item.id, intelTarget)} className="p-1.5 bg-accent-red/10 text-accent-red rounded-lg hover:bg-accent-red hover:text-white"><X size={10} /></button>
+                            </div>
+                          </div>
+                          <p className="text-[8px] text-gray-500 line-clamp-2 italic">"{item.content}"</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -1181,130 +1563,4 @@ export default function SuperCellDashboard({
   );
 }
 
-// 🛡️ REUSABLE TACTICAL COMPONENTS
-function SecurityLockScreen() {
-  return (
-    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-12 text-center">
-      <div className="relative mb-10">
-        <div className="absolute inset-0 bg-accent-red blur-3xl opacity-20 animate-pulse" />
-        <div className="w-24 h-24 bg-black border-4 border-accent-red/30 rounded-[32px] flex items-center justify-center relative z-10">
-          <Lock className="text-accent-red" size={48} />
-        </div>
-      </div>
-      <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white mb-3">Clearance Denied</h2>
-      <p className="text-gray-500 text-[10px] font-black uppercase tracking-[5px]">Restricted to National Strategic Command Only</p>
-      <div className="mt-8 flex gap-4">
-        <div className="h-[2px] w-12 bg-accent-red/20" />
-        <div className="h-[2px] w-12 bg-accent-red/40" />
-        <div className="h-[2px] w-12 bg-accent-red/20" />
-      </div>
-    </div>
-  );
-}
 
-function QuickStat({ icon, label, value, color, pulse = false }: { icon: any, label: string, value: number, color: string, pulse?: boolean }) {
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <div className={cn("flex items-center gap-2", color)}>
-        {React.cloneElement(icon, { size: 14, className: pulse ? 'animate-pulse' : '' })}
-        <span className="text-[9px] font-black uppercase tracking-[3px] opacity-80">{label}</span>
-      </div>
-      <p className="text-2xl font-black italic text-white tracking-tighter leading-none">{value.toLocaleString()}</p>
-    </div>
-  );
-}
-
-const TelemetryNode = React.memo(({ icon, label, value }: { icon: any, label: string, value: string }) => {
-  return (
-    <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-3xl flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-gray-500">
-        {React.cloneElement(icon, { size: 12 })}
-        <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
-      </div>
-      <span className="text-md font-black text-white">{value}</span>
-    </div>
-  );
-});
-
-const AlertCard = React.memo(({ alert, isActive, onClick, onResolve, onResolveAll }: { alert: any, isActive: boolean, onClick: () => void, onResolve: (id: string) => void, onResolveAll: (uid: string) => void }) => {
-  return (
-    <motion.div
-      onClick={onClick}
-      whileHover={{ scale: 1.01 }}
-      className={cn(
-        "p-4 lg:p-5 rounded-[24px] lg:rounded-[28px] border-2 cursor-pointer transition-all relative overflow-hidden group",
-        isActive
-          ? "bg-accent-red/20 border-accent-red shadow-xl"
-          : "bg-white/[0.03] border-white/5 hover:border-accent-red/30"
-      )}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex gap-3 items-center">
-          <div className={cn("w-2 h-2 rounded-full", isActive ? "bg-accent-red animate-ping" : "bg-accent-red")} />
-          <h4 className="text-[12px] lg:text-[13px] font-black uppercase text-white tracking-tight truncate max-w-[120px]">{alert.victimName}</h4>
-        </div>
-        <span className="text-[8px] font-mono text-white/40">{alert.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-[8px] lg:text-[9px] text-gray-500 font-bold uppercase tracking-widest">{alert.state}</p>
-        <p className="text-[7px] font-mono text-accent-red/60 uppercase">SOS: {alert.type || 'BT'}</p>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="flex gap-2 relative z-20">
-          <button
-            onClick={(e) => { e.stopPropagation(); onResolve(alert.id); }}
-            className="px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-500 rounded-lg text-[7px] font-black uppercase hover:bg-green-500 hover:text-white transition-all"
-          >
-            DONE
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onResolveAll(alert.victimUid); }}
-            className="px-3 py-1.5 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue rounded-lg text-[7px] font-black uppercase hover:bg-accent-blue hover:text-black transition-all"
-          >
-            ALL
-          </button>
-        </div>
-        <ChevronRight size={14} className={cn("transition-all", isActive ? "text-accent-red translate-x-1" : "text-gray-700")} />
-      </div>
-    </motion.div>
-  );
-});
-
-function EmptyState({ label, icon }: { label: string, icon: any }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center text-gray-700 opacity-20 py-20">
-      {React.cloneElement(icon, { size: 48, className: 'mb-4' })}
-      <p className="text-[10px] font-black uppercase tracking-[4px] text-center">{label}</p>
-    </div>
-  );
-}
-
-function StrategicMetric({ label, value, type }: { label: string, value: any, type: 'DANGER' | 'INFO' | 'SUCCESS' | 'NORMAL' }) {
-  const color = type === 'DANGER' ? 'text-accent-red' : type === 'INFO' ? 'text-accent-blue' : type === 'SUCCESS' ? 'text-green-500' : 'text-white/60';
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <span className="text-[8px] font-black uppercase tracking-[3px] text-white/30">{label}</span>
-      <div className="flex items-center gap-2">
-        {type === 'DANGER' && <div className="w-1.5 h-1.5 rounded-full bg-accent-red animate-ping" />}
-        <span className={cn("text-2xl font-black tracking-tighter italic", color)}>{value}</span>
-      </div>
-    </div>
-  );
-}
-
-function MinistryCard({ label, value, sub, color, icon }: { label: string, value: string, sub: string, color: string, icon: any }) {
-  return (
-    <div className={cn("p-5 bg-white/[0.02] border rounded-[28px] flex items-center gap-5 transition-all hover:bg-white/[0.04]", color)}>
-      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
-        {icon}
-      </div>
-      <div>
-        <p className="text-[7px] font-black text-gray-600 uppercase tracking-[4px] mb-1">{label}</p>
-        <p className="text-lg font-black text-white leading-none mb-1">{value}</p>
-        <p className="text-[7px] font-bold text-accent-blue uppercase tracking-widest">{sub}</p>
-      </div>
-    </div>
-  );
-}

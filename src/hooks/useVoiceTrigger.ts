@@ -17,8 +17,9 @@ export const useVoiceTrigger = () => {
   const lastHelpTimeRef = useRef(0);
 
   useEffect(() => {
-    // 1. Only listen if enabled and NOT already in SOS
-    if (!isVoiceTriggerActive || isSOSActive) {
+    // 1. Only listen if enabled, NOT in SOS, and user is a CITIZEN
+    const isCitizen = useKavachStore.getState().role === 'citizen';
+    if (!isVoiceTriggerActive || isSOSActive || !isCitizen) {
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
         recognitionRef.current.stop();

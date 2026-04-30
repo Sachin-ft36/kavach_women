@@ -25,7 +25,6 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const [showPinOverlay, setShowPinOverlay] = React.useState(false);
   const [enteredPin, setEnteredPin] = React.useState('');
   const [nearbyCount, setNearbyCount] = React.useState(0);
-  const [nearbyCount, setNearbyCount] = React.useState(0);
   const recognitionRef = React.useRef<any>(null);
 
   // 📡 PROTECTOR RADAR LOGIC (CRITICAL RANGE SCAN)

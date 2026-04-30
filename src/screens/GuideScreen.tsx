@@ -72,7 +72,7 @@ export default function GuideScreen() {
         } as Guide;
       });
 
-      const combined = [...DEFAULT_GUIDES, ...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
+      const combined = [...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
         if (a.priority === 'HIGH' && b.priority !== 'HIGH') return -1;
         const getT = (g: Guide) => (g.updatedAt?.toMillis?.() || g.updatedAt?.toDate?.().getTime() || g.timestamp?.toMillis?.() || g.timestamp?.toDate?.().getTime() || 0);
         return getT(b) - getT(a);
@@ -85,9 +85,7 @@ export default function GuideScreen() {
     const unsubB = onSnapshot(qB, (snap) => syncChannel('bypass', snap.docs), (err) => { console.warn("Bypass Sync Error:", err); setLoading(false); });
     const unsubC = onSnapshot(qC, (snap) => syncChannel('sos', snap.docs), (err) => { console.warn("SOS Tunnel Sync Error:", err); setLoading(false); });
 
-    // Final Fail-Safe: Ensure loading screen resolves after 5s regardless of network state
     const failSafe = setTimeout(() => setLoading(false), 5000);
-
     return () => { unsubA(); unsubB(); unsubC(); clearTimeout(failSafe); };
   }, []);
 
