@@ -2,14 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Auth Helpers
+    // --- 🏛️ AUTH & IDENTITY HELPERS (SAFE-GUARDED) ---
     function isAuthenticated() { return request.auth != null; }
     
-    // 🛡️ MASTER ADMIN OVERRIDE: Hardcoded access for singh.sachin16559@gmail.com
+    // 🛡️ MASTER ADMIN OVERRIDE
     function isAdmin() {
       return isAuthenticated() && (
              request.auth.token.email == 'singh.sachin16559@gmail.com' ||
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell')
       );
     }
 
@@ -18,74 +21,102 @@ service cloud.firestore {
     }
 
     function isProtector() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'protector';
+      return isAuthenticated() && (
+             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'protector') ||
+             (exists(/databases/$(database)/documents/male_users/$(request.auth.uid)) && get(/databases/$(database)/documents/male_users/$(request.auth.uid)).data.role == 'protector') ||
+             (exists(/databases/$(database)/documents/women_users/$(request.auth.uid)) && get(/databases/$(database)/documents/women_users/$(request.auth.uid)).data.role == 'protector')
+      );
     }
 
-    // --- Global Identity Registry (Lockdown Protocol) ---
-    match /global_registry/{registryId} {
-      allow get: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow read, update: if isAuthenticated() && (resource.data.owner == request.auth.uid || isAdmin());
-      allow delete: if false;
-    }
-
-    // --- Users & Personal Documents ---
+    // --- 📡 SECTOR: SYSTEMATIC MIRRORING ---
+    
+    // 1. MASTER LEDGER
     match /users/{userId} {
       allow read: if true; 
       allow write: if isOwner(userId) || isAdmin();
-      
-      match /{allSubcollections=**} {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
+      match /{allSubcollections=**} { allow read, write: if isOwner(userId) || isAdmin(); }
     }
 
-    // --- SOS Alerts (Privacy Encrypted) ---
-    match /alerts/{alertId} { 
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.victimUid || isAdmin() || isProtector());
-      allow create: if isAuthenticated(); 
-      allow update: if isAdmin() || isProtector() || request.auth.uid == resource.data.victimUid;
+    // 2. MALE SECTOR
+    match /male_users/{userId} {
+      allow read: if isAuthenticated(); 
+      allow write: if isOwner(userId) || isAdmin();
+      match /{allSubcollections=**} { allow read, write: if isOwner(userId) || isAdmin(); }
     }
 
-    // --- Zero FIRs (Legal Filing) ---
-    match /zero_firs/{firId} {
-      allow create: if isAuthenticated(); 
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.victimUid || isAdmin());
-      allow update, delete: if isAdmin();
+    // 3. WOMEN SECTOR
+    match /women_users/{userId} {
+      allow read: if isAuthenticated(); 
+      allow write: if isOwner(userId) || isAdmin();
+      match /safety_data/{docId} { allow read, write: if isOwner(userId) || isAdmin(); }
+      match /protector_data/{docId} { allow read, write: if isOwner(userId) || isAdmin(); }
+      match /{allSubcollections=**} { allow read, write: if isOwner(userId) || isAdmin(); }
     }
 
-    // 🛡️ Protector Grievances (Incident Reports) 🛡️
-    match /protector_grievances/{reportId} {
+    // 🚗 4. NATIONAL TRANSIT REGISTRY (SAFE RIDE)
+    match /journeys/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin() || isProtector();
+    }
+
+    // --- 📖 SECTOR: SAFETY TIPS & FIELD REPORTS ---
+    match /safety_tips/{tipId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /protector_reports/{reportId} {
       allow create: if isAuthenticated(); 
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.uid || isAdmin());
       allow update: if isAdmin();
       allow delete: if false;
     }
 
-    // --- Special Cell Intelligent Reports ---
-    match /special_cell_reports/{reportId} {
+    // --- 🚨 SOS ALERTS & JUSTICE ---
+    match /alerts/{alertId} { 
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated(); 
-      // 🛡️ SYNC FIX: Allow citizens to read their own reports (UID check)
-      allow read, list: if isAuthenticated() && (
-        request.auth.uid == resource.data.uid || 
-        request.auth.uid == resource.data.realUid || 
-        isAdmin()
-      );
-      allow update: if isAdmin();
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.uid || 
-        request.auth.uid == resource.data.realUid || 
-        isAdmin()
-      ); 
+      allow update: if isAuthenticated() || isProtector() || isAdmin();
     }
 
-    // --- Protectors Status Hub ---
+    match /firs/{firId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /zero_firs/{firId} {
+      allow create: if isAuthenticated(); 
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.victimUid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // --- 📡 COMMAND HUB CHATS & REGISTRY ---
+    match /commandhub_chats/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+      match /messages/{messageId} { allow read, write: if isOwner(userId) || isAdmin(); }
+    }
+
+    match /global_registry/{registryId} {
+      allow read, write: if isAuthenticated() && (resource.data.owner == request.auth.uid || isAdmin());
+    }
+
+    // --- LEGACY REPORTS & STATUS ---
+    match /protector_grievances/{reportId} {
+      allow create, read: if isAuthenticated(); 
+      allow update: if isAdmin();
+    }
+
+    match /special_cell_reports/{reportId} {
+      allow create, read: if isAuthenticated() || isAdmin(); 
+      allow update: if isAdmin();
+    }
+
     match /protectors/{uid} { 
       allow read: if isAuthenticated();
       allow write: if isAdmin(); 
     }
 
-    // --- Master Admin Override (Safety Net) ---
+    // --- 🚨 FINAL SAFETY NET ---
     match /{document=**} { 
       allow read, write: if isAdmin(); 
     }

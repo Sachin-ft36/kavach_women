@@ -1,346 +1,721 @@
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-const mapboxgl = (window as any).mapboxgl;
-const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+interface CommandMapProps {
+  activeAlerts: any[];
+  activeProtectors: any[];
+  pendingProtectors: any[];
+  activeFirs: any[];
+  activeJourneys?: any[];
+  onAlertClick?: (id: string) => void;
+  centerOverride?: [number, number];
+  selectedState?: string;
+  selectedAlertId?: string | null;
+}
 
-const CommandMap = memo(({ activeAlerts = [], activeProtectors = [], activeFirs = [], centerOverride = null, showVectors = false, onAlertClick, onProtectorClick, onFirClick, onHoverId }: {
-  activeAlerts?: any[],
-  activeProtectors?: any[],
-  activeFirs?: any[],
-  centerOverride?: [number, number] | null,
-  showVectors?: boolean,
-  onAlertClick?: (id: string) => void,
-  onProtectorClick?: (id: string) => void,
-  onFirClick?: (id: string) => void,
-  onHoverId?: (id: string | null) => void
-}) => {
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA';
+
+export default function CommandMap({
+  activeAlerts,
+  activeProtectors,
+  pendingProtectors,
+  activeFirs,
+  activeJourneys = [],
+  onAlertClick,
+  centerOverride,
+  selectedState = 'National',
+  selectedAlertId
+}: CommandMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
 
-  const alertMarkers = useRef<{ [key: string]: any }>({});
-  const protectorMarkers = useRef<{ [key: string]: any }>({});
-  const firMarkers = useRef<{ [key: string]: any }>({});
-  const interceptLines = useRef<{ [key: string]: any }>({});
-
-  useEffect(() => {
-    const initMap = () => {
-      const mb = (window as any).mapboxgl;
-      if (!mapContainer.current || !mb || !mb.Map) {
-        setTimeout(initMap, 500);
-        return;
+  // 🛡️ REFINED TACTICAL MARKER STYLES (UBER STYLE)
+  const injectStyles = () => {
+    if (document.getElementById('command-map-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'command-map-styles';
+    style.innerHTML = `
+      /* 🔴 SOS PULSING MARKER */
+      .marker-sos {
+        width: 12px;
+        height: 12px;
+        background: #FF0000;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        cursor: pointer;
+        position: relative;
+        z-index: 100;
+      }
+      .marker-sos::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(255, 0, 0, 0.4);
+        animation: sos-pulse 2s infinite ease-out;
+      }
+      .marker-sos::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(255, 0, 0, 0.2);
+        animation: sos-pulse 2s infinite ease-out 1s;
+      }
+      @keyframes sos-pulse {
+        0% { width: 100%; height: 100%; opacity: 1; }
+        100% { width: 350%; height: 350%; opacity: 0; }
       }
 
-      mb.accessToken = MAPBOX_TOKEN;
-      const VIEW_BOUNDS: [[number, number], [number, number]] = [[60.0, 0.0], [105.0, 42.0]];
+      /* 🟣 SUPERCELL DISPATCHED MARKER */
+      .marker-sos-supercell {
+        width: 14px;
+        height: 14px;
+        background: #7C3AED;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 15px rgba(124, 58, 237, 0.6);
+        cursor: pointer;
+        position: relative;
+        z-index: 150;
+      }
+      .marker-sos-supercell::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(124, 58, 237, 0.4);
+        animation: supercell-pulse 1.5s infinite ease-out;
+      }
+      @keyframes supercell-pulse {
+        0% { width: 100%; height: 100%; opacity: 1; }
+        100% { width: 400%; height: 400%; opacity: 0; }
+      }
 
-      map.current = new mb.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/dark-v11',
-        center: centerOverride ? [centerOverride[1], centerOverride[0]] : [82.0, 22.0],
-        zoom: centerOverride ? 12 : 3.3,
-        maxBounds: VIEW_BOUNDS,
-        pitch: 0, // Flat national view is clearer for oversight
-        antialias: true
+      /* 🔵 ACTIVE PROTECTOR MARKER - TACTICAL BLUE DOT */
+      .marker-protector-active {
+        width: 10px;
+        height: 10px;
+        background: #3B82F6;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+        position: relative;
+      }
+      .marker-protector-active::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.2);
+        animation: protector-pulse 3s infinite ease-in-out;
+      }
+      @keyframes protector-pulse {
+        0% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.8); opacity: 0; }
+        100% { transform: scale(1); opacity: 0; }
+      }
+
+      /* 🟡 ELITE PROTECTOR MARKER - ROYAL GOLD DOT */
+      .marker-protector-elite {
+        width: 12px;
+        height: 12px;
+        background: #F59E0B;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.8);
+        position: relative;
+        z-index: 50;
+      }
+      .marker-protector-elite::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        background: rgba(245, 158, 11, 0.3);
+        animation: elite-pulse 2s infinite ease-in-out;
+      }
+      @keyframes elite-pulse {
+        0% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(2.2); opacity: 0; }
+        100% { transform: scale(1); opacity: 0; }
+      }
+
+      /* ⚫ OFFLINE PROTECTOR MARKER */
+      .marker-protector-offline {
+        width: 8px;
+        height: 8px;
+        background: #64748B;
+        border: 1.5px solid white;
+        border-radius: 50%;
+        opacity: 0.6;
+      }
+
+      /* 🟢 FIR JUSTICE MARKER - TACTICAL GREEN DOT */
+      .marker-fir {
+        width: 10px;
+        height: 10px;
+        background: #10B981;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+        position: relative;
+      }
+      .marker-fir::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 50%;
+        background: rgba(16, 185, 129, 0.2);
+        animation: fir-pulse 4s infinite ease-in-out;
+      }
+      @keyframes fir-pulse {
+        0% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.6); opacity: 0; }
+        100% { transform: scale(1); opacity: 0; }
+      }
+
+      .mapboxgl-popup-content {
+        padding: 6px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: white;
+        font-family: sans-serif;
+      }
+      .mapboxgl-popup-tip { border-top-color: rgba(15, 23, 42, 0.95) !important; }
+
+      /* 🚗 TRANSIT MARKER - VEHICLE ICON */
+      .marker-transit {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 80;
+        transition: transform 1s linear, left 1s linear, top 1s linear;
+      }
+      .marker-transit::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 4px;
+        background: rgba(37, 99, 235, 0.2);
+        animation: transit-pulse 2s infinite ease-in-out;
+      }
+      @keyframes transit-pulse {
+        0% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.6); opacity: 0; }
+        100% { transform: scale(1); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  };
+
+  useEffect(() => {
+    injectStyles();
+
+    const mb = (window as any).mapboxgl;
+    if (!mapContainer.current || !mb || !mb.Map) return;
+
+    mb.accessToken = MAPBOX_TOKEN;
+    
+    const indiaBounds: [[number, number], [number, number]] = [
+      [68.1, 7.5], // Southwest (Gujarat/Kanyakumari area)
+      [97.4, 37.1]  // Northeast (Arunachal/Kashmir area)
+    ];
+
+    map.current = new mb.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      projection: 'mercator' as any,
+      center: [78.9629, 23.5937],
+      zoom: 4.5,
+      pitch: 45,
+      antialias: true
+    });
+
+    map.current.on('load', () => {
+      if (!map.current) return;
+
+      // 🏔️ INJECT 3D DEPTH ENGINE (MAINTAIN LIGHT MODE)
+      map.current.addSource('mapbox-dem', {
+        type: 'raster-dem',
+        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+        tileSize: 512,
+        maxzoom: 14
       });
+      map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
 
-      map.current.on('load', () => {
-        if (!map.current.getLayer('state-outlines-custom')) {
-          map.current.addLayer({
-            'id': 'state-outlines-custom',
-            'type': 'line',
-            'source': 'composite',
-            'source-layer': 'admin',
-            'filter': ['all', ['==', 'admin_level', 1], ['==', 'maritime', 0]],
-            'paint': {
-              'line-color': 'rgba(0, 112, 243, 0.2)',
-              'line-width': 1,
-              'line-dasharray': [2, 2]
-            }
-          });
+      // ☁️ ATMOSPHERIC LIGHT SYNC
+      map.current.addLayer({
+        id: 'sky',
+        type: 'sky',
+        paint: {
+          'sky-type': 'atmosphere',
+          'sky-atmosphere-sun': [0.0, 0.0],
+          'sky-atmosphere-sun-intensity': 15
         }
       });
-    };
-    initMap();
-    return () => {
-      Object.values(alertMarkers.current).forEach(m => m.remove());
-      Object.values(protectorMarkers.current).forEach(m => m.remove());
-      Object.values(firMarkers.current).forEach(m => m.remove());
-      map.current?.remove();
-    };
+
+      // 🏙️ PREMIUM TACTICAL HUB LABELING (ZOOM-ADAPTIVE)
+      const layers = map.current.getStyle().layers;
+      if (layers) {
+        layers.forEach((layer: any) => {
+          if (layer.type === 'symbol') {
+             const isIndia = ['any', 
+               ['==', ['get', 'iso_3166_1'], 'IN'], 
+               ['==', ['get', 'iso_3166_1_al2'], 'IN'],
+               ['==', ['get', 'worldview'], 'IN'],
+               ['==', ['get', 'country_code'], 'in']
+             ];
+
+             // 🎯 SOVEREIGN FILTER: Silence foreign nodes at low zoom, unlock all at high zoom
+             map.current?.setPaintProperty(layer.id, 'text-opacity', [
+               'interpolate', ['linear'], ['zoom'],
+               5, ['case', isIndia, 1.0, 0],
+               10, 1.0
+             ]);
+
+             // 🚜 RURAL & LOCAL INTEL: Force villages and minor settlements to show
+             if (layer.id.includes('settlement') || layer.id.includes('village') || layer.id.includes('neighborhood') || layer.id.includes('subdivision')) {
+                map.current?.setLayoutProperty(layer.id, 'text-ignore-placement', true);
+                map.current?.setLayoutProperty(layer.id, 'text-allow-overlap', true);
+                map.current?.setLayoutProperty(layer.id, 'icon-ignore-placement', true);
+                map.current?.setLayoutProperty(layer.id, 'icon-allow-overlap', true);
+             }
+
+             // 🎨 UHD TACTICAL STYLE FOR ALL LABELS (ROADS, POIs, CITIES, VILLAGES)
+             map.current?.setPaintProperty(layer.id, 'text-color', '#FFFFFF');
+             map.current?.setPaintProperty(layer.id, 'text-halo-color', '#000000');
+             map.current?.setPaintProperty(layer.id, 'text-halo-width', 2.5);
+             
+             // Dynamic sizing based on zoom
+             map.current?.setLayoutProperty(layer.id, 'text-size', [
+               'interpolate', ['linear'], ['zoom'],
+               3, 11,
+               12, 15,
+               18, 20
+             ]);
+
+             if (layer.id.includes('state') || layer.id.includes('country')) {
+                map.current?.setLayoutProperty(layer.id, 'text-transform', 'uppercase');
+                map.current?.setLayoutProperty(layer.id, 'text-letter-spacing', 0.1);
+             }
+          }
+
+          // 🛡️ REFINED ADMINISTRATIVE BOUNDARIES
+          if (layer.id.includes('admin') || layer.id.includes('boundary')) {
+             map.current?.setPaintProperty(layer.id, 'line-opacity', 0); 
+          }
+        });
+      }
+
+      // 🇮🇳 SOVEREIGN GRID SOURCES
+      map.current.addSource('india-border', {
+        type: 'vector',
+        url: 'mapbox://mapbox.mapbox-streets-v8'
+      });
+
+      // 🗺️ STATE BOUNDARIES (GLASSMOPRHIC BLUE)
+      map.current.addLayer({
+        id: 'state-borders-premium',
+        type: 'line',
+        source: 'india-border',
+        'source-layer': 'admin',
+        filter: ['all', ['==', ['get', 'iso_3166_1'], 'IN'], ['==', ['get', 'admin_level'], 4]],
+        paint: {
+          'line-color': '#60A5FA',
+          'line-width': 1.2,
+          'line-opacity': 0.6
+        }
+      });
+
+      // 🗺️ NATIONAL PERIMETER (NEON SHARP)
+      map.current.addLayer({
+        id: 'india-outline-premium',
+        type: 'line',
+        source: 'india-border',
+        'source-layer': 'admin',
+        filter: ['all', ['==', ['get', 'iso_3166_1'], 'IN'], ['==', ['get', 'admin_level'], 0]],
+        paint: {
+          'line-color': '#3B82F6',
+          'line-width': 2,
+          'line-opacity': 0.8,
+          'line-blur': 1
+        }
+      });
+
+      // ⚡ LIVE ROUTE SOURCE
+      map.current.addSource('route-line', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      map.current.addLayer({
+        id: 'route-path',
+        type: 'line',
+        source: 'route-line',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 
+          'line-color': '#3B82F6', 
+          'line-width': 4, 
+          'line-opacity': 0.8,
+          'line-dasharray': [1, 1] 
+        }
+      });
+    });
+
+    return () => map.current?.remove();
   }, []);
 
+  // 🌍 STRATEGIC STATE ZOOM ENGINE
   useEffect(() => {
-    if (!map.current || !showVectors) return;
+    if (!map.current) return;
 
-    activeAlerts.forEach(alert => {
-      if (!alert.location || !alert.responders) return;
-
-      alert.responders.forEach((resp: any, idx: number) => {
-        const lineId = `line-${alert.id}-${resp.uid || idx}`;
-        const protector = activeProtectors.find(p => p.uid === resp.uid || p.id === resp.uid);
-        if (!protector || !protector.lastLocation) return;
-
-        const coordinates = [
-          [protector.lastLocation.lng, protector.lastLocation.lat],
-          [alert.location.longitude, alert.location.latitude]
-        ];
-
-        try {
-          if (map.current.getSource(lineId)) {
-            map.current.getSource(lineId).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates } });
-          } else {
-            map.current.addSource(lineId, {
-              type: 'geojson',
-              data: { type: 'Feature', geometry: { type: 'LineString', coordinates } }
-            });
-            map.current.addLayer({
-              'id': lineId,
-              'type': 'line',
-              'source': lineId,
-              'layout': { 'line-join': 'round', 'line-cap': 'round' },
-              'paint': { 'line-color': '#00f2ff', 'line-width': 2, 'line-dasharray': [3, 2], 'line-opacity': 0.6 }
-            });
-            interceptLines.current[lineId] = true;
-          }
-        } catch (e) { }
-      });
-    });
-
-    return () => {
-      Object.keys(interceptLines.current).forEach(id => {
-        if (map.current?.getLayer(id)) map.current.removeLayer(id);
-        if (map.current?.getSource(id)) map.current.removeSource(id);
-      });
-      interceptLines.current = {};
+    const stateBounds: { [key: string]: [[number, number], [number, number]] } = {
+      'National': [[68.1, 7.5], [97.4, 37.1]],
+      'Madhya Pradesh': [[74.0, 21.0], [82.8, 26.9]],
+      'Delhi': [[76.8, 28.4], [77.4, 28.9]],
+      'Maharashtra': [[72.6, 15.6], [80.9, 22.0]],
+      'Karnataka': [[74.0, 11.5], [78.6, 18.5]],
+      'Rajasthan': [[69.4, 23.0], [78.3, 30.2]],
+      'Uttar Pradesh': [[77.0, 23.8], [84.7, 30.5]],
+      'Gujarat': [[68.1, 20.1], [74.5, 24.7]]
     };
-  }, [activeAlerts, activeProtectors, showVectors]);
 
-  useEffect(() => {
-    if (!map.current || !mapboxgl) return;
+    const bounds = stateBounds[selectedState] || stateBounds['National'];
 
-    const activeAlertIds = activeAlerts.map(a => a.id);
-    Object.keys(alertMarkers.current).forEach(id => {
-      if (!activeAlertIds.includes(id)) {
-        alertMarkers.current[id].remove();
-        delete alertMarkers.current[id];
-      }
+    map.current.fitBounds(bounds, {
+      padding: 50,
+      duration: 2000,
+      essential: true
     });
+   }, [selectedState]);
 
-    activeAlerts.forEach(alert => {
-      if (!alert.location || typeof alert.location.latitude !== 'number' || typeof alert.location.longitude !== 'number') return;
-      const coords: [number, number] = [alert.location.longitude, alert.location.latitude];
-      if (!alertMarkers.current[alert.id]) {
-        const el = document.createElement('div');
-        el.className = 'sos-pulse-marker';
-        el.innerHTML = `
-          <div style="position: relative;">
-            <div style="position: absolute; inset: -15px; background: rgba(255,0,0,0.4); border-radius: 50%; animation: pulse-ring 2s infinite;"></div>
-            <div style="background: #ff0000; width: 22px; height: 22px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 30px #ff0000; position: relative; z-index: 2;"></div>
+  // 🛰️ TACTICAL TARGET LOCK ENGINE
+  useEffect(() => {
+    if (!map.current || !selectedAlertId) return;
+    const target = [...activeAlerts, ...(activeJourneys || [])].find(a => a.id === selectedAlertId);
+    if (target) {
+      const lat = target.latitude || target.lat || target.location?.latitude || target.location?.lat || target.lastLocation?.latitude || target.lastLocation?.lat;
+      const lng = target.longitude || target.lng || target.location?.longitude || target.location?.lng || target.lastLocation?.longitude || target.lastLocation?.lng;
+      
+      if (lat && lng) {
+        // 🛰️ Initial FlyTo or Continuous EaseTo
+        const center = [lng, lat] as [number, number];
+        const isFirstLock = !map.current.isMoving(); // Check if we are already following
+
+        if (isFirstLock) {
+          map.current.flyTo({
+            center,
+            zoom: 17.5,
+            pitch: 65,
+            duration: 3000,
+            essential: true
+          });
+        } else {
+          map.current.easeTo({
+            center,
+            duration: 1000,
+            easing: (t: number) => t // Linear follow
+          });
+        }
+      }
+    }
+  }, [selectedAlertId, activeAlerts, activeJourneys]);
+
+  // 📍 SYNC MARKERS
+  useEffect(() => {
+    const mb = (window as any).mapboxgl;
+    if (!map.current || !mb) return;
+
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    // 🔴 SOS MARKERS
+    const uniqueAlertMap = new Map();
+    [...(activeAlerts || [])]
+      .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0))
+      .forEach(alert => {
+        const uid = alert.victimUid || alert.id;
+        if (!uniqueAlertMap.has(uid)) {
+          uniqueAlertMap.set(uid, alert);
+        }
+      });
+    const uniqueAlerts = Array.from(uniqueAlertMap.values());
+
+    uniqueAlerts.forEach(alert => {
+      const lat = alert.latitude || alert.lat || alert.location?.latitude || alert.location?.lat;
+      const lng = alert.longitude || alert.lng || alert.location?.longitude || alert.location?.lng;
+      if (!lat || !lng) return;
+
+      const isSuperCell = alert.status === 'supercell_dispatched';
+      const isVerified = alert.isHandshakeVerified;
+
+      // 🚨 VICTIM MARKER
+      const el = document.createElement('div');
+      el.className = isSuperCell ? 'marker-sos-supercell' : 'marker-sos';
+      el.onclick = () => {
+        onAlertClick?.(alert.id);
+        map.current.flyTo({
+           center: [lng, lat],
+           zoom: 17.5,
+           pitch: 65,
+           duration: 2500,
+           essential: true
+        });
+      };
+      
+      const marker = new mb.Marker(el)
+        .setLngLat([lng, lat])
+        .setPopup(new mb.Popup().setHTML(`
+          <div style="font-size: 9px; min-width: 120px;">
+            <p style="font-weight: 900; color: ${isSuperCell ? '#7C3AED' : '#ef4444'}; text-transform: uppercase; margin: 0;">
+              ${isSuperCell ? '🚨 SuperCell Dispatch' : 'Emergency SOS'}
+            </p>
+            <p style="font-weight: 700; color: #ffffff; margin: 2px 0;">${alert.victimName || 'User'}</p>
+            <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+               <div style="width: 6px; height: 6px; border-radius: 50%; background: ${isVerified ? '#10b981' : '#f59e0b'};"></div>
+               <p style="color: ${isVerified ? '#10b981' : '#f59e0b'}; font-weight: 900; font-size: 7px; text-transform: uppercase; margin: 0;">
+                 Handshake: ${isVerified ? 'VERIFIED' : 'PENDING'}
+               </p>
+            </div>
+            ${alert.activeResponders ? `<p style="color: #3b82f6; font-weight: 900; font-size: 7px; text-transform: uppercase; margin-top: 4px;">Surveillance: ${alert.activeResponders.length} Units Active</p>` : ''}
           </div>
-        `;
+        `))
+        .addTo(map.current);
+      markersRef.current.push(marker);
 
-        const isStale = alert.isStale;
-
-        // 📏 OPERATIONAL DISTANCE CALCULATION
-        let nearestDist = Infinity;
-        activeProtectors.forEach(p => {
-          const plat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.coords?.[0];
-          const plng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.coords?.[1];
-          if (plat && plng) {
-            const d = getDistance(alert.location.latitude, alert.location.longitude, plat, plng);
-            if (d < nearestDist) nearestDist = d;
+      // 🛡️ ACTIVE RESPONDER SURVEILLANCE
+      if (alert.activeResponders && Array.isArray(alert.activeResponders)) {
+        alert.activeResponders.forEach((responder: any) => {
+          // Note: In a real scenario, we'd fetch the responder's live location from a global 'protectors' list
+          // For now, we simulate their surveillance if we have their last known location or path
+          if (responder.lastLocation) {
+            const rEl = document.createElement('div');
+            rEl.className = 'marker-protector-active';
+            rEl.style.transform = 'scale(0.8)';
+            rEl.onclick = () => {
+              map.current.flyTo({
+                 center: [responder.lastLocation.lng, responder.lastLocation.lat],
+                 zoom: 17.5,
+                 pitch: 65,
+                 duration: 2500,
+                 essential: true
+              });
+            };
+            
+            const rMarker = new mb.Marker(rEl)
+              .setLngLat([responder.lastLocation.lng, responder.lastLocation.lat])
+              .setPopup(new mb.Popup().setHTML(`
+                <div style="font-size: 8px;">
+                  <p style="font-weight: 900; color: #3B82F6; text-transform: uppercase; margin: 0;">SuperCell Surveillance</p>
+                  <p style="font-weight: 700; color: #ffffff; margin: 2px 0;">ID: ${responder.name}</p>
+                  <p style="color: #10b981; font-weight: 900; font-size: 7px; text-transform: uppercase; margin-top: 1px;">TASK: ${alert.victimName} INTERCEPT</p>
+                </div>
+              `))
+              .addTo(map.current);
+            markersRef.current.push(rMarker);
           }
         });
+      }
+    });
 
-        // 🛡️ TACTICAL HOVER POPUP (SOS)
-        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
-          .setHTML(`
-            <div style="background: #080808; border: 1px solid #ff0000; padding: 12px; border-radius: 12px; color: white; font-family: sans-serif; min-width: 200px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                 <span style="font-size: 8px; font-weight: 900; color: #ff0000; text-transform: uppercase; letter-spacing: 2px;">${isStale ? '⚠️ SIGNAL LOST / OFFLINE' : '⚠️ CRITICAL SOS'}</span>
-                 <span style="font-size: 8px; color: grey;">UID: ${alert.id.slice(-6).toUpperCase()}</span>
-              </div>
-              <h4 style="margin: 0; font-size: 14px; font-weight: 900; text-transform: uppercase;">${alert.victimName}</h4>
-              <p style="margin: 4px 0; font-size: 9px; color: #555; text-transform: uppercase;">
-                ${alert.state || 'UNKNOWN'} • 
-                ${alert.location?.latitude?.toFixed(4) || '0.0000'}, 
-                ${alert.location?.longitude?.toFixed(4) || '0.0000'}
-              </p>
-              <div style="background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.2); padding: 6px; border-radius: 8px; margin: 8px 0;">
-                <p style="margin: 0; font-size: 8px; font-weight: 900; color: #ff0000; text-transform: uppercase;">Nearest Support: ${nearestDist === Infinity ? 'SCANNING GRID...' : nearestDist.toFixed(2) + ' KM'}</p>
-              </div>
-              ${isStale ? `<p style="color: #ff0000; font-size: 7px; font-weight: bold; text-transform: uppercase; margin: 4px 0;">⚠️ CRITICAL: Mission Telebeat Failed</p>` : ''}
-              <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0;"></div>
-              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                 <span style="background: rgba(255,0,0,0.1); color: #ff0000; padding: 2px 6px; border-radius: 4px; font-size: 7px; font-weight: 900;">${alert.type || 'SENSORY'}</span>
-                 <span style="background: rgba(0,112,243,0.1); color: #0070f3; padding: 2px 6px; border-radius: 4px; font-size: 7px; font-weight: 900;">RESP: ${alert.responders?.length || 0}</span>
-              </div>
-              <p style="margin-top: 8px; font-size: 7px; color: #777; font-style: italic; text-align: center;">Click marker to focus in sidebar</p>
-            </div>
-          `);
+    // 🔵 ACTIVE PROTECTORS
+    (activeProtectors || []).forEach(p => {
+      const lat = p.latitude || p.lat || p.lastLocation?.latitude || p.lastLocation?.lat || p.location?.latitude || p.location?.lat;
+      const lng = p.longitude || p.lng || p.lastLocation?.longitude || p.lastLocation?.lng || p.location?.longitude || p.location?.lng;
+      if (!lat || !lng) return;
 
-        const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
-
-        // HOVER REGISTRY
-        el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
-        el.addEventListener('mouseleave', () => marker.togglePopup());
-        el.addEventListener('click', () => {
-          if (onAlertClick) onAlertClick(alert.id);
+      const occupation = p.protectorVetting?.occupation || '';
+      const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police', 'Doctor'].some(o => 
+        occupation.toLowerCase().includes(o.toLowerCase())
+      );
+      
+      const el = document.createElement('div');
+      el.className = isElite ? 'marker-protector-elite' : 'marker-protector-active';
+      el.onclick = () => {
+        map.current.flyTo({
+           center: [lng, lat],
+           zoom: 17.5,
+           pitch: 65,
+           duration: 2500,
+           essential: true
         });
-
-        alertMarkers.current[alert.id] = marker;
-      } else {
-        if (!isNaN(coords[0]) && !isNaN(coords[1])) {
-          alertMarkers.current[alert.id].setLngLat(coords);
-        }
-      }
-    });
-
-    // Protectors (Blue/Cyan Grid)
-    const activeProtIds = activeProtectors.map(p => p.id || p.uid);
-    Object.keys(protectorMarkers.current).forEach(id => {
-      if (!activeProtIds.includes(id)) {
-        protectorMarkers.current[id].remove();
-        delete protectorMarkers.current[id];
-      }
-    });
-
-    activeProtectors.forEach(p => {
-      // 🛰️ MULTI-SOURCE COORDINATE RESOLUTION (Ensures visibility even if one source is stale)
-      let lat = null;
-      let lng = null;
-
-      if (p.telemetry?.coords && typeof p.telemetry.coords[0] === 'number') {
-        lat = p.telemetry.coords[0];
-        lng = p.telemetry.coords[1];
-      } else if (p.lastLocation && typeof p.lastLocation.lat === 'number') {
-        lat = p.lastLocation.lat;
-        lng = p.lastLocation.lng;
-      } else if (p.coords && typeof p.coords[0] === 'number') {
-        lat = p.coords[0];
-        lng = p.coords[1];
-      }
-
-      if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) return;
-      const coords: [number, number] = [lng, lat];
-      const pid = p.id || p.uid;
-      const isOnMission = activeAlerts.some(a => a.responders?.some((r: any) => r.uid === pid));
-      const signalLost = p.isStale;
-
-      if (!protectorMarkers.current[pid]) {
-        const el = document.createElement('div');
-        el.className = 'protector-marker';
-        el.innerHTML = `<div style="background: ${signalLost ? '#555' : (isOnMission ? '#00f2ff' : '#0070f3')}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 15px ${signalLost ? '#000' : (isOnMission ? '#00f2ff' : '#0070f3')}; transition: all 0.5s; opacity: ${signalLost ? 0.4 : 1};"></div>`;
-
-        // 🛡️ TACTICAL HOVER POPUP (PROTECTOR)
-        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
-          .setHTML(`
-            <div style="background: #080808; border: 1px solid ${signalLost ? '#555' : '#0070f3'}; padding: 12px; border-radius: 12px; color: white; font-family: sans-serif; min-width: 180px;">
-              <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px;">
-                 <div style="width: 6px; height: 6px; border-radius: 50%; background: ${signalLost ? '#555' : (isOnMission ? '#00f2ff' : '#0070f3')};"></div>
-                 <span style="font-size: 8px; font-weight: 900; color: ${signalLost ? '#555' : '#0070f3'}; text-transform: uppercase;">⚡ ${signalLost ? 'SIGNAL LOST / APP DELETED' : (isOnMission ? 'ON MISSION' : 'ONLINE')}</span>
-              </div>
-              <h3 style="margin: 0; font-size: 14px; font-weight: 900;">${p.name || 'Anonymous Operative'}</h3>
-              <p style="margin: 4px 0; font-size: 9px; color: #555;">UID: ${pid.slice(0, 10).toUpperCase()}</p>
-              ${signalLost ? `<p style="color: #ff0000; font-size: 7px; font-weight: bold; text-transform: uppercase; margin-top: 4px;">⚠️ DEACTIVATED: Telemetry Heartbeat Failed</p>` : ''}
-              <div style="display: flex; gap: 4px; margin-top: 8px;">
-                 <span style="font-size: 7px; color: #0070f3; font-weight: 900;">Verified Security Score: 9.8</span>
-              </div>
-            </div>
-          `);
-
-        const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
-
-        el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
-        el.addEventListener('mouseleave', () => marker.togglePopup());
-        el.addEventListener('click', () => {
-          if (onProtectorClick) onProtectorClick(pid);
-        });
-
-        protectorMarkers.current[pid] = marker;
-      } else {
-        if (!isNaN(coords[0]) && !isNaN(coords[1])) {
-          protectorMarkers.current[pid].setLngLat(coords);
-        }
-      }
-    });
-
-    // ⚖️ JUSTICE GRID (Online FIRs - Green Pulse)
-    const activeFirIds = activeFirs.map(f => f.id);
-    Object.keys(firMarkers.current).forEach(id => {
-      if (!activeFirIds.includes(id)) {
-        firMarkers.current[id].remove();
-        delete firMarkers.current[id];
-      }
-    });
-
-    activeFirs.forEach(fir => {
-      const loc = fir.incidentLocation || fir.location;
-      if (!loc || typeof loc.lat !== 'number' || typeof loc.lng !== 'number') return;
-      const coords: [number, number] = [loc.lng, loc.lat];
-
-      if (!firMarkers.current[fir.id]) {
-        const el = document.createElement('div');
-        el.className = 'fir-pulse-marker';
-        el.innerHTML = `
-          <div style="position: relative;">
-            <div style="position: absolute; inset: -10px; background: rgba(34,197,94,0.4); border-radius: 50%; animation: pulse-ring 2s infinite;"></div>
-            <div style="background: #22c55e; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #22c55e; position: relative; z-index: 2;"></div>
+      };
+      
+      const marker = new mb.Marker(el)
+        .setLngLat([lng, lat])
+        .setPopup(new mb.Popup().setHTML(`
+          <div style="font-size: 9px;">
+            <p style="font-weight: 900; color: ${isElite ? '#F59E0B' : '#3B82F6'}; text-transform: uppercase; margin: 0;">
+              ${isElite ? 'Elite Operative' : 'Verified Protector'}
+            </p>
+            <p style="font-weight: 700; color: #ffffff; margin: 2px 0;">${p.name || 'Operative'}</p>
+            ${occupation ? `<p style="color: ${isElite ? '#F59E0B' : '#3B82F6'}; font-weight: 900; font-size: 7px; text-transform: uppercase; margin-top: 1px;">Sector: ${occupation}</p>` : ''}
           </div>
-        `;
-
-        const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'tactical-popup' })
-          .setHTML(`
-            <div style="background: #080808; border: 1px solid #22c55e; padding: 12px; border-radius: 12px; color: white; font-family: sans-serif; min-width: 180px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                 <span style="font-size: 8px; font-weight: 900; color: #22c55e; text-transform: uppercase;">⚖️ JUSTICE RECORD</span>
-                 <span style="font-size: 8px; color: grey;">ID: ${fir.firId || fir.id.slice(-6).toUpperCase()}</span>
-              </div>
-              <h4 style="margin: 0; font-size: 14px; font-weight: 900;">${fir.userName}</h4>
-              <p style="margin: 4px 0; font-size: 9px; color: #555;">${fir.offenseType}</p>
-              <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0;"></div>
-              <p style="font-size: 7px; color: #22c55e; font-weight: bold; text-transform: uppercase;">ONLINE FIR VERIFIED</p>
-            </div>
-          `);
-
-        const marker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map.current!);
-        el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup());
-        el.addEventListener('mouseleave', () => marker.togglePopup());
-        el.addEventListener('click', () => {
-          if (onFirClick) onFirClick(fir.id);
-        });
-
-        firMarkers.current[fir.id] = marker;
-      } else {
-        firMarkers.current[fir.id].setLngLat(coords);
-      }
+        `))
+        .addTo(map.current);
+      markersRef.current.push(marker);
     });
-  }, [activeAlerts, activeProtectors, activeFirs]);
 
-  useEffect(() => {
-    if (map.current && centerOverride) {
-      map.current.flyTo({ center: [centerOverride[1], centerOverride[0]], zoom: 15, essential: true, pitch: 60 });
+    // 🟢 FIR MARKERS - JUSTICE GREEN
+    (activeFirs || []).forEach(fir => {
+      const loc = fir.location || fir.incidentLocation;
+      const lat = fir.latitude || fir.lat || loc?.latitude || loc?.lat;
+      const lng = fir.longitude || fir.lng || loc?.longitude || loc?.lng;
+      if (!lat || !lng) return;
+
+      const el = document.createElement('div');
+      el.className = 'marker-fir';
+      el.onclick = () => {
+        map.current.flyTo({
+           center: [lng, lat],
+           zoom: 17.5,
+           pitch: 65,
+           duration: 2500,
+           essential: true
+        });
+      };
+      
+      const marker = new mb.Marker(el)
+        .setLngLat([lng, lat])
+        .setPopup(new mb.Popup().setHTML(`
+          <div style="font-size: 9px;">
+            <p style="font-weight: 900; color: #10b981; text-transform: uppercase; margin: 0;">Justice Ledger FIR</p>
+            <p style="font-weight: 700; color: #ffffff; margin: 2px 0;">Case: ${fir.id.slice(0, 8).toUpperCase()}</p>
+            <p style="color: #94a3b8; margin: 0;">${fir.userName || fir.name || 'Unknown'}</p>
+          </div>
+        `))
+        .addTo(map.current);
+      markersRef.current.push(marker);
+    });
+
+    // ⚡ UPDATE LIVE PURSUIT LINES (COMET TAIL STYLE)
+    if (map.current && map.current.getSource('route-line')) {
+      const journeyFeatures = (activeJourneys || [])
+        .filter(j => j.path && j.path.length > 1)
+        .map(j => ({
+          type: 'Feature',
+          properties: { status: j.status, type: 'journey' },
+          geometry: { 
+            type: 'LineString', 
+            coordinates: j.path.map((p: any) => 
+              Array.isArray(p) ? p : [p.lng, p.lat]
+            ) 
+          }
+        }));
+
+      const alertFeatures = (activeAlerts || [])
+        .filter(a => a.path && a.path.length > 1)
+        .map(a => ({
+          type: 'Feature',
+          properties: { status: 'emergency', type: 'sos' },
+          geometry: { 
+            type: 'LineString', 
+            coordinates: a.path.map((p: any) => 
+              Array.isArray(p) ? p : [p.lng, p.lat]
+            ) 
+          }
+        }));
+
+      map.current.getSource('route-line').setData({
+        type: 'FeatureCollection',
+        features: [...journeyFeatures, ...alertFeatures]
+      });
+
+      // 🔴 RED TAIL FOR EMERGENCY | 🔵 BLUE TAIL FOR NORMAL
+      map.current.setPaintProperty('route-path', 'line-color', [
+        'case',
+        ['==', ['get', 'status'], 'emergency'], '#FF0000',
+        '#3B82F6'
+      ]);
     }
-  }, [centerOverride]);
+
+    // 🚗 TRANSIT MARKERS - VEHICLE BLUE
+    (activeJourneys || []).forEach(j => {
+      const lat = j.latitude || j.lat || j.location?.latitude || j.location?.lat || j.lastLocation?.latitude || j.lastLocation?.lat;
+      const lng = j.longitude || j.lng || j.location?.longitude || j.location?.lng || j.lastLocation?.longitude || j.lastLocation?.lng;
+      if (!lat || !lng) return;
+
+      const el = document.createElement('div');
+      const isEmergency = j.status === 'emergency';
+      const pulseColor = isEmergency ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.2)';
+      const pulseBorder = isEmergency ? 'border-red-500/40' : 'border-blue-500/20';
+
+      el.className = 'marker-transit';
+      el.innerHTML = `
+        <div class="relative w-full h-full flex items-center justify-center" style="perspective: 1000px;">
+          <!-- 🌑 TACTICAL GROUND SHADOW -->
+          <div class="absolute w-5 h-3 bg-black/30 rounded-full blur-[2px]" style="transform: translateY(8px) rotateX(60deg);"></div>
+          
+          <!-- 🚗 REALISTIC ISOMETRIC CAR SVG -->
+          <div class="relative z-10 transform-gpu transition-all duration-300 hover:scale-110" style="transform: rotateX(15deg) rotateZ(0deg);">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Chassis -->
+              <path d="M42 32C42 34.2091 40.2091 36 38 36H10C7.79086 36 6 34.2091 6 32V26C6 23.7909 7.79086 22 10 22H38C40.2091 22 42 23.7909 42 26V32Z" fill="${isEmergency ? '#EF4444' : '#2563EB'}"/>
+              <!-- Roof / Cabin -->
+              <path d="M12 22L16 14H32L36 22H12Z" fill="${isEmergency ? '#F87171' : '#3B82F6'}"/>
+              <!-- Windows -->
+              <path d="M17 15H31L34 21H14L17 15Z" fill="#93C5FD" fill-opacity="0.6"/>
+              <!-- Wheels -->
+              <rect x="10" y="34" width="6" height="4" rx="1" fill="#1E293B"/>
+              <rect x="32" y="34" width="6" height="4" rx="1" fill="#1E293B"/>
+              <!-- Headlights -->
+              <circle cx="8" cy="28" r="2" fill="white" fill-opacity="0.8"/>
+              <circle cx="40" cy="28" r="2" fill="white" fill-opacity="0.8"/>
+            </svg>
+          </div>
+          
+          <!-- 📡 NEURAL PULSE -->
+          <div class="absolute inset-0 border-2 ${pulseBorder} rounded-full animate-ping opacity-60" style="background: ${pulseColor}"></div>
+        </div>
+      `;
+      el.onclick = () => {
+        map.current.flyTo({
+           center: [lng, lat],
+           zoom: 17.5,
+           pitch: 65,
+           duration: 2500,
+           essential: true
+        });
+      };
+      
+      const marker = new mb.Marker(el)
+        .setLngLat([lng, lat])
+        .setPopup(new mb.Popup().setHTML(`
+          <div style="font-size: 9px;">
+            <p style="font-weight: 900; color: #3B82F6; text-transform: uppercase; margin: 0;">Active Transit</p>
+            <p style="font-weight: 700; color: #ffffff; margin: 2px 0;">Vehicle: ${j.vehicleNo}</p>
+            <p style="color: #94a3b8; margin: 0;">User: ${j.userName || 'Passenger'}</p>
+            <p style="font-weight: 900; color: #10b981; font-size: 7px; text-transform: uppercase; margin-top: 1px;">Status: ${j.status || 'On-Route'}</p>
+          </div>
+        `))
+        .addTo(map.current);
+      markersRef.current.push(marker);
+    });
+
+  }, [activeAlerts, activeProtectors, activeFirs, activeJourneys]);
 
   return (
-    <div className="h-full w-full relative overflow-hidden bg-black">
-      <div ref={mapContainer} className="absolute inset-0" />
-      <style>{`
-         @keyframes pulse-ring {
-           0% { transform: scale(0.3); opacity: 1; }
-           100% { transform: scale(3); opacity: 0; }
-         }
-       `}</style>
+    <div className="w-full h-full relative">
+      <div ref={mapContainer} className="w-full h-full" />
     </div>
   );
-});
-
-export default CommandMap;
+}

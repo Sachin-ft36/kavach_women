@@ -123,34 +123,37 @@ export default function SignupView({
       exit={{ opacity: 0, x: -10 }}
       className="space-y-6"
     >
-      <form onSubmit={onSignup} className="space-y-3.5">
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('fullname')}</label>
-          <input
-            required
-            type="text"
-            placeholder={t('enter_name')}
-            className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl py-3 px-6 text-[10px] font-black tracking-widest outline-none focus:border-accent-red/20 focus:bg-white/[0.04] transition-all placeholder:text-gray-800 placeholder:uppercase font-mono"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
+      <form onSubmit={onSignup} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('fullname')}</label>
+          <div className="relative">
+            <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+            <input
+              required
+              type="text"
+              placeholder={t('enter_name')}
+              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('phone_number')}</label>
-          <div className="relative flex items-center bg-white/[0.02] border-2 border-white/5 rounded-2xl overflow-hidden focus-within:border-accent-red/20 transition-all">
-            <div className="flex items-center gap-2 pl-5 pr-3 py-3">
-              <span className="text-[11px] font-black text-white tracking-widest">+91</span>
-              <div className="w-[1px] h-3 bg-white/10" />
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('phone_number')}</label>
+          <div className="relative flex items-center bg-bg border border-border rounded-2xl overflow-hidden focus-within:border-accent-blue transition-all">
+            <div className="flex items-center gap-2 pl-5 pr-3 py-4">
+              <span className="text-sm font-bold text-text-main">+91</span>
+              <div className="w-[1px] h-4 bg-border" />
             </div>
             <input
               required
               readOnly={!isManualEntry && !phone}
               type={isManualEntry ? "text" : "tel"}
-              placeholder={isFetchingHint ? "INITIALIZING SECURE..." : isManualEntry ? "ENTER MOBILE NUMBER" : "SELECT VERIFIED SIM"}
+              placeholder={isFetchingHint ? "Identifying number..." : isManualEntry ? "Enter mobile number" : "Use my mobile number"}
               className={cn(
-                "flex-1 bg-transparent py-3 pr-2 text-[11px] placeholder:text-[14px] font-black outline-none placeholder:text-gray-800 placeholder:tracking-normal font-mono tracking-[4px] cursor-pointer",
-                phone ? "text-accent-blue" : (isManualEntry ? "text-white" : "text-gray-500")
+                "flex-1 bg-transparent py-4 pr-2 text-sm font-bold outline-none placeholder:text-text-dim placeholder:font-medium",
+                phone ? "text-accent-blue" : "text-text-main"
               )}
               value={phone}
               onChange={(e) => {
@@ -167,90 +170,91 @@ export default function SignupView({
               <button
                 type="button"
                 onClick={() => setPhone('')}
-                className="pr-4 text-[7px] font-black text-accent-red uppercase tracking-widest hover:underline"
+                className="pr-4 text-xs font-bold text-accent-red hover:underline"
               >
-                Reset
+                Change
               </button>
             ) : (
               <div className={cn(
                 "pr-4 flex items-center gap-1.5 text-accent-blue transition-all",
                 isFetchingHint && "animate-pulse"
               )}>
-                <div className="flex items-center gap-2 bg-accent-blue/10 border border-accent-blue/20 px-2 py-2 rounded-xl text-accent-blue">
-                  <Smartphone size={12} className="shrink-0" />
-                  <span className="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">Select SIM</span>
+                <div className="flex items-center gap-2 bg-accent-blue/5 border border-accent-blue/20 px-3 py-2 rounded-xl text-accent-blue cursor-pointer" onClick={fetchPhoneHint}>
+                  <Smartphone size={16} className="shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Auto Detect</span>
                 </div>
               </div>
             )}
           </div>
           {!phone && (
-            <p className="text-[7px] text-gray-600 font-black uppercase tracking-widest pl-1 pt-1 italic">
-              * SIM identification required for grid access
+            <p className="text-[10px] text-text-dim font-medium pl-1 pt-1">
+              You can also type your number manually
             </p>
           )}
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('email_address')}</label>
-          <input
-            required
-            type="email"
-            placeholder={t('enter_email')}
-            className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl py-3 px-6 text-[10px] font-black tracking-widest outline-none focus:border-accent-red/20 focus:bg-white/[0.04] transition-all placeholder:text-gray-800 placeholder:uppercase font-mono"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
+          <div className="relative">
+            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+            <input
+              required
+              type="email"
+              placeholder={t('enter_email')}
+              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
           {emailExists && (
-            <motion.p
-              initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-              className="text-[8px] text-accent-red font-black uppercase tracking-widest pl-1 pt-1"
-            >
-              Identity already exists in Grid
-            </motion.p>
+            <p className="text-xs font-bold text-accent-red pl-1 pt-1">
+              This email is already registered
+            </p>
           )}
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('password')}</label>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('password')}</label>
           <div className="relative">
+            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
             <input
               required
               type={showPassword ? "text" : "password"}
               placeholder={t('enter_password')}
-              className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl py-3 px-6 text-[10px] font-black tracking-widest outline-none focus:border-accent-red/20 focus:bg-white/[0.04] transition-all placeholder:text-gray-800 placeholder:uppercase font-mono"
+              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-700 hover:text-white transition-colors"
+              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
             >
-              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
             </button>
           </div>
 
-          <div className="px-1 pt-1.5 space-y-2">
+          <div className="px-1 pt-2 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest italic">Grid Security</span>
-              <span className={cn("text-[8px] font-black uppercase tracking-widest", sData.text)}>{sData.label}</span>
+              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Password Strength</span>
+              <span className={cn("text-[10px] font-bold uppercase tracking-wider", sData.text)}>{sData.label}</span>
             </div>
 
-            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: (strength / 4) * 100 + '%' }}
-                className={cn("h-full transition-all duration-500 shadow-[0_0_10px_currentColor]", sData.color)}
+                className={cn("h-full transition-all duration-500", sData.color)}
               />
             </div>
 
-            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
               {requirements.map((req, i) => (
                 <div key={i} className="flex items-center gap-1.5">
-                  <div className={cn("w-1 h-1 rounded-full", req.met ? "bg-accent-red shadow-[0_0_5px_rgba(255,59,48,1)]" : "bg-white/10")} />
+                  <div className={cn("w-1.5 h-1.5 rounded-full", req.met ? "bg-accent-green" : "bg-border")} />
                   <span className={cn(
-                    "text-[7px] font-black uppercase tracking-widest transition-all",
-                    req.met ? "text-gray-300" : "text-gray-600"
+                    "text-[10px] font-bold transition-all",
+                    req.met ? "text-text-main" : "text-text-dim"
                   )}>{req.label}</span>
                 </div>
               ))}
@@ -258,23 +262,28 @@ export default function SignupView({
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || strength < 4 || emailExists || checkingEmail}
-          className="w-full py-4 bg-white text-black rounded-[18px] font-black uppercase tracking-[4px] text-[10px] shadow-2xl active:scale-[0.98] transition-all mt-3 border-2 border-white/10 disabled:opacity-30 disabled:grayscale italic"
-        >
-          {loading ? t('deploying') : checkingEmail ? "Scanning..." : t('create_account')}
-        </button>
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={loading || strength < 4 || emailExists || checkingEmail}
+            className="w-full py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
+          >
+            {loading ? "Creating Account..." : checkingEmail ? "Scanning..." : t('create_account')}
+          </button>
+          <p className="text-center mt-4 text-[10px] text-text-dim font-medium leading-relaxed">
+            Your data is encrypted and protected under secure safety guidelines.
+          </p>
+        </div>
       </form>
 
       <div className="text-center pt-2">
         <button
           type="button"
           onClick={onLoginClick}
-          className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] hover:text-white transition-all group"
+          className="text-sm font-medium text-text-dim hover:text-text-main transition-all group"
         >
           {t('already_registered') + ' '}
-          <span className="text-accent-red group-hover:underline underline-offset-4 decoration-accent-red/20 italic">{t('login')}</span>
+          <span className="text-accent-blue font-bold group-hover:underline underline-offset-4">{t('login')}</span>
         </button>
       </div>
     </motion.div>

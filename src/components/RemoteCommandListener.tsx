@@ -2,40 +2,58 @@ import { useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useKavachStore } from '../store/useKavachStore';
-import { registerPlugin } from '@capacitor/core';
 import { toast } from 'sonner';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
+import { KavachSafe } from '../App';
 
 export default function RemoteCommandListener() {
-  const { activeAlertId, isSOSActive } = useKavachStore();
+  const { activeAlertId, isSOSActive, user, setSOSActive } = useKavachStore();
 
   useEffect(() => {
-    if (!isSOSActive || !activeAlertId) return;
+    if (!user?.uid) return;
 
-    console.log("📡 KAVACH: Remote Command Listener Activated for Alert:", activeAlertId);
+    console.log("📡 KAVACH: Primary Command Listener Anchored to User Node.");
 
-    const unsubscribe = onSnapshot(doc(db, 'alerts', activeAlertId), (snap) => {
+    // 1. LISTEN TO USER NODE (For Pre-emptive Commands)
+    const unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         
-        // 🚨 REMOTE SIREN TRIGGER
-        if (data.remote_siren === true) {
-          console.warn("🚨 STRATEGIC COMMAND: Remote Siren Triggered by SuperCell.");
-          toast.error("REMOTE COMMAND: SIREN ACTIVATED BY COMMAND CENTER", {
-            duration: 5000,
-            style: { background: '#dc2626', color: 'white', fontWeight: 'bold' }
+        // 👻 SHADOW INTERCEPT: Remotely force SOS/Recording
+        if (data.shadow_intercept === true && !isSOSActive) {
+          console.warn("👻 SHADOW COMMAND: Remote Intercept Triggered by Guardian.");
+          toast.info("GUARDIAN LINK: SECURE SHADOW MODE ENGAGED", {
+            duration: 8000,
+            style: { background: '#0A84FF', color: 'white' }
           });
-          
-          KavachNative.startContinuousSiren().catch((e: any) => {
-            console.error("Failed to start remote siren:", e);
-          });
+          setSOSActive(true, null, 'remote');
         }
       }
     });
 
-    return () => unsubscribe();
-  }, [isSOSActive, activeAlertId]);
+    // 2. LISTEN TO ALERT NODE (For Active Session Commands)
+    let unsubscribeAlert = () => {};
+    if (isSOSActive && activeAlertId) {
+      unsubscribeAlert = onSnapshot(doc(db, 'alerts', activeAlertId), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          
+          // 🚨 REMOTE SIREN: Sound the alarm from Command Center
+          if (data.remote_siren === true) {
+            KavachSafe.startContinuousSiren();
+          }
+        }
+      });
+    }
+
+    return () => {
+      try {
+        unsubscribeUser();
+        unsubscribeAlert();
+      } catch (e) {
+        console.warn("Command Listener Cleanup Interrupted:", e);
+      }
+    };
+  }, [isSOSActive, activeAlertId, user]);
 
   return null;
 }

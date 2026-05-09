@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { calculateHaversineDistance } from '../utils/geoUtils';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { toast } from 'sonner';
 
 const KavachNative = registerPlugin<any>('KavachPlugin');
 
@@ -24,9 +25,40 @@ export function useProtectorSentinel() {
     triggerInternalCheck();
   }, [userPos]);
 
+  const [cachedAlerts, setCachedAlerts] = useState<any[]>([]);
+
+  const handleRadiusBreach = (alertId: string, distance: number) => {
+    activeAlertsRef.current.add(alertId);
+    console.warn(`🚨 KAVACH SENTINEL: DISTRESS DETECTED! DISTANCE: ${Math.round(distance * 1000)}m`);
+    
+    if (Capacitor.isNativePlatform()) {
+      KavachNative.startContinuousSiren().catch(() => {});
+      KavachNative.showUrgentNotification({
+        title: "🚨 URGENT: NEARBY EMERGENCY",
+        body: `A victim needs help ${Math.round(distance * 1000)}m away. Intercept now!`,
+        id: alertId,
+        sound: 'siren'
+      }).catch(() => {});
+    }
+    toast.error("NEARBY SOS DETECTED", { 
+      description: `Target located ${Math.round(distance * 1000)}m away. Check Map!`,
+      duration: 10000 
+    });
+  };
+
   const triggerInternalCheck = () => {
-    // Logic for checking existing cached alerts against new position
-    // (This would be more complex, but the current simplified approach is robust enough)
+    if (!userPosRef.current || role !== 'protector') return;
+    
+    cachedAlerts.forEach((alert) => {
+      const distance = calculateHaversineDistance(
+        userPosRef.current[0], userPosRef.current[1],
+        alert.coords[0], alert.coords[1]
+      );
+
+      if (distance <= 1.5 && !activeAlertsRef.current.has(alert.id)) {
+        handleRadiusBreach(alert.id, distance);
+      }
+    });
   };
 
   useEffect(() => {
@@ -41,6 +73,7 @@ export function useProtectorSentinel() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      setCachedAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       snapshot.docChanges().forEach((change) => {
         const alertData = change.doc.data();
         const alertId = change.doc.id;
@@ -96,7 +129,11 @@ export function useProtectorSentinel() {
     });
 
     return () => {
-      unsubscribe();
+      try {
+        unsubscribe();
+      } catch (e) {
+        console.warn("Sentinel Cleanup Interrupted:", e);
+      }
       // Safety stop
       if (Capacitor.isNativePlatform()) {
         KavachNative.stopContinuousSiren().catch(() => {});

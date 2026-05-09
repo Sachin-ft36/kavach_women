@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
+import { KavachSafe } from '../App';
 
 /**
  * 🎙️ KAVACH VOICE TRIGGER (Beta)
@@ -11,15 +10,17 @@ const KavachNative = registerPlugin<any>('KavachPlugin');
  * Implements 'Hardware Handshake' to prevent Mic clashes.
  */
 export const useVoiceTrigger = () => {
-  const { isSOSActive, isVoiceTriggerActive, setSOSActive, isHubReady } = useKavachStore();
+  const { isSOSActive, isVoiceTriggerActive, setSOSActive, isHubReady, isBriefingActive } = useKavachStore();
   const recognitionRef = useRef<any>(null);
   const helpCountRef = useRef(0);
   const lastHelpTimeRef = useRef(0);
 
   useEffect(() => {
-    // 1. Only listen if enabled, NOT in SOS, and user is a CITIZEN
-    const isCitizen = useKavachStore.getState().role === 'citizen';
-    if (!isVoiceTriggerActive || isSOSActive || !isCitizen) {
+    // 🛡️ ROLE GATING: Only Citizens need Voice Trigger Sentinel
+    const { role } = useKavachStore.getState();
+    const isResponder = role === 'protector' || role === 'super_cell' || role === 'admin';
+
+    if (!isVoiceTriggerActive || isSOSActive || isResponder || role === null || isBriefingActive) {
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
         recognitionRef.current.stop();
@@ -42,20 +43,25 @@ export const useVoiceTrigger = () => {
           const now = Date.now();
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             const transcript = event.results[i][0].transcript.toLowerCase();
-            
+
             // 🚨 DISTRESS KEYWORD DETECTION
-            if (transcript.includes('help') || transcript.includes('bachao') || transcript.includes('emergency')) {
-              if (now - lastHelpTimeRef.current > 2000) { // Debounce
+            const isKavachDistress = transcript.includes('kavach help') || transcript.includes('kavach');
+            const isGenericDistress = transcript.includes('help') || transcript.includes('bachao') || transcript.includes('emergency');
+
+            if (isKavachDistress || isGenericDistress) {
+              if (now - lastHelpTimeRef.current > 1500) { // Faster debounce for tactical response
                 helpCountRef.current++;
                 lastHelpTimeRef.current = now;
-                
-                console.warn(`🎙️ VOICE SENTINEL: Distress detected! [${helpCountRef.current}/3]`);
-                
+
+                console.warn(`🎙️ VOICE SENTINEL: Distress detected! [${helpCountRef.current}/${isKavachDistress ? '2' : '3'}]`);
+
                 if (Capacitor.isNativePlatform() && isHubReady) {
-                    KavachNative.triggerHapticPulse().catch(() => {});
+                  KavachSafe.triggerHapticPulse();
                 }
 
-                if (helpCountRef.current >= 3) {
+                // Adaptive Threshold: 'Kavach Help' triggers on 2, generic on 3
+                const threshold = isKavachDistress ? 2 : 3;
+                if (helpCountRef.current >= threshold) {
                   triggerVoiceSOS();
                 }
               }
@@ -72,7 +78,7 @@ export const useVoiceTrigger = () => {
         recognition.onend = () => {
           if (!isSOSActive && isVoiceTriggerActive) {
             setTimeout(() => {
-                try { recognition.start(); } catch(e) {}
+              try { recognition.start(); } catch (e) { }
             }, 1000);
           }
         };
@@ -85,20 +91,20 @@ export const useVoiceTrigger = () => {
     };
 
     const triggerVoiceSOS = async () => {
-        console.error("🚨 VOICE TRIGGER: CRITICAL THRESHOLD REACHED. DISPATCHING SOS.");
-        
-        // 🛡️ HARDWARE HANDSHAKE: Release Mic BEFORE SOS starts
-        if (recognitionRef.current) {
-            recognitionRef.current.onend = null;
-            recognitionRef.current.stop();
-            recognitionRef.current = null;
-        }
+      console.error("🚨 VOICE TRIGGER: CRITICAL THRESHOLD REACHED. DISPATCHING SOS.");
 
-        // Wait for hardware release
-        await new Promise(r => setTimeout(r, 500));
+      // 🛡️ HARDWARE HANDSHAKE: Release Mic BEFORE SOS starts
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
 
-        setSOSActive(true, null, 'voice');
-        helpCountRef.current = 0;
+      // Wait for hardware release
+      await new Promise(r => setTimeout(r, 500));
+
+      setSOSActive(true, null, 'voice');
+      helpCountRef.current = 0;
     };
 
     startListening();
@@ -110,5 +116,5 @@ export const useVoiceTrigger = () => {
         recognitionRef.current = null;
       }
     };
-  }, [isSOSActive, isVoiceTriggerActive, isHubReady]);
+  }, [isSOSActive, isVoiceTriggerActive, isHubReady, isBriefingActive]);
 };

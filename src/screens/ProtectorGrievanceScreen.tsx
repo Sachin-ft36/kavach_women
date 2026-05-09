@@ -1,70 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Send, AlertTriangle, MessageSquare, History, CheckCircle2, Clock, Trash2, Check, Eye } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useKavachStore } from '../store/useKavachStore';
+import KavachAIChat from '../components/KavachAIChat';
 
 export default function ProtectorGrievanceScreen() {
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'NEW' | 'HISTORY'>('NEW');
   const [history, setHistory] = useState<any[]>([]);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const user = auth.currentUser;
 
-  // Fetch History from both main and bypass channels
-  React.useEffect(() => {
-    if (!user) return;
+  const { role } = useKavachStore();
+
+  // 🛡️ SECURE HISTORY SYNC
+  useEffect(() => {
+    if (!user || role !== 'protector') return;
     
-    // Main Channel (Simplified to avoid Index Requirement)
-    const qMain = query(
-      collection(db, 'protector_grievances'),
-      where('uid', '==', user.uid),
-      limit(20)
-    );
+    let unsubMain: () => void;
+    let unsubBypass: () => void;
 
-    // Bypass Channel (Simplified to avoid Index Requirement)
-    const qBypass = query(
-      collection(db, 'special_cell_reports'),
-      where('uid', '==', user.uid),
-      where('category', '==', 'GRIEVANCE_BYPASS'),
-      limit(20)
-    );
+    // 🛡️ NEURAL STABILIZATION DELAY: Wait for SDK state to settle before engaging multiple listeners
+    const engageTimer = setTimeout(() => {
+      const qMain = query(
+        collection(db, 'protector_grievances'),
+        where('uid', '==', user.uid),
+        limit(20)
+      );
 
-    const unsubMain = onSnapshot(qMain, (snap) => {
-      const mainData = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), channel: 'main' }));
-      setHistory(prev => {
-        const bypassData = prev.filter(item => (item as any).channel === 'bypass');
-        return [...mainData, ...bypassData].sort((a: any, b: any) => {
-          const tA = a.timestamp?.toMillis?.() || new Date(a.sentAt || 0).getTime() || 0;
-          const tB = b.timestamp?.toMillis?.() || new Date(b.sentAt || 0).getTime() || 0;
-          return tB - tA;
-        });
+      const qBypass = query(
+        collection(db, 'special_cell_reports'),
+        where('uid', '==', user.uid),
+        where('category', '==', 'GRIEVANCE_BYPASS'),
+        limit(20)
+      );
+
+      unsubMain = onSnapshot(qMain, (snap) => {
+        try {
+          const mainData = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), channel: 'main' }));
+          setHistory(prev => {
+            const bypassData = prev.filter(item => (item as any).channel === 'bypass');
+            return [...mainData, ...bypassData].sort((a: any, b: any) => {
+              const tA = a.timestamp?.toMillis?.() || new Date(a.sentAt || 0).getTime() || 0;
+              const tB = b.timestamp?.toMillis?.() || new Date(b.sentAt || 0).getTime() || 0;
+              return tB - tA;
+            });
+          });
+        } catch (e) {
+          console.warn("Grievance Data Parse Error:", e);
+        }
+      }, (err) => {
+        if (err.code !== 'permission-denied') console.warn("Grievance Main Error:", err);
       });
-    }, (err) => console.warn("History Uplink Slowed:", err));
 
-    const unsubBypass = onSnapshot(qBypass, (snap) => {
-      const bypassData = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), channel: 'bypass' }));
-      setHistory(prev => {
-        const mainData = prev.filter(item => (item as any).channel !== 'bypass');
-        return [...mainData, ...bypassData].sort((a: any, b: any) => {
-          const tA = a.timestamp?.toMillis?.() || new Date(a.sentAt || 0).getTime() || 0;
-          const tB = b.timestamp?.toMillis?.() || new Date(b.sentAt || 0).getTime() || 0;
-          return tB - tA;
-        });
+      unsubBypass = onSnapshot(qBypass, (snap) => {
+        try {
+          const bypassData = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), channel: 'bypass' }));
+          setHistory(prev => {
+            const mainData = prev.filter(item => (item as any).channel !== 'bypass');
+            return [...mainData, ...bypassData].sort((a: any, b: any) => {
+              const tA = a.timestamp?.toMillis?.() || new Date(a.sentAt || 0).getTime() || 0;
+              const tB = b.timestamp?.toMillis?.() || new Date(b.sentAt || 0).getTime() || 0;
+              return tB - tA;
+            });
+          });
+        } catch (e) {
+          console.warn("Grievance Bypass Parse Error:", e);
+        }
+      }, (err) => {
+        if (err.code !== 'permission-denied') console.warn("Grievance Bypass Error:", err);
       });
-    }, (err) => console.warn("Bypass Uplink Slowed:", err));
+    }, 800);
 
-    return () => { unsubMain(); unsubBypass(); };
-  }, [user]);
+    return () => { 
+      clearTimeout(engageTimer);
+      try {
+        if (unsubMain) unsubMain(); 
+        if (unsubBypass) unsubBypass(); 
+      } catch (e) {
+        console.error("Cleanup interrupted in ProtectorGrievanceScreen:", e);
+      }
+    };
+  }, [user, role]);
 
   const deleteReport = async (id: string, channel: string) => {
     if (!window.confirm("ARE YOU SURE YOU WANT TO DELETE THIS RECORD?")) return;
     try {
       const collectionName = channel === 'main' ? 'protector_grievances' : 'special_cell_reports';
       await deleteDoc(doc(db, collectionName, id));
-      toast.success("RECORD DELETED FROM HISTORY.");
+      toast.success("RECORD DELETED.");
     } catch (e) {
       toast.error("DELETION FAILED.");
     }
@@ -85,66 +114,21 @@ export default function ProtectorGrievanceScreen() {
     };
 
     try {
-      // 🛡️ TUNNEL 1: Standard Firestore Uplink
       await addDoc(collection(db, 'protector_grievances'), payload);
-      toast.success("MISSION REPORT SENT TO SUPERCELL.");
+      toast.success("TRANSMITTED TO SUPERCELL.");
       setMessage('');
       setActiveTab('HISTORY');
     } catch (error: any) {
-      console.warn("Tunnel 1 Blocked (Permissions/SDK). Attempting Tunnel 2...", error);
-      
       try {
-        // 🛡️ TUNNEL 2: Special Cell Intake (Often has wider permissions)
         await addDoc(collection(db, 'special_cell_reports'), {
           ...payload,
-          category: 'GRIEVANCE_BYPASS',
-          originalCollection: 'protector_grievances'
+          category: 'GRIEVANCE_BYPASS'
         });
-        toast.success("REPORT ROUTED VIA SPECIAL CELL BYPASS.");
+        toast.success("ROUTED VIA SPECIAL CELL.");
         setMessage('');
         setActiveTab('HISTORY');
       } catch (err2) {
-        console.error("Tunnel 2 Blocked. Attempting Strategic REST Uplink...", err2);
-        
-        // 🛡️ TUNNEL 3: Strategic REST Uplink (Bypassing local SDK assertions)
-        try {
-          const PROJECT_ID = "gen-lang-client-0115433512";
-          const API_KEY = "AIzaSyDaGseWN-LbqP3OCmZtfnHio4uTjCb7rY0";
-          const idToken = await auth.currentUser?.getIdToken();
-          
-          const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/protector_grievances?key=${API_KEY}`;
-          
-          const restPayload = {
-            fields: {
-              uid: { stringValue: user.uid },
-              name: { stringValue: user.displayName || 'Protector' },
-              message: { stringValue: message },
-              status: { stringValue: 'pending' },
-              type: { stringValue: 'incident_report_rest' },
-              timestamp: { timestampValue: new Date().toISOString() }
-            }
-          };
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify(restPayload)
-          });
-
-          if (response.ok) {
-            toast.success("TRANSMITTED VIA STRATEGIC REST UPLINK.");
-            setMessage('');
-            setActiveTab('HISTORY');
-          } else {
-            throw new Error(`REST Error: ${response.status}`);
-          }
-        } catch (err3) {
-          console.error("All Tunnels Compromised:", err3);
-          toast.error("COMMUNICATION BLACKOUT: Fix Firebase Security Rules.");
-        }
+        toast.error("COMMUNICATION BLACKOUT.");
       }
     } finally {
       setIsSubmitting(false);
@@ -152,161 +136,118 @@ export default function ProtectorGrievanceScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-4 sm:p-6 font-mono pb-32">
-      {/* Header */}
-      <header className="mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-accent-red/10 border border-accent-red/20 flex items-center justify-center">
-            <Shield size={24} className="text-accent-red" />
+    <div className="min-h-screen bg-[#F9FAFB] text-gray-900 px-3 xs:px-6 py-4 xs:py-6 font-sans pb-32 overflow-y-auto">
+      {/* HEADER */}
+      <header className="mb-10 flex items-center justify-between">
+        <div className="flex items-center gap-3 sm:gap-5">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-[22px] bg-accent-red/5 border-2 border-accent-red/10 flex items-center justify-center shadow-sm">
+            <Shield size={20} className="text-accent-red sm:hidden" />
+            <Shield size={28} className="text-accent-red hidden sm:block" />
           </div>
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter italic">Incident Hub</h1>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[3px]">Direct SuperCell Uplink</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-1.5 h-1.5 bg-accent-red rounded-full" />
+              <span className="text-[10px] font-bold text-accent-red tracking-[1px]">Verified Safety Network</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tighter italic leading-none text-gray-900">Safety Report Center</h1>
+            <p className="text-[8px] sm:text-[10px] text-gray-500 font-bold tracking-[0.5px] mt-1 sm:mt-1.5 italic">Secure Emergency Reporting</p>
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-2xl border border-white/5">
+      {/* TABS */}
+      <div className="flex gap-3 mb-10 bg-white p-1.5 rounded-[24px] border border-[#E5E7EB] shadow-sm">
         <button
           onClick={() => setActiveTab('NEW')}
           className={cn(
-            "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-            activeTab === 'NEW' ? "bg-accent-red text-white" : "text-gray-500 hover:text-white"
+            "flex-1 py-3 sm:py-4 rounded-xl sm:rounded-[18px] text-[11px] sm:text-[12px] font-bold tracking-tight transition-all flex items-center justify-center gap-2 sm:gap-3",
+            activeTab === 'NEW' ? "bg-accent-red text-white shadow-xl shadow-accent-red/20 scale-[1.02]" : "text-gray-400"
           )}
         >
-          <MessageSquare size={14} /> NEW REPORT
+          <MessageSquare size={14} className="sm:size-[16px]" /> New Report
         </button>
         <button
           onClick={() => setActiveTab('HISTORY')}
           className={cn(
-            "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-            activeTab === 'HISTORY' ? "bg-white/10 text-white" : "text-gray-500 hover:text-white"
+            "flex-1 py-4 rounded-[18px] text-[11px] sm:text-[12px] font-bold tracking-tight transition-all flex items-center justify-center gap-3",
+            activeTab === 'HISTORY' ? "bg-gray-100 text-gray-900 shadow-sm" : "text-gray-400"
           )}
         >
-          <History size={14} /> HISTORY
+          <History size={16} /> Report History
         </button>
       </div>
 
       <AnimatePresence mode="wait">
         {activeTab === 'NEW' ? (
-          <motion.div
-            key="new"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
-            <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 sm:p-8 space-y-6">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <AlertTriangle size={12} className="text-accent-red" />
-                  Describe the Incident
+          <motion.div key="new" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6 sm:space-y-8">
+            <div className="bg-white border-2 border-[#E5E7EB] rounded-[32px] sm:rounded-[48px] p-6 sm:p-10 space-y-6 sm:space-y-8 shadow-soft relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-6 sm:p-10 text-gray-400/[0.008] pointer-events-none"><Shield size={120} className="sm:size-[180px]" /></div>
+              
+              <div className="space-y-4 relative z-10">
+                <label className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-[0.5px] ml-1 flex items-center gap-2 sm:gap-3">
+                  <AlertTriangle size={12} className="text-accent-red sm:size-[14px]" />
+                  Describe the incident and location details
                 </label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Explain what happened during your mission... (e.g., misbehavior, technical glitch, safety concern)"
-                  className="w-full h-48 bg-black border border-white/10 rounded-2xl p-5 text-sm font-medium focus:border-accent-red/50 focus:ring-1 focus:ring-accent-red/20 transition-all outline-none resize-none placeholder:text-gray-800"
+                  placeholder="Please describe the incident..."
+                  className="w-full h-48 sm:h-56 bg-gray-50 border-2 border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 text-sm sm:text-base font-medium text-gray-900 focus:bg-white transition-all outline-none resize-none shadow-inner"
                 />
+                <p className="text-[10px] text-gray-400 font-medium ml-2">Include location, vehicle number, or important details if possible.</p>
               </div>
 
-              <div className="p-4 bg-accent-red/5 border border-accent-red/10 rounded-2xl">
-                <p className="text-[9px] text-accent-red/70 font-bold uppercase leading-relaxed tracking-widest">
-                  YOUR IDENTITY AND LOCATION DATA WILL BE ATTACHED TO THIS REPORT FOR AUDIT PURPOSES.
+              <div className="p-4 sm:p-6 bg-accent-red/5 border border-accent-red/10 rounded-2xl sm:rounded-[28px] relative z-10">
+                <p className="text-[9px] sm:text-[10px] text-accent-red font-bold leading-relaxed tracking-[1px] text-center">
+                  Your location and safety details will be securely attached to this report.
                 </p>
               </div>
 
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !message.trim()}
-                className="w-full py-5 bg-accent-red text-white rounded-2xl text-xs font-black uppercase tracking-[3px] shadow-lg shadow-accent-red/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
+                className="w-full py-5 sm:py-6 bg-gray-900 text-white rounded-2xl sm:rounded-[28px] text-[11px] sm:text-[13px] font-bold tracking-tight shadow-[0_15px_35px_rgba(0,0,0,0.1)] hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-3 sm:gap-4 disabled:opacity-30 relative z-10"
               >
-                {isSubmitting ? (
-                  <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <><Send size={16} /> TRANSMIT TO COMMAND</>
-                )}
+                {isSubmitting ? "Transmitting..." : <><Send size={16} className="sm:size-[18px]" /> Submit Report</>}
               </button>
             </div>
           </motion.div>
         ) : (
-          <motion.div
-            key="history"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
-          >
+          <motion.div key="history" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
             {history.length === 0 ? (
-              <div className="py-20 flex flex-col items-center justify-center opacity-20 text-center">
-                <History size={48} className="mb-4" />
-                <p className="text-xs font-black uppercase tracking-widest">No Previous Reports Found</p>
+              <div className="py-32 flex flex-col items-center justify-center text-center bg-white border-2 border-dashed border-[#E5E7EB] rounded-[48px]">
+                <History size={40} className="text-gray-300 mb-4" />
+                <p className="text-sm font-bold tracking-[1px] text-gray-400">No historical records found</p>
               </div>
             ) : (
-              history.map((item, idx) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 space-y-3 relative group"
-                >
-                  <button 
-                    onClick={() => deleteReport(item.id, (item as any).channel)}
-                    className="absolute top-4 right-4 p-2 text-gray-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={14} />
+              history.map((item) => (
+                <div key={item.id} className="bg-white border border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 space-y-4 sm:space-y-5 relative group shadow-sm">
+                  <button onClick={() => deleteReport(item.id, item.channel)} className="absolute top-6 right-6 p-2 text-gray-300 hover:text-accent-red opacity-0 group-hover:opacity-100 transition-all">
+                    <Trash2 size={16} />
                   </button>
-
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        item.status === 'pending' ? "bg-yellow-500" : "bg-green-500"
-                      )} />
-                      <span className={cn(
-                        "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
-                        item.status === 'pending' ? "bg-yellow-500/10 text-yellow-500" : "bg-green-500/10 text-green-500"
-                      )}>
-                        {item.status === 'pending' ? 'SENT / AWAITING REVIEW' : 'RESOLVED BY COMMAND'}
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-2 h-2 rounded-full", item.status === 'pending' ? "bg-amber-500" : "bg-accent-green")} />
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {item.status === 'pending' ? 'Under Review' : 'Resolved'}
                       </span>
                     </div>
-                    <span className="text-[8px] font-mono text-gray-600 mr-8">
-                      {item.timestamp?.toDate().toLocaleString() || new Date(item.sentAt).toLocaleString()}
-                    </span>
                   </div>
-                  <p className="text-[11px] text-gray-300 leading-relaxed italic pr-8">
-                    "{item.message}"
-                  </p>
-
+                  <p className="text-base text-gray-900 font-medium italic pr-12">"{item.message}"</p>
                   {item.reply && (
-                    <div className="mt-2 p-3 bg-accent-blue/5 border border-accent-blue/20 rounded-xl relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-1.5 opacity-10"><Shield size={20} /></div>
-                      <p className="text-[7px] font-black text-accent-blue uppercase tracking-widest mb-1 italic">Command Directive / Reply:</p>
-                      <p className="text-[10px] text-white font-bold italic">"{item.reply}"</p>
+                    <div className="mt-4 p-6 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-[24px]">
+                      <p className="text-[9px] font-bold text-[#2563EB] uppercase tracking-[1px] mb-2 italic">Official Response:</p>
+                      <p className="text-sm text-gray-900 font-bold italic">"{item.reply}"</p>
                     </div>
                   )}
-                  <div className="flex items-center gap-4 pt-2 border-t border-white/5">
-                    <div className="flex items-center gap-1.5 text-[7px] font-black uppercase tracking-widest text-blue-500">
-                      <Check size={10} /> TRANSMITTED
-                    </div>
-                    {item.status === 'resolved' ? (
-                      <div className="flex items-center gap-1.5 text-[7px] font-black uppercase tracking-widest text-green-500">
-                        <Eye size={10} /> ACTION TAKEN
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-[7px] font-black uppercase tracking-widest text-gray-600 italic">
-                        <Clock size={10} /> PROCESSING...
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
+                </div>
               ))
             )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      <KavachAIChat isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
     </div>
   );
 }

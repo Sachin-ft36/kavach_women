@@ -43,8 +43,19 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? 'http://localhost:8085' 
       : window.location.origin;
 
-    const newSocket = io(socketUrl);
+    const newSocket = io(socketUrl, {
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      timeout: 10000,
+      transports: ['polling', 'websocket'] // Allow fallback for stability
+    });
+    
     setSocket(newSocket);
+
+    newSocket.on('connect_error', (err) => {
+      console.warn('📡 KAVACH Signal: Neural Hub unreachable. Switching to Local Tactical Mode.', err.message);
+    });
 
     newSocket.on('connect', () => {
       console.log('KAVACH Signal: Connected to neural hub');

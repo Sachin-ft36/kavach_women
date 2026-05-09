@@ -53,47 +53,47 @@ export default function LoginView({
       exit={{ opacity: 0, x: 10 }}
       className="space-y-6"
     >
-      <form onSubmit={onLogin} className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('email_address')}</label>
+      <form onSubmit={onLogin} className="space-y-5">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
           <div className="relative group">
-            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-700 group-focus-within:text-accent-red transition-all duration-300" size={16} />
+            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within:text-accent-blue transition-colors" size={20} />
             <input
               required
               type="email"
               placeholder={t('enter_email')}
-              className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl py-3.5 pl-14 pr-6 text-[11px] font-black uppercase tracking-widest outline-none focus:border-accent-red/20 focus:bg-white/[0.04] transition-all placeholder:text-gray-800 font-mono"
+              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] pl-1">{t('password')}</label>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">{t('password')}</label>
           <div className="relative group">
-            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-700 group-focus-within:text-accent-red transition-all duration-300" size={16} />
+            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within:text-accent-blue transition-colors" size={20} />
             <input
               required
               type={showPassword ? "text" : "password"}
               placeholder={t('enter_password')}
-              className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl py-3.5 pl-14 pr-6 text-sm font-black outline-none focus:border-accent-red/20 focus:bg-white/[0.04] transition-all placeholder:text-gray-800 font-mono"
+              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-700 hover:text-white transition-colors"
+              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
             >
-              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
             </button>
           </div>
           <div className="flex justify-end pr-1">
             <button
               type="button"
               onClick={onForgotClick}
-              className="text-[9px] font-black text-accent-red uppercase tracking-widest hover:underline underline-offset-4 decoration-accent-red/30 italic"
+              className="text-xs font-bold text-accent-blue hover:underline underline-offset-4"
             >
               {t('forgot_password_q')}
             </button>
@@ -103,42 +103,42 @@ export default function LoginView({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-4 bg-accent-red text-white rounded-[18px] font-black uppercase tracking-[4px] text-[10px] shadow-[0_0_30px_rgba(255,59,48,0.2)] hover:shadow-[0_0_50px_rgba(255,59,48,0.4)] active:scale-[0.98] transition-all mt-2 border-2 border-white/10 italic"
+          className="w-full py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all mt-2"
         >
-          {loading ? t('authenticating') : t('login')}
+          {loading ? "Authenticating..." : t('login')}
         </button>
       </form>
 
-      <div className="space-y-4">
+      <div className="space-y-4 pt-2">
         <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-          <span className="relative px-4 text-[8px] font-black text-gray-700 uppercase tracking-[4px] bg-[#020205]">{t('verified_id')}</span>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"></div></div>
+          <span className="relative px-4 text-[10px] font-bold text-text-dim uppercase tracking-[2px] bg-white">Other login options</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={onGoogleLogin}
-            className="py-3.5 bg-white/[0.03] border-2 border-white/5 text-white rounded-2xl flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 active:scale-[0.97] transition-all"
+            className="py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
           >
-            <GoogleLogo /> GOOGLE
+            <GoogleLogo /> Google
           </button>
           <button
             type="button"
-            className="py-3.5 bg-white/[0.03] border-2 border-white/5 text-white rounded-2xl flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 active:scale-[0.97] transition-all"
+            className="py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
           >
-            <AppleLogo /> APPLE
+            <AppleLogo /> Apple
           </button>
         </div>
       </div>
 
-      <div className="text-center">
+      <div className="text-center pt-4">
         <button
           type="button"
           onClick={onSignupClick}
-          className="text-[9px] font-black text-gray-500 uppercase tracking-[3px] hover:text-white transition-all group"
+          className="text-sm font-medium text-text-dim hover:text-text-main transition-all group"
         >
           {t('new_to_kavach') + ' '}
-          <span className="text-accent-red group-hover:underline underline-offset-4 decoration-accent-red/40">{t('get_started')}</span>
+          <span className="text-accent-blue font-bold group-hover:underline underline-offset-4">Get Started</span>
         </button>
       </div>
     </motion.div>

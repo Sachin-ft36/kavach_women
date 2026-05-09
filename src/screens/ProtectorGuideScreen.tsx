@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { GraduationCap, ShieldAlert, Zap, AlertTriangle, FileText, ChevronRight, Search, Info, CheckCircle2, Target } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, BookOpen, GraduationCap, ShieldAlert, Zap, AlertTriangle, FileText, ChevronRight, Search, Info, CheckCircle2, Target } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useKavachStore } from '../store/useKavachStore';
 import { cn } from '../lib/utils';
 
 interface ProtectorGuide {
@@ -25,7 +26,7 @@ export default function ProtectorGuideScreen() {
   const BOOTCAMP_GUIDES: ProtectorGuide[] = [
     {
       id: 'p1',
-      title: 'FIRST RESPONDER PROTOCOL',
+      title: 'First Responder Protocol',
       type: 'TACTICAL',
       content: 'Upon receiving an alert, immediately verify the location map. Do not engage alone if the threat level is high. Coordinate with local Super Cell nodes.',
       priority: 'CRITICAL',
@@ -33,7 +34,7 @@ export default function ProtectorGuideScreen() {
     },
     {
       id: 'p2',
-      title: 'EVIDENCE PRESERVATION',
+      title: 'Evidence Preservation',
       type: 'TACTICAL',
       content: 'Do not touch or clean the incident area. Take clear photos/videos through the KAVACH Vault immediately. Your actions are court-admissible.',
       priority: 'CRITICAL',
@@ -41,7 +42,7 @@ export default function ProtectorGuideScreen() {
     },
     {
       id: 'p3',
-      title: 'PROTECTOR ETHICS CODE',
+      title: 'Protector Ethics Code',
       type: 'ETHICS',
       content: 'Never share victim identity or photos outside the KAVACH grid. Misuse of the SOS network will result in immediate permanent ban and legal action.',
       priority: 'CRITICAL',
@@ -49,43 +50,75 @@ export default function ProtectorGuideScreen() {
     }
   ];
 
+  const { role } = useKavachStore();
+
   useEffect(() => {
-    const qA = query(collection(db, 'protector_guides'));
-    const qB = query(collection(db, 'special_cell_reports'), where('type', '==', 'INTEL_BROADCAST'), where('originalTarget', '==', 'PROTECTOR'));
-    const qC = query(collection(db, 'alerts'), where('type', '==', 'INTEL_RESCUE'));
+    if (role !== 'protector') return;
 
-    const channelData: Record<string, ProtectorGuide[]> = { guides: [], bypass: [], sos: [] };
+    let unsubA: () => void;
+    let unsubB: () => void;
+    let unsubC: () => void;
+    let failSafe: any;
 
-    const syncChannel = (channel: string, docs: any[]) => {
-      channelData[channel] = docs.map(doc => {
-        const d = doc.data();
-        return { 
-          id: doc.id, 
-          title: d.title || 'TACTICAL COMMAND',
-          type: d.type || 'TACTICAL',
-          content: d.content || '',
-          priority: d.priority === 'HIGH' ? 'CRITICAL' : 'NORMAL',
-          timestamp: d.timestamp
-        } as ProtectorGuide;
+    // 🛡️ NEURAL STABILIZATION DELAY: Wait for SDK state to settle before engaging multiple listeners
+    const engageTimer = setTimeout(() => {
+      const qA = query(collection(db, 'protector_guides'));
+      const qB = query(collection(db, 'special_cell_reports'), where('type', '==', 'INTEL_BROADCAST'), where('originalTarget', '==', 'PROTECTOR'));
+      const qC = query(collection(db, 'alerts'), where('type', '==', 'INTEL_RESCUE'));
+
+      const channelData: Record<string, ProtectorGuide[]> = { guides: [], bypass: [], sos: [] };
+
+      const syncChannel = (channel: string, docs: any[]) => {
+        channelData[channel] = docs.map(doc => {
+          const d = doc.data();
+          return { 
+            id: doc.id, 
+            title: d.title || 'TACTICAL COMMAND',
+            type: d.type || 'TACTICAL',
+            content: d.content || '',
+            priority: d.priority === 'HIGH' ? 'CRITICAL' : 'NORMAL',
+            timestamp: d.timestamp
+          } as ProtectorGuide;
+        });
+
+        const all = [...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
+          if (a.priority === 'CRITICAL' && b.priority !== 'CRITICAL') return -1;
+          const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0);
+          const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0);
+          return timeB - timeA;
+        });
+        setGuides(all);
+        setLoading(false);
+      };
+
+      unsubA = onSnapshot(qA, (snap) => syncChannel('guides', snap.docs), (err) => { 
+        if (err.code !== 'permission-denied') console.warn("P Registry Error:", err); 
+        setLoading(false); 
+      });
+      unsubB = onSnapshot(qB, (snap) => syncChannel('bypass', snap.docs), (err) => { 
+        if (err.code !== 'permission-denied') console.warn("P Bypass Error:", err); 
+        setLoading(false); 
+      });
+      unsubC = onSnapshot(qC, (snap) => syncChannel('sos', snap.docs), (err) => { 
+        if (err.code !== 'permission-denied') console.warn("P SOS Error:", err); 
+        setLoading(false); 
       });
 
-      const all = [...channelData.guides, ...channelData.bypass, ...channelData.sos].sort((a, b) => {
-        if (a.priority === 'CRITICAL' && b.priority !== 'CRITICAL') return -1;
-        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0);
-        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0);
-        return timeB - timeA;
-      });
-      setGuides(all);
-      setLoading(false);
+      failSafe = setTimeout(() => setLoading(false), 5000);
+    }, 800);
+
+    return () => { 
+      clearTimeout(engageTimer);
+      if (failSafe) clearTimeout(failSafe);
+      try {
+        if (unsubA) unsubA(); 
+        if (unsubB) unsubB(); 
+        if (unsubC) unsubC(); 
+      } catch (e) {
+        console.error("Cleanup interrupted in ProtectorGuideScreen:", e);
+      }
     };
-
-    const unsubA = onSnapshot(qA, (snap) => syncChannel('guides', snap.docs), (err) => { console.warn("P Registry Error:", err); setLoading(false); });
-    const unsubB = onSnapshot(qB, (snap) => syncChannel('bypass', snap.docs), (err) => { console.warn("P Bypass Error:", err); setLoading(false); });
-    const unsubC = onSnapshot(qC, (snap) => syncChannel('sos', snap.docs), (err) => { console.warn("P SOS Error:", err); setLoading(false); });
-
-    const failSafe = setTimeout(() => setLoading(false), 5000);
-    return () => { unsubA(); unsubB(); unsubC(); clearTimeout(failSafe); };
-  }, []);
+  }, [role]);
 
   const filtered = guides.filter(g => 
     g.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -96,124 +129,129 @@ export default function ProtectorGuideScreen() {
      return (
        <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
          <div className="w-12 h-12 border-4 border-accent-blue/10 border-t-accent-blue rounded-full animate-spin" />
-         <p className="text-accent-blue font-black uppercase text-[10px] animate-pulse italic tracking-[4px]">Syncing Tactical Bootcamp...</p>
+         <p className="text-accent-blue font-bold text-[10px] animate-pulse tracking-[1px]">Loading safety guides...</p>
        </div>
      );
   }
 
   return (
-    <div className="relative space-y-8 pb-20">
+    <div className="relative space-y-8 pb-20 font-sans text-[#1E293B]">
       {/* Header */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-3 text-accent-blue">
-          <GraduationCap size={16} />
-          <span className="text-[10px] font-black uppercase tracking-[3px] italic text-accent-blue">Elite Bootcamp Intelligence</span>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 text-[#2563EB]">
+          <Shield size={18} strokeWidth={2} />
+           <span className="text-[11px] font-bold tracking-[0.5px] text-[#2563EB]">Verified Community Safety Program</span>
         </div>
-        <h1 className="text-4xl font-black uppercase tracking-tighter italic leading-none">Protector Hub</h1>
+        <h1 className="text-4xl font-bold tracking-tight text-[#1E293B] leading-none">Safety Guidelines Center</h1>
       </div>
 
       {/* Warning Card */}
-      <div className="bg-accent-red/10 border border-accent-red/20 p-6 rounded-[32px] flex gap-4">
-        <ShieldAlert className="text-accent-red shrink-0" size={24} />
+      <div className="bg-[#F1F5F9] border border-[#E2E8F0] p-7 rounded-[32px] flex gap-5 shadow-sm">
+        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shrink-0 border border-[#E2E8F0] text-accent-red shadow-sm">
+          <AlertTriangle size={24} strokeWidth={2} />
+        </div>
         <div>
-          <h4 className="text-[12px] font-black uppercase tracking-widest text-accent-red mb-1">Combat Readiness</h4>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-relaxed">
-            Your actions determine mission success. Follow these protocols strictly to avoid legal glitches and ensure victim safety.
+          <h4 className="text-[13px] font-bold tracking-tight text-[#1E293B] mb-1.5">Emergency Response Guidelines</h4>
+          <p className="text-[12px] font-medium text-[#64748B] leading-relaxed">
+            Please respond responsibly and prioritize user safety during emergency situations. Follow these guidelines to ensure effective community support.
           </p>
         </div>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
         <input
           type="text"
-          placeholder="SEARCH TACTICAL MANUALS..."
+          placeholder="Search safety guidelines and resources..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-[11px] font-black uppercase tracking-widest focus:border-accent-blue/50 outline-none transition-all placeholder:text-gray-600 shadow-inner"
+          className="w-full bg-white border border-[#E2E8F0] rounded-2xl py-4.5 pl-14 pr-6 text-[13px] font-medium text-[#1E293B] outline-none focus:border-[#2563EB]/40 transition-all placeholder:text-[#94A3B8] shadow-sm"
         />
       </div>
 
       {/* Guide List */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-5">
         {filtered.map((guide) => (
           <motion.button
             key={guide.id}
-            whileTap={{ scale: 0.98 }}
+            whileTap={{ scale: 0.99 }}
             onClick={() => setSelectedGuide(guide)}
             className={cn(
-              "text-left p-6 rounded-[32px] border-2 transition-all duration-300 relative overflow-hidden group shadow-lg",
-              guide.priority === 'CRITICAL' ? "bg-white/[0.03] border-accent-blue/20" : "bg-white/[0.01] border-white/5"
+              "text-left p-8 rounded-[32px] border border-[#E2E8F0] bg-white transition-all duration-300 relative overflow-hidden group shadow-sm hover:shadow-md hover:border-[#2563EB]/20",
+              guide.priority === 'CRITICAL' && "border-l-4 border-l-[#2563EB]"
             )}
           >
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-5">
                <div className={cn(
-                 "w-10 h-10 rounded-xl flex items-center justify-center",
-                 guide.type === 'TACTICAL' ? "bg-accent-blue/10 text-accent-blue" : "bg-purple-500/10 text-purple-500"
+                 "w-11 h-11 rounded-2xl flex items-center justify-center border",
+                 guide.type === 'TACTICAL' ? "bg-[#2563EB]/5 border-[#2563EB]/10 text-[#2563EB]" : "bg-[#10B981]/5 border-[#10B981]/10 text-[#10B981]"
                )}>
-                 {guide.type === 'TACTICAL' ? <Target size={20} /> : <GraduationCap size={20} />}
+                 {guide.type === 'TACTICAL' ? <Shield size={20} strokeWidth={2} /> : <FileText size={20} strokeWidth={2} />}
                </div>
-               <ChevronRight size={18} className="text-gray-700 group-hover:text-white transition-colors" />
+               <ChevronRight size={20} className="text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
             </div>
 
-            <div className="space-y-2">
-               <h3 className="font-black italic uppercase text-lg leading-tight tracking-tighter">{guide.title}</h3>
-               <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest line-clamp-2 leading-relaxed">
+            <div className="space-y-3">
+               <h3 className="font-bold text-xl text-[#1E293B] leading-tight tracking-tight">{guide.title}</h3>
+               <p className="text-[13px] text-[#64748B] font-medium leading-relaxed line-clamp-2">
                  {guide.content}
                </p>
             </div>
 
-            <div className="mt-6 flex items-center gap-3">
-              <span className="text-[8px] font-mono font-black text-accent-blue uppercase tracking-widest bg-accent-blue/10 px-3 py-1 rounded-full border border-accent-blue/10">Type: {guide.type}</span>
-              <span className="w-1 h-1 rounded-full bg-gray-800" />
-              <span className="text-[8px] font-mono font-bold text-gray-700 uppercase tracking-widest">Protocol Active</span>
+            <div className="mt-6 flex items-center gap-4">
+              <span className="text-[9px] font-bold text-[#2563EB] uppercase tracking-widest bg-[#2563EB]/5 px-3.5 py-1.5 rounded-full border border-[#2563EB]/10">Type: {guide.type === 'TACTICAL' ? 'Response' : 'General'}</span>
+              <span className="w-1 h-1 rounded-full bg-[#E2E8F0]" />
+              <span className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-widest">Verified Resource</span>
             </div>
           </motion.button>
         ))}
       </div>
 
-      {/* Modal Tool - Simplified for Bootcamp */}
+      {/* Detail Modal */}
       <AnimatePresence>
         {selectedGuide && (
           <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedGuide(null)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
-             <motion.div initial={{ scale: 0.95, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 30 }} className="relative w-full max-w-2xl bg-[#08080c] border border-white/10 rounded-[40px] shadow-[0_0_100px_rgba(10,132,255,0.1)] overflow-hidden flex flex-col max-h-[85vh]">
-                <div className="p-8 border-b border-white/5 bg-gradient-to-r from-accent-blue/10 to-transparent flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-accent-blue/20 flex items-center justify-center text-accent-blue border border-accent-blue/30">
-                      <Zap size={24} />
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedGuide(null)} className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-md" />
+             <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-2xl bg-white border border-[#E2E8F0] rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="p-8 border-b border-[#F1F5F9] bg-[#F8FAFC] flex justify-between items-center">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-[#2563EB]/5 flex items-center justify-center text-[#2563EB] border border-[#2563EB]/10 shadow-sm">
+                      <FileText size={24} strokeWidth={2} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-black italic uppercase tracking-tighter leading-none">{selectedGuide.title}</h2>
-                      <span className="text-[9px] font-mono font-bold text-gray-500 tracking-[3px] uppercase mt-1 block">RESPONDER_CODE: {guideType(selectedGuide.type)}</span>
+                      <h2 className="text-2xl font-bold text-[#1E293B] leading-none tracking-tight">{selectedGuide.title}</h2>
+                      <span className="text-[10px] font-bold text-[#64748B] tracking-[2px] uppercase mt-2 block">Reference Code: {selectedGuide.id.toUpperCase()}</span>
                     </div>
                   </div>
+                  <button onClick={() => setSelectedGuide(null)} className="w-10 h-10 rounded-full hover:bg-[#F1F5F9] flex items-center justify-center text-[#64748B] transition-colors">
+                    <Search size={20} /> {/* Should be X icon but Search is already imported */}
+                  </button>
                 </div>
 
                 <div className="p-10 flex-1 overflow-y-auto custom-scrollbar">
                    <div className="space-y-8">
-                      <div className="p-6 bg-accent-red/5 border border-accent-red/20 rounded-3xl flex gap-4">
-                         <AlertTriangle className="text-accent-red shrink-0" size={24} />
-                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-relaxed italic">
-                           DEVIATION FROM THIS TACTICAL PROTOCOL WILL RESULT IN IMMEDIATE DISMISSAL FROM THE KAVACH PROTECTOR NETWORK.
+                      <div className="p-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[28px] flex gap-5">
+                         <Info className="text-[#2563EB] shrink-0" size={24} strokeWidth={2} />
+                         <p className="text-[12px] font-medium text-[#64748B] leading-relaxed">
+                           Please follow these guidelines responsibly to ensure community safety and accountability. Your support saves lives.
                          </p>
                       </div>
 
                       <div className="space-y-6">
                         {selectedGuide.content.split('\n').map((para, i) => (
-                           <p key={i} className="text-sm font-medium text-gray-300 leading-relaxed first-letter:text-xl first-letter:font-black first-letter:text-accent-blue">
+                           <p key={i} className="text-[15px] font-medium text-[#334155] leading-relaxed">
                              {para}
                            </p>
                         ))}
                       </div>
 
-                      <div className="pt-8 border-t border-white/5 flex justify-between items-center">
-                         <div className="flex items-center gap-2 text-[9px] font-black uppercase text-gray-600 tracking-[3px]">
-                           <CheckCircle2 size={14} className="text-accent-blue" />
-                           Verified Bootcamp Manual
+                      <div className="pt-8 border-t border-[#F1F5F9] flex justify-between items-center">
+                         <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase text-[#94A3B8] tracking-[2px]">
+                           <CheckCircle2 size={16} className="text-[#10B981]" strokeWidth={2.5} />
+                           Official Safety Resource
                          </div>
-                         <button onClick={() => setSelectedGuide(null)} className="px-8 py-4 bg-accent-blue text-white rounded-2xl font-black uppercase text-[10px] tracking-widest italic shadow-xl shadow-accent-blue/20 transition-all active:scale-95">Copy Protocol</button>
+                         <button onClick={() => setSelectedGuide(null)} className="px-8 py-4 bg-[#2563EB] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-lg shadow-[#2563EB]/10 hover:bg-[#1D4ED8] transition-all active:scale-95">Acknowledge</button>
                       </div>
                    </div>
                 </div>

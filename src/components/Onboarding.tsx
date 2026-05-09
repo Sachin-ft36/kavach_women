@@ -9,6 +9,7 @@ import { Camera } from '@capacitor/camera';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
+import { Shield } from 'lucide-react';
 
 // 🛡️ Register Plugin Once at Top level to avoid memory leaks during polling
 const KavachNative = registerPlugin<any>('KavachPlugin');
@@ -20,10 +21,11 @@ import RoleStep from './onboarding/RoleStep';
 import IdentityStep from './onboarding/IdentityStep';
 import GuardiansStep from './onboarding/GuardiansStep';
 import SecurityPinStep from './onboarding/SecurityPinStep';
+import ProtectorVerificationStep from './onboarding/ProtectorVerificationStep';
 
 // 🛡️ Verhoeff Algorithm for Aadhaar Checksum Validation
-const verhoeffTableD = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
-const verhoeffTableP = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+const verhoeffTableD = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]];
+const verhoeffTableP = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]];
 const validateAadhaar = (val: string) => {
   if (val.length !== 12) return false;
   let c = 0;
@@ -54,21 +56,25 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
   });
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [batteryExempt, setBatteryExempt] = useState(false);
-  const [gender, setGender] = useState<'female' | 'male' | null>(null);
   const [role, setRole] = useState<'citizen' | 'protector' | null>(null);
+  const [gender, setGender] = useState<'female' | 'male' | null>(null);
   const [aadhaar, setAadhaar] = useState('');
-  const [guardians, setGuardians] = useState<{ name: string; phone: string }[]>([]);
+  const [guardians, setGuardians] = useState<{ name: string; phone: string; relation: string }[]>([]);
   const [tosChecked, setTosChecked] = useState({ terms: false, permissions: false });
   const [isFinishing, setIsFinishing] = useState(false);
-  
-  // 🛰️ AUTO-SYNC FOR RETURNING OPERATIVES
+  const [protectorData, setProtectorData] = useState({
+    fullName: '',
+    address: '',
+    occupation: '',
+    customOccupation: '',
+    reason: '',
+    agreement: false
+  });
+
   useEffect(() => {
-    if (isReturningUser) {
-      setStep(6);
-    }
+    if (isReturningUser) setStep(7); // Skip Guardians and jump straight to Shields/Permissions
   }, [isReturningUser]);
 
-  // 1. HARDWARE STATUS SYNC
   const checkHardwareStatus = async () => {
     if (!Capacitor.isNativePlatform()) return;
     try {
@@ -77,7 +83,6 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       const p = await KavachNative.checkSafetyPermissions();
       const geo = await Geolocation.checkPermissions();
       const cam = await Camera.checkPermissions();
-
       setOverlayGranted(o.granted);
       setBatteryExempt(b.isExempt);
       setPerms({
@@ -96,43 +101,30 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     let checkInterval: any;
     if (step === 6 && Capacitor.isNativePlatform()) {
       checkHardwareStatus();
-      checkInterval = setInterval(checkHardwareStatus, 3000); // 3s for better stability
+      checkInterval = setInterval(checkHardwareStatus, 3000);
     }
     return () => { if (checkInterval) clearInterval(checkInterval); };
   }, [step]);
 
-  // 2. PERMISSION HANDLERS
   const handleShieldToggle = async (id: string) => {
     if (!Capacitor.isNativePlatform()) {
       if (id === 'lifeline') setBatteryExempt(true);
       if (id === 'evidence') setOverlayGranted(true);
       if (id === 'guardian') setPerms({ sms: 'granted', call: 'granted', location: 'granted', camera: 'granted', microphone: 'granted' });
-      toast.success(`DEBUG: ${id.toUpperCase()} Activated`);
       return;
     }
-
     try {
       if (id === 'guardian') {
-        // 1. Native Sensitive (SMS, CALL, MIC, PHONE_STATE)
         await KavachNative.requestSensitivePermissions();
         await new Promise(r => setTimeout(r, 1200));
-
-        // 2. High-Precision Location (GPS)
         await Geolocation.requestPermissions();
         await new Promise(r => setTimeout(r, 1200));
-
-        // 3. Visual Forensics (Camera)
         await Camera.requestPermissions();
-        
         await checkHardwareStatus();
-      } else if (id === 'lifeline') {
-        await KavachNative.openBatterySettings();
-      } else if (id === 'evidence') {
-        await KavachNative.openOverlaySettings();
-      }
+      } else if (id === 'lifeline') await KavachNative.openBatterySettings();
+      else if (id === 'evidence') await KavachNative.openOverlaySettings();
     } catch (e) {
       console.warn("Shield Toggle Error:", e);
-      toast.error("Process interrupted. Please try again.");
     }
   };
 
@@ -140,72 +132,119 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     if (!user) return;
     setIsFinishing(true);
     try {
-      // 🛡️ IDENTITY LOCK: Check for duplicate Aadhaar registration
       if (aadhaar) {
+        // Master Ledger Check (Everyone is in 'users')
         const q = query(collection(db, 'users'), where('aadhar', '==', aadhaar));
         const snap = await getDocs(q);
         const duplicate = snap.docs.find(d => d.id !== user.uid);
         if (duplicate) {
-          toast.error("THIS AADHAAR IS ALREADY LINKED TO ANOTHER ACCOUNT.");
+          toast.error("Aadhaar already linked to another account.");
           setIsFinishing(false);
           return;
         }
       }
-
-      // 🛡️ PHONE LOCK: Check for duplicate Phone registration
       if (userPhone) {
         const q = query(collection(db, 'users'), where('phoneNumber', '==', userPhone));
         const snap = await getDocs(q);
         const duplicate = snap.docs.find(d => d.id !== user.uid);
         if (duplicate) {
-          toast.error("THIS PHONE NUMBER IS ALREADY LINKED TO ANOTHER ACCOUNT.");
+          toast.error("Phone number already linked to another account.");
           setIsFinishing(false);
           return;
         }
       }
 
       let initialLocation = null;
+      let fullAddress = "Sector Unknown";
       try {
         const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-        initialLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        };
-      } catch (geoError) {
-        console.warn("Initial location capture failed:", geoError);
-      }
+        initialLocation = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
+        
+        // 🛰️ RESOLVE PRECISION ADDRESS
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`);
+        const geoData = await geoRes.json();
+        if (geoData.address) {
+          const a = geoData.address;
+          fullAddress = `${a.road || ''} ${a.suburb || ''}, ${a.city || a.town || a.village || ''}, ${a.state || ''} - ${a.postcode || ''}, India`;
+        }
+      } catch (geoError) {}
 
-      const currentRole = role || 'citizen';
-
-      const userProfile = {
+        const userProfile = {
         uid: user.uid,
-        name: userName.toUpperCase(),
-        phoneNumber: userPhone,
+        name: (userName || "User"),
+        email: user.email || "",
+        phoneNumber: userPhone || user.phoneNumber || "",
         safetyPin: safetyPin,
-        role: currentRole,
+        role: role || 'citizen',
         gender: gender || 'female',
         isRegistered: true,
-        isVerified: false, // 🛡️ MISSION CRITICAL: Initialize verification gate
+        isVerified: (role === 'citizen') ? true : false,
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : null,
-        aadhar: aadhaar || null, // 🛡️ FULL IDENTITY UPLINK: For SuperCell Verification
-        lastLocation: initialLocation, // 📍 HOME POINT CAPTURE
+        aadhar: aadhaar || null,
+        
+        // 🛰️ FORENSIC LOCATION PACKET (Professional Standard)
+        lastLocation: initialLocation, // { lat, lng, accuracy }
+        locationData: {
+          lat: initialLocation?.lat || null,
+          lng: initialLocation?.lng || null,
+          accuracy: initialLocation?.accuracy || null,
+          city: fullAddress.split(',').slice(-3, -2)[0]?.trim() || "Unknown",
+          district: fullAddress.split(',').slice(-4, -3)[0]?.trim() || "Unknown",
+          state: fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
+          pincode: fullAddress.match(/\b\d{6}\b/)?.[0] || "Unknown",
+          formattedAddress: fullAddress
+        },
+        fullAddress: fullAddress,
+        state: fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
+        
+        primaryGuardian: guardians.length > 0 ? {
+          name: guardians[0].name,
+          phone: `+91${guardians[0].phone.replace(/\D/g, '')}`,
+          relation: guardians[0].relation
+        } : null,
         onboardedAt: serverTimestamp(),
-        lastActive: serverTimestamp()
+        lastActive: serverTimestamp(),
+        protectorVetting: role === 'protector' && gender === 'male' ? protectorData : null
       };
 
+      // 🛰️ MULTI-PATH SYSTEMATIC SYNC
+      // 1. Master Ledger
       await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
 
-      if (role === 'citizen') {
+      // 2. Gender-Specific Partitioning
+      if (gender === 'male') {
+        await setDoc(doc(db, 'male_users', user.uid), userProfile, { merge: true });
+      } else {
+        await setDoc(doc(db, 'women_users', user.uid), userProfile, { merge: true });
+        
+        // 3. Women-Specific Tactical Sub-Collections
+        if (role === 'citizen') {
+          await setDoc(doc(db, 'women_users', user.uid, 'safety_data', 'status'), {
+            active: true,
+            setupAt: serverTimestamp(),
+            type: 'Citizen/Safety'
+          });
+        }
+        if (role === 'protector') {
+          await setDoc(doc(db, 'women_users', user.uid, 'protector_data', 'status'), {
+            active: true,
+            setupAt: serverTimestamp(),
+            type: 'Protector/Rakshak'
+          });
+        }
+      }
+
+      if (role === 'citizen' && guardians.length > 0) {
         const guardianCol = collection(db, 'users', user.uid, 'guardians');
         for (const g of guardians) {
           if (g.name && g.phone) {
             const cleanPhone = g.phone.replace(/\D/g, '');
-            await addDoc(guardianCol, {
-              name: g.name.toUpperCase(),
-              phone: `+91${cleanPhone}`,
-              createdAt: serverTimestamp()
-            });
+            await addDoc(guardianCol, { 
+              name: g.name, 
+              phone: `+91${cleanPhone}`, 
+              relation: g.relation || 'Guardian',
+              createdAt: serverTimestamp() 
+            }).catch(() => {});
           }
         }
       }
@@ -217,122 +256,125 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       setStoreRole(role || 'citizen');
       setStoreGender(gender || 'female');
       useKavachStore.getState().setSafetyPin(safetyPin);
-
-      localStorage.setItem('kavach_registered', 'true');
-      localStorage.setItem('kavach_hardware_synced', 'true');
-
       onComplete();
-    } catch (e) {
-      toast.error("Failed to sync profile.");
+    } catch (e: any) {
+      toast.error(`Configuration Error: ${e.message}`);
     } finally {
       setIsFinishing(false);
     }
   };
 
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState(false);
+
   const nextStep = () => {
     if (step === 1) setStep(2);
     else if (step === 2) setStep(3);
     else if (step === 3) {
-      if (role === 'protector') setStep(6); // Protectors skip PIN and Guardians
-      else setStep(4);
+      if (role === 'protector') {
+         if (gender === 'male') setStep(4);
+         else setStep(5);
+      } else {
+         setStep(5);
+      }
     }
-    else if (step === 4) setStep(5);
-    else if (step === 5) setStep(6);
+    else if (step === 4) {
+       if (gender === 'male') setStep(7); // Skip Pin for Males
+       else setStep(5);
+    }
+    else if (step === 5) {
+       if (role === 'citizen') setStep(6);
+       else setStep(7);
+    }
+    else if (step === 6) setStep(7);
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] bg-[#050505] flex flex-col p-4 text-white font-sans select-none overflow-hidden">
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none" />
+    <div className="fixed inset-0 z-[2000] bg-white flex flex-col text-gray-900 font-sans overflow-hidden">
+      <div className="w-full max-w-lg mx-auto flex-1 flex flex-col relative z-10 px-4 sm:px-8 py-3 sm:py-8">
+        {/* Step Progress Indicator */}
+        <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-10">
+          {[1, 2, 3, 4, 5, 6].map((s) => (
+            <div 
+              key={s} 
+              className={cn(
+                "h-2 flex-1 rounded-full transition-all duration-500",
+                s === step ? "bg-[#2563EB] shadow-lg shadow-[#2563EB]/20" : s < step ? "bg-[#10B981]" : "bg-gray-100"
+              )} 
+            />
+          ))}
+        </div>
 
-      {/* 🛰️ Consistent Branding Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-red/5 blur-[120px] rounded-full pointer-events-none animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-red/10 blur-[120px] rounded-full pointer-events-none" />
-
-      <div className="w-full max-w-md mx-auto flex-1 flex flex-col min-h-0 relative z-10 py-2 sm:py-6">
         <AnimatePresence mode="wait">
           <motion.div 
-            key={`step-${step}`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="flex-1 flex flex-col min-h-0"
+            key={`step-${step}`} 
+            initial={{ opacity: 0, x: 20 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: -20 }} 
+            className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
           >
-            {step === 1 && (
-              <GenderStep
-                gender={gender} setGender={setGender}
-                userName={userName} setUserName={setUserName}
-                userPhone={userPhone} setUserPhone={setUserPhone}
-              />
-            )}
-            {step === 2 && (
-              <RoleStep role={role} setRole={setRole} gender={gender} />
-            )}
-            {step === 3 && (
-              <IdentityStep 
-                aadhaar={aadhaar} setAadhaar={setAadhaar} 
-                phone={userPhone} setPhone={setUserPhone}
-              />
-            )}
-            {step === 4 && (
-              <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />
-            )}
-            {step === 5 && (
-              <GuardiansStep guardians={guardians} setGuardians={setGuardians} />
-            )}
-            {step === 6 && (
+            {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={setRole} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
+            {step === 2 && <GenderStep gender={gender} setGender={setGender} userName={userName} setUserName={setUserName} userPhone={userPhone} setUserPhone={setUserPhone} />}
+            {step === 3 && <RoleStep role={role} setRole={setRole} gender={gender} />}
+            {step === 4 && <ProtectorVerificationStep data={protectorData} setData={setProtectorData} />}
+            {step === 5 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
+            {step === 6 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
+            {step === 7 && (
               <ShieldsStep
-                batteryExempt={batteryExempt}
-                overlayGranted={overlayGranted}
-                perms={perms}
-                isReturningUser={isReturningUser}
-                tosChecked={tosChecked}
-                setTosChecked={setTosChecked}
-                onActivate={finishOnboarding}
-                authStatus={isFinishing ? 'saving' : 'idle'}
-                tr={t}
-                onOpenBattery={() => handleShieldToggle('lifeline')}
-                onOpenOverlay={() => handleShieldToggle('evidence')}
-                onRequestPerms={() => handleShieldToggle('guardian')}
-                onOpenAppSettings={async () => {
-                  if (Capacitor.isNativePlatform()) {
-                    await KavachNative.openAppSettings();
-                  }
-                }}
+                batteryExempt={batteryExempt} overlayGranted={overlayGranted} perms={perms} isReturningUser={isReturningUser}
+                tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={finishOnboarding} authStatus={isFinishing ? 'saving' : 'idle'}
+                tr={t} onOpenBattery={() => handleShieldToggle('lifeline')} onOpenOverlay={() => handleShieldToggle('evidence')}
+                onRequestPerms={() => handleShieldToggle('guardian')} onOpenAppSettings={async () => { if (Capacitor.isNativePlatform()) await KavachNative.openAppSettings(); }}
                 isNative={Capacitor.isNativePlatform()}
               />
             )}
           </motion.div>
         </AnimatePresence>
 
-        <div className="pt-6 mt-2 border-t border-white/5">
-          {step < 6 ? (
+        <div className="pt-2 sm:pt-8">
+          {step < 7 ? (
             <button
               disabled={
-                (step === 1 && !gender) ||
-                (step === 2 && !role) ||
-                (step === 3 && (!validateAadhaar(aadhaar) || !userPhone)) ||
-                (step === 4 && safetyPin.length < 4) ||
-                (step === 5 && role === 'citizen' && guardians.length === 0)
+                (step === 1 && !isAadhaarVerified) || 
+                (step === 2 && !gender) || 
+                (step === 3 && !role) || 
+                (step === 4 && (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement)) ||
+                (step === 5 && safetyPin.length < 4) || 
+                (step === 6 && role === 'citizen' && guardians.length === 0)
               }
               onClick={nextStep}
               className={cn(
-                "w-full py-5 rounded-[24px] font-black uppercase text-[11px] border-2 transition-all italic tracking-[3px]",
-                ((step === 1 && gender) ||
-                  (step === 2 && role) ||
-                  (step === 3 && validateAadhaar(aadhaar) && userPhone) ||
-                  (step === 4 && safetyPin.length === 4) ||
-                  (step === 5 && (role !== 'citizen' || guardians.length > 0)))
-                  ? "bg-white text-black border-white shadow-2xl"
-                  : "bg-white/5 text-gray-500 border-white/5"
+                "w-full py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all shadow-xl active:scale-[0.98]", 
+                (
+                  (step === 1 && isAadhaarVerified) || 
+                  (step === 2 && gender) || 
+                  (step === 3 && role) || 
+                  (step === 4 && (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement)) ||
+                  (step === 5 && safetyPin.length === 4) || 
+                  (step === 6 && guardians.length > 0)
+                ) 
+                  ? "bg-[#2563EB] text-white shadow-[#2563EB]/25" 
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
               )}
             >
-              {step === 1 ? t('confirm_profile_next') :
-                step === 2 ? t('confirm_role_continue') :
-                  step === 3 ? t('verify_aadhaar_btn') :
-                    step === 4 ? "CONFIGURE SECURITY PIN" :
-                      t('secure_network_btn')}
+              {step === 1 ? "Verify & Link" : step === 2 ? "Confirm Category" : step === 3 ? "Confirm Profile" : step === 4 ? "Submit Verification" : step === 5 ? "Configure Pin" : "Setup Guardians"}
             </button>
           ) : null}
+          
+          <div className="mt-4 sm:mt-8 flex flex-col items-center gap-2 sm:gap-4">
+             <div className="flex items-center justify-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
+                   <Shield size={16} className="text-[#2563EB]" />
+                </div>
+              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[2px] sm:tracking-[3px]">Kavach Safety Grid</span>
+             </div>
+             
+             <div className="flex flex-col items-center gap-3 pt-2 opacity-80">
+                <img src="/digitalindia.png" alt="Digital India" className="h-12 w-auto object-contain" />
+                <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6">
+                  © 2024 Unique Identification Authority of India (UIDAI) | All Rights Reserved
+                </p>
+             </div>
+          </div>
         </div>
       </div>
     </div>

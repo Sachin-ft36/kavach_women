@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Lock, Delete, ShieldCheck } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Lock, Delete, ShieldCheck, Shield } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface SecurityPinStepProps {
@@ -29,59 +29,66 @@ export default function SecurityPinStep({ pin, setPin }: SecurityPinStepProps) {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="flex-1 flex flex-col items-center justify-center space-y-8"
+      className="flex-1 flex flex-col items-center justify-center space-y-6 sm:space-y-12 py-2"
     >
-      <div className="text-center space-y-2">
-        <div className="w-16 h-16 bg-accent-blue/10 rounded-2xl flex items-center justify-center text-accent-blue mx-auto border border-accent-blue/20 mb-4">
-          <Lock size={32} />
+      <div className="text-center space-y-4">
+        <div className="w-16 h-16 bg-white border border-[#E5E7EB] rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
+          <Lock className="text-[#2563EB]" size={32} />
         </div>
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">Secure Safety PIN</h2>
-        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[2px] max-w-xs mx-auto">
-          Create a 4-digit code to manually abort emergency sessions if biometrics fail.
-        </p>
+        <div className="space-y-1">
+          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Set Security PIN</h2>
+          <p className="text-sm text-gray-500 font-semibold max-w-[280px] mx-auto leading-relaxed">
+            Create a 4-digit authentication code to secure your safety profile.
+          </p>
+        </div>
       </div>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex gap-5">
         {[0, 1, 2, 3].map(i => (
           <div 
             key={i} 
             className={cn(
-              "w-12 h-16 rounded-xl border-2 flex items-center justify-center text-2xl transition-all",
+              "w-14 h-20 rounded-2xl border-2 flex items-center justify-center text-3xl transition-all duration-300 shadow-sm",
               localPin[i] 
-                ? "border-accent-blue bg-accent-blue/10 text-white shadow-[0_0_15px_rgba(10,132,255,0.2)]" 
-                : "border-white/10 bg-white/5 text-gray-700"
+                ? "border-[#2563EB] bg-white text-gray-900 shadow-lg shadow-[#2563EB]/10" 
+                : "border-[#E5E7EB] bg-gray-50 text-gray-300"
             )}
           >
-            {localPin[i] ? '●' : ''}
+            {localPin[i] ? <div className="w-3 h-3 bg-[#2563EB] rounded-full animate-in zoom-in" /> : ''}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-4 w-full max-w-[280px]">
+      <div className="grid grid-cols-3 gap-3 sm:gap-5 w-full max-w-[300px]">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
           <button
             key={num}
             onClick={() => handlePress(num.toString())}
-            className="h-16 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white hover:bg-white/10 active:scale-95 transition-all"
+            className="h-14 sm:h-16 rounded-[24px] bg-white border border-[#E5E7EB] text-2xl font-bold text-gray-700 shadow-sm hover:border-[#2563EB]/30 hover:bg-gray-50 active:scale-90 transition-all"
           >
             {num}
           </button>
         ))}
         <button
           onClick={handleClear}
-          className="h-16 rounded-2xl bg-red-600/10 border border-red-600/20 text-red-500 flex items-center justify-center active:scale-95 transition-all"
+          className="h-14 sm:h-16 rounded-[24px] bg-white border border-[#E5E7EB] text-[#DC2626] flex items-center justify-center active:scale-90 transition-all hover:bg-red-50 shadow-sm"
         >
           <Delete size={24} />
         </button>
         <button
           onClick={() => handlePress('0')}
-          className="h-16 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white hover:bg-white/10 active:scale-95 transition-all"
+          className="h-14 sm:h-16 rounded-[24px] bg-white border border-[#E5E7EB] text-2xl font-bold text-gray-700 shadow-sm hover:border-[#2563EB]/30 hover:bg-gray-50 active:scale-90 transition-all"
         >
           0
         </button>
-        <div className="h-16 rounded-2xl flex items-center justify-center text-accent-blue/40">
-          <ShieldCheck size={24} />
+        <div className="h-14 sm:h-16 rounded-[24px] flex items-center justify-center text-[#2563EB]/10">
+          <ShieldCheck size={32} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2.5 opacity-60">
+        <Shield size={14} className="text-[#2563EB]" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Official Authentication Grid Security</span>
       </div>
     </motion.div>
   );

@@ -22,11 +22,15 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useKavachStore } from '../store/useKavachStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { auth, db } from '../firebase';
+import { auth, db, resetKavachState } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { toast } from 'sonner';
+import SOSActiveOverlay from './SOSActiveOverlay';
+import { Activity, Car, Map as MapIcon, FileText } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -42,45 +46,76 @@ interface LayoutProps {
 export default function Layout({ children, isGhostMode, onToggleGhost, activeTab, setActiveTab, role, setRole, setGender }: LayoutProps) {
   const { t, language, setLanguage } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const [showProtectorOnboarding, setShowProtectorOnboarding] = useState(false);
+  const { profile: userData, setLoading, isSOSActive, isInterceptActive } = useKavachStore();
   const user = auth.currentUser;
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
-      }
-    };
-    fetchUserData();
-  }, [user]);
 
   const handleRoleSwitch = async () => {
     if (!user) return;
-    try {
-      const newRole = role === 'citizen' ? 'protector' : 'citizen';
+    
+    if (role === 'citizen') {
+      if (userData?.protectorStatus === 'active') {
+        try {
+          setLoading(true);
+          const newRole = 'protector';
+          await updateDoc(doc(db, 'users', user.uid), {
+            role: newRole,
+            lastRoleChange: new Date()
+          });
+          setRole(newRole);
+          localStorage.setItem('kavach_role', newRole);
+          setIsProfileOpen(false);
+          setTimeout(() => setLoading(false), 1000);
+          return;
+        } catch (error) {
+          console.error("Role switch failed:", error);
+          setLoading(false);
+        }
+      } else {
+        setShowProtectorOnboarding(true);
+        setIsProfileOpen(false);
+        return;
+      }
+    }
 
-      // Update Firestore
+    try {
+      setLoading(true);
+      const newRole = 'citizen';
       await updateDoc(doc(db, 'users', user.uid), {
         role: newRole,
         lastRoleChange: new Date()
       });
-
-      // Update Local State in App.tsx
       setRole(newRole);
-
-      // Update local storage for persistence
       localStorage.setItem('kavach_role', newRole);
-
-      // Close profile menu
       setIsProfileOpen(false);
-
-      console.log(`KAVACH: Mission Mode Switched to ${newRole.toUpperCase()}`);
+      setTimeout(() => setLoading(false), 1000);
     } catch (error) {
       console.error("Role switch failed:", error);
-      alert("Failed to switch mission mode.");
+      setLoading(false);
+    }
+  };
+
+  const confirmProtectorEnrollment = async () => {
+    if (!user) return;
+    try {
+      const newRole = 'protector';
+      const updateData = {
+        role: newRole,
+        lastRoleChange: new Date(),
+        protectorStatus: 'active',
+        specialCellLinked: true,
+        enrolledAt: serverTimestamp()
+      };
+      await updateDoc(doc(db, 'users', user.uid), updateData);
+      if (userData?.gender === 'female') {
+        await updateDoc(doc(db, 'women_users', user.uid), updateData);
+      }
+      setRole(newRole);
+      localStorage.setItem('kavach_role', newRole);
+      setShowProtectorOnboarding(false);
+      toast.success("Welcome to the Protector Grid");
+    } catch (error) {
+      toast.error("Enrollment failed");
     }
   };
 
@@ -105,103 +140,61 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const gender = userData?.gender || 'female';
   const displayName = user?.displayName || userData?.name || t('kavach_user');
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        // In a real app, we would upload this to Firebase Storage
-        console.log("Photo upload simulated:", base64);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   if (isGhostMode) {
     return (
-      <div className="min-h-screen bg-[#F0F2F5] text-[#1C1E21] font-sans p-4">
+      <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] font-sans p-4 sm:p-6 pb-20">
         <div className="max-w-md mx-auto">
-          <header className="flex justify-between items-center mb-6">
-            <h1 className="text-xl font-bold lowercase tracking-tight">Weather</h1>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shadow-sm"
-              >
+          <header className="flex justify-between items-center mb-8">
+            <h1 className="text-2xl font-bold text-gray-900">Weather</h1>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shadow-sm">
                 {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />}
               </button>
-              <button onClick={onToggleGhost} className="p-2 text-gray-300">
+              <button onClick={onToggleGhost} className="p-2 text-gray-400 hover:text-gray-900 transition-colors">
                 <EyeOff size={20} />
               </button>
             </div>
           </header>
-
           <AnimatePresence>
             {isProfileOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xl mb-6 space-y-4"
-              >
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xl mb-6 space-y-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border-2 border-white shadow-sm">
+                  <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">
                     {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={24} className="text-gray-400" />}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-sm tracking-tight">{role === 'protector' ? t('protector') : t('citizen')}</p>
-                    <p className="text-[10px] text-gray-400 font-mono">ID: {(uid || "").replace(/-/g, '').slice(0, 8)}</p>
+                  <div>
+                    <p className="font-bold text-sm text-gray-900">{displayName}</p>
+                    <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">ID: {uid.slice(0, 8)}</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full py-3 bg-gray-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg"
-                >
-                  {t('logout') || 'LOGOUT'}
-                </button>
+                <button onClick={handleLogout} className="w-full py-3 bg-gray-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">Logout</button>
               </motion.div>
             )}
           </AnimatePresence>
-
-          <div className="bg-blue-50 p-6 rounded-2xl mb-6 shadow-sm border border-blue-100">
-            <div className="flex justify-between items-start mb-4">
+          <div className="bg-white p-6 rounded-[28px] mb-6 shadow-sm border border-gray-100">
+            <div className="flex justify-between items-start mb-6">
               <div>
-                <p className="text-gray-500 font-medium">New Delhi</p>
-                <p className="text-5xl font-black text-blue-900 leading-none">32°C</p>
-                <p className="text-blue-600 font-bold mt-1">Haze & Sunny</p>
+                <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Current Location</p>
+                <p className="text-5xl font-bold text-gray-900 leading-none">32°</p>
+                <p className="text-[#2563EB] font-bold mt-2">Partly Cloudy</p>
               </div>
-              <div className="w-16 h-16 bg-yellow-400 rounded-full blur-xl opacity-20 animate-pulse" />
+              <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500"><Globe size={32} /></div>
             </div>
-            <div className="flex justify-between text-[10px] text-blue-400 font-black uppercase tracking-widest pt-4 border-t border-blue-100">
-              <span>H: 38° L: 26°</span>
-              <span>Humidity: 45%</span>
-              <span>UV: High</span>
+            <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-widest pt-5 border-t border-gray-50">
+              <span>High: 38°</span><span>Low: 26°</span><span>Humidity: 45%</span>
             </div>
           </div>
-
-          <div className="space-y-4">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hourly Forecast</p>
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="space-y-6">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Hourly Forecast</p>
+            <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="min-w-[60px] bg-gray-50 rounded-2xl p-3 flex flex-col items-center gap-2">
-                  <span className="text-[9px] font-bold text-gray-500">{12 + i}:00</span>
+                <div key={i} className="min-w-[70px] bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
+                  <span className="text-[10px] font-bold text-gray-400">{12 + i}:00</span>
                   <div className="w-6 h-6 bg-yellow-400/20 rounded-full" />
-                  <span className="text-xs font-black">3{i}°</span>
+                  <span className="text-xs font-bold text-gray-900">3{i}°</span>
                 </div>
               ))}
             </div>
-
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Local News</p>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="p-4 bg-gray-50 rounded-2xl flex gap-4 items-center">
-                <div className="w-12 h-12 bg-gray-200 rounded-xl shrink-0" />
-                <div className="space-y-1 flex-1">
-                  <div className="h-3 bg-gray-200 rounded-full w-3/4" />
-                  <div className="h-2 bg-gray-100 rounded-full w-1/2" />
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -209,306 +202,157 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text-main font-sans selection:bg-accent-red selection:text-white p-4 sm:p-6 pb-32">
-      {/* Top Bar */}
-      <header className="relative z-[9999] flex justify-between items-center mb-4 sm:mb-6 max-w-7xl mx-auto px-1 sm:px-0">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className={cn(
-              "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-black text-base sm:text-lg shrink-0",
-              role === 'super_cell' ? "bg-purple-600 shadow-[0_0_20px_rgba(147,51,234,0.5)]" :
-                role === 'admin' ? "bg-accent-blue shadow-[0_0_15px_rgba(0,122,255,0.5)]" :
-                  "bg-accent-red shadow-[0_4px_12px_rgba(255,59,48,0.2)]"
-            )}>
-              {role === 'super_cell' ? <Zap size={16} /> : role === 'admin' ? <Shield size={16} /> : 'K'}
-            </div>
-            <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tighter truncate italic">
-              {role === 'super_cell' ? 'COMMAND' : role === 'admin' ? 'CELL-9' : 'KAVACH'}
-            </h1>
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[8px] font-mono font-bold text-accent-blue uppercase tracking-widest">
-              PRTCL 4.0 // MHA_GRID_AUTH
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onToggleGhost}
-            className="p-2 sm:p-2.5 bg-card-bg border border-border hover:bg-white/10 rounded-xl sm:rounded-2xl transition-all"
-            title="Ghost Mode"
-          >
-            <Eye size={16} className="text-text-dim" />
-          </button>
+    <div className={cn(
+      "min-h-screen bg-bg text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500",
+      role === 'super_cell' ? "p-0" : "px-3 sm:px-6 pt-8 sm:pt-10 pb-32"
+    )}>
+      
+      {/* 🚨 SOS COMMAND OVERLAY */}
+      <SOSActiveOverlay />
 
-          <div className="relative">
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-1.5 sm:gap-2 bg-card-bg border border-border hover:bg-white/10 p-1 pr-3 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-2xl transition-all"
-            >
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-accent-blue/20 flex items-center justify-center overflow-hidden border border-accent-blue/30">
-                {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={14} className="text-accent-blue" />}
+      {role !== 'super_cell' && !isInterceptActive && (
+        <header className="relative z-[150] flex justify-between items-center mb-6 sm:mb-8 max-w-7xl mx-auto px-1">
+          <div className="flex items-center gap-4">
+             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-lg", role === 'admin' ? "bg-[#2563EB] text-white" : "bg-accent-red text-white")}>
+                <Shield size={20} />
               </div>
-              <span className="text-[9px] font-black text-accent-blue uppercase tracking-widest hidden xs:inline">{t('profile')}</span>
-            </button>
-
-            <AnimatePresence>
-              {isProfileOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-3 w-64 bg-card-bg/95 border border-border rounded-[32px] p-6 shadow-2xl z-[100] backdrop-blur-3xl"
-                >
-                  <div className="space-y-6">
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className="relative group">
-                        <div className="w-20 h-20 rounded-3xl bg-accent-blue/10 border-2 border-accent-blue/30 flex items-center justify-center overflow-hidden">
-                          {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={32} className="text-accent-blue" />}
-                        </div>
-                        <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-white text-black rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors shadow-lg">
-                          <Upload size={14} />
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                        </label>
-                      </div>
-                      <div>
-                        <h3 className="font-black italic uppercase text-lg leading-tight tracking-tighter">
-                          {displayName}
-                        </h3>
-                        <p className="text-[9px] text-accent-blue font-bold uppercase tracking-[2px] mt-1 font-mono">
-                          {role === 'super_cell' ? 'SPECIAL CELL' : role === 'admin' ? t('admin') : role === 'protector' ? t('protector') : t('citizen')} // {gender.toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">Mission ID</span>
-                        <span className="text-[10px] font-mono text-white truncate max-w-[140px]">
-                          {user?.email || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">{t('tactical_phone')}</span>
-                        <span className="text-[10px] font-mono text-accent-blue font-black">
-                          {userData?.phoneNumber || t('not_anchored')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">{t('aadhaar_link')}</span>
-                        <span className="text-[10px] font-mono text-white">
-                          {userData?.aadhaar ? `**** ${userData.aadhaar.slice(-4)}` : t('no_link')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">Status</span>
-                        <span className="text-[10px] font-black text-green-500 italic uppercase tracking-widest">{t('shield_active_status')}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {gender === 'female' && (
-                        <button
-                          onClick={handleRoleSwitch}
-                          className={cn(
-                            "w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border shadow-sm",
-                            role === 'citizen'
-                              ? "bg-accent-blue text-white border-accent-blue/30"
-                              : "bg-accent-red text-white border-accent-red/30"
-                          )}
-                        >
-                          {role === 'citizen' ? (
-                            <><Zap size={14} /> {t('join_protector') || 'JOIN PROTECTOR'}</>
-                          ) : (
-                            <><Shield size={14} /> {t('home') || 'HOME'}</>
-                          )}
-                        </button>
-                      )}
-
-                      <button
-                        onClick={handleLogout}
-                        className="w-full py-4 bg-white/5 text-gray-500 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                      >
-                        <LogOut size={14} /> {t('logout') || 'LOGOUT'}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <div>
+                 <h1 className="text-xl font-bold tracking-tight text-gray-900">{role === 'admin' ? 'ADMINISTRATIVE PORTAL' : 'KAVACH'}</h1>
+                 <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 bg-accent-green rounded-full animate-pulse" />
+                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-[2px]">National Safety Network v4.2</span>
+                 </div>
+              </div>
           </div>
+          <div className="flex items-center gap-3">
+            <button onClick={onToggleGhost} className="w-10 h-10 bg-white border border-[#E5E7EB] text-gray-400 hover:text-gray-900 hover:border-gray-300 rounded-xl flex items-center justify-center transition-all shadow-sm"><Eye size={18} /></button>
+            <div className="relative">
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-2 bg-white border border-[#E5E7EB] p-1.5 pr-4 rounded-xl shadow-sm hover:border-gray-300 transition-all">
+                <div className="w-7 h-7 rounded-lg bg-[#2563EB]/10 flex items-center justify-center overflow-hidden border border-[#2563EB]/20">
+                  {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={16} className="text-[#2563EB]" />}
+                </div>
+                <span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest hidden xs:inline">{t('profile')}</span>
+              </button>
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-3 w-72 bg-white border border-[#E5E7EB] rounded-[32px] p-6 shadow-2xl z-[100]">
+                    <div className="space-y-6">
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        <div className="w-20 h-20 rounded-[28px] bg-[#2563EB]/5 border-2 border-[#2563EB]/10 flex items-center justify-center overflow-hidden shadow-inner">
+                          {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={36} className="text-[#2563EB]/40" />}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{displayName}</h3>
+                          <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'protector' ? 'VERIFIED PROTECTOR' : 'VERIFIED CITIZEN'}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3 py-4 border-y border-gray-100">
+                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Aadhaar Link</span><span className="text-[10px] font-bold text-gray-900">{userData?.aadhar ? `XXXXXXXX${userData.aadhar.slice(-4)}` : 'NOT LINKED'}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone</span><span className="text-[10px] font-bold text-gray-900">{userData?.phoneNumber ? `+91 ${userData.phoneNumber.slice(-10)}` : 'UNLINKED'}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Shield Status</span><span className="text-[10px] font-bold text-accent-green uppercase tracking-widest">SECURE</span></div>
+                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gender</span><span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">{userData?.gender || 'FEMALE'}</span></div>
+                      </div>
+                      <div className="space-y-3">
+                        {gender === 'female' && (
+                          <button onClick={handleRoleSwitch} className="w-full py-4 bg-[#2563EB] text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#1D4ED8] shadow-lg shadow-[#2563EB]/20 transition-all flex items-center justify-center gap-2">
+                            {role === 'citizen' ? <><Zap size={14} /> Join Protector Network</> : <><Shield size={14} /> Return to Home</>}
+                          </button>
+                        )}
+                        <button onClick={handleLogout} className="w-full py-4 bg-gray-50 text-gray-400 border border-gray-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center justify-center gap-2"><LogOut size={14} /> System Logout</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </header>
+      )}
 
-          <button
-            onClick={onToggleGhost}
-            className="p-2.5 bg-card-bg border border-border hover:bg-white/10 rounded-2xl transition-all"
-            title="Ghost Mode"
-          >
-            <Eye size={18} className="text-text-dim" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto pb-32">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.02 }}
-            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+      <main className={cn("mx-auto pb-10 relative z-[10] transition-all", role === 'super_cell' ? "max-w-none px-4 lg:px-8" : "max-w-7xl")}>
+        {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-50 p-4 sm:p-6 pointer-events-none">
-        <div className="max-w-md mx-auto bg-card-bg/90 backdrop-blur-3xl border border-border rounded-3xl p-2 flex justify-between items-center shadow-2xl pointer-events-auto">
-          {role === 'citizen' && (
-            <>
-              <NavButton
-                active={activeTab === 'dashboard'}
-                onClick={() => setActiveTab('dashboard')}
-                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('dashboard')}
-              />
-              <NavButton
-                active={activeTab === 'radar'}
-                onClick={() => setActiveTab('radar')}
-                icon={<Globe className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
-                label={t('radar')}
-              />
-              <NavButton
-                active={activeTab === 'contacts'}
-                onClick={() => setActiveTab('contacts')}
-                icon={<Users className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('contacts')}
-              />
-              <NavButton
-                active={activeTab === 'guide'}
-                onClick={() => setActiveTab('guide')}
-                icon={<BookOpen className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('guide') || 'GUIDE'}
-              />
-              <NavButton
-                active={activeTab === 'special_cell'}
-                onClick={() => setActiveTab('special_cell')}
-                icon={<ShieldCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-purple-500" />}
-                label={t('special_cell')}
-              />
-              <NavButton
-                active={activeTab === 'vault'}
-                onClick={() => setActiveTab('vault')}
-                icon={<Upload className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('vault')}
-              />
-            </>
-          )}
+      {!isInterceptActive && (
+        <nav className="fixed bottom-0 inset-x-0 z-[50] p-6 pointer-events-none flex justify-center">
+          <div className="w-full max-w-md bg-white/80 backdrop-blur-2xl border border-black/[0.04] rounded-[40px] p-2 flex justify-between items-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] pointer-events-auto">
+            {role === 'citizen' && (
+              <>
+                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={22} />} label="Home" />
+                <NavButton active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} icon={<Globe size={22} />} label="Radar" />
+                <NavButton active={activeTab === 'contacts'} onClick={() => setActiveTab('contacts')} icon={<Users size={22} />} label="Guardians" />
+                <NavButton active={activeTab === 'special_cell'} onClick={() => setActiveTab('special_cell')} icon={<ShieldCheck size={22} />} label="Safety Cell" />
+                <NavButton active={activeTab === 'vault'} onClick={() => setActiveTab('vault')} icon={<Upload size={22} />} label="Vault" />
+              </>
+            )}
+            {role === 'protector' && (
+              <>
+                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<MapPin size={22} />} label="Response" />
+                <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Users size={22} />} label="Community" />
+                <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={22} />} label="Safety Tips" />
+                <NavButton active={activeTab === 'grievance'} onClick={() => setActiveTab('grievance')} icon={<AlertTriangle size={22} />} label="Reports" />
+              </>
+            )}
+            {role === 'admin' && (
+              <>
+                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={22} />} label="Admin" />
+                <NavButton active={activeTab === 'verify'} onClick={() => setActiveTab('verify')} icon={<UserCheck size={22} />} label="Verify" />
+                <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Trophy size={22} />} label="Audits" />
+              </>
+            )}
+          </div>
+        </nav>
+      )}
 
-          {role === 'protector' && (
-            <>
-              <NavButton
-                active={activeTab === 'dashboard'}
-                onClick={() => setActiveTab('dashboard')}
-                icon={<Navigation className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
-                label="TACTICAL MAP"
-              />
-              <NavButton
-                active={activeTab === 'rewards'}
-                onClick={() => setActiveTab('rewards')}
-                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label="REWARDS"
-              />
-              <NavButton
-                active={activeTab === 'guide'}
-                onClick={() => setActiveTab('guide')}
-                icon={<BookOpen className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label="GUIDE"
-              />
-              <NavButton
-                active={activeTab === 'grievance'}
-                onClick={() => setActiveTab('grievance')}
-                icon={<AlertTriangle className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-red" />}
-                label="REPORT"
-              />
-            </>
-          )}
-
-          {role === 'super_cell' && (
-            <>
-              <NavButton
-                active={activeTab === 'dashboard'}
-                onClick={() => setActiveTab('dashboard')}
-                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label="OPS"
-              />
-              <NavButton
-                active={activeTab === 'rewards'}
-                onClick={() => setActiveTab('rewards')}
-                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-accent-blue" />}
-                label="HONOURS"
-              />
-            </>
-          )}
-
-          {role === 'admin' && (
-            <>
-              <NavButton
-                active={activeTab === 'dashboard'}
-                onClick={() => setActiveTab('dashboard')}
-                icon={<LayoutDashboard className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('dashboard')}
-              />
-              <NavButton
-                active={activeTab === 'verify'}
-                onClick={() => setActiveTab('verify')}
-                icon={<UserCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('verify') || 'VERIFY'}
-              />
-              <NavButton
-                active={activeTab === 'rewards'}
-                onClick={() => setActiveTab('rewards')}
-                icon={<Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
-                label={t('audit_rewards') || 'Rewards'}
-              />
-            </>
-          )}
-        </div>
-      </nav>
+      <AnimatePresence>
+        {showProtectorOnboarding && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowProtectorOnboarding(false)} className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-md" />
+            <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-lg bg-[#F8FAFC] rounded-[32px] shadow-2xl overflow-hidden border border-[#E2E8F0]">
+              <div className="h-2 bg-[#2563EB]" />
+              <div className="p-6 sm:p-10">
+                <div className="flex items-start gap-4 sm:gap-6 mb-6 sm:mb-8">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-white border border-[#E2E8F0] flex items-center justify-center text-[#2563EB] shadow-sm shrink-0"><Shield size={32} strokeWidth={1.5} /></div>
+                  <div className="pt-1">
+                    <h2 className="text-2xl font-bold text-[#1E293B] leading-tight mb-1">Community Protector Network</h2>
+                    <p className="text-[11px] font-semibold text-[#64748B] uppercase tracking-[2px]">National Support & Assistance Program</p>
+                  </div>
+                </div>
+                <div className="space-y-8">
+                  <div className="space-y-5">
+                    <h3 className="text-[12px] font-bold uppercase tracking-widest text-[#94A3B8] border-b border-[#E2E8F0] pb-2">Protector Responsibilities</h3>
+                    <div className="space-y-5">
+                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><Zap size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Respond to nearby emergency safety alerts when you are available to assist.</p></div>
+                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><MapPin size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Assist users by sharing verified location-based support during distress situations.</p></div>
+                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><Users size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Coordinate with the Kavach safety ecosystem to improve community response times.</p></div>
+                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><ShieldCheck size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Maintain respectful and responsible conduct as a verified community volunteer.</p></div>
+                    </div>
+                  </div>
+                  <div className="p-5 bg-[#F1F5F9] border border-[#E2E8F0] rounded-[20px]">
+                    <div className="flex gap-3 items-center mb-2"><Lock size={12} className="text-[#64748B]" /><span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Privacy & Accountability</span></div>
+                    <p className="text-[11px] text-[#64748B] leading-relaxed font-medium">To ensure public trust, your activity may be securely logged for safety verification and accountability purposes.</p>
+                  </div>
+                  <div className="flex items-center justify-center py-2"><p className="text-[13px] font-semibold text-[#1E293B] italic opacity-60">"Together, we create a safer community."</p></div>
+                  <div className="flex gap-4 pt-2">
+                    <button onClick={() => setShowProtectorOnboarding(false)} className="flex-1 py-4.5 bg-white border border-[#E2E8F0] text-[#64748B] rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-[#F1F5F9] transition-all">Cancel</button>
+                    <button onClick={confirmProtectorEnrollment} className="flex-[2] py-4.5 bg-[#2563EB] text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-[#2563EB]/10 hover:bg-[#1D4ED8] active:scale-[0.98] transition-all">Become a Protector</button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function NavButton({ active, onClick, icon, label, isSOS }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, isSOS?: boolean }) {
+function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center flex-1 h-12 sm:h-14 transition-all duration-300 relative",
-        active ? "text-white" : "text-text-dim",
-        isSOS && "text-accent-red"
-      )}
-    >
-      <div className={cn(
-        "p-1.5 sm:p-2 rounded-xl transition-all duration-300",
-        active && !isSOS && "bg-accent-blue/10 scale-105 sm:scale-110",
-        active && isSOS && "bg-accent-red/10 scale-115 sm:scale-125"
-      )}>
-        {icon}
-      </div>
-      <span className={cn(
-        "text-[7px] sm:text-[8px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] mt-0.5 sm:mt-1 transition-all duration-500",
-        active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
-      )}>{label}</span>
-
-      {active && (
-        <motion.div
-          layoutId="activeTab"
-          className="absolute bottom-0 sm:-bottom-1 w-1 h-1 bg-current rounded-full"
-        />
-      )}
+    <button onClick={onClick} className={cn("flex flex-col items-center justify-center flex-1 h-16 transition-all relative group", active ? "text-[#2563EB]" : "text-[#64748B]")}>
+      <div className={cn("p-2.5 rounded-[18px] transition-all duration-500", active && "bg-[#2563EB]/10 scale-110 shadow-sm")}>{icon}</div>
+      <span className={cn("text-[6px] sm:text-[7px] font-black uppercase tracking-[1px] sm:tracking-[1.5px] mt-1 transition-all", active ? "opacity-100 translate-y-0" : "opacity-40 translate-y-1")}>{label}</span>
+      {active && <motion.div layoutId="activeTabDot" className="absolute -bottom-1 w-1 h-1 bg-[#2563EB] rounded-full shadow-[0_0_10px_rgba(37,99,235,0.8)]" />}
     </button>
   );
 }

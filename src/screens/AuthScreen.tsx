@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, ChevronLeft, Globe, Mail } from 'lucide-react';
+import { Shield, ChevronLeft, Globe, Mail, ShieldCheck, Lock } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth, db } from '../firebase';
 import { 
@@ -30,7 +30,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
   
-  // ── Operative States ──
+  // ── Form States ──
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState(''); 
@@ -48,15 +48,15 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
         const q = query(collection(db, "users"), where("phone", "==", fullPhone));
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
-          toast.error("This number is already registered with another operative.");
+          toast.error("This number is already registered with another user.");
           setLoading(false);
           return;
         }
 
-        // 2. Core Identity Deployment (MUST be first)
+        // 2. User Account Creation
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         
-        // ⚡ TACTICAL PARALLEL DISPATCH: Start all metadata tasks at once
+        // Sync metadata tasks in background
         Promise.all([
           updateProfile(userCred.user, { displayName: username }),
           sendEmailVerification(userCred.user),
@@ -69,16 +69,14 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
             createdAt: new Date().toISOString(), 
             isRegistered: false
           })
-        ]).catch(err => console.error("Background Sync Issue:", err));
+        ]).catch(err => console.error("Identity Sync Issue:", err));
 
-        // 🚀 INSTANT UI TRANSITION: Don't wait for metadata to finish
-        toast.info("Security link dispatched to Gmail.");
+        toast.info("Verification link sent to your email.");
         setNeedsVerification(true);
         setLoading(false); 
         await auth.signOut(); 
-        return; // Early exit to prevent finally block from overriding logic
+        return;
       } else {
-        // 🔒 DUAL-CHANNEL LOGIN: Support for Email or Phone Number
         let loginEmail = email;
         const isPhone = /^[0-9]{10}$/.test(email);
 
@@ -88,7 +86,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
           const snapshot = await getDocs(q);
           
           if (snapshot.empty) {
-            toast.error("Shield down. This phone number isn't registered.");
+            toast.error("Account not found. This phone number isn't registered.");
             setLoading(false);
             return;
           }
@@ -97,13 +95,14 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
 
         const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
         if (!userCred.user.emailVerified) {
-          toast.warning("Access Denied: Email not approved.");
+          toast.warning("Verification Required: Email not verified.");
           setNeedsVerification(true);
           await auth.signOut();
           setLoading(false);
           return;
         }
-        toast.success("Access authorized.");
+        sessionStorage.setItem('kavach_just_logged_in', 'true');
+        toast.success("Login successful.");
       }
     } catch (error: any) {
       toast.error(error.message || "Auth Error");
@@ -115,7 +114,8 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      await handleLogin(); // Use the native login handler passed from App.tsx
+      await handleLogin();
+      sessionStorage.setItem('kavach_just_logged_in', 'true');
     } catch (error: any) {
       toast.error(error.message || "Google Auth Error");
     } finally {
@@ -124,78 +124,91 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex flex-col font-sans overflow-hidden text-white selection:bg-accent-red/30 relative">
-      {/* 🌐 Language Toggle */}
+    <div className="min-h-screen bg-white flex flex-col font-sans overflow-hidden text-gray-900 selection:bg-[#2563EB]/10 relative">
+      {/* 🌐 Language Selection Gateway */}
       <div className="absolute top-6 right-6 z-50">
         <button 
           onClick={onResetLanguage}
-          className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-white hover:bg-accent-blue/20 hover:border-accent-blue/30 transition-all active:scale-95 shadow-xl group"
+          className="w-12 h-12 bg-white border border-[#E5E7EB] rounded-2xl flex items-center justify-center text-gray-700 hover:border-[#2563EB] transition-all active:scale-90 shadow-sm group"
           title="Change Language"
         >
-          <Globe size={20} className="group-hover:rotate-12 transition-transform" />
-          <div className="absolute -inset-1 bg-accent-blue/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+          <Globe size={22} className="text-gray-400 group-hover:text-[#2563EB] transition-colors" />
         </button>
       </div>
+
       <AnimatePresence mode="wait">
         <motion.div 
           key="auth-container" 
-          initial={{ opacity: 0, y: 10 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          exit={{ opacity: 0 }} 
-          className="flex-1 flex flex-col pt-12 pb-6 px-6 relative z-10 overflow-y-auto custom-scrollbar lg:px-8"
+          initial={{ opacity: 0, scale: 0.98 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          exit={{ opacity: 0, scale: 1.02 }} 
+          className="flex-1 flex flex-col pt-16 pb-8 px-6 relative z-10 overflow-y-auto custom-scrollbar lg:px-12"
         >
-          <div className="max-w-[360px] w-full mx-auto flex flex-col h-full justify-center space-y-6">
+          <div className="max-w-[420px] w-full mx-auto flex flex-col h-full justify-center space-y-10">
             
-            <div className="space-y-3 text-center">
-              <div className="w-12 h-12 bg-accent-red rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg mx-auto italic">K</div>
+            <div className="space-y-5 text-center">
+              <div className="w-16 h-16 bg-white border border-[#E5E7EB] rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
+                <Shield size={32} className="text-[#2563EB]" />
+              </div>
               <div className="space-y-1">
-                <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">KAVACH</h1>
-                <div className="flex items-center justify-center gap-2">
-                   <div className="h-[1px] w-8 bg-accent-red/30" />
-                   <p className="text-[8px] text-gray-500 font-black tracking-[4px] uppercase italic">{t('mha_grid')}</p>
-                   <div className="h-[1px] w-8 bg-accent-red/30" />
-                </div>
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">KAVACH</h1>
+                <p className="text-[11px] text-[#2563EB] font-bold tracking-[4px] uppercase">Official Safety Portal</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Authorized Safety Network Access</p>
               </div>
             </div>
 
-            {mode !== 'forgot' && (
-              <div className="flex bg-white/[0.04] rounded-xl p-1 border border-white/5">
-                <button onClick={() => setMode('login')} className={cn("flex-1 py-2.5 text-[9px] font-black uppercase tracking-[3px] transition-all rounded-lg", mode === 'login' ? "bg-white text-black shadow-xl" : "text-gray-500 hover:text-white")}>{t('login')}</button>
-                <button onClick={() => setMode('signup')} className={cn("flex-1 py-2.5 text-[9px] font-black uppercase tracking-[3px] transition-all rounded-lg", mode === 'signup' ? "bg-white text-black shadow-xl" : "text-gray-500 hover:text-white")}>{t('signup')}</button>
-              </div>
-            )}
+            <div className="bg-gray-50/50 p-2 rounded-[24px] border border-[#E5E7EB] shadow-inner flex gap-2">
+              <button 
+                onClick={() => setMode('login')} 
+                className={cn(
+                  "flex-1 py-3.5 text-xs font-bold transition-all rounded-2xl uppercase tracking-widest", 
+                  mode === 'login' ? "bg-white text-[#2563EB] shadow-md border border-[#E5E7EB]" : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                {t('login')}
+              </button>
+              <button 
+                onClick={() => setMode('signup')} 
+                className={cn(
+                  "flex-1 py-3.5 text-xs font-bold transition-all rounded-2xl uppercase tracking-widest", 
+                  mode === 'signup' ? "bg-white text-[#2563EB] shadow-md border border-[#E5E7EB]" : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                {t('signup')}
+              </button>
+            </div>
 
-            <div className="pt-1">
+            <div className="bg-white rounded-[40px] border border-[#E5E7EB] p-10 shadow-2xl shadow-gray-100">
               <AnimatePresence mode="wait">
                 {needsVerification ? (
                   <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="p-8 bg-accent-blue/10 border-2 border-accent-blue/20 rounded-3xl text-center space-y-6"
+                    className="space-y-8 text-center"
                   >
-                    <div className="w-20 h-20 bg-accent-blue/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(0,112,243,0.3)]">
-                      <Mail className="text-accent-blue" size={40} />
+                    <div className="w-20 h-20 bg-[#2563EB]/5 rounded-[24px] flex items-center justify-center mx-auto border border-[#2563EB]/10">
+                      <Mail className="text-[#2563EB]" size={36} />
                     </div>
-                    <div className="space-y-2">
-                       <h2 className="text-xl font-black italic uppercase tracking-tighter">
-                         {t('approve_gmail' as any) || "Approve Gmail Link"}
+                    <div className="space-y-3">
+                       <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+                         Identity Verification
                        </h2>
-                       <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[3px] leading-relaxed">
-                         {t('verification_sent' as any) || "Bhai, humne security link bheja hai. Gmail open karke Confirm kijiye taaki KAVACH Grid activate ho sake."}
+                       <p className="text-sm text-gray-500 font-semibold leading-relaxed">
+                         A secure activation link has been transmitted to your registered email. Please verify to initialize protection.
                        </p>
                     </div>
-                    <div className="pt-4 space-y-4">
+                    <div className="pt-2 space-y-4">
                       <button 
                         onClick={() => window.open('https://mail.google.com', '_blank')}
-                        className="w-full py-4 bg-accent-blue text-white rounded-2xl font-black uppercase tracking-widest text-[10px]"
+                        className="w-full py-4.5 bg-[#2563EB] text-white rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl shadow-[#2563EB]/25 active:scale-95 transition-all"
                       >
-                        {t('open_gmail' as any) || "Open Gmail App"}
+                        Launch Mail Gateway
                       </button>
                       <button 
                          onClick={() => setNeedsVerification(false)}
-                         className="text-[9px] font-black text-gray-500 uppercase tracking-widest hover:text-white transition-colors"
+                         className="text-[10px] font-bold text-gray-400 hover:text-[#2563EB] transition-colors uppercase tracking-widest"
                       >
-                        {t('return_login' as any) || "Return to Login"}
+                        Return to Authentication
                       </button>
                     </div>
                   </motion.div>
@@ -231,8 +244,36 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
               </AnimatePresence>
             </div>
             
-            <footer className="pt-4 text-center opacity-20">
-              <p className="text-[7px] font-black text-gray-500 uppercase tracking-[5px] italic leading-relaxed">SECURE KAVACH NODE // v3.5.1</p>
+            <footer className="pt-6 space-y-8">
+              <div className="flex items-center justify-between gap-4 px-2">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                    <ShieldCheck size={20} className="text-[#2563EB]" />
+                  </div>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400">UIDAI Verified</span>
+                </div>
+                <div className="w-px h-10 bg-gray-100" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                    <Lock size={20} className="text-[#10B981]" />
+                  </div>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400">ISO Secure</span>
+                </div>
+                <div className="w-px h-10 bg-gray-100" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                    <Globe size={20} className="text-amber-500" />
+                  </div>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400">Pan-India Grid</span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col items-center gap-2 opacity-40">
+                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-[4px]">
+                  Kavach Safety Grid v3.5.1
+                </p>
+                <p className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">Official Government Compliance Protocol</p>
+              </div>
             </footer>
           </div>
         </motion.div>

@@ -2,15 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Shield, Phone, Mic, Radio, Heart } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useKavachStore } from '../store/useKavachStore';
-import { registerPlugin, Capacitor } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { executeEmergencyBlast } from '../services/sosService';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
+import { KavachSafe } from '../App';
 
 export default function SOSButton() {
   const { 
-    user, isSOSActive, setSOSActive,
+    user, profile, isSOSActive, setSOSActive,
     isFakeCallActive, setFakeCallActive,
     isVoiceTriggerActive, setVoiceTriggerActive,
     logIncidentToBlackBox
@@ -23,26 +22,23 @@ export default function SOSButton() {
   const recognitionRef = useRef<any>(null);
   const helpCountRef = useRef(0);
 
-  // ── Tactical Shake Sentinel ───────────
+  // ── Shake Detection Sentinel ───────────
   const [shakeProgress, setShakeProgress] = useState(0);
   const shakeCountRef = useRef(0);
   const lastShakeTimeRef = useRef(0);
 
   useEffect(() => {
-    let accelThreshold = 18; // Tactical threshold for intentional shake
+    let accelThreshold = 18;
     const handleMotion = (event: DeviceMotionEvent) => {
       const acc = event.accelerationIncludingGravity;
       if (!acc) return;
-      
       const totalAccel = Math.sqrt((acc.x || 0)**2 + (acc.y || 0)**2 + (acc.z || 0)**2);
-      
       if (totalAccel > accelThreshold) {
         const now = Date.now();
         if (now - lastShakeTimeRef.current > 500) { 
           shakeCountRef.current += 1;
           lastShakeTimeRef.current = now;
           setShakeProgress(Math.min((shakeCountRef.current / 3) * 100, 100));
-          
           if (shakeCountRef.current >= 3) {
             goLive('shake');
             shakeCountRef.current = 0;
@@ -56,18 +52,12 @@ export default function SOSButton() {
       if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
         try {
           const permission = await (DeviceMotionEvent as any).requestPermission();
-          if (permission === 'granted') {
-             window.addEventListener('devicemotion', handleMotion);
-          }
+          if (permission === 'granted') window.addEventListener('devicemotion', handleMotion);
         } catch (e) { console.error("Motion Permission Denied"); }
-      } else {
-        window.addEventListener('devicemotion', handleMotion);
-      }
+      } else window.addEventListener('devicemotion', handleMotion);
     };
-
     requestPermission();
 
-    // Reset progress after 2s of stillness
     const timer = setInterval(() => {
       if (Date.now() - lastShakeTimeRef.current > 2000 && shakeCountRef.current > 0) {
         shakeCountRef.current = 0;
@@ -83,26 +73,54 @@ export default function SOSButton() {
 
   // 🛡️ EMERGENCY PROTOCOLS
   const goLive = async (source: 'button' | 'shake' | 'voice' | 'ride' | 'silent' = 'button') => {
-    console.log(`KAVACH: Executing Mission Blast via ${source}...`);
     try {
-      const { userPos } = useKavachStore.getState();
-      
-      // 🛡️ FORENSIC BLACK-BOX: Log locally before sync attempting
+      const { userPos, batteryLevel } = useKavachStore.getState();
+      const isOnline = navigator.onLine;
+
+      // 1. BLACKBOX LOGGING (LOCAL FIRST)
       logIncidentToBlackBox({
         source,
         lat: userPos[0],
         lng: userPos[1],
         uid: user?.uid,
-        status: 'pending_sync'
+        status: isOnline ? 'syncing' : 'offline_pending'
       });
 
-      const results = await executeEmergencyBlast(user, userPos, { type: source });
-      const alertId = (results[0] as any)?.status === 'fulfilled' ? (results[0] as any).value.id : null;
-      
-      setSOSActive(true, alertId, source);
-      if (Capacitor.isNativePlatform()) KavachNative.triggerHapticPulse().catch(() => {});
+      // 2. OFFLINE FALLBACK: SMS BROADCAST
+      if (!isOnline || Capacitor.isNativePlatform()) {
+        const googleMapsLink = `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}`;
+        const timestamp = new Date().toLocaleTimeString();
+        const smsMessage = `🚨 EMERGENCY SOS (KAVACH) 🚨\n\nI need help immediately!\n\nLocation: ${googleMapsLink}\nBattery: ${batteryLevel}%\nTime: ${timestamp}\n\nSent automatically via Kavach Safety System.`;
+        
+        if (Capacitor.isNativePlatform()) {
+          // Trigger Native SMS Bridge (Silent background send if permissions allow)
+          KavachSafe.broadcastEmergencySMS({
+            message: smsMessage,
+            location: { lat: userPos[0], lng: userPos[1] }
+          });
+        } else {
+          console.log("Web Environment: SMS Protocol Simulation Active.");
+        }
+      }
+
+      // 3. ONLINE SYNC (If internet available)
+      if (isOnline) {
+        const alertId = `alert_${user?.uid || 'GUEST'}_${Date.now()}`;
+        // Set store active immediately with the ID
+        await setSOSActive(true, alertId, source);
+        // Dispatch the blast with the same ID to update the document and send SMS/Calls
+        await executeEmergencyBlast(profile || user, userPos, { type: source, alertId });
+      } else {
+        setSOSActive(true, null, source);
+        toast.error("OFFLINE MODE: SMS Broadcast Dispatched to Guardians.", {
+          icon: '📡',
+          duration: 4000
+        });
+      }
+
+      if (Capacitor.isNativePlatform()) KavachSafe.triggerHapticPulse();
     } catch (e) {
-      console.error("Critical Failure in Mission Blast:", e);
+      console.error("Critical Failure in SOS Broadcast:", e);
       setSOSActive(true, null, source);
     }
   };
@@ -124,8 +142,7 @@ export default function SOSButton() {
 
   // ── Voice Sentinel ──────────
   const startRecognition = () => {
-    if (isSOSActive) return; // 🛑 MIC ARBITRATION: Stop listening if SOS recording is active
-    
+    if (isSOSActive) return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition && !recognitionRef.current) {
       try {
@@ -169,45 +186,83 @@ export default function SOSButton() {
   }, [isVoiceTriggerActive, isSOSActive]);
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-12 py-8">
-      <div className="relative">
-        <button
-          onMouseDown={handleManualTrigger}
-          onMouseUp={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
-          onTouchStart={handleManualTrigger}
-          onTouchEnd={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
-          className="relative w-72 h-72 rounded-full flex flex-col items-center justify-center z-10 select-none bg-[#0a0a0a] border-4 border-red-600/30 shadow-[0_0_100px_rgba(220,38,38,0.2)]"
-        >
-          <div className="absolute inset-[-10px] rounded-full border border-red-600/10 animate-[spin_10s_linear_infinite]" />
-          <p className="text-red-600 font-black text-6xl italic">{countdown < 3 ? countdown : ""}</p>
-          <div className={cn("text-center transition-all duration-300", countdown < 3 ? "opacity-0 scale-50" : "opacity-100 scale-100")}>
-            <Shield size={64} className="text-red-600 mx-auto mb-4" />
-            <p className="text-red-600 font-black text-3xl italic tracking-tighter uppercase leading-none">SHIELD<br/>NEURAL</p>
+    <div className="flex flex-col items-center justify-center space-y-12 py-4">
+        <div className="relative group">
+          {/* 🌊 DYNAMIC RADAR WAVES (PULSING BACKGROUND) */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute w-44 h-44 rounded-full bg-[#DC2626]/20 animate-ping" />
+            <div className="absolute w-56 h-56 rounded-full bg-[#DC2626]/10 animate-ping [animation-delay:1s]" />
+            <div className="absolute w-64 h-64 rounded-full bg-[#DC2626]/5 animate-ping [animation-delay:2s]" />
           </div>
+
+          <button
+            onMouseDown={handleManualTrigger}
+            onMouseUp={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
+            onTouchStart={handleManualTrigger}
+            onTouchEnd={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
+            className="relative w-40 h-40 rounded-full flex flex-col items-center justify-center z-10 select-none bg-[#DC2626] shadow-[0_10px_40px_rgba(220,38,38,0.3)] active:scale-95 transition-all duration-300 overflow-hidden border-none"
+          >
+            <div className="relative z-10 flex flex-col items-center">
+              <p className="text-white font-black text-6xl tracking-tighter leading-none">
+                {countdown < 3 ? countdown : "SOS"}
+              </p>
+            </div>
+
+          {/* 🔘 SUBTLE DEPTH */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 rounded-full shadow-[inset_0_2px_10px_rgba(0,0,0,0.1)] pointer-events-none" />
           
-          {/* Shake Progress Bar */}
+          {/* Shake Progress Sentinel */}
           {shakeProgress > 0 && (
-            <div className="absolute -bottom-16 w-48 h-2 bg-white/5 rounded-full overflow-hidden border border-white/10">
-              <div className="h-full bg-red-600 transition-all duration-300" style={{ width: `${shakeProgress}%` }} />
+            <div className="absolute -bottom-4 w-40 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+              <div className="h-full bg-[#DC2626] transition-all duration-300" style={{ width: `${shakeProgress}%` }} />
             </div>
           )}
         </button>
       </div>
 
+      {/* Stealth Utilities */}
       <div className="flex flex-col items-center gap-6 z-10 w-full max-w-sm px-6">
-        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[3px]">Hold 3s or Shake 3 Times</p>
-        <div className="grid grid-cols-2 gap-4 w-full">
-          <button onClick={() => setFakeCallActive(true)} className="px-4 py-5 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-all">
-            <Phone size={20} className="text-accent-blue" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/70">FAKE CALL</span>
+        <div className="flex items-center gap-3">
+           <div className="w-1.5 h-1.5 bg-[#DC2626] rounded-full animate-pulse" />
+           <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[2px]">Hold 3s or Shake to Blast</p>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
+          <button 
+            onClick={() => setFakeCallActive(true)} 
+            className="py-2.5 px-3 bg-white/5 border border-white/10 rounded-[20px] flex items-center gap-3 hover:bg-white/10 active:scale-95 transition-all shadow-sm group"
+          >
+            <div className="w-8 h-8 bg-[#2563EB]/20 rounded-lg flex items-center justify-center text-[#2563EB] group-hover:bg-[#2563EB] group-hover:text-white transition-all">
+              <Phone size={14} />
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Fake Call</span>
           </button>
+          
           <button 
             onClick={() => setVoiceTriggerActive(!isVoiceTriggerActive)}
-            className={cn("px-4 py-5 border rounded-2xl flex flex-col items-center gap-2 relative overflow-hidden active:scale-95 transition-all", isVoiceTriggerActive ? "bg-blue-600/10 border-blue-500 text-white" : "bg-white/[0.03] border-white/10 text-gray-500")}
+            className={cn(
+              "py-2.5 px-3 border rounded-[20px] flex items-center gap-3 relative overflow-hidden active:scale-95 transition-all shadow-sm group",
+              isVoiceTriggerActive 
+                ? "bg-[#2563EB]/10 border-[#2563EB] shadow-[0_0_15px_rgba(37,99,235,0.1)]" 
+                : "bg-white/5 border-white/10 hover:bg-white/10"
+            )}
           >
-            <Mic size={20} className={cn(isVoiceTriggerActive && "animate-pulse text-blue-400")} />
-            <span className="text-[10px] font-black uppercase tracking-widest">{isVoiceTriggerActive ? "SENTINEL ON" : "VOICE GUARD"}</span>
-            {voiceProgress > 0 && <div className="absolute bottom-0 left-0 right-0 bg-blue-500/20" style={{ height: `${voiceProgress}%`, transition: 'height 0.3s ease' }} />}
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+              isVoiceTriggerActive ? "bg-[#2563EB] text-white" : "bg-white/5 text-white/20"
+            )}>
+              <Mic size={14} className={cn(isVoiceTriggerActive && "animate-pulse")} />
+            </div>
+            <span className={cn(
+              "text-[9px] font-black uppercase tracking-widest",
+              isVoiceTriggerActive ? "text-[#2563EB]" : "text-white/50"
+            )}>
+              {isVoiceTriggerActive ? "On" : "Voice"}
+            </span>
+            {voiceProgress > 0 && (
+              <div className="absolute bottom-0 left-0 right-0 bg-[#2563EB]/10" style={{ height: `${voiceProgress}%`, transition: 'height 0.3s ease' }} />
+            )}
           </button>
         </div>
       </div>

@@ -15,41 +15,41 @@ export default function RoleStep({ role, setRole, gender }: RoleStepProps) {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
+      initial={{ opacity: 0, y: 10 }} 
       animate={{ opacity: 1, y: 0 }} 
-      className="flex-1 flex flex-col space-y-10 py-6"
+      className="flex-1 flex flex-col space-y-4"
     >
-       <div className="relative text-center space-y-4">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-accent-red/5 rounded-full blur-3xl animate-pulse" />
+       <div className="text-center space-y-2 pt-1">
+          <div className="w-12 h-12 bg-white border border-border rounded-[18px] flex items-center justify-center shadow-md mx-auto">
+             <Shield className="text-[#2563EB]" size={24} />
+          </div>
           
-          <div className="space-y-2 relative z-10">
-            <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white leading-none">
-              {t('choose_role_title').split(' ')[0]} <span className="text-accent-red">{t('choose_role_title').split(' ')[1]}</span>
+          <div className="space-y-0.5">
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+              Choose your Role
             </h1>
-            <div className="flex items-center justify-center gap-2">
-              <div className="h-[2px] w-8 bg-gradient-to-r from-transparent to-accent-red/30" />
-              <p className="text-[10px] text-gray-500 font-black uppercase tracking-[5px]">{t('choose_role')}</p>
-              <div className="h-[2px] w-8 bg-gradient-to-l from-transparent to-accent-red/30" />
-            </div>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+              Identity Access Control
+            </p>
           </div>
        </div>
 
-       <div className="flex-1 space-y-5 px-2">
-          <div className="bg-[#050505] border border-white/5 rounded-[32px] p-6 space-y-4 shadow-inner">
-             <p className="text-[10px] text-center text-white font-black uppercase tracking-widest px-4 italic">
-                KAVACH network me aapka kya role hoga?
+       <div className="flex-1 space-y-4 px-1 overflow-y-auto pr-1">
+          <div className="space-y-3">
+             <p className="text-[11px] text-center text-gray-700 font-black px-4 uppercase tracking-wider">
+                What will be your role?
              </p>
 
-             <div className="space-y-4">
+             <div className="space-y-3">
                 {gender !== 'male' && (
                   <PremiumCard 
                     selected={role === 'citizen'} 
                     onClick={() => setRole('citizen')} 
                     icon={Shield} 
-                    title={t('women_safety')} 
-                    sub="SAFETY SHIELD" 
-                    desc="SOS, Live Tracking, aur Forensic Evidence jaise features use karne ke liye." 
-                    color="red"
+                    title="Citizen / Women Safety" 
+                    sub="PROTECTION SHIELD" 
+                    desc="Access SOS, Live Tracking, and Forensic Evidence features for personal safety." 
+                    color="blue"
                   />
                 )}
                 
@@ -57,12 +57,17 @@ export default function RoleStep({ role, setRole, gender }: RoleStepProps) {
                   selected={role === 'protector'} 
                   onClick={() => setRole('protector')} 
                   icon={UserCheck} 
-                  title={t('rakshak_network')} 
-                  sub="SUPPORT HERO" 
-                  desc="Mushkil me fase logo ki sahayta karne aur alert paane ke liye." 
-                  color="red"
+                  title="Protector / Rakshak" 
+                  sub="SAFETY VOLUNTEER" 
+                  desc="Join the network to help people in distress and receive emergency alerts." 
+                  color="blue"
                 />
              </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2.5 opacity-30 pt-2 pb-4">
+             <Shield size={10} className="text-gray-400" />
+             <span className="text-[8px] font-black uppercase tracking-[2px] text-gray-400">Kavach Safety Grid Secure Node</span>
           </div>
        </div>
     </motion.div>

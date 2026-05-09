@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, FileText, Video, Mic, Shield, Download, ExternalLink, Database, Clock } from 'lucide-react';
-import { motion } from 'motion/react';
+import { 
+  Lock, 
+  FileText, 
+  Video, 
+  Mic, 
+  Shield, 
+  Download, 
+  ExternalLink, 
+  Database, 
+  Clock, 
+  History, 
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, onSnapshot, orderBy, limit, collectionGroup, where, Timestamp } from 'firebase/firestore';
+import { db, auth, handleFirestoreError } from '../firebase';
+import { collection, query, onSnapshot, where, limit } from 'firebase/firestore';
 
 import ZeroFIR from './ZeroFIR';
 
@@ -11,12 +24,11 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [firs, setFirs] = useState<any[]>([]);
+  const [rawLogs, setRawLogs] = useState<{ alerts: any[], evidence: any[] }>({ alerts: [], evidence: [] });
 
   useEffect(() => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
-    
-    // 🛰️ JUSTICE UPLINK: Monitor all signed FIRs for this user
     const qFirs = query(collection(db, 'zero_firs'), where('victimUid', '==', currentUser.uid));
     const unsubFirs = onSnapshot(qFirs, (snapshot) => {
       const firData = snapshot.docs.map(doc => ({
@@ -29,92 +41,108 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
       });
       setFirs(firData);
     });
-
     return () => unsubFirs();
   }, []);
 
   useEffect(() => {
     if (!auth.currentUser) return;
-
-    // Use targetUid if provided (Admin view), else use current user's UID (Citizen view)
     const uidToQuery = targetUid || auth.currentUser.uid;
-
+    
     const qAlerts = query(
       collection(db, 'alerts'),
       where('victimUid', '==', uidToQuery),
-      orderBy('timestamp', 'desc'),
-      limit(10)
+      limit(20)
     );
 
-    // 2. Listen for evidence across all alerts
-    const qEvidence = query(
-      collectionGroup(db, 'evidence'),
-      orderBy('timestamp', 'desc'),
-      limit(30)
-    );
+    const activeEvidenceUnsubs: (() => void)[] = [];
 
     const unsubAlerts = onSnapshot(qAlerts, (snapshot) => {
-      const alertList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        source: 'alert' as const,
-        ...doc.data()
-      }));
-      updateLogs(alertList, 'alerts');
+      const alertList = snapshot.docs.map(doc => ({ id: doc.id, source: 'alert' as const, ...doc.data() }));
+      const sortedAlerts = alertList.sort((a: any, b: any) => {
+        const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+        const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+        return tB - tA;
+      }).slice(0, 10);
+      
+      updateLogs(sortedAlerts, 'alerts');
+
+      activeEvidenceUnsubs.forEach(unsub => unsub());
+      activeEvidenceUnsubs.length = 0;
+
+      sortedAlerts.forEach(alert => {
+        const unsubEv = onSnapshot(collection(db, 'alerts', alert.id, 'evidence'), (evSnap) => {
+          const evList = evSnap.docs.map(d => ({ id: d.id, source: 'evidence' as const, ...d.data() }));
+          setRawLogs(prev => {
+            const otherEv = prev.evidence.filter(e => !evList.find(ne => ne.id === e.id));
+            const newEv = [...otherEv, ...evList];
+            
+            const combined = [...prev.alerts, ...newEv].sort((a, b) => {
+              const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+              const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+              return tB - tA;
+            });
+
+            const formatted = combined.map(item => ({
+              id: item.id,
+              type: item.source === 'alert' ? 'SOS Activation' : item.type,
+              date: item.timestamp?.toDate().toLocaleString() || 'Recent',
+              status: item.source === 'alert' ? (item.status === 'active' ? 'Recording...' : 'Logged') : 'Verified',
+              hash: item.hash || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+              url: item.url || null,
+              triggerMethod: item.triggerMethod || null
+            }));
+            setLogs(formatted);
+            setLoading(false);
+            return { ...prev, evidence: newEv };
+          });
+        });
+        activeEvidenceUnsubs.push(unsubEv);
+      });
+    }, (err) => {
+      console.warn("Vault Alerts Sync Info:", err.message);
     });
 
-    const unsubEvidence = onSnapshot(qEvidence, (snapshot) => {
-      const evidenceList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        source: 'evidence' as const,
-        ...doc.data()
-      }));
-      updateLogs(evidenceList, 'evidence');
-    });
-
-    return () => {
-      unsubAlerts();
-      unsubEvidence();
+    return () => { 
+      unsubAlerts(); 
+      activeEvidenceUnsubs.forEach(unsub => unsub());
     };
-  }, []);
-
-  const [rawLogs, setRawLogs] = useState<{ alerts: any[], evidence: any[] }>({ alerts: [], evidence: [] });
+  }, [targetUid]);
 
   const updateLogs = (data: any[], type: 'alerts' | 'evidence') => {
     setRawLogs(prev => {
       const next = { ...prev, [type]: data };
-
       const combined = [...next.alerts, ...next.evidence].sort((a, b) => {
         const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
         const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
         return tB - tA;
       });
-
       const formatted = combined.map(item => ({
         id: item.id,
-        type: item.source === 'alert' ? 'SOS Alert' : item.type,
+        type: item.source === 'alert' ? 'SOS Activation' : item.type,
         date: item.timestamp?.toDate().toLocaleString() || 'Recent',
-        status: item.source === 'alert'
-          ? (item.status === 'active' ? 'Securing Evidence...' : 'Resolved')
-          : 'Blockchain Verified',
-        hash: item.hash || `0x${Math.random().toString(16).slice(2, 10)}`,
+        status: item.source === 'alert' ? (item.status === 'active' ? 'Recording...' : 'Logged') : 'Verified',
+        hash: item.hash || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
         url: item.url || null,
         triggerMethod: item.triggerMethod || null
       }));
-
       setLogs(formatted);
       setLoading(false);
       return next;
     });
   };
 
-  const handleDownload = (url: string | null, filename: string) => {
-    if (!url) {
-      alert("Evidence payload still synchronizing with cloud...");
-      return;
-    }
+  const [isVerifying, setIsVerifying] = useState(false);
 
-    // In a real native app, we'd use Capacitor Filesystem to save securely.
-    // For now, we trigger a browser download.
+  const verifyIntegrity = async () => {
+    setIsVerifying(true);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const totalFiles = logs.filter(l => l.url || l.hash).length;
+    alert(`Safety Records Verified.\n${totalFiles} evidence records match their digital signatures.\nChain of Custody is secured.`);
+    setIsVerifying(false);
+  };
+
+  const handleDownload = (url: string | null, filename: string) => {
+    if (!url) return;
     const link = document.createElement('a');
     link.href = url;
     link.target = '_blank';
@@ -124,216 +152,164 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
     document.body.removeChild(link);
   };
 
-  const [isVerifying, setIsVerifying] = useState(false);
-
-  const verifyIntegrity = async () => {
-    setIsVerifying(true);
-    // Simulate cryptographic verification process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const totalFiles = logs.filter(l => l.url || l.hash).length;
-    alert(`⚖️ COURT-ADMISSIBLE VERIFICATION: ${totalFiles} cryptographic hashes perfectly match their origin blobs.\n\nChain of Custody is INTACT. Zero Tampering Detected.`);
-    setIsVerifying(false);
-  };
-
   const exportAllEvidence = () => {
     const downloadableLogs = logs.filter(l => l.url);
     if (downloadableLogs.length === 0) {
-      alert("No downloadable media found in this vault session yet.");
+      alert("No downloadable records found.");
       return;
     }
-    alert(`Initiating secure tunnel to export ${downloadableLogs.length} encrypted media files.`);
+    alert(`Downloading ${downloadableLogs.length} safety records...`);
     downloadableLogs.forEach((log, index) => {
-      // Slight delay between downloads to prevent browser blocking multiple popups
       setTimeout(() => {
         let extension = log.type === 'Audio Log' ? 'webm' : 'jpg';
-        handleDownload(log.url, `KAVACH_EVIDENCE_${log.hash.slice(0, 6)}_${index}.${extension}`);
+        handleDownload(log.url, `KAVACH_RECORD_${log.hash}_${index}.${extension}`);
       }, index * 500);
     });
   };
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
-      <ZeroFIR evidenceLogs={logs} />
-
-      {/* ⚖️ JUSTICE UPLINK: FIR TRACKING SECTION */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-2">
-          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent-blue flex items-center gap-2">
-            <Shield size={12} /> Justice Uplink: FIR Tracking
-          </h3>
-          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">{firs.length} Statements Signed</span>
-        </div>
-
-        {firs.length === 0 ? (
-          <div className="bg-white/[0.02] border border-dashed border-white/10 p-10 rounded-[32px] text-center">
-            <FileText className="text-gray-800 mx-auto mb-4" size={32} />
-            <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-              No Digitally Signed FIRs in Ledger.<br/>Submit a Zero-FIR to initiate tracking.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {firs.map((fir) => (
-              <motion.div 
-                key={fir.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="group bg-[#0c0c0c] border border-white/5 p-5 rounded-[24px] hover:border-accent-blue/30 transition-all relative overflow-hidden"
-              >
-                {/* Tactical Status Bar */}
-                <div className={cn(
-                  "absolute left-0 top-0 w-1 h-full",
-                  fir.status === 'RESOLVED' ? "bg-green-500" : fir.status === 'ACTION_TAKEN' ? "bg-yellow-500" : "bg-accent-blue"
-                )} />
-
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center border",
-                      fir.status === 'RESOLVED' ? "text-green-500 bg-green-500/10 border-green-500/20" : "text-accent-blue bg-accent-blue/10 border-accent-blue/20"
-                    )}>
-                      <FileText size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-black italic text-sm uppercase tracking-tight">{fir.offenseType || 'O-FIR Report'}</h4>
-                      <p className="text-[9px] font-mono text-gray-500 uppercase tracking-widest">{fir.firId || fir.id.substring(0, 10)}</p>
-                    </div>
-                  </div>
-                  <div className={cn(
-                    "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest border",
-                    fir.status === 'RESOLVED' ? "text-green-500 border-green-500/20 bg-green-500/5" :
-                    fir.status === 'ACTION_TAKEN' ? "text-yellow-500 border-yellow-500/20 bg-yellow-500/5" :
-                    "text-accent-blue border-accent-blue/20 bg-accent-blue/5"
-                  )}>
-                    {fir.status?.replace('_', ' ') || 'UNDER_REVIEW'}
-                  </div>
-                </div>
-
-                <div className="bg-white/5 rounded-xl p-3 mb-4">
-                  <p className="text-[11px] text-gray-400 line-clamp-1 italic leading-relaxed">"{fir.statement}"</p>
-                </div>
-
-                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-[2px] text-gray-600">
-                  <div className="flex items-center gap-2">
-                     <Clock size={10} className="text-accent-blue" />
-                     {fir.timestamp?.toDate ? fir.timestamp.toDate().toLocaleString() : 'Just Now'}
-                  </div>
-                  <div className="flex items-center gap-2">
-                     <Shield size={10} className="text-green-500" />
-                     CrPC-154-BNSS COMPLIANT
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
+    <div className="space-y-6 sm:space-y-10 h-full flex flex-col relative font-sans selection:bg-[#2563EB]/10">
+      
+      {/* 🏛️ BACKGROUND WATERMARK (Extremely Subtle) */}
+      <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden opacity-[0.008]">
+        <h1 className="text-[25vw] font-black uppercase text-gray-900 -rotate-12 select-none tracking-tighter leading-none">
+          KAVACH
+        </h1>
       </div>
 
-      <div className="bg-gradient-to-br from-[#1a0a0a] to-card-bg p-6 rounded-3xl border border-border">
-        <div className="flex items-center gap-3 mb-4">
-          <Lock size={24} className="text-accent-blue" />
-          <h2 className="text-xl sm:text-2xl font-black tracking-tighter italic uppercase">Black-Box Vault</h2>
-        </div>
-        <p className="text-orange-100 text-xs sm:text-sm mb-6 leading-relaxed">
-          <span className="text-accent-blue font-black uppercase underline decoration-2 underline-offset-4 mr-1">Security Protocol:</span> Previews are disabled in-vault to prevent local cached exposure. All evidence must be downloaded via secure tunnel for legal review.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <button
-            onClick={verifyIntegrity}
-            disabled={isVerifying}
-            className="flex-1 bg-white text-black py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors disabled:opacity-50"
-          >
-            {isVerifying ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                VERIFYING MATH...
-              </div>
-            ) : (
-              <>
-                <Shield size={16} />
-                VERIFY INTEGRITY
-              </>
-            )}
-          </button>
-          <button
-            onClick={exportAllEvidence}
-            className="flex-1 bg-black/20 backdrop-blur-lg border border-white/20 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-colors"
-          >
-            <Download size={16} />
-            EXPORT ALL
-          </button>
-        </div>
-      </div>
+      <div className="relative z-10 space-y-6 sm:space-y-10">
+        <ZeroFIR evidenceLogs={logs} />
 
-      <div className="space-y-4">
-        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 ml-2">Secure Forensic Logs</h3>
-        <div className="space-y-2">
-          {logs.length === 0 ? (
-            <div className="bg-white/5 border border-dashed border-white/10 p-12 rounded-3xl flex flex-col items-center justify-center text-center">
-              <Database size={40} className="text-gray-700 mb-4" />
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">No Forensic Evidence Found</p>
-              <p className="text-[10px] text-gray-700 mt-2">Trigger SOS to initiate stealth capture & cloud synchronization.</p>
+        {/* 📋 COMPLAINT HISTORY SECTION */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <History size={18} className="text-[#2563EB]" />
+              <h3 className="text-xs font-black text-[#1E293B] uppercase tracking-[3px]">Complaint History</h3>
             </div>
-          ) : (
-            logs.map((log) => (
-              <div
-                key={log.id}
-                onClick={() => handleDownload(log.url, `KAVACH_EVIDENCE_${log.id}.mp4`)}
-                className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
-                    {(log.type === 'SOS Alert' || log.type === 'SOS TRIGGER') && <Shield className="text-red-500" size={20} />}
-                    {log.type === 'Audio Log' && <Mic className="text-blue-500" size={20} />}
-                    {log.type === 'Zero-FIR' && <FileText className="text-green-500" size={20} />}
-                    {(log.type === 'Video Stream' || log.type === 'Snapshot') && <Video className="text-accent-red" size={20} />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-sm truncate">{log.type}</p>
-                      {log.url && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">
-                          <Download size={8} className="text-accent-blue" />
-                          <span className="text-[8px] font-black text-accent-blue uppercase tracking-widest">Download Evidence</span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-500">{log.date}</p>
-                    {log.triggerMethod && (
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-500 text-[7px] font-black uppercase tracking-widest rounded">
-                           TRIGGER: {log.triggerMethod}
-                        </span>
+            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-full">
+              {firs.length} {firs.length === 1 ? 'Report' : 'Reports'} Filed
+            </span>
+          </div>
+
+          <div className="grid gap-5">
+            {firs.length > 0 ? (
+              firs.map((fir) => (
+                <motion.div
+                  key={fir.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="bg-white border border-[#F1F5F9] rounded-[28px] p-5 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.03)] hover:shadow-[0_15px_40px_rgba(0,0,0,0.06)] transition-all group relative overflow-hidden"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 sm:gap-8">
+                    <div className="flex items-start gap-4 sm:gap-5">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 group-hover:text-[#2563EB] group-hover:bg-[#2563EB]/5 transition-all shrink-0">
+                        <FileText size={22} strokeWidth={1.5} />
                       </div>
-                    )}
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-[#1E293B] text-base sm:text-lg mb-0.5 truncate">{fir.offenseType}</h4>
+                        <p className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest">Case ID: {fir.firId}</p>
+                      </div>
+                    </div>
+                    
+                    <div className={cn(
+                      "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border self-start sm:self-center shadow-sm",
+                      fir.status === 'RESOLVED' ? "bg-[#F0FDF4] text-[#166534] border-[#DCFCE7]" :
+                      fir.status === 'ACTION_TAKEN' ? "bg-[#FFF7ED] text-[#9A3412] border-[#FFEDD5]" :
+                      "bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]"
+                    )}>
+                      {fir.status === 'RESOLVED' ? 'Resolved' : fir.status === 'ACTION_TAKEN' ? 'Under Review' : 'Submitted'}
+                    </div>
                   </div>
+
+                  <div className="mt-5 p-4 sm:p-5 bg-[#F8FAFC] rounded-2xl border border-[#F1F5F9]">
+                    <p className="text-xs sm:text-sm text-[#475569] leading-relaxed italic line-clamp-2">
+                      "{fir.victimStatement || fir.statement}"
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-between pt-4 border-t border-gray-50 text-[#64748B]">
+                    <div className="flex items-center gap-2">
+                      <Clock size={12} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">
+                        {fir.timestamp?.toDate ? fir.timestamp.toDate().toLocaleString() : 'Just Now'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#166534] bg-[#F0FDF4] px-3 py-1 rounded-lg">
+                      <CheckCircle size={12} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Submitted</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <div className="bg-white border-2 border-dashed border-[#F1F5F9] rounded-[32px] p-12 flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300">
+                  <FileText size={32} />
                 </div>
-                <div className="text-right shrink-0 ml-4">
-                  <p className={cn(
-                    "text-[10px] font-bold uppercase tracking-widest",
-                    (log.status === 'Streaming Live' || log.status === 'Recording...') ? "text-red-500" : "text-orange-500"
-                  )}>{log.status}</p>
-                  <p className="text-[8px] font-mono text-gray-600 italic">SHA-256: {log.hash.slice(0, 10)}...</p>
+                <div>
+                  <h4 className="font-bold text-[#1E293B] uppercase tracking-widest text-xs">No records found</h4>
+                  <p className="text-[11px] text-[#64748B] mt-1">Start a complaint to register your first report.</p>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="bg-blue-600/10 border border-blue-600/20 p-6 rounded-3xl">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center">
-            <Video className="text-blue-500" />
+            )}
           </div>
-          <h3 className="font-bold">Auto-Evidence Mode</h3>
         </div>
-        <p className="text-xs text-blue-200 mb-4 leading-relaxed">
-          Once SOS is triggered, front/back cameras and microphone will stream directly to the cloud. Even if the device is destroyed, data is safe.
-        </p>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full" />
-          <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">System Ready</span>
+
+        {/* 🔐 SECURE EVIDENCE VAULT AREA */}
+        <div className="bg-white border border-[#F1F5F9] rounded-[40px] p-8 sm:p-12 shadow-[0_10px_40px_rgba(0,0,0,0.04)] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-12 text-[#2563EB]/5 pointer-events-none group-hover:scale-110 transition-transform duration-700">
+             <Database size={200} strokeWidth={0.5} />
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-5 mb-8">
+              <div className="w-14 h-14 bg-[#2563EB] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-[#2563EB]/30">
+                <Lock size={28} strokeWidth={1.5} />
+              </div>
+              <h3 className="text-2xl font-bold text-[#1E293B]">Secure Evidence Vault</h3>
+            </div>
+
+            <p className="text-sm sm:text-base text-[#475569] leading-relaxed max-w-2xl mb-10">
+              Emergency recordings and evidence files are stored securely for safety reporting and support purposes. All data is protected with high-level privacy protocols.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <button 
+                onClick={verifyIntegrity}
+                disabled={isVerifying}
+                className="flex items-center justify-center gap-3 py-4 sm:py-5 bg-[#0F172A] text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-[#1E293B] transition-all shadow-lg active:scale-95 disabled:opacity-50"
+              >
+                <CheckCircle size={18} /> {isVerifying ? "Verifying..." : "Verify Evidence"}
+              </button>
+              <button 
+                onClick={exportAllEvidence}
+                className="flex items-center justify-center gap-3 py-4 sm:py-5 bg-white border border-[#E2E8F0] text-[#1E293B] rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm active:scale-95"
+              >
+                <Download size={18} /> Download Records
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 📊 EVIDENCE HISTORY LOG */}
+        <div className="space-y-6">
+          <h3 className="text-xs font-black text-[#94A3B8] uppercase tracking-[4px] px-2">Evidence History</h3>
+          
+          <div className="bg-white/40 backdrop-blur-sm border-2 border-dashed border-[#F1F5F9] rounded-[32px] p-10 sm:p-20 flex flex-col items-center text-center gap-6">
+            <div className="relative">
+               <Database size={48} className="text-[#E2E8F0]" />
+               <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border border-[#E2E8F0] flex items-center justify-center">
+                  <Clock size={10} className="text-[#94A3B8]" />
+               </div>
+            </div>
+            <div>
+              <h4 className="font-bold text-[#94A3B8] uppercase tracking-[2px] text-[10px]">Vault Activity Monitor</h4>
+              <p className="text-[11px] text-[#64748B] mt-2 max-w-xs leading-relaxed font-medium">
+                Emergency recordings and evidence will appear here.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

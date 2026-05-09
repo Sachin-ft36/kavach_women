@@ -15,9 +15,15 @@ interface PremiumCardProps {
 
 export const PremiumCard = ({ selected, onClick, icon: Icon, title, sub, desc, color = "blue" }: PremiumCardProps) => {
     const accents: any = {
-        blue: "text-accent-blue bg-accent-blue/10 border-accent-blue",
-        red: "text-accent-red bg-accent-red/10 border-accent-red",
-        orange: "text-orange-500 bg-orange-500/10 border-orange-500"
+        blue: "border-[#2563EB] bg-[#2563EB]/5 shadow-lg shadow-[#2563EB]/10",
+        red: "border-[#DC2626] bg-[#DC2626]/5 shadow-lg shadow-[#DC2626]/10",
+        orange: "border-[#D97706] bg-[#D97706]/5 shadow-lg shadow-[#D97706]/10"
+    };
+
+    const iconColors: any = {
+        blue: "text-[#2563EB]",
+        red: "text-[#DC2626]",
+        orange: "text-[#D97706]"
     };
 
     return (
@@ -25,29 +31,31 @@ export const PremiumCard = ({ selected, onClick, icon: Icon, title, sub, desc, c
             whileTap={{ scale: 0.98 }}
             onClick={onClick}
             className={cn(
-                "w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden group backdrop-blur-xl",
-                selected ? accents[color] + " shadow-lg" : "bg-white/[0.05] border-white/10 shadow-inner"
+                "w-full text-left p-4 rounded-[22px] border-2 transition-all duration-300 relative overflow-hidden group",
+                selected ? accents[color] : "bg-white border-[#E5E7EB] hover:border-[#2563EB]/30"
             )}
         >
-            <div className="relative z-10 space-y-3">
+            <div className="relative z-10 flex items-start gap-4">
                 <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300",
-                    selected ? "bg-white shadow-md text-accent-blue" : "bg-white/10 text-white"
+                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border transition-all duration-300 shrink-0",
+                    selected ? "bg-white " + iconColors[color] + " border-white" : "bg-gray-50 text-gray-300 border-gray-100"
                 )}>
-                    <Icon size={18} />
+                    <Icon size={20} />
                 </div>
                 
-                <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                        <h3 className={cn("text-base font-black uppercase tracking-tighter italic", selected ? "text-inherit" : "text-white")}>{title}</h3>
-                        {selected && <CheckCircle2 size={14} className="text-inherit" />}
+                <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                        <h3 className={cn(
+                            "text-sm font-black leading-tight transition-colors",
+                            selected ? "text-gray-900" : "text-gray-700"
+                        )}>{title}</h3>
+                        {selected && <CheckCircle2 size={14} className={iconColors[color]} />}
                     </div>
-                    <p className="text-[7px] font-black uppercase tracking-widest text-white/50">{sub}</p>
+                    <p className="text-[8px] font-black uppercase tracking-[1px] text-gray-400">{sub}</p>
+                    <p className="text-[10px] font-bold text-gray-500 leading-tight">
+                        {desc}
+                    </p>
                 </div>
-
-                <p className="text-[9px] leading-relaxed font-bold uppercase tracking-wider text-white">
-                    {desc}
-                </p>
             </div>
         </motion.button>
     );

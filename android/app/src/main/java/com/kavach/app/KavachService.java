@@ -58,6 +58,11 @@ public class KavachService extends Service implements SensorEventListener {
     private long lastScreenToggleTime = 0;
     private static final long SCREEN_WINDOW_MS = 5000;
 
+    // ── Voice Detection (Native Sentinel) ─────────────
+    private android.speech.SpeechRecognizer speechRecognizer;
+    private android.content.Intent speechIntent;
+    private boolean isListening = false;
+
     // ── WakeLock ─────────────────────────────────────
     private PowerManager.WakeLock wakeLock;
     private MediaPlayer mediaPlayer;
@@ -75,6 +80,10 @@ public class KavachService extends Service implements SensorEventListener {
                     screenToggleCount++;
                 }
                 lastScreenToggleTime = now;
+                
+                // 🔐 RE-INIT SPEECH ON SCREEN TOGGLE: Ensures listener doesn't go stale
+                if (isListening) startVoiceSentinel();
+
                 // 5 rapid toggles = SOS
                 if (screenToggleCount >= 5) {
                     screenToggleCount = 0;
@@ -107,7 +116,10 @@ public class KavachService extends Service implements SensorEventListener {
             }
         }
 
-        // 3. Screen on/off receiver
+        // 3. Native Voice Sentinel initialization
+        initVoiceSentinel();
+
+        // 4. Screen on/off receiver
         android.content.IntentFilter filter = new android.content.IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -120,6 +132,56 @@ public class KavachService extends Service implements SensorEventListener {
         Log.i(TAG, "KAVACH TACTICAL SERVICE: Initialized. Monitoring active.");
     }
 
+    private void initVoiceSentinel() {
+        try {
+            if (speechRecognizer != null) return;
+            speechRecognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+            speechIntent = new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            speechIntent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            speechIntent.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            
+            speechRecognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override public void onReadyForSpeech(android.os.Bundle params) { isListening = true; }
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onError(int error) { 
+                    // Persistent Retry on Error
+                    if (isListening) startVoiceSentinel(); 
+                }
+                @Override public void onResults(android.os.Bundle results) { processSpeechResults(results); }
+                @Override public void onPartialResults(android.os.Bundle partialResults) { processSpeechResults(partialResults); }
+                @Override public void onEvent(int eventType, android.os.Bundle params) {}
+            });
+            startVoiceSentinel();
+        } catch (Exception e) { Log.e(TAG, "Voice Sentinel Init Failed: " + e.getMessage()); }
+    }
+
+    private void startVoiceSentinel() {
+        try {
+            if (isSOSMissionActive) return; // 🛡️ SOS ACTIVE: Do NOT touch the mic
+            if (speechRecognizer != null) speechRecognizer.startListening(speechIntent);
+        } catch (Exception e) { Log.e(TAG, "Voice Start Fail: " + e.getMessage()); }
+    }
+
+    private void processSpeechResults(android.os.Bundle results) {
+        if (isSOSMissionActive) return; // 🛡️ SOS ACTIVE: Ignore results
+        java.util.ArrayList<String> matches = results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches != null) {
+            for (String text : matches) {
+                String cmd = text.toLowerCase();
+                if (cmd.contains("help kavach") || cmd.contains("help help")) {
+                    Log.i(TAG, "VOICE COMMAND VERIFIED: SOS Triggered!");
+                    triggerSOS("voice");
+                    break;
+                }
+            }
+        }
+        // Auto-restart listening loop
+        startVoiceSentinel();
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
@@ -128,6 +190,8 @@ public class KavachService extends Service implements SensorEventListener {
             startSirenLogic();
         } else if (ACTION_STOP_SIREN.equals(action)) {
             stopSirenLogic();
+            isSOSMissionActive = false; // 🛡️ MISSION COMPLETE: Reset state for next trigger
+            initVoiceSentinel(); // Re-arm the listener
         }
 
         // Build persistent foreground notification
@@ -147,7 +211,7 @@ public class KavachService extends Service implements SensorEventListener {
                 .setContentTitle("KAVACH Protection")
                 .setContentText(mediaPlayer != null && mediaPlayer.isPlaying()
                         ? "🚨 CRITICAL OVERRIDE ACTIVE"
-                        : "Shielding Neural Grid — Status: VERIFIED")
+                        : "Shielding Neural Grid — Active: Monitoring Shake & Voice Triggers")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentIntent(pi)
                 .setFullScreenIntent(fullScreenPendingIntent, true) // ✨ MISSION CRITICAL
@@ -221,11 +285,29 @@ public class KavachService extends Service implements SensorEventListener {
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
     }
 
-    // ── SOS Trigger ───────────────────────────────────────────────────────
+    private boolean isSOSMissionActive = false;
+
+    // ── SOS Trigger (HARDENED HANDSHAKE) ──────────────────────────────────
     private void triggerSOS(final String source) {
+        if (isSOSMissionActive) return; // Prevent duplicate trigger blasts
+        isSOSMissionActive = true;
         Log.i(TAG, "KAVACH SOS: Triggered via " + source);
 
-        // 1. TACTICAL DECOUPLING: Run SMS dispatch in a dedicated background thread to prevent UI freezing/ANR
+        // 🛡️ MIC HANDSHAKE: Release native listener immediately
+        try {
+            if (speechRecognizer != null) {
+                isListening = false;
+                speechRecognizer.stopListening();
+                speechRecognizer.cancel();
+                speechRecognizer.destroy();
+                speechRecognizer = null;
+                Log.d(TAG, "MIC RELEASE: SpeechRecognizer destroyed for Forensic Capture.");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Mic Release Error: " + e.getMessage());
+        }
+
+        // 1. TACTICAL DECOUPLING: Run SMS dispatch in a dedicated background thread
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -246,8 +328,14 @@ public class KavachService extends Service implements SensorEventListener {
             Log.w(TAG, "Activity start suppressed: " + e.getMessage());
         }
 
-        // 3. Start Stealth Evidence Capture (Cold Start)
-        EvidenceEngine.startCapture(this, "alert_" + System.currentTimeMillis());
+        // 3. Start Stealth Evidence Capture (Delayed for 1s to ensure Clean Mic Release)
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Log.i(TAG, "FORENSIC NODE: Initiating High-Fidelity Capture...");
+                EvidenceEngine.startCapture(KavachService.this, "alert_" + System.currentTimeMillis());
+            }
+        }, 1000);
     }
 
     private void dispatchEmergencySMS() {

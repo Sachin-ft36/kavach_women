@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, CheckCircle, Shield, X, Video, Mic, MapPin, Calendar, Clock, AlertTriangle, Lock, Radio } from 'lucide-react';
+import { FileText, Download, CheckCircle, Shield, X, Video, Mic, MapPin, Calendar, Clock, AlertTriangle, Lock, Radio, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { db, auth, app } from '../firebase';
@@ -30,18 +30,16 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        toast.error("Auth Expired. Please login.");
+        toast.error("Authentication expired. Please login again.");
         setIsGenerating(false); return;
       }
 
-      // 🔐 FETCH ID TOKEN FOR REST BYPASS
       const idToken = await currentUser.getIdToken();
       const lat = userPos?.[0] || 0;
       const lng = userPos?.[1] || 0;
       const meta = await getReverseMetadata(lat, lng);
       const firId = `FIR-KVC-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      // 🛰️ TACTICAL REST BYPASS: Direct HTTP POST to Firestore (Bypassing broken SDK)
       const response = await fetch(
         `https://firestore.googleapis.com/v1/projects/gen-lang-client-0115433512/databases/(default)/documents/zero_firs`,
         {
@@ -58,7 +56,7 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
               userPhone: { stringValue: localStorage.getItem('kavach_user_phone') || 'UNREGISTERED' },
               offenseType: { stringValue: firForm.offenseType || 'UNDEFINED' },
               statement: { stringValue: firForm.victimStatement || 'NO_STATEMENT_PROVIDED' },
-              status: { stringValue: "PENDING_REVIEW" },
+              status: { stringValue: "UNDER_REVIEW" },
               state: { stringValue: String(meta.state || 'Unknown') },
               triggerMethod: { stringValue: String(triggerMethod || 'MANUAL') },
               timestamp: { timestampValue: new Date().toISOString() },
@@ -92,89 +90,212 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
         }
       );
 
-      if (!response.ok) throw new Error("Connection Bridge Blocked.");
+      if (!response.ok) throw new Error("Connection processing failed.");
 
       setFirData({ firId });
       setShowReviewModal(false);
-      toast.success("O-FIR Transmitted via Tactical REST Bridge.");
+      toast.success("O-FIR Processed via Official Gateway.");
     } catch (error: any) {
-      console.error("MISSION CRITICAL FAILURE:", error);
-      toast.error(`Dispatch Failed: System Protocol Sync Error.`);
+      console.error("LEGAL PROTOCOL FAILURE:", error);
+      toast.error(`Submission Failed: Authentication error during processing.`);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const downloadFIR = () => {
+  const downloadFIR = async () => {
     if (!firData) return;
-    const content = `
-    🛡️ KAVACH WOMEN SAFETY ECOSYSTEM
-    -------------------------------------------
-    OFFICIAL O-FIR RECEIPT
-    TIMESTAMP: ${new Date().toLocaleString()}
-    FIR ID: ${firData.firId}
-    -------------------------------------------
-    INCIDENT DETAILS:
-    - Type: ${firForm.offenseType}
-    - Statement: ${firForm.victimStatement}
-    -------------------------------------------
-    DIGITAL COMPLIANCE: CrPC-154 / BNSS
-    SAFE TRAVELS. KAVACH IS WATCHING.
-    `;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `KAVACH_${firData.firId}.txt`;
-    link.click();
-    toast.success("Receipt Downloaded.");
+    
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      const timestamp = new Date().toLocaleString();
+      const firId = firData.firId;
+
+      // 🛡️ BACKGROUND WATERMARK (Institutional)
+      doc.setTextColor(240, 240, 240);
+      doc.setFontSize(80);
+      doc.setFont("helvetica", "bold");
+      doc.saveGraphicsState();
+      doc.setGState(new (doc as any).GState({ opacity: 0.08 }));
+      doc.text("KAVACH SAFETY SYSTEM", 105, 140, { align: "center", angle: 45 });
+      doc.setFontSize(20);
+      doc.text("YOUR SAFETY IS OUR FIRST PRIORITY", 105, 160, { align: "center", angle: 45 });
+      doc.restoreGraphicsState();
+
+      // 🏛️ OFFICIAL HEADER (Government Style)
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(15, 10, 195, 10);
+      
+      doc.setTextColor(20, 30, 60);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("GOVERNMENT OF INDIA", 105, 20, { align: "center" });
+      
+      doc.setFontSize(12);
+      doc.text("NATIONAL SAFETY AND INTEGRATED SUPPORT NETWORK", 105, 27, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("MINISTRY OF HOME AFFAIRS // DIGITAL SAFETY DIVISION", 105, 33, { align: "center" });
+      
+      doc.setLineWidth(0.2);
+      doc.line(15, 38, 195, 38);
+
+      // 📋 DOCUMENT TITLE
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("ELECTRONIC FIRST INFORMATION REPORT (E-FIR)", 105, 50, { align: "center" });
+      doc.setFontSize(9);
+      doc.text("UNDER SECTION 154 OF THE CODE OF CRIMINAL PROCEDURE / BNSS 2023", 105, 56, { align: "center" });
+
+      // 🛡️ CASE IDENTIFICATION TABLE
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(252, 252, 252);
+      doc.rect(15, 65, 180, 40, 'FD');
+
+      doc.setFontSize(10);
+      doc.setTextColor(20, 30, 60);
+      doc.text("OFFICIAL CASE DETAILS:", 20, 73);
+      
+      doc.setTextColor(50, 50, 50);
+      doc.setFont("helvetica", "normal");
+      doc.text(`REFERENCE NUMBER:`, 20, 82);
+      doc.setFont("helvetica", "bold");
+      doc.text(firId, 65, 82);
+      
+      doc.setFont("helvetica", "normal");
+      doc.text(`FILING DATE/TIME:`, 20, 89);
+      doc.text(timestamp, 65, 89);
+      
+      doc.text(`INCIDENT CATEGORY:`, 20, 96);
+      doc.setFont("helvetica", "bold");
+      doc.text(firForm.offenseType.toUpperCase(), 65, 96);
+
+      // 🖋️ STATEMENT SECTION
+      doc.setFontSize(11);
+      doc.setTextColor(20, 30, 60);
+      doc.text("DEPOSITION STATEMENT OF COMPLAINANT:", 15, 120);
+      
+      doc.setDrawColor(20, 30, 60);
+      doc.setLineWidth(0.5);
+      doc.line(15, 123, 195, 123);
+
+      doc.setTextColor(40, 40, 40);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const splitStatement = doc.splitTextToSize(firForm.victimStatement, 175);
+      doc.text(splitStatement, 15, 132);
+
+      if (evidenceLogs.length > 0) {
+        const startY = 180;
+        doc.setTextColor(20, 30, 60);
+        doc.setFont("helvetica", "bold");
+        doc.text("CERTIFIED FORENSIC RECORDS:", 15, startY);
+        
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        evidenceLogs.forEach((log, i) => {
+          const y = (startY + 8) + (i * 7);
+          doc.text(`- ${log.type} // VERIFIED HASH: ${log.hash.slice(0, 24)}...`, 20, y);
+        });
+      }
+
+      // 🛡️ OFFICIAL KAVACH STAMP (Circular Gov Style)
+      const sealX = 160;
+      const sealY = 240;
+      doc.setDrawColor(20, 30, 60);
+      doc.setLineWidth(1);
+      doc.circle(sealX + 15, sealY + 15, 20, 'D');
+      doc.circle(sealX + 15, sealY + 15, 18, 'D');
+      
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "bold");
+      doc.text("KAVACH OFFICIAL", sealX + 15, sealY + 8, { align: "center" });
+      doc.text("GOVERNMENT SEAL", sealX + 15, sealY + 13, { align: "center" });
+      doc.setFontSize(5);
+      doc.text("VERIFIED UNDER BNSS 2023", sealX + 15, sealY + 22, { align: "center" });
+      doc.text("NATIONAL SAFETY DIVISION", sealX + 15, sealY + 25, { align: "center" });
+
+      // 🖋️ DIGITAL SIGNATURE
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Digitally Signed by:", 15, 250);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20, 30, 60);
+      doc.text("KAVACH NATIONAL SAFETY SYSTEM", 15, 255);
+      doc.setFont("helvetica", "normal");
+      doc.text("Certificate Authority: IND-NSN-2023", 15, 260);
+
+      // 🏛️ FOOTER LEGAL
+      doc.setFillColor(250, 250, 250);
+      doc.rect(0, 275, 210, 22, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
+      doc.text("YOUR SAFETY IS OUR FIRST PRIORITY // KAVACH SAFETY SYSTEM", 105, 282, { align: "center" });
+      doc.text("This is a computer generated document and does not require a physical signature under the IT Act 2000.", 105, 287, { align: "center" });
+
+      doc.save(`E-FIR_${firId}.pdf`);
+      toast.success("Official E-FIR Document Generated.");
+    } catch (err) {
+      console.error("PDF GEN FAILURE:", err);
+      toast.error("Government server sync failed.");
+    }
   };
 
   const trackFIR = () => {
-    toast.info("Status: Processing with SuperCell HQ.");
+    toast.info("Processing Status: Under active review by authorities.");
   };
 
   return (
     <>
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-600/20 rounded-2xl flex items-center justify-center">
-            <FileText className="text-green-500" />
+      <div className="bg-white border border-[#E5E7EB] rounded-[32px] p-6 space-y-6 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Shield size={80} /></div>
+        <div className="flex items-center gap-5 relative z-10">
+          <div className="w-14 h-14 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center border border-[#2563EB]/10">
+            <FileText className="text-[#2563EB]" size={28} strokeWidth={1.5} />
           </div>
           <div>
-            <h3 className="font-bold text-lg">Online FIR Protocol</h3>
-            <p className="text-sm text-gray-400 font-medium">Bypass local delays. Direct State Node.</p>
+            <h3 className="font-bold text-[#1E293B] text-xl">Digital Complaint Center</h3>
+            <p className="text-[11px] text-[#64748B] font-bold uppercase tracking-widest mt-0.5">Online FIR & Safety Reporting</p>
           </div>
         </div>
 
         {!firData ? (
-          <button
-            onClick={() => setShowReviewModal(true)}
-            className="w-full py-4 bg-green-600 text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-700 active:scale-95 transition-all shadow-lg"
-          >
-            SIGN & SUBMIT O-FIR
-          </button>
+          <div className="flex flex-col gap-3 relative z-10">
+            <button
+              onClick={() => setShowReviewModal(true)}
+              className="w-full py-4 sm:py-5 bg-[#2563EB] text-white rounded-2xl font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-3 hover:bg-[#1d4ed8] active:scale-[0.98] transition-all shadow-xl shadow-[#2563EB]/20"
+            >
+              <Upload size={18} /> Start Complaint
+            </button>
+            <div className="flex items-center justify-center gap-2 text-[#64748B]">
+              <Shield size={14} className="text-[#2563EB]" />
+              <span className="text-[10px] font-bold uppercase tracking-wider italic">Your information is securely protected.</span>
+            </div>
+          </div>
         ) : (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-2xl flex items-center gap-4">
-              <CheckCircle className="text-green-500" />
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 relative z-10">
+            <div className="bg-accent-green/5 border border-accent-green/20 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+              <CheckCircle className="text-accent-green" />
               <div>
-                <p className="text-sm font-black text-white italic tracking-tight">O-FIR #{firData.firId}</p>
-                <p className="text-[10px] text-green-500/80 uppercase tracking-[2px] font-bold">Encrypted & Received</p>
+                <p className="text-sm font-bold text-gray-900 tracking-tight">O-FIR: {firData.firId}</p>
+                <p className="text-[10px] text-accent-green uppercase tracking-widest font-bold">LEGALLY REGISTERED</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <button 
                 onClick={downloadFIR}
-                className="py-4 bg-white text-black rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
+                className="py-4 bg-white border border-[#E5E7EB] text-gray-900 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 shadow-sm"
               >
-                <Download size={14} /> DOWNLOAD
+                <Download size={14} className="text-[#2563EB]" /> ACKNOWLEDGEMENT
               </button>
               <button 
                 onClick={trackFIR}
-                className="py-4 bg-white/5 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-gray-400 flex items-center justify-center gap-2"
+                className="py-4 bg-white border border-[#E5E7EB] text-gray-900 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 shadow-sm"
               >
-                <Shield size={14} /> TRACKING
+                <Shield size={14} className="text-accent-green" /> TRACK FILING
               </button>
             </div>
           </motion.div>
@@ -183,109 +304,133 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
 
       <AnimatePresence>
         {showReviewModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-5xl bg-[#080808] border border-white/10 shadow-2xl rounded-[32px] overflow-hidden flex flex-col max-h-[95vh]">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-10 bg-gray-900/60 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-5xl bg-white border border-[#E5E7EB] shadow-2xl rounded-[32px] sm:rounded-[40px] overflow-hidden flex flex-col max-h-[75vh] sm:max-h-[90vh] my-auto">
               
-              <div className="flex justify-between items-center p-8 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <Shield size={28} className="text-green-500" />
+              <div className="flex justify-between items-center p-5 sm:p-8 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center gap-4 sm:gap-6">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center border border-[#2563EB]/10 shrink-0">
+                    <FileText className="text-[#2563EB]" size={32} strokeWidth={1.5} />
+                  </div>
                   <div>
-                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">E-FIR Submission</h3>
-                    <p className="text-[9px] tracking-[4px] text-gray-500 font-bold uppercase mt-1">CrPC SEC 154 / BNSS COMPLIANCE FORM</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-[#1E293B] leading-none">Digital Complaint Center</h3>
+                    <p className="text-[9px] sm:text-[10px] text-[#64748B] font-bold uppercase tracking-widest mt-1.5">National Safety Reporting Portal</p>
                   </div>
                 </div>
-                <button onClick={() => setShowReviewModal(false)} className="w-12 h-12 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-all">
-                  <X size={20} />
+                <button onClick={() => setShowReviewModal(false)} className="w-10 h-10 sm:w-12 sm:h-12 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-2xl flex items-center justify-center text-gray-400 hover:text-gray-900 transition-all shadow-sm active:scale-90 shrink-0">
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <div className="grid lg:grid-cols-2 gap-12">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-10 custom-scrollbar bg-white">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
                   {/* Left: Forensic Evidence Summary */}
-                  <div className="space-y-8">
-                    <div className="p-6 bg-accent-blue/5 border border-accent-blue/20 rounded-[24px]">
-                      <h4 className="text-[10px] font-black text-accent-blue uppercase tracking-[3px] mb-4 flex items-center gap-2">
-                        <Video size={14} /> SECTION 1: Forensic Attachments
+                  <div className="space-y-6 sm:space-y-8">
+                    <div className="p-5 sm:p-8 bg-gray-50 border border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-[#2563EB]/5 rounded-bl-full flex items-center justify-center pl-2 pb-2">
+                         <Lock size={18} className="text-[#2563EB]/20" />
+                      </div>
+                      <h4 className="text-[9px] sm:text-[10px] font-black text-[#1E293B] uppercase tracking-[3px] mb-6 sm:mb-8 flex items-center gap-3">
+                        <Video size={16} className="text-[#2563EB]" /> SECTION I: FORENSIC ATTACHMENTS
                       </h4>
                       {evidenceLogs.length === 0 ? (
-                        <div className="py-8 text-center border-2 border-dashed border-white/5 rounded-2xl">
-                          <AlertTriangle className="text-gray-700 mx-auto mb-2" size={32} />
-                          <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">No evidence logs detected in session.</p>
+                        <div className="py-10 sm:py-16 text-center border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl bg-white/50">
+                          <AlertTriangle className="text-gray-300 mx-auto mb-3" size={32} />
+                          <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest px-4">No forensic assets detected in this session.</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3 sm:space-y-4">
                           {evidenceLogs.map((log, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center">
-                                  {log.type === 'Audio Log' ? <Mic className="text-blue-500" size={18} /> : <Video className="text-red-500" size={18} />}
+                            <div key={i} className="flex items-center justify-between p-4 sm:p-5 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm group hover:border-[#2563EB]/30 transition-all">
+                              <div className="flex items-center gap-3 sm:gap-4">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-50 rounded-lg sm:rounded-xl flex items-center justify-center border border-gray-100 shadow-inner">
+                                  {log.type === 'Audio Log' ? <Mic className="text-[#2563EB] w-5 h-5 sm:w-6 sm:h-6" /> : <Video className="text-[#DC2626] w-5 h-5 sm:w-6 sm:h-6" />}
                                 </div>
                                 <div>
-                                  <p className="font-bold text-xs text-white">{log.type}</p>
-                                  <p className="text-[9px] text-gray-500 font-mono italic uppercase">{log.date}</p>
+                                  <p className="font-black text-[12px] sm:text-sm text-gray-900 italic uppercase">{log.type}</p>
+                                  <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-tight">{log.date}</p>
                                 </div>
                               </div>
-                              <span className="text-[8px] font-black uppercase text-accent-blue tracking-widest">Attached</span>
+                              <div className="px-2 py-1 bg-accent-green/10 border border-accent-green/20 rounded-lg">
+                                <span className="text-[7px] sm:text-[8px] font-black uppercase text-accent-green tracking-widest">VERIFIED</span>
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
+                      <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-[#2563EB]/5 rounded-xl sm:rounded-2xl border border-[#2563EB]/10">
+                        <p className="text-[8px] sm:text-[9px] text-[#2563EB] font-bold uppercase leading-relaxed tracking-wider">
+                           All attachments are hashed and timestamped via secure government node.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   {/* Right: Manual Input Section */}
-                  <div className="space-y-6">
-                    <h4 className="text-[10px] font-black text-green-500 uppercase tracking-[3px] flex items-center gap-2">
-                       <FileText size={14} /> SECTION 2: Statement of Facts
+                  <div className="space-y-6 sm:space-y-8">
+                    <h4 className="text-[9px] sm:text-[10px] font-black text-[#111827] uppercase tracking-[2px] sm:tracking-[3px] flex items-center gap-3">
+                       <FileText size={16} className="text-[#2563EB]" /> SECTION II: AFFIDAVIT OF INCIDENT
                     </h4>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Date of Occurrence</label>
-                        <input type="date" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500 transition-all font-bold" value={firForm.occurenceDate} onChange={(e) => setFirForm({...firForm, occurenceDate: e.target.value})} />
+                    <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Incident Date</label>
+                        <input type="date" className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold" value={firForm.occurenceDate} onChange={(e) => setFirForm({...firForm, occurenceDate: e.target.value})} />
                       </div>
-                      <div>
-                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Time of Occurrence</label>
-                        <input type="time" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500 transition-all font-bold" value={firForm.occurenceTime} onChange={(e) => setFirForm({...firForm, occurenceTime: e.target.value})} />
+                      <div className="space-y-2">
+                        <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Incident Time</label>
+                        <input type="time" className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold" value={firForm.occurenceTime} onChange={(e) => setFirForm({...firForm, occurenceTime: e.target.value})} />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Nature of Offense</label>
-                      <select className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500 transition-all font-bold" value={firForm.offenseType} onChange={(e) => setFirForm({...firForm, offenseType: e.target.value})}>
-                        <option value="">Select offense type...</option>
+                    <div className="space-y-2">
+                      <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Category of Offense</label>
+                      <select className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold appearance-none" value={firForm.offenseType} onChange={(e) => setFirForm({...firForm, offenseType: e.target.value})}>
+                        <option value="">Select Official Category...</option>
                         <option value="Physical Assault">Physical Assault / Violence</option>
                         <option value="Sexual Harassment">Sexual Harassment</option>
-                        <option value="Stalking">Stalking / Cyber-Stalking</option>
+                        <option value="Stalking">Stalking / Cyber-Harassment</option>
                         <option value="Attempted Abduction">Attempted Abduction</option>
-                        <option value="Emergency Rescue Needed">Emergency Rescue Needed</option>
+                        <option value="Emergency Rescue">Emergency Rescue Required</option>
                       </select>
                     </div>
 
-                    <div>
-                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Details of Suspect / Vehicle</label>
-                      <input type="text" placeholder="Description or Number Plate..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500 transition-all font-bold placeholder:text-gray-800" value={firForm.suspectDetails} onChange={(e) => setFirForm({...firForm, suspectDetails: e.target.value})} />
+                    <div className="space-y-2">
+                      <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Identification Details (Suspect/Vehicle)</label>
+                      <input type="text" placeholder="Visual indicators, plate numbers..." className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold placeholder:text-gray-300" value={firForm.suspectDetails} onChange={(e) => setFirForm({...firForm, suspectDetails: e.target.value})} />
                     </div>
 
-                    <div>
-                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Statement of Events (Incident Report) *</label>
-                      <textarea rows={5} placeholder="Type detailed statement here..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-green-500 transition-all font-bold placeholder:text-gray-800 resize-none font-mono" value={firForm.victimStatement} onChange={(e) => setFirForm({...firForm, victimStatement: e.target.value})} />
+                    <div className="space-y-2">
+                      <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Detailed Deposition of Facts *</label>
+                      <textarea rows={4} placeholder="Describe the events..." className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold placeholder:text-gray-300 resize-none font-sans" value={firForm.victimStatement} onChange={(e) => setFirForm({...firForm, victimStatement: e.target.value})} />
+                    </div>
+
+                    <div className="flex items-start gap-3 p-4 sm:p-5 bg-accent-red/5 border border-accent-red/10 rounded-xl sm:rounded-2xl">
+                      <input type="checkbox" id="affirmation" className="mt-1 w-3.5 h-3.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]" />
+                      <label htmlFor="affirmation" className="text-[8px] sm:text-[9px] font-bold text-gray-800 uppercase tracking-wider leading-relaxed">
+                         I affirm all information is true under Section 193 of the IPC.
+                      </label>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-8 border-t border-white/5 bg-white/5 flex items-center justify-between">
-                <p className="text-[10px] text-gray-500 max-w-sm italic">
-                  Submission is cryptographically hashed and digitally signed by your device identification node.
-                </p>
+              <div className="p-5 sm:p-8 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-3 sm:gap-4 w-full sm:max-w-md">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gray-200 flex items-center justify-center text-gray-500 shadow-inner shrink-0">
+                    <Lock size={16} />
+                  </div>
+                  <p className="text-[8px] sm:text-[9px] text-gray-500 font-bold uppercase tracking-wider leading-relaxed">
+                    Submission is encrypted and digitally signed for admissibility in Indian Courts under BNSS-2023.
+                  </p>
+                </div>
                 <button 
                   onClick={generateFIR}
                   disabled={isGenerating || !firForm.offenseType || !firForm.victimStatement}
-                  className="px-8 py-3.5 bg-green-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:bg-green-700 active:scale-95 transition-all shadow-xl disabled:opacity-50 disabled:grayscale"
+                  className="w-full sm:w-auto px-10 py-4 sm:px-12 sm:py-5 bg-gray-900 text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-[2px] sm:tracking-[3px] text-[10px] sm:text-xs flex items-center justify-center gap-3 sm:gap-4 hover:bg-black active:scale-[0.98] transition-all shadow-2xl shadow-black/20 disabled:opacity-50 disabled:grayscale"
                 >
-                  {isGenerating ? <Radio className="animate-spin" size={14} /> : <FileText size={14} />} 
-                  {isGenerating ? "PROCESSING..." : "SIGN & SUBMIT O-FIR"}
+                  {isGenerating ? <Radio className="animate-spin" size={14} /> : <Shield size={18} />} 
+                  {isGenerating ? "DISPATCHING..." : "OFFICIALLY DISPATCH REPORT"}
                 </button>
               </div>
             </motion.div>

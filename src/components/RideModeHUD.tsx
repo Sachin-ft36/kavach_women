@@ -34,7 +34,7 @@ export default function RideModeHUD() {
         vehicleNo: vehicleInput.toUpperCase(),
         startTime: Date.now(),
         deviationDistance: 0,
-        status: coords ? 'linked' : 'displacement_only',
+        status: 'active', // Standardized for SuperCell Oversight
         warningsIssued: 0
       });
     } catch (e) {
@@ -46,42 +46,42 @@ export default function RideModeHUD() {
 
   if (!isRideModeActive) {
     return (
-      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 bg-[#020512] border-accent-blue/20 overflow-hidden">
+      <section className="bento-card col-span-1 md:col-span-2 lg:col-span-2 bg-white border border-[#E5E7EB] shadow-sm overflow-hidden p-6 rounded-[32px]">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+          <div className="w-10 h-10 rounded-xl bg-[#2563EB]/10 flex items-center justify-center text-[#2563EB] border border-[#2563EB]/10">
             <Car size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-black italic uppercase text-white leading-none">Safe Ride Mode</h3>
-            <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">AI Route Intercept</p>
+            <h3 className="text-sm font-black italic uppercase text-gray-900 leading-none">Safe Ride Mode</h3>
+            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">AI Route Intercept</p>
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="relative group">
-            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-accent-blue transition-colors" size={16} />
+            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               value={destinationInput}
               onChange={(e) => setDestinationInput(e.target.value)}
               placeholder="Destination Address..."
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-xs font-bold text-white focus:outline-none focus:border-accent-blue/50"
+              className="w-full bg-gray-50 border border-[#E5E7EB] rounded-2xl py-4 pl-12 pr-4 text-xs font-bold text-gray-900 focus:outline-none focus:border-[#2563EB]/50 focus:bg-white transition-all"
             />
           </div>
           <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-accent-blue transition-colors" size={16} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               value={vehicleInput}
               onChange={(e) => setVehicleInput(e.target.value)}
               placeholder="Vehicle No (e.g. DL 1S AB 1234)"
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-xs font-bold text-white focus:outline-none focus:border-accent-blue/50"
+              className="w-full bg-gray-50 border border-[#E5E7EB] rounded-2xl py-4 pl-12 pr-4 text-xs font-bold text-gray-900 focus:outline-none focus:border-[#2563EB]/50 focus:bg-white transition-all"
             />
           </div>
           <button
             onClick={handleStartRide}
             disabled={isLoading || !destinationInput || !vehicleInput}
-            className="w-full py-4 bg-accent-blue hover:bg-accent-blue/80 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-[2px] transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 bg-[#2563EB] hover:bg-[#1d4ed8] disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-[2px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#2563EB]/20"
           >
-            {isLoading ? <span className="animate-spin text-white">⏳</span> : <><Navigation size={14} /> Initiate Tactical Link</>}
+            {isLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Navigation size={14} /> Initiate Tactical Link</>}
           </button>
         </div>
       </section>
@@ -91,19 +91,19 @@ export default function RideModeHUD() {
   return (
     <div className={cn(
       "col-span-1 md:col-span-2 lg:col-span-2 p-1 rounded-[36px] transition-all duration-500 relative overflow-hidden",
-      isDeviating ? "bg-red-600 shadow-[0_0_50px_rgba(220,38,38,0.4)]" : "bg-accent-blue/40"
+      isDeviating ? "bg-red-600 shadow-[0_0_50px_rgba(220,38,38,0.2)]" : "bg-[#2563EB]/20"
     )}>
-      <div className="p-6 bg-[#0a0a0c] rounded-[34px] space-y-6 relative overflow-hidden h-full">
+      <div className="p-6 bg-white rounded-[34px] space-y-6 relative overflow-hidden h-full border border-[#E5E7EB]">
 
         {/* Danger Glow Effect */}
         <AnimatePresence>
           {isDeviating && (
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0.1, 0.4, 0.1] }}
+              animate={{ opacity: [0.05, 0.15, 0.05] }}
               exit={{ opacity: 0 }}
               transition={{ repeat: Infinity, duration: 1.5 }}
-              className="absolute inset-0 bg-red-600 pointer-events-none"
+              className="absolute inset-0 bg-red-500 pointer-events-none"
             />
           )}
         </AnimatePresence>
@@ -111,27 +111,32 @@ export default function RideModeHUD() {
         <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3">
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center text-black transition-all",
-              isDeviating ? "bg-red-600 shadow-lg scale-110" : "bg-accent-blue"
+              "w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all shadow-md",
+              isDeviating ? "bg-red-600 scale-110" : "bg-[#2563EB]"
             )}>
               <Car size={20} className={isDeviating ? "animate-bounce" : ""} />
             </div>
             <div>
-              <h3 className="text-white font-black italic uppercase text-lg leading-none">
+              <h3 className="text-gray-900 font-black italic uppercase text-lg leading-none">
                 {rideData?.vehicleNo || "GHOST RIDE"}
               </h3>
-              <p className={cn(
-                "text-[10px] font-black uppercase tracking-widest mt-1 flex items-center gap-2",
-                isDeviating ? "text-red-500 font-black" : "text-green-500"
-              )}>
-                <div className={cn("w-1.5 h-1.5 rounded-full", isDeviating ? "bg-red-500 animate-ping" : "bg-green-500 animate-pulse")} />
-                {isDeviating ? "⚠️ DEVIATION DETECTED" : "Neural Link: Optimal"}
-              </p>
+              <div className="flex flex-col gap-1 mt-1.5">
+                <p className={cn(
+                  "text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
+                  isDeviating ? "text-red-600" : "text-accent-green"
+                )}>
+                  <div className={cn("w-1.5 h-1.5 rounded-full", isDeviating ? "bg-red-600 animate-ping" : "bg-accent-green animate-pulse")} />
+                  {isDeviating ? "⚠️ DEVIATION DETECTED" : "Neural Link: Optimal"}
+                </p>
+                <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1 opacity-70">
+                   <Shield size={8} /> National Grid Sync: Active
+                </p>
+              </div>
             </div>
           </div>
           <button
             onClick={() => setRideMode(false)}
-            className="p-2 bg-white/5 border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors"
+            className="p-2 bg-gray-50 border border-[#E5E7EB] rounded-xl text-gray-400 hover:text-gray-900 transition-colors shadow-sm"
           >
             <X size={18} />
           </button>
@@ -139,19 +144,19 @@ export default function RideModeHUD() {
 
         {/* Telemetry Grid */}
         <div className="grid grid-cols-2 gap-4 relative z-10">
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-md">
-            <div className="flex items-center gap-2 mb-2 text-accent-blue">
+          <div className="bg-gray-50 p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
+            <div className="flex items-center gap-2 mb-2 text-[#2563EB]">
               <Activity size={12} className="animate-pulse" />
               <span className="text-[8px] font-black uppercase tracking-widest">Ghost Monitor</span>
             </div>
-            <p className="text-xs font-black uppercase text-white/90">Pulse Active</p>
+            <p className="text-xs font-bold uppercase text-gray-900">Pulse Active</p>
           </div>
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-md">
-            <div className="flex items-center gap-2 mb-2 text-green-500">
+          <div className="bg-gray-50 p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
+            <div className="flex items-center gap-2 mb-2 text-accent-green">
               <Navigation size={12} />
               <span className="text-[8px] font-black uppercase tracking-widest">Route Integrity</span>
             </div>
-            <p className="text-xs font-black uppercase text-white/90 truncate">
+            <p className="text-xs font-bold uppercase text-gray-900 truncate">
               {isDeviating ? "RE-CALIBRATING..." : "100.0% SECURE"}
             </p>
           </div>
@@ -162,27 +167,27 @@ export default function RideModeHUD() {
           animate={isDeviating ? { scale: [1, 1.02, 1] } : {}}
           transition={{ repeat: Infinity, duration: 0.5 }}
           className={cn(
-            "p-4 rounded-2xl flex items-center justify-between border relative overflow-hidden",
-            isDeviating ? "bg-red-600/20 border-red-600/50" : "bg-white/5 border-white/5"
+            "p-4 rounded-2xl flex items-center justify-between border relative overflow-hidden shadow-sm",
+            isDeviating ? "bg-red-50 border-red-200" : "bg-gray-50 border-[#E5E7EB]"
           )}
         >
           <div className="flex items-center gap-3 relative z-10">
             <div className={cn(
               "p-2 rounded-lg",
-              isDeviating ? "bg-red-500/20 text-red-500" : "bg-white/5 text-gray-500"
+              isDeviating ? "bg-red-100 text-red-600" : "bg-white text-gray-400 border border-[#E5E7EB]"
             )}>
               <AlertTriangle size={18} />
             </div>
             <div>
-              <p className={cn("text-[10px] font-black uppercase tracking-widest", isDeviating ? "text-red-500" : "text-gray-400")}>
+              <p className={cn("text-[10px] font-black uppercase tracking-widest", isDeviating ? "text-red-600" : "text-gray-400")}>
                 Deviation Radius
               </p>
-              <p className="text-white text-[14px] font-black italic">
+              <p className={cn("text-[14px] font-black italic", isDeviating ? "text-red-700" : "text-gray-900")}>
                 {rideData?.deviationDistance.toFixed(2)} KM OFF-HUD
               </p>
             </div>
           </div>
-          <ChevronRight size={18} className="text-gray-600" />
+          <ChevronRight size={18} className="text-gray-300" />
         </motion.div>
       </div>
     </div>

@@ -8,12 +8,12 @@ const KavachNative = registerPlugin<any>('KavachPlugin');
 export default function DecoyCalculator() {
   const [display, setDisplay] = useState('0');
   const [history, setHistory] = useState('');
-  const { setSOSActive, safetyPin, isHubReady } = useKavachStore();
+  const { setSOSActive, safetyPin, isHubReady, setFakeCallActive } = useKavachStore();
 
   const handleSOS = () => {
     // 📳 TACTICAL CONFIRMATION: Discreet double-pulse vibration
     if (Capacitor.isNativePlatform() && isHubReady) {
-      KavachNative.triggerHapticPulse().catch(() => {});
+      KavachNative.triggerHapticPulse().catch(() => { });
     }
 
     // SILENT TRIGGER EMITTED
@@ -34,12 +34,14 @@ export default function DecoyCalculator() {
         const result = eval(display.replace(/×/g, '*').replace(/÷/g, '/'));
         setHistory(display + ' =');
         setDisplay(String(result));
-        
+
         // 🔐 SECRET TACTICAL TRIGGER: Use the user's safetyPin (or default 911911)
         const secretCode = safetyPin || '911911';
         if (display === secretCode) {
-           handleSOS();
+          handleSOS();
         }
+        // TRIGGER FAKE CALL UI (Global Store)
+        setFakeCallActive(true);
       } catch {
         setDisplay('Error');
       }

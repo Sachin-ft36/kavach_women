@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
-import { 
+import {
   getFirestore,
   doc,
   collection,
@@ -16,7 +16,9 @@ import {
   setDoc,
   collectionGroup,
   getDocs,
-  getDocsFromCache
+  getDocsFromCache,
+  initializeFirestore,
+  clearIndexedDbPersistence
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -24,9 +26,19 @@ import firebaseConfig from '../firebase-applet-config.json';
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);
 
-// Switching to standard getFirestore to bypass ALL experimental transport bugs
-export const db = getFirestore(app);
+// 🛡️ TACTICAL STABILITY FIX: Force Long Polling and Disable Persistence to bypass SDK crashes (b815/ca9)
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  localCache: {
+    kind: 'memory'
+  }
+});
 
+// 🧹 PERSISTENCE RESET: Run this if b815/ca9 errors persist
+export const resetKavachState = async () => {
+  localStorage.removeItem('kavach_cache_timestamp');
+  return new Promise(resolve => setTimeout(resolve, 1500)); 
+};
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);

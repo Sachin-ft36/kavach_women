@@ -1,6 +1,7 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { toast } from 'sonner';
+import { KavachSafe } from '../App';
 
 const KavachNative = registerPlugin<any>('KavachPlugin');
 
@@ -8,50 +9,54 @@ const KavachNative = registerPlugin<any>('KavachPlugin');
  * 🛰️ STRATEGIC BACKGROUND SENTINEL
  * Ensures that SOS alerts trigger hardware alarms even if the app is in the background.
  */
+import { useKavachStore } from '../store/useKavachStore';
+
 export const initializeBackgroundSentinel = async () => {
   if (!Capacitor.isNativePlatform()) return;
 
+  const platform = Capacitor.getPlatform();
+
   try {
     // 1. Request Permissions
-    const permission = await PushNotifications.requestPermissions();
-    if (permission.receive === 'granted') {
-      // 2. Register with FCM/APNS
-      await PushNotifications.register();
+    const status = await PushNotifications.checkPermissions();
+    if (status.receive !== 'granted') {
+      await PushNotifications.requestPermissions();
     }
+    await PushNotifications.register();
 
-    // 🎯 LOG FCM TOKEN FOR TESTING
+    // 🎯 LOG FCM TOKEN (Cross-Platform)
     await PushNotifications.addListener('registration', token => {
-      console.log('🚀 KAVACH FCM TOKEN:', token.value);
-      // You can also show this in a toast for easy copying
+      console.log(`🚀 KAVACH [${platform.toUpperCase()}] TOKEN:`, token.value);
     });
 
-    // 3. Listener: Received Notification while app is in foreground OR background
+    // 2. 🍏 iOS / 🤖 Android: Background Alert Handling
     await PushNotifications.addListener('pushNotificationReceived', notification => {
-      console.log('🚨 BACKGROUND ALERT RECEIVED:', notification);
-      
+      const { role } = useKavachStore.getState(); // 🛡️ GET CURRENT ROLE
       const data = notification.data;
-      if (data?.type === 'SOS_ALERT' || data?.priority === 'high') {
-        // TRIGGER HARDWARE SIREN VIA NATIVE BRIDGE
-        // This works even if the app is backgrounded because the native bridge is called
-        KavachNative.startContinuousSiren().catch((err: any) => {
-          console.error("Failed to start siren from background:", err);
-        });
-        
-        toast.info("🚨 NEARBY EMERGENCY DETECTED IN BACKGROUND!", {
+      const isCritical = data?.type === 'SOS_ALERT' || data?.priority === 'high' || data?.shadow === 'true';
+
+      if (isCritical) {
+        // 🚨 TACTICAL SIREN: Only for Responders (Protector/SuperCell)
+        if (role === 'protector' || role === 'super_cell' || role === 'admin') {
+          KavachSafe.startContinuousSiren();
+          if (platform === 'ios') KavachSafe.triggerHapticPulse();
+        }
+
+        toast.info("🚨 TACTICAL ALERT: EMERGENCY IN PROGRESS", {
           duration: 10000,
-          position: 'top-center'
+          position: platform === 'ios' ? 'top-center' : 'bottom-center'
         });
       }
     });
 
-    // 4. Listener: User tapped on the notification
+    // 3. User Interaction Logic
     await PushNotifications.addListener('pushNotificationActionPerformed', action => {
-      console.log('🎯 USER INTERCEPTED VIA NOTIFICATION:', action);
-      // Navigate to Dashboard or specific alert if needed
-      window.location.href = '/'; 
+      const data = action.notification.data;
+      // If it's a shadow intercept, jump straight to SOS HUD
+      window.location.href = data?.type === 'SOS_ALERT' ? '/sos' : '/';
     });
 
   } catch (error) {
-    console.error("Background Sentinel Initialization Failed:", error);
+    console.error(`Background Sentinel [${platform}] Failed:`, error);
   }
 };
