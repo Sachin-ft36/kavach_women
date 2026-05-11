@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { KavachSafe } from '../App';
 import KavachAIChat from '../components/KavachAIChat';
+import SecurityRadarMap from '../components/maps/SecurityRadarMap';
 
 interface SOSScreenProps {
   isLocked: boolean;
@@ -21,38 +22,123 @@ interface SOSScreenProps {
 
 export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManualUnlock }: SOSScreenProps) {
   const { t } = useLanguage();
-  const { isSOSActive, setSOSActive, triggerMethod, safetyPin, userPos } = useKavachStore();
+  const { isSOSActive, setSOSActive, triggerMethod, safetyPin, userPos, activeRadius, setActiveRadius } = useKavachStore();
   const [showPinOverlay, setShowPinOverlay] = React.useState(false);
   const [showAbortReason, setShowAbortReason] = React.useState(false);
   const [abortReason, setAbortReason] = React.useState('');
   const [enteredPin, setEnteredPin] = React.useState('');
   const [nearbyCount, setNearbyCount] = React.useState(0);
   const [isAIChatOpen, setIsAIChatOpen] = React.useState(false);
+  const [smsStatus, setSmsStatus] = React.useState('INITIALIZING...');
+  const [callStatus, setCallStatus] = React.useState('ENROUTE');
+  const [protectors, setProtectors] = React.useState<any[]>([]);
   const recognitionRef = React.useRef<any>(null);
 
-  // 📡 PROTECTOR RADAR LOGIC (CRITICAL RANGE SCAN)
+  // 📡 SOS DISPATCH HANDSHAKE SEQUENCE
+  React.useEffect(() => {
+    if (isSOSActive) {
+      const smsTimer1 = setTimeout(() => setSmsStatus('SENDING...'), 2000);
+      const smsTimer2 = setTimeout(() => setSmsStatus('DELIVERED'), 5000);
+      
+      const callTimer1 = setTimeout(() => setCallStatus('DIALING...'), 3000);
+      const callTimer2 = setTimeout(() => setCallStatus('CONNECTED'), 7000);
+
+      return () => {
+        clearTimeout(smsTimer1);
+        clearTimeout(smsTimer2);
+        clearTimeout(callTimer1);
+        clearTimeout(callTimer2);
+      };
+    } else {
+      setSmsStatus('INITIALIZING...');
+      setCallStatus('ENROUTE');
+    }
+  }, [isSOSActive]);
+
+  // ⚡ LIGHTNING TACTICAL ESCALATION: 15-Second Tiered Expansion (1km -> 5km)
+  React.useEffect(() => {
+    let expansionTimer: any;
+    const alertId = useKavachStore.getState().activeAlertId;
+
+    if (isSOSActive && alertId) {
+      expansionTimer = setInterval(async () => {
+        const currentRadius = useKavachStore.getState().activeRadius;
+        if (currentRadius >= 5.0) {
+          clearInterval(expansionTimer);
+          return;
+        }
+        
+        const nextTier = currentRadius + 1.0;
+        setActiveRadius(nextTier);
+        
+        // 🛡️ SYNC RADIUS TO NATIONAL GRID
+        updateDoc(doc(db, 'alerts', alertId), {
+          dispatchRadius: nextTier,
+          lastEscalatedAt: serverTimestamp()
+        }).catch(e => console.error("🛰️ RADIUS_SYNC_ERROR:", e));
+
+        console.log(`⚡ KAVACH ESCALATION: Search Perimeter Expanded to ${nextTier}KM`);
+      }, 15000); // 🕒 15-Second Lightning Interval
+    }
+
+    return () => clearInterval(expansionTimer);
+  }, [isSOSActive]);
+
+  // 🧠 SMART "GHOST-TOWN" SKIP: Reactive Jump if 0 assets found
+  React.useEffect(() => {
+    const alertId = useKavachStore.getState().activeAlertId;
+    
+    if (isSOSActive && nearbyCount === 0 && activeRadius < 5.0 && alertId) {
+      const skipDelay = setTimeout(() => {
+        const nextTier = activeRadius + 1.0;
+        setActiveRadius(nextTier);
+        
+        updateDoc(doc(db, 'alerts', alertId), {
+          dispatchRadius: nextTier,
+          lastEscalatedAt: serverTimestamp(),
+          escalationReason: 'ZERO_ASSETS_DETECTED'
+        }).catch(e => console.error("🛰️ RADIUS_JUMP_ERROR:", e));
+        
+        console.warn(`⚡ KAVACH SMART JUMP: No assets in ${activeRadius}KM. Expanding to ${nextTier}KM.`);
+      }, 3000); // 🛡️ 3s Tactical Delay to allow snapshot to settle
+      
+      return () => clearTimeout(skipDelay);
+    }
+  }, [isSOSActive, nearbyCount, activeRadius]);
+
+  // 📡 PROTECTOR RADAR LOGIC (ADAPTIVE RANGE SCAN)
   React.useEffect(() => {
     let unsubscribe: () => void = () => { };
 
     if (isSOSActive && userPos) {
-      console.log("📡 RADAR: Scanning for local protectors within 1.5KM tactical range...");
+      console.log(`📡 RADAR: Scanning for local protectors within ${activeRadius}KM tactical tier...`);
       const q = query(collection(db, 'users'), where('role', '==', 'protector'), where('isVerified', '==', true));
       unsubscribe = onSnapshot(q, (snapshot) => {
-        const count = snapshot.docs.filter(doc => {
-          const data = doc.data();
+        const allFound = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const inRange = allFound.filter((data: any) => {
           if (!data.coords) return false;
+          
+          // 🎖️ ELITE PRIORITY BYPASS: Army/Police always visible up to 5km
+          const occupation = data.protectorVetting?.occupation || '';
+          const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police'].some(role => 
+            occupation.toLowerCase().includes(role.toLowerCase())
+          );
+
           const dist = calculateDistance(userPos[0], userPos[1], data.coords[0], data.coords[1]);
-          return dist <= 1.5;
-        }).length;
-        setNearbyCount(count);
+          return isElite ? (dist <= 5.0) : (dist <= activeRadius);
+        });
+
+        setNearbyCount(inRange.length);
+        setProtectors(inRange);
       });
     }
 
     return () => {
       console.log("📡 RADAR: Disengaging tactical scan.");
       unsubscribe();
+      setProtectors([]);
     };
-  }, [isSOSActive, userPos]);
+  }, [isSOSActive, userPos, activeRadius]);
 
   // 🎙️ MISSION CRITICAL: LIVE TRANSCRIPT ENGINE (RETIRED DUE TO HARDWARE CLASH)
   // Transcription during SOS is disabled to prioritize high-fidelity native recording.
@@ -183,33 +269,34 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
     }
   };
 
+  const [isAborting, setIsAborting] = React.useState(false);
+
   const handleFinalAbort = async () => {
     if (!abortReason.trim()) {
       toast.error("Please provide a mission clearance reason.");
       return;
     }
 
+    setIsAborting(true);
     const alertId = useKavachStore.getState().activeAlertId;
+
+    // 🛡️ PHASE 1: INSTANT LOCAL HARDWARE RELEASE (Optimistic UI)
+    // We kill the siren and recording IMMEDIATELY so the user isn't stuck with noise/hangs.
+    if (Capacitor.isNativePlatform()) {
+      KavachSafe.stopForensicCapture();
+      KavachSafe.stopContinuousSiren();
+    }
+    
+    // 🛡️ PHASE 2: GRID SYNC & ACCOUNTABILITY (Unified Store Protocol)
     try {
-      if (alertId) {
-        await updateDoc(doc(db, 'alerts', alertId), {
-          status: 'resolved',
-          closureReason: abortReason,
-          resolvedAt: serverTimestamp(),
-          victimSafetyStatus: 'self_aborted'
-        });
-      }
+      await setSOSActive(false, alertId, triggerMethod, abortReason);
     } catch (e: any) {
-      console.warn("⚠️ SOS: Document already cleared from grid. Performing local cleanup.");
+      console.warn("⚠️ SOS Grid Sync: Background update failed.", e);
     } finally {
-      // 🛡️ GUARANTEED CLEANUP: Always restore local state
-      if (Capacitor.isNativePlatform()) {
-        KavachSafe.stopForensicCapture();
-        KavachSafe.stopContinuousSiren();
-      }
-      setSOSActive(false);
+      // 🛡️ PHASE 3: FINAL UI COLLAPSE
       setShowAbortReason(false);
       setAbortReason('');
+      setIsAborting(false);
       toast.success("Mission De-escalated. Grid Restored.");
     }
   };
@@ -226,7 +313,14 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
         <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-4">{t('shield_locked')}</h2>
         <p className="text-gray-500 text-[10px] font-bold uppercase tracking-[3px] mb-12 opacity-60">{t('identity_verification')}</p>
         <button
-          onClick={handleManualUnlock}
+          onClick={async () => {
+            try {
+              await handleManualUnlock();
+            } catch (e) {
+              setShowPinOverlay(true);
+              toast.error("Biometric handshake failed. Fallback to PIN active.");
+            }
+          }}
           className="px-10 py-5 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-4 active:scale-95 transition-all shadow-2xl"
         >
           <Fingerprint size={20} /> {t('use_biometrics')}
@@ -235,17 +329,12 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
     );
   }
 
-  // 🔴 LIVE EMERGENCY RECORDING HUB (As per user request)
   if (isSOSActive) {
     return (
       <div className="fixed inset-0 z-[5000] bg-[#080000] flex flex-col p-6 overflow-hidden">
         {/* PIN Pad Overlay */}
-        <AnimatePresence>
-          {showPinOverlay && (
-            <motion.div
-              initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="absolute inset-0 z-[6000] bg-black/95 backdrop-blur-xl flex flex-col p-8"
-            >
+        {showPinOverlay && (
+          <div className="absolute inset-0 z-[6000] bg-black/95 backdrop-blur-xl flex flex-col p-8">
               <div className="flex-1 flex flex-col items-center justify-center space-y-12">
                 <div className="text-center">
                   <Lock size={40} className="text-accent-blue mx-auto mb-4" />
@@ -284,156 +373,145 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
               >
                 Back to Grid Monitor
               </button>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
 
         {/* 🛡️ SAFETY HANDSHAKE POPUP (RESPONSE VERIFICATION) */}
-        <AnimatePresence>
-          {showSafetyVerification && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 50, scale: 0.95 }}
-              className="absolute inset-0 z-[7000] flex items-center justify-center p-8"
-            >
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-3xl" />
-              <div className="relative w-full max-w-[340px] bg-white/10 backdrop-blur-3xl border border-white/10 rounded-[40px] p-8 shadow-2xl text-center space-y-8">
-                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-emerald-500/20">
-                       <ShieldCheck size={40} className="animate-pulse" />
-                    </div>
-                    <div className="space-y-1">
-                       <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Response Verification</h2>
-                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action Required</p>
-                    </div>
-                 </div>
-
-                 <p className="text-[13px] font-bold text-white/70 leading-relaxed px-2 uppercase tracking-wide">
-                   The assigned protector has completed the emergency response. Please verify your safety status.
-                 </p>
-
-                 <div className="pt-4 space-y-3">
-                    <button 
-                      onClick={handleConfirmSafety}
-                      className="w-full py-6 bg-emerald-500 text-white rounded-[24px] font-black uppercase tracking-[4px] text-xs shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
-                    >
-                      SAFE
-                    </button>
-                    <button 
-                      onClick={handleRequestMoreHelp}
-                      className="w-full py-6 bg-white/5 text-gray-400 rounded-[24px] font-black uppercase tracking-[4px] text-[10px] border border-white/5 active:scale-95 transition-all"
-                    >
-                      REQUEST HELP
-                    </button>
-                 </div>
-
-                 <div className="pt-2 flex items-center justify-center gap-2.5 opacity-30">
-                    <Shield size={10} className="text-white" />
-                    <span className="text-[7px] font-black uppercase tracking-[3px] text-white">Kavach Handshake Protocol Active</span>
-                 </div>
+        {showSafetyVerification && (
+          <div className="absolute inset-0 z-[7000] flex items-center justify-center p-8">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-3xl" />
+            <div className="relative w-full max-w-[340px] bg-white/10 backdrop-blur-3xl border border-white/10 rounded-[40px] p-8 shadow-2xl text-center space-y-8">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-emerald-500/20">
+                  <ShieldCheck size={40} className="animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Response Verification</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action Required</p>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* 🛡️ INSTITUTIONAL SAFETY CONFIRMATION (REPLACEMENT FOR MISSION DE-ESCALATION) */}
+              <p className="text-[13px] font-bold text-white/70 leading-relaxed px-2 uppercase tracking-wide">
+                The assigned protector has completed the emergency response. Please verify your safety status.
+              </p>
+
+              <div className="pt-4 space-y-3">
+                <button 
+                  onClick={handleConfirmSafety}
+                  className="w-full py-6 bg-emerald-500 text-white rounded-[24px] font-black uppercase tracking-[4px] text-xs shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
+                >
+                  SAFE
+                </button>
+                <button 
+                  onClick={handleRequestMoreHelp}
+                  className="w-full py-6 bg-white/5 text-gray-400 rounded-[24px] font-black uppercase tracking-[4px] text-[10px] border border-white/5 active:scale-95 transition-all"
+                >
+                  REQUEST HELP
+                </button>
+              </div>
+
+              <div className="pt-2 flex items-center justify-center gap-2.5 opacity-30">
+                <Shield size={10} className="text-white" />
+                <span className="text-[7px] font-black uppercase tracking-[3px] text-white">Kavach Handshake Protocol Active</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🛡️ INSTITUTIONAL SAFETY CONFIRMATION */}
         <AnimatePresence>
           {showAbortReason && (
-            <motion.div
+            <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 z-[8000] flex items-center justify-center p-6 bg-[#020617]/95 backdrop-blur-2xl"
             >
-              <div className="relative w-full max-w-[380px] bg-gradient-to-b from-[#0F172A] to-[#020617] border border-white/10 rounded-[40px] p-8 shadow-2xl flex flex-col space-y-6">
-                 <div className="flex flex-col items-center gap-3">
-                    <div className="w-16 h-16 bg-blue-500/10 rounded-[24px] flex items-center justify-center text-blue-500 border border-blue-500/20">
-                       <Shield size={32} strokeWidth={2.5} />
-                    </div>
-                    <div className="text-center space-y-1">
-                       <h2 className="text-xl font-black text-white tracking-tighter uppercase">Safety Confirmation Required</h2>
-                       <p className="text-[10px] font-bold text-blue-400/50 uppercase tracking-[2px]">National Grid Update</p>
-                    </div>
-                 </div>
+              <div className="relative w-full max-w-[400px] max-h-[92vh] bg-gradient-to-b from-[#0F172A] to-[#020617] border border-white/10 rounded-[32px] sm:rounded-[40px] p-5 sm:p-8 shadow-2xl flex flex-col overflow-y-auto custom-scrollbar">
+                <div className="flex flex-col items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-500/10 rounded-2xl sm:rounded-[24px] flex items-center justify-center text-blue-500 border border-blue-500/20">
+                    <Shield size={28} className="sm:w-8 sm:h-8" strokeWidth={2.5} />
+                  </div>
+                  <div className="text-center space-y-1">
+                    <h2 className="text-lg sm:text-xl font-black text-white tracking-tighter uppercase">Safety Confirmation</h2>
+                    <p className="text-[9px] sm:text-[10px] font-bold text-blue-400/50 uppercase tracking-[2px]">National Grid Update</p>
+                  </div>
+                </div>
 
-                 <div className="space-y-4">
-                    <p className="text-[11px] font-medium text-white/60 leading-relaxed text-center px-2">
-                      Your emergency alert was shared with nearby protectors and monitored by SuperCell systems. Please confirm why you are closing this SOS request.
+                <div className="space-y-3 sm:space-y-4 mb-6">
+                  <p className="text-[10px] sm:text-[11px] font-medium text-white/60 leading-relaxed text-center px-2">
+                    Please confirm why you are closing this SOS request.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
+                    {[
+                      'I am safe now', 
+                      'Help has arrived', 
+                      'Reached a safe location', 
+                      'Accidentally triggered SOS', 
+                      'Threat no longer nearby', 
+                      'Other reason'
+                    ].map((reason) => (
+                      <button
+                        key={reason}
+                        onClick={() => setAbortReason(reason)}
+                        className={cn(
+                          "w-full py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold text-left transition-all border flex items-center justify-between group",
+                          abortReason === reason 
+                            ? "bg-blue-600/20 border-blue-500 text-white" 
+                            : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                        )}
+                      >
+                        <span>{reason}</span>
+                        <div className={cn(
+                          "w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center transition-all",
+                          abortReason === reason ? "border-blue-500 bg-blue-500" : "border-white/10"
+                        )}>
+                          {abortReason === reason && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-white rounded-full" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {abortReason === 'Other reason' && (
+                    <div className="mt-2">
+                      <textarea 
+                        placeholder="Please provide details..."
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-xs font-medium focus:ring-2 focus:ring-blue-500/30 outline-none transition-all placeholder:text-gray-600 min-h-[80px]"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="p-3 sm:p-4 bg-red-500/5 border border-red-500/10 rounded-xl sm:rounded-2xl">
+                    <p className="text-[8px] sm:text-[9px] font-bold text-red-400/80 uppercase tracking-widest text-center leading-relaxed">
+                      False reports are logged for emergency accountability.
                     </p>
+                  </div>
 
-                    <div className="grid grid-cols-1 gap-2">
-                       {[
-                         'I am safe now', 
-                         'Help has arrived', 
-                         'Reached a safe location', 
-                         'Accidentally triggered SOS', 
-                         'Threat no longer nearby', 
-                         'Other reason'
-                       ].map((reason) => (
-                         <button
-                           key={reason}
-                           onClick={() => {
-                             setAbortReason(reason);
-                           }}
-                           className={cn(
-                             "w-full py-3.5 px-4 rounded-2xl text-[11px] font-bold text-left transition-all border flex items-center justify-between group",
-                             abortReason === reason 
-                               ? "bg-blue-600/20 border-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
-                               : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
-                           )}
-                         >
-                            <span>{reason}</span>
-                            <div className={cn(
-                              "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all",
-                              abortReason === reason ? "border-blue-500 bg-blue-500" : "border-white/10"
-                            )}>
-                               {abortReason === reason && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                            </div>
-                         </button>
-                       ))}
+                  <button 
+                    onClick={handleFinalAbort}
+                    disabled={!abortReason || isAborting}
+                    className={cn(
+                      "w-full py-4 sm:py-5 rounded-[20px] sm:rounded-[24px] font-black uppercase tracking-[3px] sm:tracking-[4px] text-[10px] sm:text-xs transition-all active:scale-95",
+                      abortReason 
+                        ? "bg-white text-black shadow-xl" 
+                        : "bg-white/10 text-white/20 cursor-not-allowed",
+                      isAborting && "opacity-50 cursor-wait"
+                    )}
+                  >
+                    {isAborting ? 'PROCESSING...' : 'CONFIRM & CLOSE ALERT'}
+                  </button>
+
+                  <div className="flex flex-col items-center gap-1.5 pt-1 opacity-30">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[6px] sm:text-[7px] font-black text-white uppercase tracking-[2px]">SESSION ID: {useKavachStore.getState().activeAlertId?.slice(-4).toUpperCase()}</span>
+                      <div className="w-0.5 h-0.5 bg-white rounded-full" />
+                      <span className="text-[6px] sm:text-[7px] font-black text-emerald-400 uppercase tracking-[2px]">Archived Securely</span>
                     </div>
-
-                    <AnimatePresence>
-                      {abortReason === 'Other reason' && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                           <textarea 
-                             placeholder="Please provide details..."
-                             className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-xs font-medium focus:ring-2 focus:ring-blue-500/30 outline-none transition-all placeholder:text-gray-600 min-h-[80px] mt-2"
-                           />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                 </div>
-
-                 <div className="space-y-4">
-                    <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
-                       <p className="text-[9px] font-bold text-red-400/80 uppercase tracking-widest text-center leading-relaxed">
-                         False emergency reports are securely logged to maintain trusted emergency response operations.
-                       </p>
-                    </div>
-
-                    <button 
-                      onClick={handleFinalAbort}
-                      disabled={!abortReason}
-                      className={cn(
-                        "w-full py-5 rounded-[24px] font-black uppercase tracking-[4px] text-xs transition-all active:scale-95",
-                        abortReason 
-                          ? "bg-white text-black shadow-xl" 
-                          : "bg-white/10 text-white/20 cursor-not-allowed"
-                      )}
-                    >
-                      CONFIRM & CLOSE ALERT
-                    </button>
-
-                    <div className="flex flex-col items-center gap-2 pt-2 opacity-40">
-                       <div className="flex items-center gap-4">
-                          <span className="text-[7px] font-black text-white uppercase tracking-[2px]">LIVE SESSION ID : SX-{useKavachStore.getState().activeAlertId?.slice(-4).toUpperCase()}</span>
-                          <div className="w-1 h-1 bg-white rounded-full" />
-                          <span className="text-[7px] font-black text-emerald-400 uppercase tracking-[2px]">🟢 Response activity archived securely</span>
-                       </div>
-                    </div>
-                 </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -441,48 +519,61 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
         {/* 💬 FLOATING CHAT BUBBLE (COMMAND HUB) */}
         <div className="absolute top-28 right-6 z-50">
-           <motion.button
-             whileHover={{ scale: 1.1 }}
-             whileTap={{ scale: 0.9 }}
+           <button
              onClick={() => setIsAIChatOpen(true)}
-             className="w-14 h-14 bg-accent-blue rounded-full flex items-center justify-center text-black shadow-[0_0_30px_rgba(45,212,191,0.5)] border-2 border-white/20"
+             className="w-14 h-14 bg-accent-blue rounded-full flex items-center justify-center text-black shadow-[0_0_30px_rgba(45,212,191,0.5)] border-2 border-white/20 active:scale-95 transition-all"
            >
               <MessageSquare size={24} />
-           </motion.button>
+           </button>
            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#080000] flex items-center justify-center text-[8px] font-black text-white">1</div>
         </div>
 
-        {/* Neural Grid Background */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-accent-red/10 via-transparent to-accent-red/20 pointer-events-none" />
+        {/* 🛰️ TACTICAL RADAR GRID (DYNAMIC VISUALIZATION) */}
+        <div className="absolute inset-0 z-0">
+           <SecurityRadarMap protectors={protectors} activeRadius={activeRadius} />
+           <div className="absolute inset-0 bg-gradient-to-b from-[#080000]/60 via-transparent to-[#080000]/80 pointer-events-none" />
+        </div>
 
         {/* Monitoring Reassurance Indicator */}
-        <AnimatePresence>
-          {isBeingMonitored && (
-            <motion.div
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              className="absolute top-16 left-0 right-0 z-50 flex justify-center"
-            >
-              <div className="px-6 py-2 bg-accent-blue/20 border border-accent-blue/50 backdrop-blur-xl rounded-full flex items-center gap-3 shadow-[0_0_30px_rgba(45,212,191,0.3)]">
-                <Eye size={14} className="text-accent-blue animate-pulse" />
-                <span className="text-[10px] font-black text-accent-blue uppercase tracking-[3px] italic">{t('watching_you')}</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isBeingMonitored && (
+          <div className="absolute top-16 left-0 right-0 z-50 flex justify-center">
+            <div className="px-6 py-2 bg-accent-blue/20 border border-accent-blue/50 backdrop-blur-xl rounded-full flex items-center gap-3 shadow-[0_0_30px_rgba(45,212,191,0.3)]">
+              <Eye size={14} className="text-accent-blue" />
+              <span className="text-[10px] font-black text-accent-blue uppercase tracking-[3px] italic">{t('watching_you')}</span>
+            </div>
+          </div>
+        )}
 
         {/* Header: Recording Stats */}
         <div className="relative z-10 flex items-center justify-between pt-4">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-ping" />
+            <div className="w-3 h-3 bg-red-600 rounded-full" />
             <span className="text-[10px] font-black uppercase tracking-[3px] text-red-500 italic">LIVE FORENSIC RECORDING</span>
           </div>
 
+          {/* 🚨 MANUAL PANIC OVERRIDE */}
+          <button 
+            onClick={async () => {
+              const isSirenPlaying = (window as any)._kavach_manual_siren;
+              if (isSirenPlaying) {
+                await KavachSafe.stopContinuousSiren();
+                (window as any)._kavach_manual_siren = false;
+                toast.success("Manual Alarm Disengaged.");
+              } else {
+                await KavachSafe.startContinuousSiren();
+                (window as any)._kavach_manual_siren = true;
+                toast.error("MANUAL PANIC ALARM ACTIVE", { icon: '🚨' });
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-full border border-white/20 shadow-[0_0_20px_rgba(220,38,38,0.4)] active:scale-90 transition-all animate-pulse"
+          >
+            <AlertTriangle size={12} fill="white" />
+            <span className="text-[8px] font-black uppercase tracking-widest">Manual Alarm</span>
+          </button>
+
           {/* Protector Radar Count */}
           <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/10 border border-accent-blue/30 rounded-full">
-            <Shield size={10} className="text-accent-blue animate-pulse" />
+            <Shield size={10} className="text-accent-blue" />
             <span className="text-[8px] font-black text-accent-blue uppercase tracking-widest">
               {nearbyCount} PROTECTORS IN RANGE
             </span>
@@ -494,21 +585,16 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
         </div>
 
         {/* Main Pulsator Copy (Centered) */}
-        <div className="flex-1 flex flex-col items-center justify-center space-y-12 relative z-10">
+        <div className="flex-1 flex flex-col items-center justify-center space-y-12 relative z-10 pointer-events-none">
           <div className="relative">
-            <motion.div
-              animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-[-60px] bg-red-600/20 rounded-full blur-[80px]"
-            />
-            <div className="w-56 h-56 bg-red-600 rounded-full flex flex-col items-center justify-center shadow-[0_0_100px_rgba(220,38,38,0.5)] border-4 border-white/20">
-              <Shield size={64} className="text-white animate-bounce" />
-              <p className="mt-4 text-white font-black uppercase tracking-[4px] text-xs">GRID ACTIVE</p>
+            <div className="w-48 h-48 bg-red-600/20 rounded-full flex flex-col items-center justify-center backdrop-blur-md border-4 border-white/10 shadow-[0_0_80px_rgba(220,38,38,0.2)]">
+              <Shield size={48} className="text-white/80 animate-pulse" />
+              <p className="mt-4 text-white/60 font-black uppercase tracking-[4px] text-[8px]">GRID ACTIVE</p>
             </div>
           </div>
 
-          <div className="w-full max-w-sm space-y-4">
-            <div className="p-5 bg-white/5 border border-white/10 rounded-[24px] space-y-4">
+          <div className="w-full max-w-sm space-y-4 pointer-events-auto">
+            <div className="p-5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[24px] space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Radio size={16} className="text-green-500" />
@@ -519,11 +605,21 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
               <div className="space-y-2 border-t border-white/5 pt-4">
                 <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
                   <span>Police Control Dispatch</span>
-                  <span className="text-white">ENROUTE</span>
+                  <span className={cn(
+                    "transition-colors duration-500", 
+                    !Capacitor.isNativePlatform() ? "text-gray-600" : (callStatus === 'CONNECTED' ? "text-green-500" : "text-white italic")
+                  )}>
+                    {Capacitor.isNativePlatform() ? callStatus : 'PLATFORM UNAVAILABLE'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
                   <span>Guardian SMS Alert</span>
-                  <span className="text-white">DELIVERED</span>
+                  <span className={cn(
+                    "transition-colors duration-500", 
+                    !Capacitor.isNativePlatform() ? "text-gray-600" : (smsStatus === 'DELIVERED' ? "text-green-500" : "text-white italic")
+                  )}>
+                    {Capacitor.isNativePlatform() ? smsStatus : 'PLATFORM UNAVAILABLE'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
                   <span>Audio Log Storage</span>
@@ -536,7 +632,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
         </div>
 
         <div className="relative z-10 pb-8 flex flex-col items-center space-y-6">
-          <div className="flex items-center gap-2 text-red-500/60 animate-pulse">
+          <div className="flex items-center gap-2 text-red-500/60">
             <AlertTriangle size={14} />
             <p className="text-[8px] font-black uppercase tracking-[3px]">Evidence processing under BNSS protocols</p>
           </div>

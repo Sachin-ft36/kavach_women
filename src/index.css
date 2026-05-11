@@ -26,10 +26,13 @@
     padding-right: env(safe-area-inset-right, 0px);
     min-height: 100vh;
     min-height: -webkit-fill-available;
+    /* 🛡️ BUTTER PROTOCOL: OPTIMIZED RENDERING */
+    text-rendering: optimizeLegibility;
   }
 
   html {
     height: -webkit-fill-available;
+    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -44,12 +47,17 @@
   width: 100% !important;
   z-index: 10 !important;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  /* 🛡️ BUTTER PROTOCOL: MAP ISOLATION */
+  contain: layout;
+  will-change: transform;
 }
 
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
   gap: 12px;
+  /* 🛡️ BUTTER PROTOCOL: GRID ISOLATION */
+  contain: layout;
 }
 
 @media (min-width: 640px) {
@@ -67,11 +75,16 @@
 }
 
 .bento-card {
-  @apply bg-card-bg border border-border/50 rounded-xl p-5 md:p-6 relative overflow-hidden transition-all duration-200;
+  @apply bg-card-bg border border-border/50 rounded-xl p-5 md:p-6 relative overflow-hidden;
+  /* 🛡️ BUTTER PROTOCOL: CARD ACCELERATION */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+  will-change: transform, opacity;
 }
 
 .bento-card:active {
-  @apply scale-[0.99] bg-white/5;
+  @apply scale-[0.98] bg-white/5;
 }
 
 .bento-card-title {
@@ -91,6 +104,7 @@
 .victim-pulse-icon {
   background: none !important;
   border: none !important;
+  will-change: transform, opacity;
 }
 
 .victim-pulse-icon div {
@@ -98,38 +112,25 @@
   animation: pulse-red 2s infinite;
   background-color: #ff3b30 !important;
   border-radius: 50%;
+  transform: translateZ(0);
 }
 
 @keyframes pulse-red {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
-  70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+  0% { transform: scale3d(0.95, 0.95, 1); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); opacity: 1; }
+  70% { transform: scale3d(1.1, 1.1, 1); box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); opacity: 0.8; }
+  100% { transform: scale3d(0.95, 0.95, 1); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); opacity: 1; }
 }
 
 .sos-marker-inner {
   @apply w-12 h-12 bg-accent-red rounded-lg flex items-center justify-center text-white border-2 border-white/20 z-10;
   animation: tactical-blink 0.8s infinite alternate steps(2);
-}
-
-/* Animations */
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes tactical-blink {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0.7; transform: scale(1.05); background-color: #ff0000; }
-}
-
-.animate-tactical-blink {
-  animation: tactical-blink 0.8s infinite alternate steps(2);
+  transform: translateZ(0);
 }
 
 /* Command Feed Aesthetics */
 .command-feed-item {
   @apply border-l-2 border-accent-blue pl-4 py-2 bg-white/2 hover:bg-white/5 transition-all;
+  contain: content;
 }
 
 .telemetry-value {
@@ -152,6 +153,7 @@
   justify-content: center;
   width: 100px;
   height: 100px;
+  contain: strict;
 }
 
 .pulse-ring {
@@ -161,6 +163,7 @@
   border-radius: 50%;
   background: rgba(10, 132, 255, 0.4);
   animation: pulse-out 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+  will-change: transform, opacity;
 }
 
 /* Active Guidance: Off-Route Alert */
@@ -176,9 +179,12 @@
 
 /* Navigation Step Progress */
 .nav-step-indicator {
-  @apply h-1 bg-accent-blue rounded-full absolute bottom-0 left-0 transition-all duration-300;
+  @apply h-1 bg-accent-blue rounded-full absolute bottom-0 left-0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .nav-instruction-banner {
   @apply bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center gap-4;
+  contain: content;
 }

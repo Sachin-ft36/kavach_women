@@ -144,25 +144,26 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[300] bg-[#0A0A0B] flex flex-col p-6 pt-12 overflow-hidden font-sans">
-      <div className="flex items-center justify-between mb-8">
+    <div className="fixed inset-0 z-[300] bg-[#0A0A0B] flex flex-col p-4 sm:p-6 pt-6 sm:pt-12 overflow-hidden font-sans">
+      <div className="flex items-center justify-between mb-4 sm:mb-8">
         <button 
           onClick={onClose}
-          className="p-3 bg-white/5 border border-white/10 rounded-2xl text-white flex items-center gap-2 group"
+          className="p-2.5 sm:p-3 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl text-white flex items-center gap-1.5 sm:gap-2 group"
         >
-          <ChevronRight size={18} className="rotate-180" />
-          <span className="text-[10px] font-black uppercase tracking-widest">Back to Safe Zone</span>
+          <ChevronRight size={16} className="rotate-180 sm:size-[18px]" />
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Back</span>
         </button>
         <div className="px-3 py-1 bg-accent-red/20 rounded-full border border-accent-red/30">
-           <span className="text-[8px] font-black text-accent-red uppercase tracking-widest italic">Legal Intake Protocol</span>
+           <span className="text-[7px] sm:text-[8px] font-black text-accent-red uppercase tracking-widest italic">Legal Protocol</span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-8 scrollbar-hide pb-20">
-        <div className="space-y-2 text-center">
-          <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Zero FIR Assistant</h2>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[3px]">Digital Complaint Registration (Sec. 154 CrPC)</p>
-        </div>
+      <div className="flex-1 overflow-y-auto scrollbar-hide pb-20 flex flex-col sm:justify-center">
+        <div className="space-y-6 sm:space-y-12 py-4">
+          <div className="space-y-1 sm:space-y-4 text-center">
+            <h2 className="text-2xl sm:text-4xl font-black text-white italic uppercase tracking-tighter">Zero FIR Assistant</h2>
+            <p className="text-[9px] sm:text-[11px] text-gray-500 font-bold uppercase tracking-[2px] sm:tracking-[4px]">Digital Complaint Registration (Sec. 154 CrPC)</p>
+          </div>
 
         <AnimatePresence mode="wait">
           {step === 1 && (
@@ -173,21 +174,21 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
               exit={{ opacity: -20, x: 0 }}
               className="space-y-6"
             >
-              <div className="space-y-3 text-center">
-                <label className="text-[10px] font-black uppercase tracking-[2px] text-gray-500 block">Select Incident Category</label>
-                <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-3 sm:space-y-6 text-center">
+                <label className="text-[9px] sm:text-[12px] font-black uppercase tracking-[1.5px] sm:tracking-[3px] text-gray-500 block">Select Incident Category</label>
+                <div className="grid grid-cols-1 gap-2.5 sm:gap-4">
                   {incidentTypes.map((type) => (
                     <button
                       key={type}
                       onClick={() => setIncidentType(type)}
                       className={cn(
-                        "p-5 rounded-2xl border transition-all text-center",
+                        "p-3.5 sm:p-6 rounded-xl sm:rounded-[24px] border transition-all text-center",
                         incidentType === type 
                           ? "bg-accent-red/10 border-accent-red text-white" 
                           : "bg-white/5 border-white/10 text-white/60"
                       )}
                     >
-                      <span className="text-xs font-bold uppercase tracking-wide">{type}</span>
+                      <span className="text-[11px] sm:text-sm font-black uppercase tracking-widest">{type}</span>
                     </button>
                   ))}
                 </div>
@@ -195,7 +196,7 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
               <button 
                 disabled={!incidentType}
                 onClick={() => setStep(2)}
-                className="w-full py-5 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-[2px] disabled:opacity-20 transition-all"
+                className="w-full py-4 sm:py-6 bg-white text-black rounded-xl sm:rounded-[24px] text-[10px] sm:text-xs font-black uppercase tracking-[2px] sm:tracking-[4px] disabled:opacity-20 transition-all shadow-2xl"
               >
                 Continue to Evidence Details
               </button>
@@ -294,11 +295,12 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
 
-      <div className="p-6 bg-white/5 border-t border-white/10 flex items-center gap-3">
+      <div className="p-4 sm:p-6 bg-white/5 border-t border-white/10 flex items-center gap-3">
          <FileText size={16} className="text-gray-500" />
-         <p className="text-[8px] text-gray-500 font-bold uppercase leading-relaxed tracking-widest">A Zero FIR can be filed at ANY police station irrespective of jurisdiction. The police MUST forward it to the concerned station.</p>
+         <p className="text-[7px] sm:text-[8px] text-gray-500 font-bold uppercase leading-relaxed tracking-widest">A Zero FIR can be filed at ANY police station irrespective of jurisdiction. The police MUST forward it to the concerned station.</p>
       </div>
 
       {/* Hidden FIR Template for Print */}

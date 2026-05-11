@@ -67,6 +67,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [pendingProtectors, setPendingProtectors] = useState<any[]>([]);
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
   const [userStatusMap, setUserStatusMap] = useState<Record<string, any>>({});
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   
   const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => {} });
 
@@ -128,7 +129,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                  <div className="w-[300px] bg-white border-r border-gray-100 flex flex-col shrink-0 overflow-hidden">
                     <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-rose-50/20 shrink-0">
                        <div className="flex items-center gap-2 text-rose-600">
-                          <Bell size={14} className="animate-pulse" />
+                          <Bell size={14} />
                           <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">Live SOS Briefs</h2>
                        </div>
                        <div className="px-2 py-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full uppercase">{activeAlerts.length}</div>
@@ -143,7 +144,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                                    <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100"><Activity size={14} /></div>
                                    <div>
                                       <h4 className="text-[10px] font-black uppercase text-gray-900 leading-none">{alert.victimName || 'Citizen'}</h4>
-                                      <p className="text-[7px] font-black text-rose-500 uppercase tracking-widest mt-1 animate-pulse italic">Active SOS</p>
+                                      <p className="text-[7px] font-black text-rose-500 uppercase tracking-widest mt-1 italic">Active SOS</p>
                                    </div>
                                 </div>
                              </div>
@@ -153,7 +154,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
                      <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-blue-50/20 shrink-0">
                         <div className="flex items-center gap-2 text-blue-600">
-                           <Car size={14} className="animate-pulse" />
+                           <Car size={14} />
                            <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">Live Transit Intel</h2>
                         </div>
                         <div className="px-2 py-0.5 bg-blue-600 text-white text-[8px] font-black rounded-full uppercase">{activeJourneys.length}</div>
@@ -171,7 +172,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                                     <h4 className="text-[10px] font-black uppercase text-gray-900 leading-none truncate">{journey.userName || 'Citizen'}</h4>
                                     <div className="flex items-center gap-2 mt-1.5">
                                        <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest truncate">{journey.vehicleNo}</p>
-                                       <div className={cn("w-1 h-1 rounded-full animate-pulse", journey.status === 'emergency' ? "bg-rose-500" : "bg-emerald-500")} />
+                                       <div className={cn("w-1 h-1 rounded-full", journey.status === 'emergency' ? "bg-rose-500" : "bg-emerald-500")} />
                                     </div>
                                  </div>
                               </div>
@@ -234,9 +235,16 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         case 'SOS':
            return <SOSManagement />;
         case 'PROTECTORS':
-           return <ProtectorManagement />;
+           return (
+             <ProtectorManagement 
+               onViewReplay={(missionId) => {
+                 setActiveMissionId(missionId);
+                 onTabChange?.('TRACK');
+               }} 
+             />
+           );
         case 'TRACK':
-           return <ProtectorTrack />;
+           return <ProtectorTrack activeMissionId={activeMissionId} onClearMission={() => setActiveMissionId(null)} />;
         case 'DATA':
            return <KavachDirectory womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={verifiedProtectors} selectedState="National" />;
         case 'CHAT':

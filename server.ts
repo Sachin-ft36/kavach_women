@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
+import fs from "fs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -18,9 +20,12 @@ async function startServer() {
     }
   });
 
-  const PORT = Number(process.env.PORT) || 8085;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
+
+  // ── SERVE ROOT RESOURCES ────────────────────────────────────────────────
+  app.use('/resources', express.static(path.join(process.cwd(), 'resources')));
 
   // ── USER REGISTRY ───────────────────────────────────────────────────────
   const userSocketMap  = new Map<string, string>();  // uid → socket.id

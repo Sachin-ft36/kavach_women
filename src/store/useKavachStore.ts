@@ -18,6 +18,8 @@ import {
   increment
 } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { KavachSafe } from '../services/KavachNative';
 
 const lastLat = localStorage.getItem('kavach_last_lat');
 const lastLng = localStorage.getItem('kavach_last_lng');
@@ -80,7 +82,7 @@ interface KavachState {
   setSentinelActive: (active: boolean) => void;
   resetSentinelPulse: () => void;
   setGuardianCache: (guardians: any[]) => void;
-  setUser: (user: FirebaseUser | null) => void;
+  setUser: (user: FirebaseUser | null) => Promise<void>;
   setProfile: (profile: any | null) => void;
   setRole: (role: 'citizen' | 'protector' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
@@ -89,16 +91,16 @@ interface KavachState {
   setSafetyPin: (pin: string | null) => void;
   setUserPos: (pos: [number, number]) => void;
   setBatteryLevel: (level: number) => void;
-  setSOSActive: (active: boolean, alertId?: string | null, method?: KavachState['triggerMethod']) => void;
-  setRideMode: (active: boolean, rideData?: KavachState['rideData']) => void;
-  updateRideData: (updates: Partial<NonNullable<KavachState['rideData']>>) => void;
+  setSOSActive: (active: boolean, alertId?: string | null, method?: KavachState['triggerMethod'], closureReason?: string | null) => Promise<void>;
+  setRideMode: (active: boolean, rideData?: KavachState['rideData']) => Promise<void>;
+  updateRideData: (updates: Partial<NonNullable<KavachState['rideData']>>) => Promise<void>;
   setLocked: (locked: boolean) => void;
   setFakeCallActive: (active: boolean) => void;
   setVoiceTriggerActive: (active: boolean) => void;
   handleManualUnlock: () => Promise<void>;
   setActiveTab: (tab: string) => void;
   setLoading: (loading: boolean) => void;
-  syncLocation: () => Promise<[number, number] | null>;
+  syncLocation: (providedCoords?: any) => Promise<[number, number] | null>;
   isHubReady: boolean;
   setHubReady: (ready: boolean) => void;
   blackBox: any[];
@@ -113,11 +115,28 @@ interface KavachState {
   setSOSBlocked: (blocked: boolean, reason?: string | null) => void;
   setStrikeCount: (count: number) => void;
   acknowledgeWarning: () => Promise<void>;
+  requestEmergencyOverride: () => Promise<void>;
+  triggerDuress: (distressCode: string) => Promise<boolean>;
   isInterceptActive: boolean;
   setInterceptActive: (active: boolean) => void;
+  pendingSOS: {
+    active: boolean;
+    method: KavachState['triggerMethod'];
+    expiresAt: number;
+  } | null;
+  setPendingSOS: (active: boolean, method?: KavachState['triggerMethod']) => void;
+  cancelPendingSOS: () => void;
+  isOverlayActive: boolean;
+  setOverlayActive: (active: boolean) => void;
+  isAIChatOpen: boolean;
+  setIsAIChatOpen: (open: boolean) => void;
+  activeProtectorAlertId: string | null;
+  setActiveProtectorAlert: (id: string | null) => void;
+  activeRadius: number;
+  setActiveRadius: (radius: number) => void;
 }
 
-export const useKavachStore = create<KavachState>((set) => ({
+export const useKavachStore = create<KavachState>((set, get) => ({
   user: null,
   profile: null,
   role: 'citizen',
@@ -149,7 +168,7 @@ export const useKavachStore = create<KavachState>((set) => ({
   biometricAvailable: false,
   verifiedProtectorCount: 0,
   isFakeCallActive: false,
-  isVoiceTriggerActive: localStorage.getItem('kavach_voice_trigger') !== 'false',
+  isVoiceTriggerActive: localStorage.getItem('kavach_voice_trigger') === 'true',
   isBatteryExempt: true,
   setBatteryExempt: (isBatteryExempt) => set({ isBatteryExempt }),
   guardianCache: cachedGuardians,
@@ -159,6 +178,37 @@ export const useKavachStore = create<KavachState>((set) => ({
   blackBox: JSON.parse(localStorage.getItem('kavach_blackbox') || '[]'),
   performanceMode: (localStorage.getItem('kavach_perf_mode') as any) || 'auto',
   isShadowActive: localStorage.getItem('kavach_shadow_mode') === 'true',
+  pendingSOS: null,
+  isOverlayActive: false,
+  setOverlayActive: (isOverlayActive) => set({ isOverlayActive }),
+  isAIChatOpen: false,
+  setIsAIChatOpen: (isAIChatOpen) => set({ isAIChatOpen }),
+  activeProtectorAlertId: null,
+  setActiveProtectorAlert: (activeProtectorAlertId) => set({ activeProtectorAlertId }),
+  activeRadius: 1.0,
+  setActiveRadius: (activeRadius) => set({ activeRadius }),
+
+  setPendingSOS: (active, method = 'button') => {
+    if (active) {
+      set({ 
+        pendingSOS: { 
+          active: true, 
+          method, 
+          expiresAt: Date.now() + 5000 
+        } 
+      });
+    } else {
+      set({ pendingSOS: null });
+    }
+  },
+
+  cancelPendingSOS: () => {
+    set({ pendingSOS: null });
+    toast.info("SOS Request Cancelled", {
+      description: "False trigger avoided. System returning to standby.",
+      icon: '🛡️'
+    });
+  },
 
   setPerformanceMode: (performanceMode) => {
     localStorage.setItem('kavach_perf_mode', performanceMode);
@@ -196,7 +246,7 @@ export const useKavachStore = create<KavachState>((set) => ({
             hasPendingWarning: !!data.hasPendingWarning,
             warningMessage: data.warningMessage || null,
             profile: data,
-            isVerified: !!data.isVerified
+            isVerified: !!(data.isVerified || data.verified)
           });
         }
       });
@@ -300,7 +350,10 @@ export const useKavachStore = create<KavachState>((set) => ({
     try {
       await NativeBiometric.verifyIdentity({ reason: "Manual Unlock", useFallback: true });
       set({ isLocked: false });
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Biometric verification failed, fallback required.");
+      throw e; // 🛡️ THROW to trigger PIN UI in SOSScreen
+    }
   },
   setActiveTab: (tab) => set({ activeTab: tab }),
   setLoading: (loading) => set({ loading }),
@@ -308,20 +361,25 @@ export const useKavachStore = create<KavachState>((set) => ({
     try {
       const { getLiveLocation } = await import('../services/locationService');
       const { db, auth } = await import('../firebase');
-      const { doc, updateDoc, serverTimestamp, arrayUnion } = await import('firebase/firestore');
+      const { doc, updateDoc, serverTimestamp, arrayUnion, setDoc } = await import('firebase/firestore');
       
-      const loc = providedCoords || await getLiveLocation();
+      const loc: any = providedCoords || await getLiveLocation();
       if (loc) { 
-        const userPos: [number, number] = [loc.latitude, loc.longitude];
-        set({ userPos, loading: false });
+        // 🛰️ TACTICAL EXTRACTION: Handle both standard and high-fidelity coordinate objects
+        const lat = loc.latitude ?? loc.coords?.latitude;
+        const lng = loc.longitude ?? loc.coords?.longitude;
 
-        if (auth.currentUser) {
-          try {
-            const updates: any = {
-              lastLocation: { latitude: loc.latitude, longitude: loc.longitude },
-              lastActive: serverTimestamp()
-            };
-            await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
+        if (lat !== undefined && lng !== undefined) {
+          const userPos: [number, number] = [lat, lng];
+          set({ userPos, loading: false });
+
+          if (auth.currentUser) {
+            try {
+              const updates: any = {
+                lastLocation: { latitude: lat, longitude: lng },
+                lastActive: serverTimestamp()
+              };
+              await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
 
             const state = useKavachStore.getState();
             if (state.isRideModeActive && state.rideData) {
@@ -360,35 +418,67 @@ export const useKavachStore = create<KavachState>((set) => ({
                 warningMessage: data.warningMessage || null
               });
             }
-          } catch (e) {
-            console.error("Cloud Hub Sync Failed:", e);
+            } catch (e) {
+              console.error("Cloud Hub Sync Failed:", e);
+            }
           }
+          return userPos;
         }
-        return userPos;
       }
-    } catch (e) {}
-    // 🛡️ PROTECTOR TELEMETRY: Sync global count
-    const protectorsQuery = query(
-      collection(db, 'users'), 
-      where('role', '==', 'protector'), 
-      where('isVerified', '==', true)
-    );
-    const unsubProtectors = onSnapshot(protectorsQuery, (snap) => {
-      set({ verifiedProtectorCount: snap.size });
-    });
+    } catch (e) {
+      console.error("📍 KAVACH: Sync Location Failed.", e);
+    }
 
-    return () => {
-      unsub();
-      unsubProtectors();
-    };
+    // 🛡️ PROTECTOR TELEMETRY: Sync global count
+    try {
+      const { db } = await import('../firebase');
+      const { query, collection, where, onSnapshot } = await import('firebase/firestore');
+      const protectorsQuery = query(
+        collection(db, 'users'), 
+        where('role', '==', 'protector'), 
+        where('isVerified', '==', true)
+      );
+      onSnapshot(protectorsQuery, (snap) => {
+        set({ verifiedProtectorCount: snap.size });
+      });
+    } catch (e) {}
+
+    return null;
   },
   setSOSActive: async (isSOSActive: boolean, activeAlertId: string | null = null, method = 'button', closureReason = null) => {
-    set({ isSOSActive, activeAlertId, triggerMethod: method });
+    const { guardianCache, userPos, isBriefingActive } = get();
+    
+    set({ isSOSActive, activeAlertId, triggerMethod: method, pendingSOS: null });
+    if (!isSOSActive) set({ activeRadius: 1.0 }); // Reset perimeter on de-escalation
     
     if (isSOSActive) {
+      console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
       localStorage.setItem('kavach_sos_active', 'true');
       localStorage.setItem('kavach_trigger_method', method);
       
+      // 🛡️ TACTICAL HANDSHAKE: Fire Hardware Dispatch Sequentially
+      if (Capacitor.isNativePlatform()) {
+        try {
+          // STEP 1: Blast SMS (Priority 1)
+          const phones = (guardianCache || []).map(g => g.phone?.replace(/\s/g, '')).filter(Boolean);
+          console.log("📡 DISPATCH: Blasting SMS to Guardians:", phones);
+          await KavachSafe.broadcastEmergencySMS(phones);
+          
+          // STEP 2: Wait for hardware handshake (Avoid collision)
+          console.log("⏳ SYNC: Tactical Delay (1000ms)...");
+          await new Promise(r => setTimeout(r, 1000));
+
+          // STEP 3: Initiate Voice Call (Priority 2)
+          console.log("📞 DISPATCH: Initiating Voice Uplink...");
+          await KavachSafe.initiateEmergencyCall();
+
+          // STEP 4: Capture & Engage Interceptors (Siren Silenced for Victim Safety)
+          console.log("🚨 DISPATCH: Engaging Interceptors...");
+          // KavachSafe.startContinuousSiren(); // REMOVED FOR STEALTH SOS
+        } catch (e) {
+          console.error("🚨 DISPATCH FAIL: Hardware Bridge Error", e);
+        }
+      }
       if (auth.currentUser) {
         const alertId = activeAlertId || `alert_${auth.currentUser.uid}_${Date.now()}`;
         if (!activeAlertId) set({ activeAlertId: alertId });
@@ -460,7 +550,7 @@ export const useKavachStore = create<KavachState>((set) => ({
       const currentAlertId = activeAlertId || useKavachStore.getState().activeAlertId;
       if (auth.currentUser && currentAlertId) {
         try {
-          // 🛡️ FETCH ALERT DATA TO IDENTIFY RESPONDERS
+          // 🛡️ FETCH ALERT DATA TO IDENTIFY RESPONDERS & SYNC GRID
           const alertRef = doc(db, 'alerts', currentAlertId);
           const alertSnap = await getDoc(alertRef);
           
@@ -468,24 +558,36 @@ export const useKavachStore = create<KavachState>((set) => ({
             const alertData = alertSnap.data();
             const responders = alertData.activeResponders || [];
             
-            // 🏅 CREDIT MERIT POINTS TO ALL ACTIVE RESPONDERS
+            // 🏅 CREDIT MERIT POINTS TO ALL ACTIVE RESPONDERS (Honor for Readiness)
             if (responders.length > 0) {
               for (const responder of responders) {
                 if (responder.uid) {
                   const responderRef = doc(db, 'users', responder.uid);
                   await updateDoc(responderRef, {
-                    xp: increment(100), // Standard 100 XP per mission
+                    xp: increment(100), // Standard 100 XP for being dispatched
+                    livesSaved: increment(1), // Persistent merit tracking
                     missionHistory: arrayUnion({
                       id: currentAlertId,
                       victimName: alertData.victimName || 'Citizen',
                       timestamp: serverTimestamp(),
                       type: alertData.isTransitSOS ? 'TRANSIT_INTERCEPTION' : 'SOS_RESCUE',
-                      status: 'SUCCESS'
+                      status: 'SUCCESSFUL_INTERVENTION'
                     })
                   }).catch(e => console.error(`Failed to credit responder ${responder.uid}:`, e));
                 }
               }
-              console.log(`✅ KAVACH: Merit points credited to ${responders.length} protectors.`);
+            }
+
+            // ⚠️ VICTIM ACCOUNTABILITY: Handle False Triggers
+            if (closureReason === 'Accidentally triggered SOS') {
+              const victimRef = doc(db, 'users', auth.currentUser.uid);
+              await updateDoc(victimRef, {
+                falseSOSCount: increment(1),
+                hasPendingWarning: true,
+                warningMessage: "⚠️ KAVACH ALERT: False trigger detected. Frequent accidental SOS activations may lead to temporary grid suspension.",
+                lastPenaltyAt: serverTimestamp()
+              });
+              console.warn("🛡️ KAVACH ACCOUNTABILITY: Victim flagged for false trigger.");
             }
           }
 

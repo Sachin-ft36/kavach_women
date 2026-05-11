@@ -24,7 +24,7 @@ export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
@@ -37,47 +37,47 @@ export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; on
         initial={{ y: 100, opacity: 0 }} 
         animate={{ y: 0, opacity: 1 }} 
         exit={{ y: 100, opacity: 0 }}
-        className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg bg-white rounded-[32px] sm:rounded-[40px] p-6 sm:p-10 shadow-2xl overflow-hidden"
       >
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-amber-500/5 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-b from-amber-500/5 to-transparent pointer-events-none" />
         
-        <div className="flex justify-between items-start mb-8 relative z-10">
-          <div className="w-16 h-16 rounded-[24px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-lg shadow-amber-500/10">
-             <Phone size={32} />
+        <div className="flex justify-between items-start mb-6 sm:mb-8 relative z-10">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-[24px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-lg shadow-amber-500/10">
+             <Phone size={24} className="sm:size-[32px]" />
           </div>
-          <button onClick={onClose} className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-all">
-             <X size={24} />
+          <button onClick={onClose} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-all">
+             <X size={20} className="sm:size-[24px]" />
           </button>
         </div>
 
-        <h2 className="text-3xl font-black italic uppercase tracking-tighter text-gray-900 mb-2 leading-none relative z-10">Fake Call Hub</h2>
-        <p className="text-[10px] text-amber-500 font-black uppercase tracking-[4px] mb-10 relative z-10">Immediate Escape Protocol</p>
+        <h2 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter text-gray-900 mb-1.5 leading-none relative z-10">Fake Call Hub</h2>
+        <p className="text-[9px] sm:text-[10px] text-amber-500 font-black uppercase tracking-[3px] sm:tracking-[4px] mb-6 sm:mb-10 relative z-10">Immediate Escape Protocol</p>
 
-        <div className="grid grid-cols-1 gap-4 mb-10">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-6 sm:mb-10">
           <button 
             onClick={() => triggerCall(0)}
-            className="group flex items-center justify-between p-6 bg-amber-500 rounded-[32px] text-white shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+            className="group flex items-center justify-between p-4 sm:p-6 bg-amber-500 rounded-2xl sm:rounded-[32px] text-white shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-95 transition-all"
           >
-             <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
-                   <Zap size={24} />
+             <div className="flex items-center gap-4 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/20 flex items-center justify-center">
+                   <Zap size={20} className="sm:size-[24px]" />
                 </div>
                 <div className="text-left">
-                   <span className="block text-[14px] font-black uppercase tracking-widest italic leading-none">Instant Call</span>
-                   <span className="block text-[9px] font-bold uppercase tracking-widest opacity-60 mt-1">Trigger Now</span>
+                   <span className="block text-[12px] sm:text-[14px] font-black uppercase tracking-widest italic leading-none">Instant Call</span>
+                   <span className="block text-[8px] sm:text-[9px] font-bold uppercase tracking-widest opacity-60 mt-1">Trigger Now</span>
                 </div>
              </div>
-             <ChevronRight size={20} className="opacity-40" />
+             <ChevronRight size={18} className="opacity-40" />
           </button>
 
-          <div className="p-6 bg-gray-50 border border-gray-100 rounded-[32px] space-y-6">
-             <div className="flex items-center gap-5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-                   <Clock size={24} />
+          <div className="p-4 sm:p-6 bg-gray-50 border border-gray-100 rounded-2xl sm:rounded-[32px] space-y-4 sm:space-y-6">
+             <div className="flex items-center gap-4 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                   <Clock size={20} className="sm:size-[24px]" />
                 </div>
                 <div className="text-left">
-                   <span className="block text-[14px] font-black uppercase tracking-widest italic leading-none text-gray-900">Schedule Call</span>
-                   <span className="block text-[9px] font-bold uppercase tracking-widest text-gray-400 mt-1">Set Escape Timer</span>
+                   <span className="block text-[12px] sm:text-[14px] font-black uppercase tracking-widest italic leading-none text-gray-900">Schedule Call</span>
+                   <span className="block text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-gray-400 mt-1">Set Escape Timer</span>
                 </div>
              </div>
 
@@ -128,13 +128,13 @@ export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; on
           </div>
         </div>
 
-        <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-[32px] flex items-center gap-4">
+        <div className="p-4 sm:p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl sm:rounded-[32px] flex items-center gap-4">
            <div className="relative">
-              <ShieldCheck size={20} className="text-amber-500" />
+              <ShieldCheck size={18} className="text-amber-500 sm:size-[20px]" />
               <div className="absolute inset-0 bg-amber-500 rounded-full animate-ping opacity-20" />
            </div>
            <div className="text-left">
-              <p className="text-[9px] text-amber-700 font-black uppercase tracking-widest leading-none">Safety Background Sync Active</p>
+              <p className="text-[8px] sm:text-[9px] text-amber-700 font-black uppercase tracking-widest leading-none">Safety Background Sync Active</p>
               <p className="text-[7px] text-amber-600/60 font-bold uppercase tracking-wider mt-1.5">Call will trigger even if phone is locked or app is closed.</p>
            </div>
         </div>

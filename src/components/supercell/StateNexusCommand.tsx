@@ -80,7 +80,7 @@ export function StateNexusCommand({
 
          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 rounded-full border border-green-100">
-               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+               <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
                <span className="text-[8px] font-black uppercase tracking-widest">Grid Link Active</span>
             </div>
          </div>

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
-import { Capacitor, registerPlugin } from '@capacitor/core';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from '../services/KavachNative';
 
 /**
  * KAVACH THREAT SENTINEL

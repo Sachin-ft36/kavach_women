@@ -66,8 +66,8 @@ export default function SignupView({
   const fetchPhoneHint = async () => {
     setIsFetchingHint(true);
     try {
-      const { registerPlugin, Capacitor } = await import('@capacitor/core');
-      const KavachNative = registerPlugin<any>('KavachPlugin');
+      const { Capacitor } = await import('@capacitor/core');
+      const { KavachNative } = await import('../../services/KavachNative');
 
       // Web Fallback for local testing
       if (!Capacitor.isNativePlatform()) {
@@ -121,9 +121,9 @@ export default function SignupView({
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -10 }}
-      className="space-y-6"
+      className="space-y-4 sm:space-y-6"
     >
-      <form onSubmit={onSignup} className="space-y-4">
+      <form onSubmit={onSignup} className="space-y-3 sm:space-y-4">
         <div className="space-y-2">
           <label className="text-xs font-bold text-text-main pl-1">{t('fullname')}</label>
           <div className="relative">
@@ -132,7 +132,7 @@ export default function SignupView({
               required
               type="text"
               placeholder={t('enter_name')}
-              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
@@ -142,7 +142,7 @@ export default function SignupView({
         <div className="space-y-2">
           <label className="text-xs font-bold text-text-main pl-1">{t('phone_number')}</label>
           <div className="relative flex items-center bg-bg border border-border rounded-2xl overflow-hidden focus-within:border-accent-blue transition-all">
-            <div className="flex items-center gap-2 pl-5 pr-3 py-4">
+            <div className="flex items-center gap-2 pl-5 pr-3 py-3.5 sm:py-4">
               <span className="text-sm font-bold text-text-main">+91</span>
               <div className="w-[1px] h-4 bg-border" />
             </div>
@@ -152,7 +152,7 @@ export default function SignupView({
               type={isManualEntry ? "text" : "tel"}
               placeholder={isFetchingHint ? "Identifying number..." : isManualEntry ? "Enter mobile number" : "Use my mobile number"}
               className={cn(
-                "flex-1 bg-transparent py-4 pr-2 text-sm font-bold outline-none placeholder:text-text-dim placeholder:font-medium",
+                "flex-1 bg-transparent py-3.5 sm:py-4 pr-2 text-sm font-bold outline-none placeholder:text-text-dim placeholder:font-medium",
                 phone ? "text-accent-blue" : "text-text-main"
               )}
               value={phone}
@@ -201,7 +201,7 @@ export default function SignupView({
               required
               type="email"
               placeholder={t('enter_email')}
-              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -221,7 +221,7 @@ export default function SignupView({
               required
               type={showPassword ? "text" : "password"}
               placeholder={t('enter_password')}
-              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -236,7 +236,7 @@ export default function SignupView({
 
           <div className="px-1 pt-2 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Password Strength</span>
+              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Strength</span>
               <span className={cn("text-[10px] font-bold uppercase tracking-wider", sData.text)}>{sData.label}</span>
             </div>
 
@@ -266,9 +266,9 @@ export default function SignupView({
           <button
             type="submit"
             disabled={loading || strength < 4 || emailExists || checkingEmail}
-            className="w-full py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
+            className="w-full py-4 sm:py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
           >
-            {loading ? "Creating Account..." : checkingEmail ? "Scanning..." : t('create_account')}
+            {loading ? "Creating..." : checkingEmail ? "Scanning..." : t('create_account')}
           </button>
           <p className="text-center mt-4 text-[10px] text-text-dim font-medium leading-relaxed">
             Your data is encrypted and protected under secure safety guidelines.

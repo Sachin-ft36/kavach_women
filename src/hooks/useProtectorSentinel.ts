@@ -3,10 +3,9 @@ import { useKavachStore } from '../store/useKavachStore';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { calculateHaversineDistance } from '../utils/geoUtils';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from '../services/KavachNative';
 import { toast } from 'sonner';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
 
 /**
  * 🛡️ PROTECTOR SENTINEL (Hardened)
@@ -14,7 +13,7 @@ const KavachNative = registerPlugin<any>('KavachPlugin');
  * Optimized for battery and real-time response.
  */
 export function useProtectorSentinel() {
-  const { role, userPos, isRegistered } = useKavachStore();
+  const { role, userPos, isRegistered, profile } = useKavachStore();
   const activeAlertsRef = useRef<Set<string>>(new Set());
   const userPosRef = useRef(userPos);
 
@@ -47,25 +46,41 @@ export function useProtectorSentinel() {
   };
 
   const triggerInternalCheck = () => {
-    if (!userPosRef.current || role !== 'protector') return;
+    if (!userPosRef.current || role !== 'protector' || !profile?.isVerified) return;
     
+    // 🎖️ PROTECTOR ELITE STATUS
+    const occupation = profile?.protectorVetting?.occupation || '';
+    const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police'].some(r => 
+      occupation.toLowerCase().includes(r.toLowerCase())
+    );
+
     cachedAlerts.forEach((alert) => {
       const distance = calculateHaversineDistance(
         userPosRef.current[0], userPosRef.current[1],
-        alert.coords[0], alert.coords[1]
+        alert.location?.latitude || alert.coords?.[0], 
+        alert.location?.longitude || alert.coords?.[1]
       );
 
-      if (distance <= 1.5 && !activeAlertsRef.current.has(alert.id)) {
+      const activeRadius = alert.dispatchRadius || 1.0;
+      const canHelp = isElite ? (distance <= 5.0) : (distance <= activeRadius);
+
+      if (canHelp && !activeAlertsRef.current.has(alert.id)) {
         handleRadiusBreach(alert.id, distance);
       }
     });
   };
 
   useEffect(() => {
-    // Only Protectors listen for nearby distress signals
-    if (!isRegistered || role !== 'protector') return;
+    // Only Protectors listen for nearby distress signals, and ONLY IF VERIFIED
+    if (!isRegistered || role !== 'protector' || !profile?.isVerified) return;
 
-    console.log("🛡️ PROTECTOR SENTINEL: National Security Watch Engaged.");
+    // 🎖️ PROTECTOR ELITE STATUS
+    const occupation = profile?.protectorVetting?.occupation || '';
+    const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police'].some(r => 
+      occupation.toLowerCase().includes(r.toLowerCase())
+    );
+
+    console.log(`🛡️ PROTECTOR SENTINEL: ${isElite ? 'ELITE' : 'STANDARD'} Watch Engaged.`);
 
     const q = query(
       collection(db, 'alerts'),
@@ -79,37 +94,49 @@ export function useProtectorSentinel() {
         const alertId = change.doc.id;
 
         if (change.type === 'added' || change.type === 'modified') {
-          const victimCoords = alertData.coords;
-          if (!victimCoords) return;
+          const vLat = alertData.location?.latitude || alertData.coords?.[0];
+          const vLng = alertData.location?.longitude || alertData.coords?.[1];
+          if (!vLat || !vLng) return;
 
           const distance = calculateHaversineDistance(
             userPosRef.current[0], userPosRef.current[1],
-            victimCoords[0], victimCoords[1]
+            vLat, vLng
           );
 
-          // 🚨 RADIUS BREACH: Victim within 1.5km (Increased for safety margin)
-          if (distance <= 1.5 && !activeAlertsRef.current.has(alertId)) {
+          // 🚨 TIERED RADIUS BREACH: Check against dynamic dispatch radius
+          const activeRadius = alertData.dispatchRadius || 1.0;
+          const canHelp = isElite ? (distance <= 5.0) : (distance <= activeRadius);
+
+          if (canHelp && !activeAlertsRef.current.has(alertId)) {
             activeAlertsRef.current.add(alertId);
             
-            console.warn(`🚨 KAVACH: DISTRESS DETECTED! DISTANCE: ${Math.round(distance * 1000)}m`);
+            // 🛡️ TACTICAL SYNC: Link to Store
+            useKavachStore.getState().setActiveTab('dashboard');
+            
+            console.warn(`🚨 KAVACH: DISTRESS DETECTED! TIER: ${activeRadius}KM, DISTANCE: ${Math.round(distance * 1000)}m`);
             
             if (Capacitor.isNativePlatform()) {
-              // 1. Force hardware siren on
               KavachNative.startContinuousSiren().catch(() => {});
-              
-              // 2. Dispatch High-Priority System Notification
               KavachNative.showUrgentNotification({
-                title: "🚨 URGENT: NEARBY EMERGENCY",
-                body: `A victim needs help ${Math.round(distance * 1000)}m away from your location. Intercept immediately!`,
+                title: isElite ? "🚨 ELITE ALERT: IMMEDIATE SOS" : "🚨 RAKSHAK ALERT: NEARBY SOS",
+                body: `Distress signal ${Math.round(distance * 1000)}m away. Intercept now!`,
                 id: alertId,
                 sound: 'siren'
               }).catch(() => {});
-              
-              // 3. Trigger Hardware Haptic Pulse
-              if (useKavachStore.getState().isHubReady) {
-                KavachNative.triggerHapticPulse().catch(() => {});
-              }
+              KavachNative.triggerHapticPulse().catch(() => {});
             }
+
+            toast.error(isElite ? "ELITE OVERRIDE: SOS DETECTED" : "MISSION CRITICAL: NEARBY SOS", {
+              description: `Distress signal detected. Distance: ${Math.round(distance * 1000)}m. Mobilize!`,
+              duration: 15000,
+              icon: '🚨',
+              action: {
+                label: 'INTERCEPT',
+                onClick: () => {
+                  useKavachStore.getState().setActiveTab('dashboard');
+                }
+              }
+            });
           }
         }
 
@@ -139,7 +166,7 @@ export function useProtectorSentinel() {
         KavachNative.stopContinuousSiren().catch(() => {});
       }
     };
-  }, [role, isRegistered]);
+  }, [role, isRegistered, profile]);
 
   return null;
 }

@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { PhoneCall, X, CheckCircle2, Navigation } from 'lucide-react';
+import mapboxgl from 'mapbox-gl';
 import { useKavachStore } from '../../store/useKavachStore';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 
 const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
-const VictimMap = ({ 
+const VictimMap = React.memo(({ 
   activeAlerts = [], 
   onClose, 
   isInterceptMode = false, 
@@ -25,171 +27,235 @@ const VictimMap = ({
 }) => {
   const { userPos } = useKavachStore();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<any>(null);
-  const routeLayerId = 'tactical-route';
-  const beelineLayerId = 'off-road-beeline';
+  const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<{user?: mapboxgl.Marker, victim?: mapboxgl.Marker, path?: any}>({});
 
   useEffect(() => {
-    const initMap = () => {
-      const mb = (window as any).mapboxgl;
-      if (!mapContainer.current || !mb || !mb.Map) {
-        setTimeout(initMap, 500);
-        return;
+    if (!mapContainer.current) return;
+
+    // Mapbox expects [lng, lat]
+    const initialCoords: [number, number] = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
+
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: initialCoords,
+      zoom: 18,
+      pitch: 60,
+      bearing: 0,
+      antialias: true
+    });
+
+    map.current.on('load', () => {
+      console.log("🛰️ KAVACH: Mapbox Tactical Grid Online.");
+      
+      // Add 3D building layer
+      if (map.current) {
+        // ... (existing 3D logic)
+        const layers = map.current.getStyle()?.layers;
+        const labelLayerId = layers?.find(
+          (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
+        )?.id;
+
+        map.current.addLayer(
+          {
+            'id': 'add-3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {
+              'fill-extrusion-color': '#aaa',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'min_height']
+              ],
+              'fill-extrusion-opacity': 0.6
+            }
+          },
+          labelLayerId
+        );
+
+        // 🛡️ INITIALIZE 1KM SAFETY RADIUS
+        map.current.addSource('safety-radius', {
+          type: 'geojson',
+          data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: {} }
+        });
+
+        map.current.addLayer({
+          id: 'safety-radius-fill',
+          type: 'fill',
+          source: 'safety-radius',
+          paint: {
+            'fill-color': '#EF4444',
+            'fill-opacity': 0.05
+          }
+        });
+
+        map.current.addLayer({
+          id: 'safety-radius-outline',
+          type: 'line',
+          source: 'safety-radius',
+          paint: {
+            'line-color': '#EF4444',
+            'line-width': 2,
+            'line-opacity': 0.3,
+            'line-dasharray': [2, 2]
+          }
+        });
       }
-      mb.accessToken = MAPBOX_TOKEN;
-      const initialCoords = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937]; 
-      map.current = new mb.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: initialCoords as [number, number],
-        zoom: userPos ? 16 : 4,
-        pitch: 60,
-        antialias: true
-      });
+    });
 
-      map.current.on('load', () => {
-        const m = map.current;
-        m.resize();
-        
-        // 🛡️ TACTICAL SOURCES
-        m.addSource(routeLayerId, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-        m.addSource(beelineLayerId, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-        m.addSource('user-pos', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: initialCoords } } });
-        m.addSource('victim-pos', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [] } } });
-
-        // 🛣️ ROAD ROUTE LAYER
-        m.addLayer({
-          id: routeLayerId, type: 'line', source: routeLayerId,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#3B82F6', 'line-width': 6, 'line-opacity': 0.8, 'line-blur': 2 }
-        });
-
-        // 🌉 BEELINE LAYER
-        m.addLayer({
-          id: beelineLayerId, type: 'line', source: beelineLayerId,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#FACC15', 'line-width': 3, 'line-dasharray': [2, 2], 'line-opacity': 0.9 }
-        });
-
-        // 🚩 VICTIM ALERT PULSE LAYER
-        m.addLayer({
-          id: 'victim-pulse', type: 'circle', source: 'victim-pos',
-          filter: ['!=', ['get', 'isTransitSOS'], true],
-          paint: { 'circle-radius': 10, 'circle-color': '#EF4444', 'circle-stroke-width': 3, 'circle-stroke-color': '#fff' }
-        });
-
-        // 🛣️ VICTIM PATH TRACE (FOR PROTECTORS)
-        m.addSource('victim-path', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-        m.addLayer({
-          id: 'victim-path-layer', type: 'line', source: 'victim-path',
-          paint: { 'line-color': '#EF4444', 'line-width': 4, 'line-opacity': 0.6, 'line-dasharray': [2, 1] }
-        });
-      });
+    return () => {
+      if (map.current) map.current.remove();
     };
-    initMap();
-    return () => map.current?.remove();
   }, []);
 
-  // 🛰️ LIVE NAVIGATION FOLLOW MODE
+  // 🛰️ HELPER: GENERATE 1KM CIRCLE POLYGON
+  const getCirclePoints = (center: [number, number], radiusKm: number) => {
+    const points = 64;
+    const coords = [];
+    const distanceX = radiusKm / (111.32 * Math.cos(center[1] * Math.PI / 180));
+    const distanceY = radiusKm / 110.574;
+
+    for (let i = 0; i < points; i++) {
+      const theta = (i / points) * (2 * Math.PI);
+      const x = distanceX * Math.cos(theta);
+      const y = distanceY * Math.sin(theta);
+      coords.push([center[0] + x, center[1] + y]);
+    }
+    coords.push(coords[0]);
+    return [coords];
+  };
+
+  // 🛰️ USER LOCATION SYNC
   useEffect(() => {
-    if (map.current && userPos && isNavigating) {
-      map.current.flyTo({
-        center: [userPos[1], userPos[0]],
-        zoom: 18,
-        pitch: 60,
-        bearing: 0,
-        essential: true,
-        duration: 2000
+    if (!map.current || !userPos) return;
+    const coords: [number, number] = [userPos[1], userPos[0]];
+
+    // 🛡️ UPDATE SAFETY RADIUS VISUAL
+    if (map.current.getSource('safety-radius')) {
+      (map.current.getSource('safety-radius') as mapboxgl.GeoJSONSource).setData({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: getCirclePoints(coords, 1.0)
+        },
+        properties: {}
       });
+    }
+
+    if (!markersRef.current.user) {
+      const el = document.createElement('div');
+      el.className = 'user-pos-marker';
+      el.innerHTML = `<div style="width: 16px; height: 16px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);"></div>`;
+      
+      markersRef.current.user = new mapboxgl.Marker(el)
+        .setLngLat(coords)
+        .addTo(map.current);
+    } else {
+      markersRef.current.user.setLngLat(coords);
+    }
+
+    if (isNavigating) {
+      map.current.setCenter(coords);
+      map.current.setZoom(18);
     }
   }, [userPos, isNavigating]);
 
-  const updateRoute = async (start: [number, number], end: [number, number]) => {
-    try {
-      const query = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&access_token=${MAPBOX_TOKEN}`
-      );
-      const json = await query.json();
-      if (json.routes && json.routes[0] && map.current && map.current.isStyleLoaded()) {
-        map.current.getSource(routeLayerId).setData(json.routes[0].geometry);
-      }
-    } catch (e) {}
-  };
-
+  // 🚨 VICTIM & ROUTE SYNC
   useEffect(() => {
     const m = map.current;
     if (!m || !userPos) return;
 
-    m.on('idle', () => {
-      if (!m.isStyleLoaded()) return;
+    const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
+    if (activeAlert) {
+      const vLat = activeAlert.latitude || activeAlert.location?.latitude || activeAlert.location?.lat;
+      const vLng = activeAlert.longitude || activeAlert.location?.longitude || activeAlert.location?.lng;
+      
+      if (vLat && vLng) {
+        const vCoords: [number, number] = [vLng, vLat];
+        const uCoords: [number, number] = [userPos[1], userPos[0]];
 
-      // 🛡️ Sync User Pos
-      if (m.getSource('user-pos')) {
-        m.getSource('user-pos').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [userPos[1], userPos[0]] } });
-      }
-
-      const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
-      if (activeAlert) {
-        const vLat = activeAlert.latitude || activeAlert.location?.latitude || activeAlert.location?.lat;
-        const vLng = activeAlert.longitude || activeAlert.location?.longitude || activeAlert.location?.lng;
-        
-        if (vLat && vLng) {
-          // 🚩 Sync Victim Pos
-          if (m.getSource('victim-pos')) {
-            m.getSource('victim-pos').setData({ 
-              type: 'Feature', 
-              properties: { isTransitSOS: !!activeAlert.isTransitSOS },
-              geometry: { type: 'Point', coordinates: [vLng, vLat] } 
-            });
-          }
-
-          // 👣 Sync Victim Path Trace
-          if (activeAlert.path && m.getSource('victim-path')) {
-             const pathCoords = activeAlert.path.map((p: any) => Array.isArray(p) ? p : [p.lng, p.lat]);
-             m.getSource('victim-path').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: pathCoords } });
-          }
-
-          // 🚗 UPDATE CAR MARKER IF TRANSIT SOS
-          if (activeAlert.isTransitSOS) {
-             let existingMarkerEl = document.getElementById(`v-marker-${activeAlert.id}`);
-             if (!existingMarkerEl) {
-                const el = document.createElement('div');
-                el.id = `v-marker-${activeAlert.id}`;
-                el.className = 'marker-transit-emergency';
-                el.innerHTML = `
-                  <div class="relative w-8 h-8 flex items-center justify-center">
-                    <div class="absolute inset-0 bg-red-500/40 rounded-full animate-ping"></div>
-                    <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-                      <path d="M42 32C42 34.2091 40.2091 36 38 36H10C7.79086 36 6 34.2091 6 32V26C6 23.7909 7.79086 22 10 22H38C40.2091 22 42 23.7909 42 26V32Z" fill="#EF4444"/>
-                      <path d="M12 22L16 14H32L36 22H12Z" fill="#F87171"/>
-                    </svg>
-                  </div>
-                `;
-                (window as any).mapboxgl.accessToken = MAPBOX_TOKEN;
-                new (window as any).mapboxgl.Marker(el).setLngLat([vLng, vLat]).addTo(m);
-             } else {
-                // We'd ideally store the marker object, but for now we'll rely on the next refresh or manual move
-             }
-          }
-          // 🌉 Sync Beeline
-          if (m.getSource(beelineLayerId)) {
-            m.getSource(beelineLayerId).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[userPos[1], userPos[0]], [vLng, vLat]] } });
-          }
-          // 🛣️ Sync Route
-          updateRoute([userPos[1], userPos[0]], [vLng, vLat]);
-
-          // 🎯 Target Lock Focus
-          const mb = (window as any).mapboxgl;
-          const bounds = new mb.LngLatBounds().extend([userPos[1], userPos[0]]).extend([vLng, vLat]);
-          m.fitBounds(bounds, { padding: 100, maxZoom: 18, duration: 1500 });
+        // Update Victim Marker
+        if (!markersRef.current.victim) {
+          const el = document.createElement('div');
+          el.className = 'victim-pos-marker';
+          el.innerHTML = `<div style="width: 20px; height: 20px; background: #EF4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); animation: pulse 2s infinite;"></div>`;
+          markersRef.current.victim = new mapboxgl.Marker(el)
+            .setLngLat(vCoords)
+            .addTo(m);
+        } else {
+          markersRef.current.victim.setLngLat(vCoords);
         }
-      } else {
-        if (m.getSource('victim-pos')) m.getSource('victim-pos').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [] } });
-        if (m.getSource(routeLayerId)) m.getSource(routeLayerId).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-        if (m.getSource(beelineLayerId)) m.getSource(beelineLayerId).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
-        m.easeTo({ center: [userPos[1], userPos[0]], zoom: 16 });
+
+        // Update Route Source
+        if (m.getSource('route')) {
+          (m.getSource('route') as mapboxgl.GeoJSONSource).setData({
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': [uCoords, vCoords]
+            }
+          });
+        } else {
+          m.addSource('route', {
+            'type': 'geojson',
+            'data': {
+              'type': 'Feature',
+              'properties': {},
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': [uCoords, vCoords]
+              }
+            }
+          });
+
+          m.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': 'route',
+            'layout': {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            'paint': {
+              'line-color': '#3B82F6',
+              'line-width': 6,
+              'line-opacity': 0.8
+            }
+          });
+        }
+
+        // Fit Bounds
+        const bounds = new mapboxgl.LngLatBounds();
+        bounds.extend(uCoords);
+        bounds.extend(vCoords);
+        m.fitBounds(bounds, { padding: 100 });
       }
-    });
+    } else {
+      if (markersRef.current.victim) { markersRef.current.victim.remove(); delete markersRef.current.victim; }
+      if (m.getLayer('route')) m.removeLayer('route');
+      if (m.getSource('route')) m.removeSource('route');
+      m.setCenter([userPos[1], userPos[0]]);
+      m.setZoom(16);
+    }
   }, [userPos, activeAlerts]);
 
   const handleSecureCall = () => {
@@ -201,21 +267,19 @@ const VictimMap = ({
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-[#0F172A]">
+    <div className="w-full h-full relative overflow-hidden bg-[#0F172A] [contain:strict]">
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
       
-      {/* 🛰️ LIVE STATUS PILL (ADAPTIVE POSITIONING) */}
       <div className={cn(
-        "absolute left-6 z-[100] flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full shadow-lg transition-all",
+        "absolute left-6 z-[10] flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full shadow-lg transition-all",
         isInterceptMode ? "top-24" : "top-6"
       )}>
          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
          <span className="text-[8px] font-black text-[#0F172A] uppercase tracking-widest">Live Tracking</span>
       </div>
 
-      {/* ❌ RAPID EXIT COMMAND (TOP-LEFT - ONLY IN INTERCEPT MODE) */}
       {isInterceptMode && onClose && (
-        <div className="absolute top-8 left-6 z-[1000] pointer-events-auto">
+        <div className="absolute top-8 left-6 z-[20] pointer-events-auto">
           <button 
             onClick={onClose}
             className="w-10 h-10 bg-white text-[#0F172A] rounded-full shadow-xl flex items-center justify-center hover:bg-gray-50 active:scale-90 transition-all border border-gray-100"
@@ -225,9 +289,8 @@ const VictimMap = ({
         </div>
       )}
 
-      {/* 📞 FLOATING SECURE CALL ICON (TOP-RIGHT) */}
       {isInterceptMode && (
-        <div className="absolute top-24 right-6 z-[100] pointer-events-auto">
+        <div className="absolute top-24 right-6 z-[20] pointer-events-auto">
            <button 
              onClick={handleSecureCall}
              className="w-12 h-12 bg-white text-[#0F172A] rounded-2xl shadow-xl flex items-center justify-center hover:bg-gray-50 hover:scale-110 active:scale-95 transition-all border border-gray-100"
@@ -237,12 +300,10 @@ const VictimMap = ({
         </div>
       )}
 
-      {/* 🧭 GOOGLE MAPS STYLE BOTTOM SHEET (NAVIGATION HUD) */}
       {isInterceptMode && (
-        <div className="absolute inset-x-0 bottom-6 px-4 z-[100] pointer-events-none">
+        <div className="absolute inset-x-0 bottom-6 px-4 z-[20] pointer-events-none">
           <div className="w-full max-w-[500px] mx-auto bg-white rounded-[32px] p-6 shadow-[0_15px_40px_rgba(0,0,0,0.15)] border border-gray-100 pointer-events-auto flex flex-col gap-5 relative overflow-hidden">
             
-            {/* Drag Handle (Visual Only) */}
             <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 bg-gray-100 rounded-full" />
 
             <div className="flex items-center justify-between">
@@ -289,7 +350,6 @@ const VictimMap = ({
               </div>
             </div>
 
-            {/* Arrived Feedback Overlay */}
             {parseInt(distance) < 50 && (
               <div className="pt-3 border-t border-gray-50 flex items-center gap-2">
                  <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shrink-0">
@@ -304,9 +364,14 @@ const VictimMap = ({
 
       <style>{`
         .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib { opacity: 0.3; transform: scale(0.8); }
+        @keyframes pulse {
+          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+          70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
       `}</style>
     </div>
   );
-};
+});
 
 export default VictimMap;

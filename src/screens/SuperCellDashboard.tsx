@@ -16,6 +16,7 @@ interface ChatSession {
 
 export default function SuperCellDashboard() {
   const [activeView, setActiveView] = useState<'chat' | 'track' | 'dashboard'>('chat');
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [activeSessions, setActiveSessions] = useState<ChatSession[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);

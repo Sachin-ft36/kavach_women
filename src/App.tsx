@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
+import { NavButton } from './components/NavButton';
+import { createPortal } from 'react-dom';
 import { syncTelemetry, startBackgroundTracking, watchLiveLocation } from './services/locationService';
 import { useKavachStore } from './store/useKavachStore';
 import { useEvidenceEngine } from './hooks/useEvidenceEngine';
 import { useThreatSentinel } from './hooks/useThreatSentinel';
 import { useProtectorSentinel } from './hooks/useProtectorSentinel';
 import { useVoiceTrigger } from './hooks/useVoiceTrigger';
+import { useShakeTrigger } from './hooks/useShakeTrigger';
 import { useAudioAI } from './hooks/useAudioAI';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { initializeBackgroundSentinel } from './services/BackgroundSentinelService';
+import SOSConfirmationOverlay from './components/SOSConfirmationOverlay';
 
 const SOSButton = React.lazy(() => import('./components/SOSButton'));
 const VictimMap = React.lazy(() => import('./components/maps/VictimMap'));
@@ -27,29 +31,44 @@ const MissionHistoryScreen = React.lazy(() => import('./screens/MissionHistorySc
 const GuideScreen = React.lazy(() => import('./screens/GuideScreen'));
 const ProtectorGuideScreen = React.lazy(() => import('./screens/ProtectorGuideScreen'));
 const ProtectorVerify = React.lazy(() => import('./components/ProtectorVerify'));
-const DecoyCalculator = React.lazy(() => import('./components/DecoyCalculator'));
 const ProtectorsRadarScreen = React.lazy(() => import('./screens/ProtectorsRadarScreen'));
 const ProtectorGrievanceScreen = React.lazy(() => import('./screens/ProtectorGrievanceScreen'));
 const ProtectorHistoryScreen = React.lazy(() => import('./screens/ProtectorHistoryScreen'));
 const LanguageStep = React.lazy(() => import('./components/onboarding/LanguageStep'));
 const TrackScreen = React.lazy(() => import('./screens/TrackScreen'));
 
-import { Settings, AlertTriangle } from 'lucide-react';
+import { 
+  Settings, 
+  AlertTriangle, 
+  MessageSquare, 
+  LayoutDashboard, 
+  Globe, 
+  Users, 
+  ShieldCheck, 
+  Upload, 
+  MapPin, 
+  BookOpen, 
+  UserCheck, 
+  Trophy,
+  Shield
+} from 'lucide-react';
+import KavachAIChat from './components/KavachAIChat';
 import RemoteCommandListener from './components/RemoteCommandListener';
 import StealthOverlay from './components/StealthOverlay';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from './services/KavachNative';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Geolocation } from '@capacitor/geolocation';
 import { CallProvider } from './contexts/CallContext';
 import { TacticalCallOverlay } from './components/TacticalCallOverlay';
 import { auth, googleProvider, db, resetKavachState } from './firebase';
-import { onAuthStateChanged, signInWithCredential, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCredential, GoogleAuthProvider, signInWithPopup, getRedirectResult, signInWithRedirect } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, onSnapshot, query, where, terminate } from 'firebase/firestore';
 import { App as CapApp } from '@capacitor/app';
 import { cn } from './lib/utils';
 
-const KavachNative = registerPlugin<any>('KavachPlugin');
+// KavachNative is now imported from services
 
 export const KavachSafe = {
   startContinuousSiren: async () => {
@@ -82,6 +101,11 @@ export const KavachSafe = {
       try { await KavachNative.stopForensicCapture(); } catch (e) { console.error("Native Capture Stop Error:", e); }
     }
   },
+  broadcastEmergencySMS: async (options: { message: string, location: { lat: number, lng: number } }) => {
+    if (Capacitor.isNativePlatform()) {
+      try { await KavachNative.broadcastEmergencySMS(options); } catch (e) { console.error("Native Broadcast Error:", e); }
+    }
+  },
   sendSilentSMS: async (options: { number: string, message: string }) => {
     if (Capacitor.isNativePlatform()) {
       try { await KavachNative.sendSilentSMS(options); } catch (e) { console.error("Native SMS Error:", e); }
@@ -102,10 +126,38 @@ export const KavachSafe = {
     if (Capacitor.isNativePlatform()) {
       try { await KavachNative.openBatterySettings(); } catch (e) { console.error("Native Settings Error:", e); }
     }
+  },
+  startBackgroundSentinel: async () => {
+    if (Capacitor.isNativePlatform()) {
+      try { await KavachNative.startBackgroundSentinel(); } catch (e) { console.error("Native Sentinel Start Error:", e); }
+    }
   }
 };
 
 export default function App() {
+  const isAIChatOpen = useKavachStore(state => state.isAIChatOpen);
+  const setIsAIChatOpen = useKavachStore(state => state.setIsAIChatOpen);
+  
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY < 10) {
+        setIsNavVisible(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        setIsNavVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        setIsNavVisible(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   const [trackId, setTrackId] = useState<string | null>(null);
   const [showFailSafe, setShowFailSafe] = useState(false);
   const handleHardReset = () => { localStorage.clear(); window.location.reload(); };
@@ -114,11 +166,22 @@ export default function App() {
     userPos, setUserPos, batteryLevel, isLocked, isSOSActive,
     activeTab, setActiveTab, setSOSActive, loading, setLoading,
     handleManualUnlock, isFakeCallActive, setFakeCallActive, setGuardianCache,
-    isHubReady, setHubReady, setSafetyPin, performanceMode, setProfile
+    isHubReady, setHubReady, setSafetyPin, performanceMode, setProfile,
+    setPendingSOS, isOverlayActive
   } = useKavachStore();
 
   const [superCellViewMode, setSuperCellViewMode] = useState<'OPS' | 'GATEKEEPER' | 'JUSTICE' | 'LEADERBOARD' | 'ALL' | 'COMMS'>('ALL');
   const [isGhostMode, setIsGhostMode] = useState<boolean>(() => localStorage.getItem('kavach_ghost_mode') === 'true');
+  const [hasSeenIntro, setHasSeenIntro] = useState<boolean>(() => localStorage.getItem('kavach_intro_seen') === 'true');
+  const [isIntroEnding, setIsIntroEnding] = useState(false);
+
+  const onIntroEnd = () => {
+    setIsIntroEnding(true);
+    setTimeout(() => {
+      localStorage.setItem('kavach_intro_seen', 'true');
+      setHasSeenIntro(true);
+    }, 1000); // 1s fade out
+  };
 
   const onToggleGhost = () => {
     setIsGhostMode(prev => {
@@ -132,6 +195,7 @@ export default function App() {
   useThreatSentinel();
   useProtectorSentinel();
   useVoiceTrigger();
+  useShakeTrigger();
   useAudioAI();
 
   const [isHardwareSynced, setIsHardwareSynced] = useState<boolean>(() => localStorage.getItem('kavach_hardware_synced') === 'true');
@@ -184,13 +248,12 @@ export default function App() {
       setTimeout(async () => {
         await PushNotifications.requestPermissions();
         KavachNative.addListener('sosTriggered', (data: { source: string }) => {
-          const { setShadowActive } = useKavachStore.getState();
+          const { setShadowActive, setPendingSOS } = useKavachStore.getState();
           if (data.source === 'shadow') {
             setShadowActive(true);
             KavachSafe.startForensicCapture();
           } else {
-            setActiveTab('sos');
-            setSOSActive(true, null, (data.source as any) || 'shake');
+            setPendingSOS(true, (data.source as any) || 'shake');
           }
         });
         setHubReady(true);
@@ -243,6 +306,15 @@ export default function App() {
 
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
+
+    // 🛡️ TACTICAL REDIRECT CATCH
+    if (!Capacitor.isNativePlatform()) {
+      getRedirectResult(auth).catch((err) => {
+        if (err.code !== 'auth/web-storage-unsupported') {
+          console.error("KAVACH Redirect Error:", err);
+        }
+      });
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (unsubProfile) {
@@ -316,11 +388,21 @@ export default function App() {
           await signInWithCredential(auth, credential);
         }
       } else {
-        await signInWithPopup(auth, googleProvider);
+        try {
+          await signInWithPopup(auth, googleProvider);
+        } catch (webErr: any) {
+          // 🛡️ TACTICAL REDIRECT FALLBACK
+          if (webErr.code === 'auth/popup-closed-by-user' || webErr.code === 'auth/network-request-failed' || webErr.code === 'auth/internal-error') {
+            toast.info("Handshake interrupted. Switching to Secure Redirect...", { duration: 4000 });
+            await signInWithRedirect(auth, googleProvider);
+            return;
+          }
+          throw webErr;
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("KAVACH Login Error:", e);
-      toast.error("Login failed. Please check your browser's popup blocker.");
+      toast.error(e.message || "Login failed. Please check your browser's popup blocker.");
     }
   };
 
@@ -330,18 +412,55 @@ export default function App() {
     setRegistered(true);
   };
 
-  if (loading && !trackId) return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-8 p-10 text-center">
-      <div className="w-20 h-20 bg-white border border-[#E5E7EB] rounded-[32px] flex items-center justify-center shadow-2xl shadow-gray-100 animate-pulse">
-         <div className="w-10 h-10 border-[4px] border-[#2563EB]/10 border-t-[#2563EB] rounded-full animate-spin" />
+  // 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro
+  if (!hasSeenIntro && !trackId) return (
+    <motion.div 
+      initial={{ opacity: 1 }}
+      animate={{ opacity: isIntroEnding ? 0 : 1 }}
+      transition={{ duration: 1 }}
+      className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden"
+    >
+      <video 
+        autoPlay 
+        playsInline
+        muted
+        onEnded={onIntroEnd}
+        className="w-full h-full object-cover scale-[1.01]"
+      >
+        <source src="/kavachintro.mp4" type="video/mp4" />
+      </video>
+      
+      {/* 🏛️ NATIONAL HUD OVERLAY */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+      
+      <div className="absolute bottom-12 left-0 right-0 text-center space-y-4">
+         <div className="flex items-center justify-center gap-3">
+            <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+            <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.4em] italic">Tactical Briefing in Progress</p>
+            <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+         </div>
+         <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
       </div>
-      <p className="text-sm text-gray-400 font-semibold italic">Synchronizing with National Safety Network...</p>
+      
+      <div className="absolute top-10 left-10 flex items-center gap-3 opacity-40">
+         <Shield size={20} className="text-white" />
+         <div className="h-4 w-[1px] bg-white/20" />
+         <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
+      </div>
+    </motion.div>
+  );
+
+  // 🛰️ VETERAN SYNC: High-speed loading for returning users
+  if (loading && !trackId) return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
+       <div className="w-16 h-16 border-4 border-gray-100 border-t-[#2563EB] rounded-full animate-spin shadow-inner" />
+       <p className="text-xs font-bold text-gray-900 uppercase tracking-widest italic">Synchronizing Tactical Hub...</p>
     </div>
   );
 
   return (
     <CallProvider>
-      <StealthOverlay />
+      <SOSConfirmationOverlay />
       <RemoteCommandListener />
       <TacticalCallOverlay />
       <React.Suspense fallback={
@@ -377,11 +496,9 @@ export default function App() {
             ) : isSOSActive ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : (!isRegistered || !isHardwareSynced) ? (
-              <AnimatePresence mode="wait">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
-                </motion.div>
-              </AnimatePresence>
+              <div className="w-full h-full">
+                <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
+              </div>
             ) : (isLocked && activeTab !== 'sos') ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : (
@@ -392,17 +509,139 @@ export default function App() {
           </>
         )}
       </React.Suspense>
+
+      {/* 🚀 GLOBAL TACTICAL SHELL (TRULY FIXED VIA PORTAL) */}
+      {!isSOSActive && !isOverlayActive && !['radar', 'special_cell'].includes(activeTab) && user && !trackId && isRegistered && isHardwareSynced && createPortal(
+        <>
+          <motion.nav 
+            initial={{ y: 120, opacity: 0 }}
+            animate={{ 
+              y: isNavVisible ? 0 : 120, 
+              opacity: isNavVisible ? 1 : 0 
+            }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            style={{ 
+              position: 'fixed', 
+              bottom: 0, 
+              left: 0, 
+              right: 0, 
+              zIndex: 1000000,
+              padding: '16px',
+              paddingBottom: '24px',
+              display: 'flex',
+              justifyContent: 'center',
+              pointerEvents: 'none'
+            }}
+          >
+            <div className="w-full max-w-md bg-white/80 backdrop-blur-2xl border border-white/20 rounded-[40px] p-2 flex justify-between items-center shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] pointer-events-auto">
+              {role === 'citizen' && (
+                <>
+                  <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Home" />
+                  <NavButton active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} icon={<Globe size={20} />} label="Radar" />
+                  <NavButton active={activeTab === 'contacts'} onClick={() => setActiveTab('contacts')} icon={<Users size={20} />} label="Guardians" />
+                  <NavButton active={activeTab === 'special_cell'} onClick={() => setActiveTab('special_cell')} icon={<ShieldCheck size={20} />} label="Safety Cell" />
+                  <NavButton active={activeTab === 'vault'} onClick={() => setActiveTab('vault')} icon={<Upload size={20} />} label="Vault" />
+                </>
+              )}
+              {role === 'protector' && (
+                <>
+                  <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<MapPin size={20} />} label="Response" />
+                  <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Users size={20} />} label="Community" />
+                  <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={20} />} label="Safety Tips" />
+                  <NavButton active={activeTab === 'grievance'} onClick={() => setActiveTab('grievance')} icon={<AlertTriangle size={20} />} label="Reports" />
+                </>
+              )}
+              {role === 'admin' && (
+                <>
+                  <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Admin" />
+                  <NavButton active={activeTab === 'verify'} onClick={() => setActiveTab('verify')} icon={<UserCheck size={20} />} label="Verify" />
+                  <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Trophy size={20} />} label="Audits" />
+                </>
+              )}
+            </div>
+          </motion.nav>
+
+          {role === 'citizen' && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ 
+                bottom: '110px',
+                scale: 1, 
+                opacity: 1 
+              }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              style={{ 
+                position: 'fixed', 
+                right: '24px', 
+                zIndex: 1000000 
+              }}
+            >
+              <button
+                onClick={() => setIsAIChatOpen(!isAIChatOpen)}
+                className="w-14 h-14 bg-[#0F172A] rounded-full flex items-center justify-center text-white shadow-2xl border-4 border-white active:scale-90 transition-all group relative"
+              >
+                <MessageSquare size={24} className={cn("transition-transform duration-500", isAIChatOpen ? "rotate-90 scale-0" : "rotate-0 scale-100")} />
+                <div className={cn("absolute inset-0 flex items-center justify-center transition-transform duration-500", isAIChatOpen ? "rotate-0 scale-100" : "-rotate-90 scale-0")}>
+                  <div className="w-6 h-0.5 bg-white rotate-45 absolute" />
+                  <div className="w-6 h-0.5 bg-white -rotate-45 absolute" />
+                </div>
+              </button>
+            </motion.div>
+          )}
+
+          <AnimatePresence>
+            {isAIChatOpen && (
+              <KavachAIChat 
+                isOpen={isAIChatOpen} 
+                onClose={() => setIsAIChatOpen(false)} 
+              />
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
     </CallProvider>
   );
 }
 
 function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onToggleGhost: () => void }) {
-  const { activeTab, role, isLocked, handleManualUnlock } = useKavachStore();
+  const { activeTab, role, isLocked, handleManualUnlock, isVerified } = useKavachStore();
   const isSystemAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
   const renderTab = (tab: string) => {
     const isVisible = activeTab === tab;
     switch (tab) {
-      case 'dashboard': return <div key="dashboard" className={isVisible ? "block" : "hidden"}>{role === 'protector' ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
+      case 'dashboard': 
+        if (isVisible) {
+          if (role === 'protector' && !isVerified) {
+            return (
+              <div key="pending" className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-8 animate-in fade-in duration-700">
+                <div className="relative w-32 h-32">
+                  <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl animate-pulse" />
+                  <div className="relative w-full h-full bg-white rounded-full border border-blue-50 flex items-center justify-center shadow-2xl">
+                    <Shield size={56} className="text-blue-500 animate-pulse" strokeWidth={1} />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Vetting in Progress</h2>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[3px]">Institutional Validation Active</p>
+                  <div className="max-w-xs mx-auto pt-4">
+                    <p className="text-xs font-bold text-gray-400 leading-relaxed uppercase tracking-wider">
+                      Your operative node is currently being forensicially validated by the <span className="text-gray-900">Kavach SuperCell</span>. Access to tactical data will be granted upon successful vetting.
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-8">
+                  <div className="flex items-center gap-3 px-6 py-2.5 bg-blue-50 border border-blue-100 rounded-full">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-[4px]">Uplink Pending</span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return <div key="dashboard" className="block">{role === 'protector' ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
+        }
+        return null;
       case 'map': return isVisible ? <div key="map" className="block h-[calc(100vh-210px)] w-full"><VictimMap /></div> : null;
       case 'sos': return isVisible ? <SOSScreen key="sos" isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} /> : null;
       case 'vault': return isVisible ? <div key="vault" className="max-w-2xl mx-auto"><EvidenceVault /></div> : null;

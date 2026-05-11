@@ -142,18 +142,18 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
           initial={{ opacity: 0, scale: 0.98 }} 
           animate={{ opacity: 1, scale: 1 }} 
           exit={{ opacity: 0, scale: 1.02 }} 
-          className="flex-1 flex flex-col pt-16 pb-8 px-6 relative z-10 overflow-y-auto custom-scrollbar lg:px-12"
+          className="flex-1 flex flex-col pt-6 sm:pt-16 pb-6 sm:pb-8 px-6 relative z-10 overflow-y-auto custom-scrollbar lg:px-12"
         >
-          <div className="max-w-[420px] w-full mx-auto flex flex-col h-full justify-center space-y-10">
+          <div className="max-w-[420px] w-full mx-auto flex flex-col h-full justify-center space-y-6 sm:space-y-10">
             
-            <div className="space-y-5 text-center">
-              <div className="w-16 h-16 bg-white border border-[#E5E7EB] rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
-                <Shield size={32} className="text-[#2563EB]" />
+            <div className="space-y-2 sm:space-y-5 text-center">
+              <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
+                <Shield size={20} className="text-[#2563EB] sm:size-[32px]" />
               </div>
-              <div className="space-y-1">
-                <h1 className="text-4xl font-bold tracking-tight text-gray-900">KAVACH</h1>
-                <p className="text-[11px] text-[#2563EB] font-bold tracking-[4px] uppercase">Official Safety Portal</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Authorized Safety Network Access</p>
+              <div className="space-y-0.5 sm:space-y-1">
+                <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-gray-900">KAVACH</h1>
+                <p className="text-[9px] sm:text-[11px] text-[#2563EB] font-bold tracking-[2px] sm:tracking-[4px] uppercase">Official Safety Portal</p>
+                <p className="text-[8px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0">Authorized Safety Network Access</p>
               </div>
             </div>
 
@@ -178,7 +178,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
               </button>
             </div>
 
-            <div className="bg-white rounded-[40px] border border-[#E5E7EB] p-10 shadow-2xl shadow-gray-100">
+            <div className="bg-white rounded-[32px] sm:rounded-[40px] border border-[#E5E7EB] p-6 sm:p-10 shadow-2xl shadow-gray-100">
               <AnimatePresence mode="wait">
                 {needsVerification ? (
                   <motion.div 
@@ -244,7 +244,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
               </AnimatePresence>
             </div>
             
-            <footer className="pt-6 space-y-8">
+            <footer className="pt-4 sm:pt-6 space-y-6 sm:space-y-8">
               <div className="flex items-center justify-between gap-4 px-2">
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">

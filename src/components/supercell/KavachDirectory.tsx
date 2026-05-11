@@ -218,7 +218,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState }: Kavac
                      {/* Location Column - Photo 2 Style */}
                      <td className="px-8 py-5">
                         <div className="flex items-center gap-3 text-rose-500">
-                           <MapPin size={16} className="animate-pulse" />
+                           <MapPin size={16} />
                            <div className="flex flex-col">
                               <span className="text-[10px] font-black uppercase tracking-tight">Resolving...</span>
                               <span className="text-[7px] font-bold text-gray-400 uppercase">Pincode Fetching...</span>

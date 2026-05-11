@@ -6,13 +6,11 @@ import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, getDocs
 import { useKavachStore } from '../store/useKavachStore';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera } from '@capacitor/camera';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from '../services/KavachNative';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Shield } from 'lucide-react';
-
-// 🛡️ Register Plugin Once at Top level to avoid memory leaks during polling
-const KavachNative = registerPlugin<any>('KavachPlugin');
 
 // 🛡️ Onboarding Components
 import ShieldsStep from './onboarding/ShieldsStep';
@@ -41,7 +39,7 @@ interface OnboardingProps {
 }
 
 export default function Onboarding({ user, onComplete, isReturningUser = false }: OnboardingProps) {
-  const { setRole: setStoreRole, setGender: setStoreGender } = useKavachStore();
+  const { setRole: setStoreRole, setGender: setStoreGender, isSentinelActive, setSentinelActive } = useKavachStore();
   const { t } = useLanguage();
   const [userName, setUserName] = useState(user?.displayName || '');
   const [userPhone, setUserPhone] = useState(user?.phoneNumber || '');
@@ -101,7 +99,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     let checkInterval: any;
     if (step === 6 && Capacitor.isNativePlatform()) {
       checkHardwareStatus();
-      checkInterval = setInterval(checkHardwareStatus, 3000);
+      checkInterval = setInterval(checkHardwareStatus, 300);
     }
     return () => { if (checkInterval) clearInterval(checkInterval); };
   }, [step]);
@@ -116,9 +114,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     try {
       if (id === 'guardian') {
         await KavachNative.requestSensitivePermissions();
-        await new Promise(r => setTimeout(r, 1200));
         await Geolocation.requestPermissions();
-        await new Promise(r => setTimeout(r, 1200));
         await Camera.requestPermissions();
         await checkHardwareStatus();
       } else if (id === 'lifeline') await KavachNative.openBatterySettings();
@@ -160,13 +156,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
         initialLocation = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
         
-        // 🛰️ RESOLVE PRECISION ADDRESS
-        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`);
-        const geoData = await geoRes.json();
-        if (geoData.address) {
-          const a = geoData.address;
-          fullAddress = `${a.road || ''} ${a.suburb || ''}, ${a.city || a.town || a.village || ''}, ${a.state || ''} - ${a.postcode || ''}, India`;
-        }
+        // 🛰️ RESOLVE PRECISION ADDRESS (FALLBACK TO COORDINATES)
+        fullAddress = `Sector Grid: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
       } catch (geoError) {}
 
         const userProfile = {
@@ -178,7 +169,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         role: role || 'citizen',
         gender: gender || 'female',
         isRegistered: true,
-        isVerified: (role === 'citizen') ? true : false,
+        isVerified: role === 'citizen' ? true : (gender === 'female' ? true : false),
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : null,
         aadhar: aadhaar || null,
         
@@ -304,31 +295,28 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           ))}
         </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div 
-            key={`step-${step}`} 
-            initial={{ opacity: 0, x: 20 }} 
-            animate={{ opacity: 1, x: 0 }} 
-            exit={{ opacity: 0, x: -20 }} 
-            className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
-          >
-            {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={setRole} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
-            {step === 2 && <GenderStep gender={gender} setGender={setGender} userName={userName} setUserName={setUserName} userPhone={userPhone} setUserPhone={setUserPhone} />}
-            {step === 3 && <RoleStep role={role} setRole={setRole} gender={gender} />}
-            {step === 4 && <ProtectorVerificationStep data={protectorData} setData={setProtectorData} />}
-            {step === 5 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
-            {step === 6 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
-            {step === 7 && (
-              <ShieldsStep
-                batteryExempt={batteryExempt} overlayGranted={overlayGranted} perms={perms} isReturningUser={isReturningUser}
-                tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={finishOnboarding} authStatus={isFinishing ? 'saving' : 'idle'}
-                tr={t} onOpenBattery={() => handleShieldToggle('lifeline')} onOpenOverlay={() => handleShieldToggle('evidence')}
-                onRequestPerms={() => handleShieldToggle('guardian')} onOpenAppSettings={async () => { if (Capacitor.isNativePlatform()) await KavachNative.openAppSettings(); }}
-                isNative={Capacitor.isNativePlatform()}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        <div 
+          key={`step-${step}`} 
+          className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
+        >
+          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={setRole} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
+          {step === 2 && <GenderStep gender={gender} setGender={setGender} userName={userName} setUserName={setUserName} userPhone={userPhone} setUserPhone={setUserPhone} />}
+          {step === 3 && <RoleStep role={role} setRole={setRole} gender={gender} />}
+          {step === 4 && <ProtectorVerificationStep data={protectorData} setData={setProtectorData} />}
+          {step === 5 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
+          {step === 6 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
+          {step === 7 && (
+            <ShieldsStep
+              batteryExempt={batteryExempt} overlayGranted={overlayGranted} perms={perms} isReturningUser={isReturningUser}
+              tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={finishOnboarding} authStatus={isFinishing ? 'saving' : 'idle'}
+              tr={t} onOpenBattery={() => handleShieldToggle('lifeline')} onOpenOverlay={() => handleShieldToggle('evidence')}
+              onRequestPerms={() => handleShieldToggle('guardian')} onOpenAppSettings={async () => { if (Capacitor.isNativePlatform()) await KavachNative.openAppSettings(); }}
+              isNative={Capacitor.isNativePlatform()}
+              isSentinelActive={isSentinelActive}
+              setSentinelActive={setSentinelActive}
+            />
+          )}
+        </div>
 
         <div className="pt-2 sm:pt-8">
           {step < 7 ? (

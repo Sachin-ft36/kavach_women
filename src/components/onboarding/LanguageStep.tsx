@@ -4,8 +4,22 @@ import { Globe, ArrowRight, CheckCircle2, Shield } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { cn } from '../../lib/utils';
 
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
+
 export default function LanguageStep({ onNext }: { onNext: () => void }) {
   const { language, setLanguage } = useLanguage();
+
+  const handleProceed = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await PushNotifications.requestPermissions();
+      } catch (e) {
+        console.warn("Notification permission error:", e);
+      }
+    }
+    onNext();
+  };
 
   const langs = [
     { id: 'en', label: 'English', sub: 'Primary' },
@@ -23,48 +37,50 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col items-center justify-center space-y-8 p-6"
+      className="flex-1 flex flex-col items-center justify-between min-h-0 space-y-4 py-4 px-6 overflow-y-auto"
     >
-      <div className="w-20 h-20 bg-white rounded-[24px] flex items-center justify-center shadow-lg border border-border">
-        <Globe className="text-accent-blue" size={40} />
+      <div className="flex flex-col items-center space-y-4 pt-2">
+        <div className="w-16 h-16 bg-white rounded-[20px] flex items-center justify-center shadow-lg border border-border">
+          <Globe className="text-[#2563EB]" size={32} />
+        </div>
+
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            KAVACH Language
+          </h1>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[2px]">
+            National Safety Grid Configuration
+          </p>
+        </div>
       </div>
 
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-text-main">
-          Select Language
-        </h1>
-        <p className="text-sm text-text-dim font-medium">
-          Choose your preferred language to continue
-        </p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 w-full">
+      <div className="grid grid-cols-3 gap-2 w-full max-w-sm">
         {langs.map((l) => (
           <button
             key={l.id}
             onClick={() => setLanguage(l.id as any)}
             className={cn(
-              "p-4 rounded-2xl border-2 transition-all duration-200 text-center flex flex-col items-center justify-center relative overflow-hidden h-24",
+              "p-3 rounded-xl border-2 transition-all duration-200 text-center flex flex-col items-center justify-center relative overflow-hidden h-20",
               language === l.id 
-                ? "bg-accent-blue/5 border-accent-blue ring-1 ring-accent-blue/20" 
-                : "bg-white border-border hover:border-accent-blue/30"
+                ? "bg-[#2563EB]/5 border-[#2563EB] ring-1 ring-[#2563EB]/20" 
+                : "bg-white border-[#F3F4F6] hover:border-[#2563EB]/30"
             )}
           >
-            <div className="relative z-10 space-y-1">
+            <div className="relative z-10 space-y-0.5">
               <p className={cn(
-                "text-lg font-bold leading-none mb-1",
-                language === l.id ? "text-accent-blue" : "text-text-main"
+                "text-base font-bold leading-none mb-0.5",
+                language === l.id ? "text-[#2563EB]" : "text-gray-900"
               )}>{l.label}</p>
-              <p className="text-[10px] font-semibold text-text-dim uppercase tracking-wider">{l.sub}</p>
+              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{l.sub}</p>
             </div>
 
             {language === l.id && (
               <motion.div 
                 layoutId="select-indicator"
-                className="absolute top-2 right-2"
+                className="absolute top-1 right-1"
               >
-                <div className="w-5 h-5 rounded-full bg-accent-blue flex items-center justify-center text-white shadow-md">
-                  <CheckCircle2 size={12} className="text-white" />
+                <div className="w-4 h-4 rounded-full bg-[#2563EB] flex items-center justify-center text-white shadow-md">
+                  <CheckCircle2 size={10} className="text-white" />
                 </div>
               </motion.div>
             )}
@@ -72,17 +88,25 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
         ))}
       </div>
 
-      <div className="w-full pt-4">
-        <button 
-          onClick={onNext}
-          className="w-full bg-accent-blue text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 hover:scale-[1.01] transition-all active:scale-95"
-        >
-          Confirm & Continue
-        </button>
-        <p className="text-center mt-4 text-[11px] text-text-dim font-semibold uppercase tracking-widest flex items-center justify-center gap-2">
-          <Shield size={12} className="text-accent-blue" />
-          Powered by Kavach National Safety Grid
-        </p>
+      <div className="w-full max-w-sm space-y-6 pb-4">
+        <div className="space-y-4">
+          <button 
+            onClick={handleProceed}
+            className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-bold text-base shadow-lg shadow-[#2563EB]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+          >
+            <span>Confirm & Proceed</span>
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+          
+          <div className="flex flex-col items-center gap-3 opacity-60">
+            <div className="flex items-center gap-3">
+              <img src="/digitalindia.png" alt="Digital India" className="h-10 w-auto object-contain grayscale" />
+            </div>
+            <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6 leading-relaxed">
+              © 2024 Unique Identification Authority of India (UIDAI)<br/>Ministry of Electronics & IT
+            </p>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

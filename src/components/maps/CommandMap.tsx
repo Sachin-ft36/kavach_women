@@ -253,6 +253,13 @@ export default function CommandMap({
     map.current.on('load', () => {
       if (!map.current) return;
 
+      // 🇮🇳 SOVEREIGN CENTERING: Focus the entire National Grid
+      map.current.fitBounds(indiaBounds, {
+        padding: 50,
+        duration: 2000,
+        essential: true
+      });
+
       // 🏔️ INJECT 3D DEPTH ENGINE (MAINTAIN LIGHT MODE)
       map.current.addSource('mapbox-dem', {
         type: 'raster-dem',
@@ -635,16 +642,48 @@ export default function CommandMap({
           }
         }));
 
+      // 🏹 TACTICAL RESCUE VECTOR (Line from Protector to Victim)
+      const vectorFeatures: any[] = [];
+      if (selectedAlertId) {
+        const activeMission = activeAlerts.find(a => a.id === selectedAlertId);
+        if (activeMission && activeMission.status === 'responding' && activeMission.responderUid) {
+          const victimLat = activeMission.latitude || activeMission.location?.latitude || activeMission.location?.lat;
+          const victimLng = activeMission.longitude || activeMission.location?.longitude || activeMission.location?.lng;
+          
+          const responder = activeProtectors.find(p => (p.uid || p.id) === activeMission.responderUid);
+          const responderLat = responder?.latitude || responder?.lat || responder?.lastLocation?.latitude || responder?.lastLocation?.lat || responder?.location?.latitude || responder?.location?.lat;
+          const responderLng = responder?.longitude || responder?.lng || responder?.lastLocation?.longitude || responder?.lastLocation?.lng || responder?.location?.longitude || responder?.location?.lng;
+
+          if (victimLat && victimLng && responderLat && responderLng) {
+            vectorFeatures.push({
+              type: 'Feature',
+              properties: { status: 'intercept', type: 'vector' },
+              geometry: {
+                type: 'LineString',
+                coordinates: [[responderLng, responderLat], [victimLng, victimLat]]
+              }
+            });
+          }
+        }
+      }
+
       map.current.getSource('route-line').setData({
         type: 'FeatureCollection',
-        features: [...journeyFeatures, ...alertFeatures]
+        features: [...journeyFeatures, ...alertFeatures, ...vectorFeatures]
       });
 
-      // 🔴 RED TAIL FOR EMERGENCY | 🔵 BLUE TAIL FOR NORMAL
+      // 🔴 RED TAIL FOR EMERGENCY | 🔵 BLUE TAIL FOR NORMAL | 🟡 GOLD FOR INTERCEPT
       map.current.setPaintProperty('route-path', 'line-color', [
         'case',
         ['==', ['get', 'status'], 'emergency'], '#FF0000',
+        ['==', ['get', 'status'], 'intercept'], '#F59E0B',
         '#3B82F6'
+      ]);
+      
+      map.current.setPaintProperty('route-path', 'line-dasharray', [
+        'case',
+        ['==', ['get', 'status'], 'intercept'], ['literal', [2, 2]],
+        ['literal', [1, 1]]
       ]);
     }
 

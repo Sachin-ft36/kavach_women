@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import SecurityRadarMap from '../components/maps/SecurityRadarMap';
 
 export default function ProtectorsRadarScreen() {
-  const { userPos, setActiveTab } = useKavachStore();
+  const { userPos, setActiveTab, activeAlertId } = useKavachStore();
   const { initiateCall } = useCall();
   const [nearbyProtectors, setNearbyProtectors] = useState<any[]>([]);
 
@@ -44,25 +44,39 @@ export default function ProtectorsRadarScreen() {
     return () => unsubscribe();
   }, []);
 
-  // 🎯 RADIUS FILTERING: Re-calculate tactical distances as user moves
+  const [activeRadius, setActiveRadius] = useState(1.0);
+
+  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Recursive scan from 1km to 5km
   useEffect(() => {
     if (!userPos || allProtectors.length === 0) return;
 
-    const filtered = allProtectors.map(p => {
-      let distanceKm = null;
-      // 🛰️ DUAL-BAND TRACKING: Support legacy objects and new telemetry arrays
+    const layers = [1.0, 2.0, 3.0, 4.0, 5.0];
+    let foundProtectors: any[] = [];
+    let currentRadius = 1.0;
+
+    const allWithDistance = allProtectors.map(p => {
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude;
       const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude;
-
-      if (lat && lng) {
-        distanceKm = calculateDistance(userPos[0], userPos[1], lat, lng);
-      }
+      const distanceKm = (lat && lng) ? calculateDistance(userPos[0], userPos[1], lat, lng) : null;
       return { ...p, distanceKm };
-    })
-    .filter(p => p.distanceKm !== null && p.distanceKm <= 2.5) // Keep 2.5km for situational awareness
-    .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
+    });
 
-    setNearbyProtectors(filtered);
+    // 🛰️ RECURSIVE SEARCH: Find the smallest radius with active units
+    for (const radius of layers) {
+      const filtered = allWithDistance
+        .filter(p => p.distanceKm !== null && p.distanceKm <= radius)
+        .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
+      
+      if (filtered.length > 0) {
+        foundProtectors = filtered;
+        currentRadius = radius;
+        break;
+      }
+      currentRadius = radius; // Default to the largest scanned even if 0
+    }
+
+    setNearbyProtectors(foundProtectors);
+    setActiveRadius(currentRadius);
   }, [userPos, allProtectors]);
 
   return (
@@ -95,7 +109,7 @@ export default function ProtectorsRadarScreen() {
 
       {/* 🗺️ MAP: PRIMARY VISUALIZATION */}
       <main className="flex-1 relative min-h-0 bg-[#F1F5F9]">
-        <SecurityRadarMap protectors={nearbyProtectors} />
+        <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
         
         {/* Radar Overlay Controls */}
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
@@ -198,7 +212,7 @@ export default function ProtectorsRadarScreen() {
                     </div>
 
                     <button
-                      onClick={() => initiateCall(protector.uid || protector.id, protector.name || 'Protector')}
+                      onClick={() => initiateCall(protector.uid || protector.id, protector.name || 'Protector', activeAlertId || undefined)}
                       className={cn(
                         "w-11 h-11 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-90 shrink-0",
                         isElite 

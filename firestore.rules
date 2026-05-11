@@ -30,10 +30,17 @@ service cloud.firestore {
 
     // --- 📡 SECTOR: SYSTEMATIC MIRRORING ---
     
-    // 1. MASTER LEDGER
+    // 1. MASTER LEDGER (CITIZENS & PROTECTORS)
     match /users/{userId} {
-      allow read: if true; 
+      allow read: if isAuthenticated(); 
       allow write: if isOwner(userId) || isAdmin();
+      
+      // 🛡️ FORENSIC EVIDENCE VAULT (WORM: Write Once, Read Many)
+      match /evidence/{evidenceId} {
+        allow read, create: if isOwner(userId) || isAdmin();
+        allow update, delete: if isAdmin(); // Only Admin can purge for legal cleanup
+      }
+      
       match /{allSubcollections=**} { allow read, write: if isOwner(userId) || isAdmin(); }
     }
 

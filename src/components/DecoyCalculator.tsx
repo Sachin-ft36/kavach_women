@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useKavachStore } from '../store/useKavachStore';
-import { Capacitor, registerPlugin } from '@capacitor/core';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from '../services/KavachNative';
 
 export default function DecoyCalculator() {
   const [display, setDisplay] = useState('0');

@@ -51,9 +51,9 @@ export default function LoginView({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 10 }}
-      className="space-y-6"
+      className="space-y-4 sm:space-y-6"
     >
-      <form onSubmit={onLogin} className="space-y-5">
+      <form onSubmit={onLogin} className="space-y-4 sm:space-y-5">
         <div className="space-y-2">
           <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
           <div className="relative group">
@@ -62,7 +62,7 @@ export default function LoginView({
               required
               type="email"
               placeholder={t('enter_email')}
-              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -77,7 +77,7 @@ export default function LoginView({
               required
               type={showPassword ? "text" : "password"}
               placeholder={t('enter_password')}
-              className="w-full bg-bg border border-border rounded-2xl py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -103,13 +103,13 @@ export default function LoginView({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all mt-2"
+          className="w-full py-4 sm:py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all mt-1 sm:mt-2"
         >
           {loading ? "Authenticating..." : t('login')}
         </button>
       </form>
 
-      <div className="space-y-4 pt-2">
+      <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
         <div className="relative flex items-center justify-center">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"></div></div>
           <span className="relative px-4 text-[10px] font-bold text-text-dim uppercase tracking-[2px] bg-white">Other login options</span>
@@ -118,20 +118,20 @@ export default function LoginView({
           <button
             type="button"
             onClick={onGoogleLogin}
-            className="py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
+            className="py-3 sm:py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
           >
             <GoogleLogo /> Google
           </button>
           <button
             type="button"
-            className="py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
+            className="py-3 sm:py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
           >
             <AppleLogo /> Apple
           </button>
         </div>
       </div>
 
-      <div className="text-center pt-4">
+      <div className="text-center pt-2 sm:pt-4">
         <button
           type="button"
           onClick={onSignupClick}

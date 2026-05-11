@@ -1,19 +1,18 @@
 import React, { useEffect, useRef, memo, useState } from 'react';
+import mapboxgl from 'mapbox-gl';
 import { useKavachStore } from '../../store/useKavachStore';
 import { db } from '../../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { ShieldCheck, ShieldAlert, Navigation } from 'lucide-react';
 
-const mapboxgl = (window as any).mapboxgl;
-const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+// MAPBOX ACCESS TOKEN: RESTORED
+mapboxgl.accessToken = 'pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA';
 
-const SecurityRadarMap = memo(({ protectors = [] }: { protectors?: any[] }) => {
+const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protectors?: any[], activeRadius?: number }) => {
   const { userPos, activeAlertId, isSOSActive } = useKavachStore();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<any>(null);
-  const userMarker = useRef<any>(null);
-  const protectorMarkers = useRef<{ [key: string]: any }>({});
-  const timeoutRef = useRef<any>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<{user?: mapboxgl.Marker, responders: { [key: string]: mapboxgl.Marker }, radar?: mapboxgl.Marker, route?: mapboxgl.Marker}>({ responders: {} });
   const [responderId, setResponderId] = useState<string | null>(null);
 
   // 📡 LISTEN FOR RESPONDER HANDSHAKE
@@ -31,206 +30,256 @@ const SecurityRadarMap = memo(({ protectors = [] }: { protectors?: any[] }) => {
   }, [activeAlertId, isSOSActive]);
 
   useEffect(() => {
-    const initMap = () => {
-      const mb = (window as any).mapboxgl;
-      if (!mapContainer.current || !mb || !mb.Map) {
-        timeoutRef.current = setTimeout(initMap, 500);
-        return;
-      }
+    if (!mapContainer.current) return;
 
-      try {
-        mb.accessToken = MAPBOX_TOKEN;
-        const initialCoords = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
+    // Mapbox expects [lng, lat]
+    const initialCoords: [number, number] = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
 
-        map.current = new mb.Map({
-          container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/dark-v11',
-          center: initialCoords as [number, number],
-          zoom: 14, 
-          pitch: 45, 
-          bearing: 0,
-          antialias: true,
-          preserveDrawingBuffer: true
-        });
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/dark-v11',
+      center: initialCoords,
+      zoom: 14.5, // 🛰️ TACTICAL ZOOM: Locked for 1km clarity
+      pitch: 45,
+      bearing: -17.6,
+      antialias: true
+    });
 
-        map.current.on('load', () => {
-          if (!map.current) return;
-          map.current.resize(); 
-
-          // ⚡ RESCUE ROUTE LAYER
-          map.current.addSource('rescue-route', {
-            type: 'geojson',
-            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
-          });
-
-          map.current.addLayer({
-            id: 'rescue-path',
-            type: 'line',
-            source: 'rescue-route',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 
-              'line-color': '#10B981', // TACTICAL GREEN
-              'line-width': 4, 
-              'line-opacity': 0.8,
-              'line-dasharray': [1, 1]
-            }
-          });
-
-          if (userPos) {
-            addRadiusLayer(userPos);
-            fitPerimeter(userPos);
+    map.current.on('load', () => {
+      console.log("🛰️ RADAR GRID: Mapbox Satellite Lock Established.");
+      if (map.current) {
+        map.current.addLayer({
+          id: 'sky',
+          type: 'sky',
+          paint: {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0.0, 0.0],
+            'sky-atmosphere-sun-intensity': 15
           }
         });
 
-        map.current.on('error', (e: any) => {
-          if (map.current) map.current.setStyle('mapbox://styles/mapbox/streets-v11');
+        // 🛡️ INITIALIZE 1KM RADIUS SOURCE
+        map.current.addSource('radar-radius', {
+          type: 'geojson',
+          data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: {} }
         });
-      } catch (e) { console.error("Mapbox init failed", e); }
-    };
 
-    initMap();
+        // 🎨 RADIUS FILL (TINTED)
+        map.current.addLayer({
+          id: 'radar-radius-fill',
+          type: 'fill',
+          source: 'radar-radius',
+          paint: {
+            'fill-color': '#0A84FF',
+            'fill-opacity': 0.1
+          }
+        });
+
+        // 🎨 RADIUS OUTLINE (SHARP)
+        map.current.addLayer({
+          id: 'radar-radius-outline',
+          type: 'line',
+          source: 'radar-radius',
+          paint: {
+            'line-color': '#0A84FF',
+            'line-width': 2,
+            'line-opacity': 0.5,
+            'line-dasharray': [2, 1]
+          }
+        });
+      }
+    });
 
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      Object.values(protectorMarkers.current).forEach(m => { try { m.remove(); } catch(e){} });
-      if (userMarker.current) try { userMarker.current.remove(); } catch(e){}
-      if (map.current) { try { map.current.remove(); map.current = null; } catch (e) {} }
+      if (map.current) map.current.remove();
     };
   }, []);
 
-  // 2. High-Precision Victim Tracking
+  // 🛰️ HELPER: GENERATE 1KM CIRCLE POLYGON
+  const getCirclePoints = (center: [number, number], radiusKm: number) => {
+    const points = 64;
+    const coords = [];
+    const distanceX = radiusKm / (111.32 * Math.cos(center[1] * Math.PI / 180));
+    const distanceY = radiusKm / 110.574;
+
+    for (let i = 0; i < points; i++) {
+      const theta = (i / points) * (2 * Math.PI);
+      const x = distanceX * Math.cos(theta);
+      const y = distanceY * Math.sin(theta);
+      coords.push([center[0] + x, center[1] + y]);
+    }
+    coords.push(coords[0]); // Close the polygon
+    return [coords];
+  };
+
+  // 🛰️ USER POSITION & RADIUS SYNC
   useEffect(() => {
-    if (!map.current || !userPos) return;
-    try {
-      const mb = (window as any).mapboxgl;
-      map.current.easeTo({
-        center: [userPos[1], userPos[0]],
-        duration: 1000, 
-        essential: true
-      });
+    const m = map.current;
+    if (!m || !userPos) return;
 
-      if (!userMarker.current && mb) {
-        const el = document.createElement('div');
-        el.innerHTML = `<div style="background: #FFF; width: 12px; height: 12px; border-radius: 50%; border: 3px solid #0A84FF; box-shadow: 0 0 15px #0A84FF;"></div>`;
-        userMarker.current = new mb.Marker(el).setLngLat([userPos[1], userPos[0]]).addTo(map.current);
-      } else if (userMarker.current) {
-        userMarker.current.setLngLat([userPos[1], userPos[0]]);
-      }
-      updateRadius(userPos);
-    } catch (e) {}
-  }, [userPos]);
+    const coords: [number, number] = [userPos[1], userPos[0]];
 
-  // 3. Protector Grid & Rescue Path Rendering
-  useEffect(() => {
-    if (!map.current || !mapboxgl) return;
-    try {
-      const activeIds = protectors.map(p => p.id || p.uid);
-      Object.keys(protectorMarkers.current).forEach(id => {
-        if (!activeIds.includes(id)) {
-          protectorMarkers.current[id].remove();
-          delete protectorMarkers.current[id];
-        }
-      });
+    // 🛡️ DYNAMIC FRAME: Fit map based on the ACTIVE radius
+    const offset = (activeRadius * 0.011) + 0.003; 
+    const bounds = new mapboxgl.LngLatBounds()
+      .extend([coords[0] - offset, coords[1] - offset])
+      .extend([coords[0] + offset, coords[1] + offset]);
 
-      let rescueCoords: [number, number] | null = null;
+    m.fitBounds(bounds, {
+      padding: 50,
+      duration: 2000,
+      essential: true
+    });
 
-      protectors.forEach(p => {
-        const coords = [p.telemetry?.coords?.[1] || p.lastLocation?.lng, p.telemetry?.coords?.[0] || p.lastLocation?.lat];
-        if (!coords[0] || !coords[1]) return;
-        const pid = p.id || p.uid;
-        
-        const isResponder = pid === responderId;
-        if (isResponder) rescueCoords = [coords[0], coords[1]];
+    // 🛡️ ENSURE TACTICAL LAYERS EXIST (Robust Load for 5 Layers)
+    const ensureLayers = () => {
+      const tiers = [1, 2, 3, 4, 5];
+      tiers.forEach(tier => {
+        const sourceId = `radar-radius-${tier}`;
+        if (!m.getSource(sourceId)) {
+          m.addSource(sourceId, {
+            type: 'geojson',
+            data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [] }, properties: {} }
+          });
 
-        const markerColor = isResponder ? '#10B981' : (p.isOnline !== false ? '#0070f3' : '#333');
-        const markerGlow = isResponder ? '#10B981' : (p.isOnline !== false ? '#0070f3' : '#000');
+          const isActive = tier === activeRadius;
 
-        if (!protectorMarkers.current[pid]) {
-          const el = document.createElement('div');
-          el.innerHTML = `<div style="background: ${markerColor}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 15px ${markerGlow}; transition: all 0.3s ease-out; ${isResponder ? 'animation: responder-pulse 2s infinite ease-in-out;' : ''}"></div>`;
-          
-          if (isResponder && !document.getElementById('responder-radar-styles')) {
-            const style = document.createElement('style');
-            style.id = 'responder-radar-styles';
-            style.innerHTML = `@keyframes responder-pulse { 0% { scale: 1; box-shadow: 0 0 5px #10B981; } 50% { scale: 1.2; box-shadow: 0 0 20px #10B981; } 100% { scale: 1; box-shadow: 0 0 5px #10B981; } }`;
-            document.head.appendChild(style);
-          }
+          m.addLayer({
+            id: `${sourceId}-fill`,
+            type: 'fill',
+            source: sourceId,
+            paint: {
+              'fill-color': '#0A84FF',
+              'fill-opacity': isActive ? 0.1 : 0.02
+            }
+          });
 
-          protectorMarkers.current[pid] = new mapboxgl.Marker(el).setLngLat([coords[0], coords[1]]).addTo(map.current!);
-        } else {
-          // Update style if it becomes responder
-          const el = protectorMarkers.current[pid].getElement();
-          const dot = el.firstChild as HTMLElement;
-          if (dot) {
-            dot.style.background = markerColor;
-            dot.style.boxShadow = `0 0 15px ${markerGlow}`;
-            dot.style.animation = isResponder ? 'responder-pulse 2s infinite ease-in-out' : '';
-          }
-          protectorMarkers.current[pid].setLngLat([coords[0], coords[1]]);
-        }
-      });
-
-      // 🏁 DRAW RESCUE ROUTE
-      if (map.current.getSource('rescue-route')) {
-        if (rescueCoords && userPos) {
-          map.current.getSource('rescue-route').setData({
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: [[userPos[1], userPos[0]], rescueCoords]
+          m.addLayer({
+            id: `${sourceId}-outline`,
+            type: 'line',
+            source: sourceId,
+            paint: {
+              'line-color': '#0A84FF',
+              'line-width': isActive ? 3 : 1,
+              'line-opacity': isActive ? 0.8 : 0.2,
+              'line-dasharray': isActive ? [] : [2, 4]
             }
           });
         } else {
-          map.current.getSource('rescue-route').setData({
+          // 📡 DYNAMIC STYLE UPDATE: Highlight the active tier
+          const isActive = tier === activeRadius;
+          m.setPaintProperty(`${sourceId}-fill`, 'fill-opacity', isActive ? 0.1 : 0.02);
+          m.setPaintProperty(`${sourceId}-outline`, 'line-width', isActive ? 3 : 1);
+          m.setPaintProperty(`${sourceId}-outline`, 'line-opacity', isActive ? 0.8 : 0.2);
+          m.setPaintProperty(`${sourceId}-outline`, 'line-dasharray', isActive ? [] : [2, 4]);
+        }
+      });
+    };
+
+    const updateCircles = () => {
+      [1, 2, 3, 4, 5].forEach(tier => {
+        const source = m.getSource(`radar-radius-${tier}`) as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
             type: 'Feature',
-            geometry: { type: 'LineString', coordinates: [] }
+            geometry: {
+              type: 'Polygon',
+              coordinates: getCirclePoints(coords, tier)
+            },
+            properties: {}
           });
         }
+      });
+    };
+
+    if (m.isStyleLoaded()) {
+      ensureLayers();
+      updateCircles();
+    } else {
+      m.once('idle', () => {
+        ensureLayers();
+        updateCircles();
+      });
+    }
+
+    if (!markersRef.current.user) {
+      const el = document.createElement('div');
+      el.className = 'victim-marker';
+      el.innerHTML = `<div style="background: #FFF; width: 12px; height: 12px; border-radius: 50%; border: 3px solid #0A84FF; box-shadow: 0 0 15px #0A84FF;"></div>`;
+      markersRef.current.user = new mapboxgl.Marker(el)
+        .setLngLat(coords)
+        .addTo(m);
+    } else {
+      markersRef.current.user.setLngLat(coords);
+    }
+  }, [userPos, activeRadius]);
+
+  // 3. Protector Grid Rendering
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+
+    const activeIds = protectors.map(p => p.id || p.uid);
+    Object.keys(markersRef.current.responders).forEach(id => {
+      if (!activeIds.includes(id)) {
+        markersRef.current.responders[id].remove();
+        delete markersRef.current.responders[id];
       }
+    });
 
-    } catch (e) {}
-  }, [protectors, responderId, userPos]);
+    protectors.forEach(p => {
+      const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.coords?.[0];
+      const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.coords?.[1];
+      if (!lat || !lng) return;
+      const pid = p.id || p.uid;
+      
+      const isResponder = pid === responderId;
+      
+      // 🎖️ ELITE STATUS DETECTION (Army, Police, Ex-Servicemen)
+      const occupation = p.protectorVetting?.occupation || p.profession || '';
+      const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police'].some(role => 
+        occupation.toLowerCase().includes(role.toLowerCase())
+      );
 
-  const fitPerimeter = (center: [number, number]) => {
-    if (!map.current) return;
-    try {
-      const offset = 0.012; 
-      const bounds = [[center[1] - offset, center[0] - offset], [center[1] + offset, center[0] + offset]];
-      map.current.fitBounds(bounds as [[number, number], [number, number]], { padding: 40, duration: 2000, essential: true });
-    } catch (e) {}
-  };
+      // 🎨 TACTICAL COLOR SCHEME: Gold for Elite, Blue for Standard
+      const markerColor = isElite ? '#F59E0B' : (isResponder ? '#10B981' : '#0A84FF');
+      const markerGlow = isElite ? '#F59E0B' : (isResponder ? '#10B981' : '#0A84FF');
+      const markerSize = isElite ? '16px' : '12px';
 
-  const addRadiusLayer = (center: [number, number]) => {
-     if (!map.current) return;
-     try {
-       const points = 128; const radius = 1;
-       const ret = [];
-       const distanceX = radius / (111.32 * Math.cos(center[0] * Math.PI / 180));
-       const distanceY = radius / 110.574;
-       for (let i = 0; i <= points; i++) {
-         const theta = (i / points) * (2 * Math.PI);
-         ret.push([center[1] + (distanceX * Math.cos(theta)), center[0] + (distanceY * Math.sin(theta))]);
-       }
-       map.current.addSource('radar-1km', { 'type': 'geojson', 'data': { 'type': 'Feature', 'geometry': { 'type': 'Polygon', 'coordinates': [ret] } } });
-       map.current.addLayer({ 'id': 'radar-1km-outline', 'type': 'line', 'source': 'radar-1km', 'paint': { 'line-color': '#0A84FF', 'line-width': 3, 'line-dasharray': [1, 1], 'line-opacity': 0.8 } });
-       map.current.addLayer({ 'id': 'radar-1km-glow', 'type': 'line', 'source': 'radar-1km', 'paint': { 'line-color': '#0A84FF', 'line-width': 8, 'line-blur': 10, 'line-opacity': 0.3 } });
-     } catch (e) {}
-  };
-
-  const updateRadius = (center: [number, number]) => {
-    if (!map.current || !map.current.getSource('radar-1km')) return;
-    try {
-      const points = 128; const radius = 1;
-      const ret = [];
-      const distanceX = radius / (111.32 * Math.cos(center[0] * Math.PI / 180));
-      const distanceY = radius / 110.574;
-      for (let i = 0; i <= points; i++) {
-        const theta = (i / points) * (2 * Math.PI);
-        ret.push([center[1] + (distanceX * Math.cos(theta)), center[0] + (distanceY * Math.sin(theta))]);
+      if (!markersRef.current.responders[pid]) {
+        const el = document.createElement('div');
+        el.className = 'protector-marker';
+        el.style.zIndex = isElite ? '1000' : '500'; // 🛰️ ELEVATION: Elite units stay on top
+        el.innerHTML = `
+          <div style="
+            background: ${markerColor}; 
+            width: ${markerSize}; 
+            height: ${markerSize}; 
+            border-radius: 50%; 
+            border: 2px solid white; 
+            box-shadow: 0 0 15px ${markerGlow}; 
+            ${isResponder ? 'animation: responder-pulse 2s infinite ease-in-out;' : ''}
+            ${isElite ? 'animation: elite-pulse 2s infinite ease-in-out;' : ''}
+          "></div>
+        `;
+        markersRef.current.responders[pid] = new mapboxgl.Marker(el)
+          .setLngLat([lng, lat])
+          .addTo(m);
+      } else {
+        markersRef.current.responders[pid].setLngLat([lng, lat]);
+        const el = markersRef.current.responders[pid].getElement();
+        el.style.zIndex = isElite ? '1000' : '500';
+        const dot = el.firstChild as HTMLElement;
+        if (dot) {
+          dot.style.background = markerColor;
+          dot.style.boxShadow = `0 0 15px ${markerGlow}`;
+          dot.style.width = markerSize;
+          dot.style.height = markerSize;
+          dot.style.animation = isResponder ? 'responder-pulse 2s infinite ease-in-out' : (isElite ? 'elite-pulse 2s infinite ease-in-out' : '');
+        }
       }
-      (map.current.getSource('radar-1km') as any).setData({ 'type': 'Feature', 'geometry': { 'type': 'Polygon', 'coordinates': [ret] } });
-    } catch (e) {}
-  };
+    });
+  }, [protectors, responderId]);
 
   return (
     <div className="w-full h-full relative rounded-2xl overflow-hidden bg-[#050505]">
@@ -258,6 +307,18 @@ const SecurityRadarMap = memo(({ protectors = [] }: { protectors?: any[] }) => {
            </div>
         </div>
       )}
+      <style>{`
+        @keyframes responder-pulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+          70% { transform: scale(1.2); box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        @keyframes elite-pulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+          70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+      `}</style>
     </div>
   );
 });

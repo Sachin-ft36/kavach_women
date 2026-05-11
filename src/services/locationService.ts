@@ -12,8 +12,8 @@ export const getLiveLocation = async () => {
   try {
     const position = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
+      timeout: 30000,
+      maximumAge: 5000
     });
 
     return {
@@ -25,7 +25,8 @@ export const getLiveLocation = async () => {
   } catch (error) {
     const coarse = await Geolocation.getCurrentPosition({
       enableHighAccuracy: false,
-      timeout: 5000
+      timeout: 15000,
+      maximumAge: 10000
     });
     return {
       latitude: coarse.coords.latitude,
@@ -64,8 +65,8 @@ export const watchLiveLocation = async (
   const watchId = await Geolocation.watchPosition(
     {
       enableHighAccuracy: performanceMode !== 'power_save',
-      timeout: 5000,
-      maximumAge: performanceMode === 'power_save' ? 30000 : 0
+      timeout: 15000,
+      maximumAge: performanceMode === 'power_save' ? 30000 : 5000
     },
     (position, err) => {
       if (position) {
@@ -88,8 +89,8 @@ export const watchLiveLocation = async (
     try {
       const pos = await Geolocation.getCurrentPosition({
         enableHighAccuracy: performanceMode !== 'power_save',
-        timeout: 2000,
-        maximumAge: performanceMode === 'power_save' ? 10000 : 0
+        timeout: 10000,
+        maximumAge: performanceMode === 'power_save' ? 10000 : 5000
       });
       callback([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy);
     } catch (e) { }

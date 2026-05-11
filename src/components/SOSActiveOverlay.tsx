@@ -12,7 +12,7 @@ export default function SOSActiveOverlay() {
     isSOSActive, setSOSActive, activeAlertId,
     isSOSBlocked, sosBlockedReason,
     hasPendingWarning, warningMessage, acknowledgeWarning,
-    handshakeCode
+    handshakeCode, activeRadius
   } = useKavachStore();
   
   const [showPinEntry, setShowPinEntry] = useState(false);
@@ -128,7 +128,7 @@ export default function SOSActiveOverlay() {
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col font-sans">
       <div className="flex-1 relative">
-         <SecurityRadarMap protectors={nearbyProtectors} />
+         <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
          <div className="absolute top-10 left-6 right-6 z-[1100] space-y-3">
             <div className="bg-red-600 px-4 py-2 rounded-2xl border border-red-500 shadow-2xl flex items-center gap-3 animate-pulse">
                <ShieldAlert size={20} className="text-white" />

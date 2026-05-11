@@ -12,22 +12,43 @@ import { cn } from '../../lib/utils';
 // 🏛️ IMPORT OFFICIAL COMMAND ENGINE
 import CommandMap from '../maps/CommandMap';
 
-export function ProtectorTrack() {
+interface ProtectorTrackProps {
+  activeMissionId?: string | null;
+  onClearMission?: () => void;
+}
+
+export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTrackProps) {
   const [activeMissions, setActiveMissions] = useState<any[]>([]);
   const [resolvedMissions, setResolvedMissions] = useState<any[]>([]);
-  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(activeMissionId || null);
   const [selectedVictimId, setSelectedVictimId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeMissionId) {
+      setSelectedMissionId(activeMissionId);
+      setSelectedVictimId(null);
+    }
+  }, [activeMissionId]);
+
+  useEffect(() => {
+    return () => onClearMission?.();
+  }, []);
 
   // 📡 LIVE TACTICAL STREAMS
   useEffect(() => {
     const qActive = query(collection(db, 'alerts'), where('status', 'in', ['responding', 'active']));
     const unsubActive = onSnapshot(qActive, (snap) => setActiveMissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    const qResolved = query(collection(db, 'alerts'), where('status', '==', 'resolved'), orderBy('timestamp', 'desc'));
-    const unsubResolved = onSnapshot(qResolved, (snap) => setResolvedMissions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const qResolved = query(collection(db, 'alerts'), where('status', '==', 'resolved'));
+    const unsubResolved = onSnapshot(qResolved, (snap) => {
+      const sorted = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+      setResolvedMissions(sorted);
+    });
 
     const unsubProts = onSnapshot(query(collection(db, 'users'), where('role', '==', 'protector')), (snap) => {
        setActiveProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));

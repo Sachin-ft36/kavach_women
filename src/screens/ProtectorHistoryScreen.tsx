@@ -89,7 +89,7 @@ export default function ProtectorHistoryScreen() {
                           Saved: {log.victimName || 'Citizen'}
                         </h4>
                         <div className="flex items-center gap-2 mt-1">
-                          <Clock size={12} className-[#94A3B8] />
+                          <Clock size={12} className="text-[#94A3B8]" />
                           <span className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider">
                             {log.timestamp instanceof Timestamp ? format(log.timestamp.toDate(), 'PPP p') : 'Pending Sync'}
                           </span>

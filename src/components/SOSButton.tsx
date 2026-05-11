@@ -26,24 +26,48 @@ export default function SOSButton() {
   const [shakeProgress, setShakeProgress] = useState(0);
   const shakeCountRef = useRef(0);
   const lastShakeTimeRef = useRef(0);
+  const shakeWindowRef = useRef<number | null>(null);
+  const cooldownRef = useRef(0);
 
   useEffect(() => {
-    let accelThreshold = 18;
     const handleMotion = (event: DeviceMotionEvent) => {
-      const acc = event.accelerationIncludingGravity;
+      if (isSOSActive || Date.now() - cooldownRef.current < 10000) return;
+
+      const acc = event.acceleration;
       if (!acc) return;
-      const totalAccel = Math.sqrt((acc.x || 0)**2 + (acc.y || 0)**2 + (acc.z || 0)**2);
-      if (totalAccel > accelThreshold) {
+
+      const force = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+      const accelThreshold = 45; 
+
+      if (force > accelThreshold) {
         const now = Date.now();
-        if (now - lastShakeTimeRef.current > 500) { 
-          shakeCountRef.current += 1;
-          lastShakeTimeRef.current = now;
-          setShakeProgress(Math.min((shakeCountRef.current / 3) * 100, 100));
-          if (shakeCountRef.current >= 3) {
-            goLive('shake');
-            shakeCountRef.current = 0;
-            setShakeProgress(0);
+        
+        if (shakeCountRef.current === 0) {
+          shakeWindowRef.current = now;
+        }
+
+        if (shakeWindowRef.current && now - shakeWindowRef.current < 1500) {
+          if (now - lastShakeTimeRef.current > 250) {
+            shakeCountRef.current += 1;
+            lastShakeTimeRef.current = now;
+            setShakeProgress(Math.min((shakeCountRef.current / 3) * 100, 100));
+            console.log(`📳 KINETIC SENTINEL: Shake Detected [${shakeCountRef.current}/3] | Force: ${force.toFixed(1)}`);
+
+            if (shakeCountRef.current >= 3) {
+              console.error("🚨 KINETIC SENTINEL: VIOLENT MOTION VERIFIED. TRIGGERING SOS.");
+              cooldownRef.current = now; 
+              goLive('shake');
+              shakeCountRef.current = 0;
+              shakeWindowRef.current = null;
+              setShakeProgress(0);
+            }
           }
+        } else {
+          shakeCountRef.current = 1;
+          shakeWindowRef.current = now;
+          lastShakeTimeRef.current = now;
+          setShakeProgress(33);
+          console.log("📳 KINETIC SENTINEL: Mission Window Reset.");
         }
       }
     };
@@ -86,33 +110,30 @@ export default function SOSButton() {
         status: isOnline ? 'syncing' : 'offline_pending'
       });
 
-      // 2. OFFLINE FALLBACK: SMS BROADCAST
-      if (!isOnline || Capacitor.isNativePlatform()) {
+      // 2. TACTICAL DISPATCH: SMS & CALLS (PHYSICAL SIGNALS)
+      const alertId = `alert_${user?.uid || 'GUEST'}_${Date.now()}`;
+      
+      if (Capacitor.isNativePlatform()) {
         const googleMapsLink = `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}`;
         const timestamp = new Date().toLocaleTimeString();
         const smsMessage = `🚨 EMERGENCY SOS (KAVACH) 🚨\n\nI need help immediately!\n\nLocation: ${googleMapsLink}\nBattery: ${batteryLevel}%\nTime: ${timestamp}\n\nSent automatically via Kavach Safety System.`;
         
-        if (Capacitor.isNativePlatform()) {
-          // Trigger Native SMS Bridge (Silent background send if permissions allow)
-          KavachSafe.broadcastEmergencySMS({
-            message: smsMessage,
-            location: { lat: userPos[0], lng: userPos[1] }
-          });
-        } else {
-          console.log("Web Environment: SMS Protocol Simulation Active.");
-        }
+        // Native Broadcast (All Guardians)
+        await KavachSafe.broadcastEmergencySMS({
+          message: smsMessage,
+          location: { lat: userPos[0], lng: userPos[1] }
+        });
       }
 
-      // 3. ONLINE SYNC (If internet available)
+      // 3. CLOUD SYNC & SECONDARY DISPATCH
       if (isOnline) {
-        const alertId = `alert_${user?.uid || 'GUEST'}_${Date.now()}`;
-        // Set store active immediately with the ID
         await setSOSActive(true, alertId, source);
-        // Dispatch the blast with the same ID to update the document and send SMS/Calls
         await executeEmergencyBlast(profile || user, userPos, { type: source, alertId });
       } else {
-        setSOSActive(true, null, source);
-        toast.error("OFFLINE MODE: SMS Broadcast Dispatched to Guardians.", {
+        await setSOSActive(true, null, source);
+        // Secondary blast handles local SMS loop if broadcast failed
+        await executeEmergencyBlast(profile || user, userPos, { type: source, skipCloud: true });
+        toast.error("OFFLINE MODE: Guardian Alerts Dispatched via SMS.", {
           icon: '📡',
           duration: 4000
         });

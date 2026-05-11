@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { ShieldCheck, Activity, ScanLine, Smartphone, CheckCircle2, Shield } from 'lucide-react';
+import { ShieldCheck, Activity, ScanLine, Smartphone, CheckCircle2, Shield, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface MissionReadinessProps {
   batteryExempt: boolean;
   overlayGranted: boolean;
+  isSentinelActive: boolean;
+  setSentinelActive: (active: boolean) => void;
   perms: { 
     sms: string; 
     call: string; 
@@ -29,6 +31,8 @@ interface MissionReadinessProps {
 export default function MissionReadiness({
   batteryExempt,
   overlayGranted,
+  isSentinelActive,
+  setSentinelActive,
   perms,
   isReturningUser,
   tosChecked,
@@ -52,27 +56,51 @@ export default function MissionReadiness({
     perms.camera === 'granted' && 
     perms.microphone === 'granted';
 
-  const allShieldsActive = batteryExempt && overlayGranted && isLifelineActive;
+  const allShieldsActive = batteryExempt && overlayGranted && isLifelineActive && isSentinelActive;
+
+  useEffect(() => {
+    if (isReturningUser) {
+      setTosChecked({ terms: true, permissions: true });
+    }
+  }, [isReturningUser, setTosChecked]);
 
   useEffect(() => {
     if (allShieldsActive) {
-      setTimeout(() => {
+      if (isReturningUser) {
+        // 🚀 INSTANT RELAY: Returning users proceed instantly to Dashboard
+        onActivate();
+      } else {
+        // 🛰️ NEW USER: Scroll to final mission brief (TOS)
         protocolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 500);
+      }
     }
-  }, [allShieldsActive]);
+  }, [allShieldsActive, isReturningUser, onActivate]);
 
   return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 sm:space-y-8 pb-24">
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      className="space-y-4 sm:space-y-8 pb-24"
+    >
       {/* Header Section */}
       <div className="text-center space-y-3 sm:space-y-4 pt-1 sm:pt-2">
-        <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
-          <ShieldCheck className={cn(allShieldsActive ? "text-[#10B981]" : "text-[#2563EB]")} size={allShieldsActive ? 20 : 28} className="sm:size-[32px]" />
+        <div 
+          className={cn(
+            "w-10 h-10 sm:w-16 sm:h-16 bg-white border rounded-xl sm:rounded-[24px] flex items-center justify-center shadow-lg mx-auto transition-all duration-300",
+            allShieldsActive ? "border-[#10B981] shadow-[#10B981]/10" : "border-[#E5E7EB] shadow-gray-100"
+          )}
+        >
+          <ShieldCheck className={cn(allShieldsActive ? "text-[#10B981]" : "text-[#2563EB]", "sm:size-[32px]")} size={allShieldsActive ? 20 : 28} />
         </div>
         <div className="space-y-0.5 sm:space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight leading-tight">System Readiness</h1>
-          <p className="text-[9px] sm:text-[11px] text-gray-400 font-bold uppercase tracking-[2px] sm:tracking-[3px]">
-            {allShieldsActive ? "System Configuration Complete" : "Hardware Setup Required"}
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight leading-tight">
+            {allShieldsActive ? "System Ready" : "System Readiness"}
+          </h1>
+          <p className={cn(
+            "text-[9px] sm:text-[11px] font-bold uppercase tracking-[2px] sm:tracking-[3px] transition-colors duration-300",
+            allShieldsActive ? "text-[#10B981]" : "text-gray-400"
+          )}>
+            {allShieldsActive ? "Protocol Activation Sequence Initiated" : "Hardware Setup Required"}
           </p>
         </div>
       </div>
@@ -82,7 +110,7 @@ export default function MissionReadiness({
         {/* 1. Always On Protection */}
         <div className={cn(
           "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
-          batteryExempt ? "bg-white border-[#10B981]/20" : "bg-white border-amber-200 ring-4 ring-amber-50"
+          batteryExempt ? "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]" : "bg-white border-amber-200 ring-4 ring-amber-50"
         )}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 sm:gap-4 flex-1">
@@ -100,13 +128,14 @@ export default function MissionReadiness({
             <button
               onClick={onOpenBattery}
               className={cn(
-                "px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm border",
-                batteryExempt 
-                  ? "bg-[#10B981] text-white border-[#10B981]/50" 
-                  : "bg-white text-amber-600 border-amber-200"
+                "relative w-11 sm:w-14 h-6 sm:h-7 rounded-full transition-all duration-500",
+                batteryExempt ? "bg-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-gray-200"
               )}
             >
-              {batteryExempt ? "ACTIVE" : "SETUP"}
+              <div className={cn(
+                "absolute top-1 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white shadow-lg transition-all duration-500",
+                batteryExempt ? "translate-x-6 sm:translate-x-8" : "translate-x-1"
+              )} />
             </button>
           </div>
           {!batteryExempt && (
@@ -119,7 +148,7 @@ export default function MissionReadiness({
         {/* 2. Emergency Interface Authorization */}
         <div className={cn(
           "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
-          overlayGranted ? "bg-white border-[#10B981]/20" : "bg-white border-[#E5E7EB]"
+          overlayGranted ? "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]" : "bg-white border-[#E5E7EB]"
         )}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 sm:gap-4 flex-1">
@@ -137,13 +166,14 @@ export default function MissionReadiness({
             <button
               onClick={onOpenOverlay}
               className={cn(
-                "px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm border",
-                overlayGranted 
-                  ? "bg-[#10B981] text-white border-[#10B981]/50" 
-                  : "bg-white text-[#2563EB] border-[#2563EB]/20"
+                "relative w-11 sm:w-14 h-6 sm:h-7 rounded-full transition-all duration-500",
+                overlayGranted ? "bg-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-gray-200"
               )}
             >
-              {overlayGranted ? "GRANTED" : "ENABLE"}
+              <div className={cn(
+                "absolute top-1 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white shadow-lg transition-all duration-500",
+                overlayGranted ? "translate-x-6 sm:translate-x-8" : "translate-x-1"
+              )} />
             </button>
           </div>
           {!overlayGranted && (
@@ -153,10 +183,46 @@ export default function MissionReadiness({
           )}
         </div>
 
-        {/* 3. Safety Core Permissions */}
+        {/* 3. Kinetic Sentinel Authorization */}
         <div className={cn(
           "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
-          isLifelineActive ? "bg-white border-[#10B981]/20" : "bg-white border-[#E5E7EB]"
+          "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]"
+        )}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1">
+              <div className={cn(
+                "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center border transition-all",
+                "bg-[#10B981]/5 text-[#10B981] border-[#10B981]/10 shadow-[inset_0_0_10px_rgba(16,185,129,0.1)]"
+              )}>
+                <Zap size={20} className="sm:size-[24px]" />
+              </div>
+              <div>
+                <p className="text-[13px] sm:text-sm font-bold text-gray-900 leading-tight">Kinetic Sentinel</p>
+                <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-wider sm:tracking-widest mt-0.5">Violent Shake Detection</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSentinelActive(!isSentinelActive)}
+              className={cn(
+                "relative w-11 sm:w-14 h-6 sm:h-7 rounded-full transition-all duration-500",
+                isSentinelActive ? "bg-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-gray-200"
+              )}
+            >
+              <div className={cn(
+                "absolute top-1 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white shadow-lg transition-all duration-500",
+                isSentinelActive ? "translate-x-6 sm:translate-x-8" : "translate-x-1"
+              )} />
+            </button>
+          </div>
+          <p className="text-[9px] sm:text-[10px] text-gray-500 mt-3 sm:mt-4 font-semibold leading-relaxed">
+            Enabled 3-shake violent motion triggers for lock-screen emergency response.
+          </p>
+        </div>
+
+        {/* 4. Safety Core Permissions */}
+        <div className={cn(
+          "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
+          isLifelineActive ? "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]" : "bg-white border-[#E5E7EB]"
         )}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 sm:gap-4 flex-1">
@@ -174,32 +240,30 @@ export default function MissionReadiness({
             <button
               onClick={onRequestPerms}
               className={cn(
-                "relative w-10 sm:w-12 h-5 sm:h-6 rounded-full transition-all flex-shrink-0",
-                isLifelineActive ? "bg-[#10B981]" : "bg-gray-200"
+                "relative w-11 sm:w-14 h-6 sm:h-7 rounded-full transition-all duration-500",
+                isLifelineActive ? "bg-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-gray-200"
               )}
             >
               <div className={cn(
-                "absolute top-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full shadow-md transition-all duration-500",
-                isLifelineActive ? "right-0.5 bg-white" : "left-0.5 bg-gray-400"
+                "absolute top-1 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white shadow-lg transition-all duration-500",
+                isLifelineActive ? "translate-x-6 sm:translate-x-8" : "translate-x-1"
               )} />
             </button>
           </div>
-          {!isLifelineActive && (
-            <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2">
-               {['SMS', 'Call', 'GPS', 'Cam', 'Mic'].map((p, i) => {
-                 const states = [perms.sms, perms.call, perms.location, perms.camera, perms.microphone];
-                 const isG = states[i] === 'granted';
-                 return (
-                   <div key={p} className={cn(
-                     "py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[8px] sm:text-[9px] font-bold text-center border uppercase tracking-wider sm:tracking-widest transition-all",
-                     isG ? "bg-[#10B981]/5 border-[#10B981]/10 text-[#10B981]" : "bg-gray-50 border-gray-100 text-gray-300"
-                   )}>
-                     {p}
-                   </div>
-                 );
-               })}
-            </div>
-          )}
+          <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2">
+             {['SMS', 'Call', 'GPS', 'Cam', 'Mic'].map((p, i) => {
+               const states = [perms.sms, perms.call, perms.location, perms.camera, perms.microphone];
+               const isG = states[i] === 'granted';
+               return (
+                 <div key={p} className={cn(
+                   "py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[8px] sm:text-[9px] font-bold text-center border uppercase tracking-wider sm:tracking-widest transition-all duration-300",
+                   isG ? "bg-[#10B981]/5 border-[#10B981]/10 text-[#10B981]" : "bg-gray-50 border-gray-100 text-gray-300"
+                 )}>
+                   {p}
+                 </div>
+               );
+             })}
+          </div>
         </div>
       </div>
 
@@ -207,9 +271,9 @@ export default function MissionReadiness({
       {allShieldsActive && (
         <motion.div
            ref={protocolRef}
-           initial={{ opacity: 0, y: 30 }}
+           initial={{ opacity: 0, y: 20 }}
            animate={{ opacity: 1, y: 0 }}
-           className="space-y-6 pt-2"
+           className="space-y-6 pt-2 transition-all duration-500"
         >
           {!isReturningUser && (
             <div className="bg-white border border-[#E5E7EB] rounded-[32px] shadow-xl overflow-hidden">

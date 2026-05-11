@@ -30,7 +30,9 @@ import { signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { toast } from 'sonner';
 import SOSActiveOverlay from './SOSActiveOverlay';
-import { Activity, Car, Map as MapIcon, FileText } from 'lucide-react';
+import { Activity, Car, Map as MapIcon, FileText, MessageSquare } from 'lucide-react';
+import KavachAIChat from './KavachAIChat';
+import Onboarding from './Onboarding';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -47,11 +49,12 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const { t, language, setLanguage } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showProtectorOnboarding, setShowProtectorOnboarding] = useState(false);
-  const { profile: userData, setLoading, isSOSActive, isInterceptActive } = useKavachStore();
+  const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive } = useKavachStore();
   const user = auth.currentUser;
 
+
   const handleRoleSwitch = async () => {
-    if (!user) return;
+    if (!user || gender !== 'female') return;
     
     if (role === 'citizen') {
       if (userData?.protectorStatus === 'active') {
@@ -72,6 +75,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           setLoading(false);
         }
       } else {
+        toast.info("Initializing Protector Grid Enrollment...");
         setShowProtectorOnboarding(true);
         setIsProfileOpen(false);
         return;
@@ -96,7 +100,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   };
 
   const confirmProtectorEnrollment = async () => {
-    if (!user) return;
+    if (!user || gender !== 'female') return;
     try {
       const newRole = 'protector';
       const updateData = {
@@ -104,6 +108,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         lastRoleChange: new Date(),
         protectorStatus: 'active',
         specialCellLinked: true,
+        isVerified: true,
         enrolledAt: serverTimestamp()
       };
       await updateDoc(doc(db, 'users', user.uid), updateData);
@@ -203,35 +208,93 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
   return (
     <div className={cn(
-      "min-h-screen bg-bg text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500",
-      role === 'super_cell' ? "p-0" : "px-3 sm:px-6 pt-8 sm:pt-10 pb-32"
+      "min-h-screen bg-bg text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative overflow-x-hidden",
+      role === 'super_cell' ? "p-0" : "px-3 sm:px-6 pt-4 sm:pt-10 pb-10"
     )}>
       
+      {/* 🏛️ GLOBAL INSTITUTIONAL WATERMARK (OVERLAY) */}
+      <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center z-[150] overflow-hidden select-none">
+        <span className="text-[22vw] font-black text-black/[0.03] uppercase tracking-tighter rotate-[-15deg] whitespace-nowrap">KAVACH</span>
+        <div className="mt-4 opacity-10">
+          <span className="text-[8px] sm:text-[9px] font-black text-gray-900 uppercase tracking-[3px] sm:tracking-[4px]">Your Safety, Our Responsibility</span>
+        </div>
+      </div>
+
       {/* 🚨 SOS COMMAND OVERLAY */}
       <SOSActiveOverlay />
-
-      {role !== 'super_cell' && !isInterceptActive && (
-        <header className="relative z-[150] flex justify-between items-center mb-6 sm:mb-8 max-w-7xl mx-auto px-1">
-          <div className="flex items-center gap-4">
-             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-lg", role === 'admin' ? "bg-[#2563EB] text-white" : "bg-accent-red text-white")}>
-                <Shield size={20} />
+      
+      {/* 🛡️ STREAMLINED PROTECTOR PLEDGE OVERLAY */}
+      <AnimatePresence>
+        {showProtectorOnboarding && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 sm:p-10">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setShowProtectorOnboarding(false)} 
+              className="absolute inset-0 bg-[#0F172A]/80 backdrop-blur-xl" 
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              className="relative w-full max-w-md bg-white rounded-[40px] p-8 sm:p-10 shadow-2xl border border-white"
+            >
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div className="w-20 h-20 bg-blue-600 rounded-[28px] flex items-center justify-center text-white shadow-xl shadow-blue-600/30">
+                  <ShieldCheck size={40} strokeWidth={1.5} />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Protector's Pledge</h2>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[3px]">Institutional Enrollment</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-6 text-left border border-gray-100">
+                  <p className="text-[11px] font-bold text-gray-500 leading-relaxed uppercase tracking-wider">
+                    As a member of the <span className="text-gray-900">Kavach Protector Grid</span>, you pledge to assist fellow citizens in distress, maintain the highest standards of integrity, and respond to tactical alerts within your sector.
+                  </p>
+                </div>
+                <div className="w-full space-y-3 pt-4">
+                  <button 
+                    onClick={confirmProtectorEnrollment}
+                    className="w-full py-5 bg-blue-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[4px] shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
+                  >
+                    Confirm Enrollment
+                  </button>
+                  <button 
+                    onClick={() => setShowProtectorOnboarding(false)}
+                    className="w-full py-5 bg-gray-50 text-gray-400 rounded-[24px] text-xs font-black uppercase tracking-[4px] hover:bg-gray-100 transition-all"
+                  >
+                    Not Now
+                  </button>
+                </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && (
+        <header className="relative z-[150] flex justify-between items-center mb-4 sm:mb-8 max-w-7xl mx-auto px-1">
+          <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-500 overflow-hidden border border-[#F1F5F9]">
+                  <img src="/logo.jpg" alt="KAVACH" className="w-full h-full object-contain" />
+                </div>
               <div>
-                 <h1 className="text-xl font-bold tracking-tight text-gray-900">{role === 'admin' ? 'ADMINISTRATIVE PORTAL' : 'KAVACH'}</h1>
-                 <div className="flex items-center gap-2">
-                   <div className="w-1.5 h-1.5 bg-accent-green rounded-full animate-pulse" />
-                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-[2px]">National Safety Network v4.2</span>
+                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-tight">{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-1 h-1 bg-accent-green rounded-full animate-pulse" />
+                   <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-[1.5px] sm:tracking-[2px]">National Grid v4.2</span>
                  </div>
               </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={onToggleGhost} className="w-10 h-10 bg-white border border-[#E5E7EB] text-gray-400 hover:text-gray-900 hover:border-gray-300 rounded-xl flex items-center justify-center transition-all shadow-sm"><Eye size={18} /></button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={onToggleGhost} className="w-8 h-8 sm:w-10 sm:h-10 bg-white border border-[#E5E7EB] text-gray-400 hover:text-gray-900 hover:border-gray-300 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shadow-sm"><Eye size={16} /></button>
             <div className="relative">
-              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-2 bg-white border border-[#E5E7EB] p-1.5 pr-4 rounded-xl shadow-sm hover:border-gray-300 transition-all">
-                <div className="w-7 h-7 rounded-lg bg-[#2563EB]/10 flex items-center justify-center overflow-hidden border border-[#2563EB]/20">
-                  {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={16} className="text-[#2563EB]" />}
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-2 bg-white border border-[#E5E7EB] p-1 sm:p-1.5 pr-3 sm:pr-4 rounded-lg sm:rounded-xl shadow-sm hover:border-gray-300 transition-all">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-[#2563EB]/10 flex items-center justify-center overflow-hidden border border-[#2563EB]/20">
+                  {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={14} className="text-[#2563EB]" />}
                 </div>
-                <span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest hidden xs:inline">{t('profile')}</span>
+                <span className="text-[9px] sm:text-[10px] font-bold text-gray-900 uppercase tracking-widest hidden xs:inline">{t('profile')}</span>
               </button>
               <AnimatePresence>
                 {isProfileOpen && (
@@ -269,90 +332,12 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         </header>
       )}
 
-      <main className={cn("mx-auto pb-10 relative z-[10] transition-all", role === 'super_cell' ? "max-w-none px-4 lg:px-8" : "max-w-7xl")}>
+      <main className={cn("mx-auto pb-6 relative transition-all z-10", role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0" : "max-w-7xl")}>
         {children}
+
+        {/* Slogan moved to global watermark overlay for perfect centering */}
       </main>
 
-      {!isInterceptActive && (
-        <nav className="fixed bottom-0 inset-x-0 z-[50] p-6 pointer-events-none flex justify-center">
-          <div className="w-full max-w-md bg-white/80 backdrop-blur-2xl border border-black/[0.04] rounded-[40px] p-2 flex justify-between items-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] pointer-events-auto">
-            {role === 'citizen' && (
-              <>
-                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={22} />} label="Home" />
-                <NavButton active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} icon={<Globe size={22} />} label="Radar" />
-                <NavButton active={activeTab === 'contacts'} onClick={() => setActiveTab('contacts')} icon={<Users size={22} />} label="Guardians" />
-                <NavButton active={activeTab === 'special_cell'} onClick={() => setActiveTab('special_cell')} icon={<ShieldCheck size={22} />} label="Safety Cell" />
-                <NavButton active={activeTab === 'vault'} onClick={() => setActiveTab('vault')} icon={<Upload size={22} />} label="Vault" />
-              </>
-            )}
-            {role === 'protector' && (
-              <>
-                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<MapPin size={22} />} label="Response" />
-                <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Users size={22} />} label="Community" />
-                <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={22} />} label="Safety Tips" />
-                <NavButton active={activeTab === 'grievance'} onClick={() => setActiveTab('grievance')} icon={<AlertTriangle size={22} />} label="Reports" />
-              </>
-            )}
-            {role === 'admin' && (
-              <>
-                <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={22} />} label="Admin" />
-                <NavButton active={activeTab === 'verify'} onClick={() => setActiveTab('verify')} icon={<UserCheck size={22} />} label="Verify" />
-                <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Trophy size={22} />} label="Audits" />
-              </>
-            )}
-          </div>
-        </nav>
-      )}
-
-      <AnimatePresence>
-        {showProtectorOnboarding && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowProtectorOnboarding(false)} className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-md" />
-            <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-lg bg-[#F8FAFC] rounded-[32px] shadow-2xl overflow-hidden border border-[#E2E8F0]">
-              <div className="h-2 bg-[#2563EB]" />
-              <div className="p-6 sm:p-10">
-                <div className="flex items-start gap-4 sm:gap-6 mb-6 sm:mb-8">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-white border border-[#E2E8F0] flex items-center justify-center text-[#2563EB] shadow-sm shrink-0"><Shield size={32} strokeWidth={1.5} /></div>
-                  <div className="pt-1">
-                    <h2 className="text-2xl font-bold text-[#1E293B] leading-tight mb-1">Community Protector Network</h2>
-                    <p className="text-[11px] font-semibold text-[#64748B] uppercase tracking-[2px]">National Support & Assistance Program</p>
-                  </div>
-                </div>
-                <div className="space-y-8">
-                  <div className="space-y-5">
-                    <h3 className="text-[12px] font-bold uppercase tracking-widest text-[#94A3B8] border-b border-[#E2E8F0] pb-2">Protector Responsibilities</h3>
-                    <div className="space-y-5">
-                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><Zap size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Respond to nearby emergency safety alerts when you are available to assist.</p></div>
-                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><MapPin size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Assist users by sharing verified location-based support during distress situations.</p></div>
-                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><Users size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Coordinate with the Kavach safety ecosystem to improve community response times.</p></div>
-                      <div className="flex gap-5"><div className="w-6 h-6 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center shrink-0 mt-0.5"><ShieldCheck size={14} className="text-[#2563EB]" strokeWidth={2} /></div><p className="text-[13px] text-[#475569] leading-relaxed">Maintain respectful and responsible conduct as a verified community volunteer.</p></div>
-                    </div>
-                  </div>
-                  <div className="p-5 bg-[#F1F5F9] border border-[#E2E8F0] rounded-[20px]">
-                    <div className="flex gap-3 items-center mb-2"><Lock size={12} className="text-[#64748B]" /><span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Privacy & Accountability</span></div>
-                    <p className="text-[11px] text-[#64748B] leading-relaxed font-medium">To ensure public trust, your activity may be securely logged for safety verification and accountability purposes.</p>
-                  </div>
-                  <div className="flex items-center justify-center py-2"><p className="text-[13px] font-semibold text-[#1E293B] italic opacity-60">"Together, we create a safer community."</p></div>
-                  <div className="flex gap-4 pt-2">
-                    <button onClick={() => setShowProtectorOnboarding(false)} className="flex-1 py-4.5 bg-white border border-[#E2E8F0] text-[#64748B] rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-[#F1F5F9] transition-all">Cancel</button>
-                    <button onClick={confirmProtectorEnrollment} className="flex-[2] py-4.5 bg-[#2563EB] text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-[#2563EB]/10 hover:bg-[#1D4ED8] active:scale-[0.98] transition-all">Become a Protector</button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
-  );
-}
-
-function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-  return (
-    <button onClick={onClick} className={cn("flex flex-col items-center justify-center flex-1 h-16 transition-all relative group", active ? "text-[#2563EB]" : "text-[#64748B]")}>
-      <div className={cn("p-2.5 rounded-[18px] transition-all duration-500", active && "bg-[#2563EB]/10 scale-110 shadow-sm")}>{icon}</div>
-      <span className={cn("text-[6px] sm:text-[7px] font-black uppercase tracking-[1px] sm:tracking-[1.5px] mt-1 transition-all", active ? "opacity-100 translate-y-0" : "opacity-40 translate-y-1")}>{label}</span>
-      {active && <motion.div layoutId="activeTabDot" className="absolute -bottom-1 w-1 h-1 bg-[#2563EB] rounded-full shadow-[0_0_10px_rgba(37,99,235,0.8)]" />}
-    </button>
   );
 }

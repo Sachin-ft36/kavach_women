@@ -17,124 +17,138 @@ export function TransitTrack() {
   const [historicalJourneys, setHistoricalJourneys] = useState<any[]>([]);
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [selectedVictimId, setSelectedVictimId] = useState<string | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<'LIVE' | 'HISTORY'>('LIVE');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-  const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
-  const [activeFirs, setActiveFirs] = useState<any[]>([]);
+    const [sidebarTab, setSidebarTab] = useState<'LIVE' | 'HISTORY' | 'MISSIONS'>('LIVE');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
+    const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
+    const [activeFirs, setActiveFirs] = useState<any[]>([]);
 
-  // 📡 LIVE TACTICAL STREAMS
-  useEffect(() => {
-    // 🚗 FETCH LIVE TRANSITS
-    const qJourneys = query(collection(db, 'journeys'), where('status', 'in', ['active', 'emergency']));
-    const unsubJourneys = onSnapshot(qJourneys, (snap) => {
-       setActiveJourneys(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    // 📡 LIVE TACTICAL STREAMS
+    useEffect(() => {
+      // 🚗 FETCH LIVE TRANSITS
+      const qJourneys = query(collection(db, 'journeys'), where('status', 'in', ['active', 'emergency']));
+      const unsubJourneys = onSnapshot(qJourneys, (snap) => {
+         setActiveJourneys(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
 
-    // 🕒 FETCH PAST TRANSITS (FORENSIC ARCHIVE)
-    const qHistory = query(collection(db, 'journeys'), where('status', 'in', ['completed', 'resolved']), orderBy('timestamp', 'desc'));
-    const unsubHistory = onSnapshot(qHistory, (snap) => {
-       setHistoricalJourneys(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+      // 🕒 FETCH PAST TRANSITS (FORENSIC ARCHIVE)
+      const qHistory = query(collection(db, 'journeys'), where('status', 'in', ['completed', 'resolved']));
+      const unsubHistory = onSnapshot(qHistory, (snap) => {
+         const sorted = snap.docs
+           .map(d => ({ id: d.id, ...d.data() }))
+           .sort((a: any, b: any) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+         setHistoricalJourneys(sorted);
+      });
 
-    // 🚨 FETCH OTHER GRID NODES (For Map Background)
-    const unsubAlerts = onSnapshot(query(collection(db, 'alerts'), where('status', 'in', ['active', 'responding'])), (snap) => {
-       setActiveAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+      // 🚨 FETCH ONLY TRANSIT-RELATED MISSIONS
+      const unsubAlerts = onSnapshot(query(collection(db, 'alerts'), where('status', 'in', ['active', 'responding']), where('isTransitSOS', '==', true)), (snap) => {
+         setActiveAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
 
-    const unsubProts = onSnapshot(query(collection(db, 'users'), where('role', '==', 'protector')), (snap) => {
-       setActiveProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+      const unsubProts = onSnapshot(query(collection(db, 'users'), where('role', '==', 'protector')), (snap) => {
+         setActiveProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
 
-    const unsubFirs = onSnapshot(collection(db, 'firs'), (snap) => {
-       setActiveFirs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+      const unsubFirs = onSnapshot(collection(db, 'firs'), (snap) => {
+         setActiveFirs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
 
-    return () => { unsubJourneys(); unsubHistory(); unsubAlerts(); unsubProts(); unsubFirs(); };
-  }, []);
+      return () => { unsubJourneys(); unsubHistory(); unsubAlerts(); unsubProts(); unsubFirs(); };
+    }, []);
 
-  // 🛡️ TACTICAL GROUPING ENGINE
-  const groupedHistory = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    historicalJourneys.forEach(j => {
-      const uid = j.userId || 'anonymous';
-      if (!groups[uid]) groups[uid] = [];
-      groups[uid].push(j);
-    });
-    return groups;
-  }, [historicalJourneys]);
+    // 🛡️ TACTICAL GROUPING ENGINE
+    const groupedHistory = useMemo(() => {
+      const groups: Record<string, any[]> = {};
+      historicalJourneys.forEach(j => {
+        const uid = j.userId || 'anonymous';
+        if (!groups[uid]) groups[uid] = [];
+        groups[uid].push(j);
+      });
+      return groups;
+    }, [historicalJourneys]);
 
-  const uniqueHistoricalVictims = useMemo(() => {
-    return Object.keys(groupedHistory).map(uid => {
-      const victimJourneys = groupedHistory[uid];
-      return {
-        uid,
-        name: victimJourneys[0].userName,
-        count: victimJourneys.length,
-        lastTimestamp: victimJourneys[0].timestamp
-      };
-    }).sort((a, b) => (b.lastTimestamp?.toMillis() || 0) - (a.lastTimestamp?.toMillis() || 0));
-  }, [groupedHistory]);
+    const uniqueHistoricalVictims = useMemo(() => {
+      return Object.keys(groupedHistory).map(uid => {
+        const victimJourneys = groupedHistory[uid];
+        return {
+          uid,
+          name: victimJourneys[0].userName,
+          count: victimJourneys.length,
+          lastTimestamp: victimJourneys[0].timestamp
+        };
+      }).sort((a, b) => (b.lastTimestamp?.toMillis() || 0) - (a.lastTimestamp?.toMillis() || 0));
+    }, [groupedHistory]);
 
-  const selectedJourney = (sidebarTab === 'LIVE' ? activeJourneys : historicalJourneys).find(j => j.id === selectedJourneyId);
+    const selectedJourney = (sidebarTab === 'LIVE' ? activeJourneys : sidebarTab === 'HISTORY' ? historicalJourneys : activeAlerts).find(j => j.id === selectedJourneyId);
 
-  const filteredItems = sidebarTab === 'LIVE' 
-    ? activeJourneys.filter(j => j.userName?.toLowerCase().includes(searchTerm.toLowerCase()) || j.vehicleNo?.toLowerCase().includes(searchTerm.toLowerCase()))
-    : uniqueHistoricalVictims.filter(v => v.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredItems = sidebarTab === 'LIVE' 
+      ? activeJourneys.filter(j => j.userName?.toLowerCase().includes(searchTerm.toLowerCase()) || j.vehicleNo?.toLowerCase().includes(searchTerm.toLowerCase()))
+      : sidebarTab === 'HISTORY'
+      ? uniqueHistoricalVictims.filter(v => v.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+      : activeAlerts.filter(a => a.victimName?.toLowerCase().includes(searchTerm.toLowerCase()) || a.responderName?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  return (
-    <div className="h-[calc(100vh-48px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
-      {/* 📋 LEFT COMMAND PANEL */}
-      <aside className="w-[400px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl relative h-full">
-         <div className="p-8 border-b border-white/5 bg-[#1E293B]">
-            <div className="flex items-center gap-3 mb-6">
-               <div className={cn(
-                 "w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-xl transition-all",
-                 sidebarTab === 'LIVE' ? "bg-blue-600 shadow-blue-600/20" : "bg-emerald-600 shadow-emerald-600/20"
-               )}>
-                  {sidebarTab === 'LIVE' ? <Car size={24} strokeWidth={2.5} /> : <History size={24} />}
-               </div>
-               <div>
-                  <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">
-                     {sidebarTab === 'LIVE' ? 'TransitIntel' : 'Transit Forensic'}
-                  </h2>
-                  <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest opacity-60 italic mt-1">National Transit Hub</p>
-               </div>
-            </div>
+    return (
+      <div className="h-[calc(100vh-48px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
+        {/* 📋 LEFT COMMAND PANEL */}
+        <aside className="w-[400px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl relative h-full">
+           <div className="p-8 border-b border-white/5 bg-[#1E293B]">
+              <div className="flex items-center gap-3 mb-6">
+                 <div className={cn(
+                   "w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-xl transition-all",
+                   sidebarTab === 'LIVE' ? "bg-blue-600 shadow-blue-600/20" : sidebarTab === 'HISTORY' ? "bg-emerald-600 shadow-emerald-600/20" : "bg-rose-600 shadow-rose-600/20"
+                 )}>
+                    {sidebarTab === 'LIVE' ? <Car size={24} strokeWidth={2.5} /> : sidebarTab === 'HISTORY' ? <History size={24} /> : <Shield size={24} />}
+                 </div>
+                 <div>
+                    <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">
+                       {sidebarTab === 'LIVE' ? 'TransitIntel' : sidebarTab === 'HISTORY' ? 'Transit Forensic' : 'Mission Hub'}
+                    </h2>
+                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest opacity-60 italic mt-1">National Transit Hub</p>
+                 </div>
+              </div>
 
-            {/* TAB TOGGLE */}
-            <div className="flex bg-[#0F172A] p-1 rounded-2xl border border-white/5 mb-6">
-               <button 
-                 onClick={() => { setSidebarTab('LIVE'); setSelectedJourneyId(null); setSelectedVictimId(null); }}
-                 className={cn(
-                   "flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2",
-                   sidebarTab === 'LIVE' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-white"
-                 )}
-               >
-                  <Activity size={12} /> Live
-               </button>
-               <button 
-                 onClick={() => { setSidebarTab('HISTORY'); setSelectedJourneyId(null); setSelectedVictimId(null); }}
-                 className={cn(
-                   "flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2",
-                   sidebarTab === 'HISTORY' ? "bg-emerald-600 text-white shadow-lg" : "text-gray-500 hover:text-white"
-                 )}
-               >
-                  <History size={12} /> Past Log
-               </button>
-            </div>
+              {/* TAB TOGGLE */}
+              <div className="flex bg-[#0F172A] p-1 rounded-2xl border border-white/5 mb-6">
+                 <button 
+                   onClick={() => { setSidebarTab('LIVE'); setSelectedJourneyId(null); setSelectedVictimId(null); }}
+                   className={cn(
+                     "flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2",
+                     sidebarTab === 'LIVE' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-white"
+                   )}
+                 >
+                    <Activity size={12} /> Live
+                 </button>
+                 <button 
+                   onClick={() => { setSidebarTab('MISSIONS'); setSelectedJourneyId(null); setSelectedVictimId(null); }}
+                   className={cn(
+                     "flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2",
+                     sidebarTab === 'MISSIONS' ? "bg-rose-600 text-white shadow-lg" : "text-gray-500 hover:text-white"
+                   )}
+                 >
+                    <Shield size={12} /> Missions
+                 </button>
+                 <button 
+                   onClick={() => { setSidebarTab('HISTORY'); setSelectedJourneyId(null); setSelectedVictimId(null); }}
+                   className={cn(
+                     "flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2",
+                     sidebarTab === 'HISTORY' ? "bg-emerald-600 text-white shadow-lg" : "text-gray-500 hover:text-white"
+                   )}
+                 >
+                    <History size={12} /> Past Log
+                 </button>
+              </div>
 
-            <div className="relative">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-               <input 
-                 type="text" 
-                 placeholder="SCAN VEHICLE / PASSENGER..." 
-                 className="w-full bg-[#0F172A] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-[11px] font-black uppercase text-white tracking-widest outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" 
-                 value={searchTerm} 
-                 onChange={(e) => setSearchTerm(e.target.value)} 
-               />
-            </div>
-         </div>
+              <div className="relative">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                 <input 
+                   type="text" 
+                   placeholder="SCAN VEHICLE / PASSENGER..." 
+                   className="w-full bg-[#0F172A] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-[11px] font-black uppercase text-white tracking-widest outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" 
+                   value={searchTerm} 
+                   onChange={(e) => setSearchTerm(e.target.value)} 
+                 />
+              </div>
+           </div>
 
          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-[#0F172A]/30">
             <div className="px-4 py-2 flex items-center justify-between">
@@ -156,7 +170,7 @@ export function TransitTrack() {
                <div className="py-20 text-center opacity-20">
                   <Globe size={40} className="mx-auto mb-4" />
                   <p className="text-[10px] font-black uppercase tracking-widest">
-                     {sidebarTab === 'LIVE' ? 'No Active Transits' : 'Archive Data Clear'}
+                     {sidebarTab === 'LIVE' ? 'No Active Transits' : sidebarTab === 'HISTORY' ? 'Archive Data Clear' : 'No Active Missions'}
                   </p>
                </div>
             ) : sidebarTab === 'LIVE' ? (
@@ -200,6 +214,49 @@ export function TransitTrack() {
                     </div>
                   </div>
                ))
+            ) : sidebarTab === 'MISSIONS' ? (
+              (filteredItems as any[]).map((alert) => (
+                <div 
+                  key={alert.id} 
+                  onClick={() => setSelectedJourneyId(alert.id)} 
+                  className={cn(
+                    "p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group relative overflow-hidden",
+                    selectedJourneyId === alert.id ? "bg-rose-600/10 border-rose-500/30 shadow-xl" : "bg-[#1E293B]/50",
+                    alert.status === 'responding' ? "border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : "border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.15)] animate-pulse"
+                  )}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-white border border-white/5 group-hover:border-rose-500/30 transition-all">
+                           <Shield size={20} className={alert.status === 'responding' ? "text-blue-400" : "text-rose-500 animate-pulse"} />
+                        </div>
+                        <div>
+                           <h4 className="text-[12px] font-black text-white uppercase leading-none">{alert.victimName || 'Victim'}</h4>
+                           <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-2">
+                             {alert.status === 'responding' ? `Responder: ${alert.responderName}` : 'Awaiting Responder'}
+                           </p>
+                        </div>
+                     </div>
+                     <div className="text-right">
+                        <div className={cn(
+                           "text-[8px] font-black uppercase px-2 py-1 rounded-full",
+                           alert.status === 'responding' ? "bg-blue-600 text-white" : "bg-rose-600 text-white"
+                        )}>
+                           {alert.status === 'responding' ? 'INTERCEPTING' : 'SOS ACTIVE'}
+                        </div>
+                     </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                     <div className="flex items-center gap-2">
+                        <Clock size={12} className="text-gray-500" />
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                           {alert.timestamp ? new Date(alert.timestamp.toMillis()).toLocaleTimeString() : 'LIVE'}
+                        </span>
+                     </div>
+                     <ChevronRight size={16} className={cn("transition-all", selectedJourneyId === alert.id ? "text-rose-500 translate-x-1" : "text-gray-700")} />
+                  </div>
+                </div>
+             ))
             ) : (
                (filteredItems as any[]).map((victim) => (
                   <div 

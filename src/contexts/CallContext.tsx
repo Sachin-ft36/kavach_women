@@ -1,251 +1,124 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { auth } from '../firebase';
+import React, { createContext, useContext, useState } from 'react';
+import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useKavachStore } from '../store/useKavachStore';
+import { toast } from 'sonner';
 
 interface CallContextType {
-  initiateCall: (targetUserId: string, targetName: string) => Promise<void>;
-  answerCall: () => Promise<void>;
-  declineCall: () => void;
+  initiateCall: (targetUserId: string, targetName: string, contextId?: string) => Promise<void>;
   hangupCall: () => void;
-  callState: 'idle' | 'calling' | 'ringing' | 'connected';
-  remoteStream: MediaStream | null;
+  callState: 'idle' | 'calling' | 'connected';
   callerName: string | null;
   activeCallUserId: string | null;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
-const STUN_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-  ],
-};
-
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
-  const [callState, setCallState] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle');
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [callState, setCallState] = useState<'idle' | 'calling' | 'connected'>('idle');
   const [callerName, setCallerName] = useState<string | null>(null);
   const [activeCallUserId, setActiveCallUserId] = useState<string | null>(null);
+  const [zegoInstance, setZegoInstance] = useState<any>(null);
   
-  const { user, role, userPos } = useKavachStore();
-  
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
+  const { profile } = useKavachStore();
 
-  useEffect(() => {
-    // Determine signaling server URL (same as backend)
-    const socketUrl = window.location.origin.includes('localhost') 
-      ? 'http://localhost:8085' 
-      : window.location.origin;
-
-    const newSocket = io(socketUrl, {
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      timeout: 10000,
-      transports: ['polling', 'websocket'] // Allow fallback for stability
-    });
-    
-    setSocket(newSocket);
-
-    newSocket.on('connect_error', (err) => {
-      console.warn('📡 KAVACH Signal: Neural Hub unreachable. Switching to Local Tactical Mode.', err.message);
-    });
-
-    newSocket.on('connect', () => {
-      console.log('KAVACH Signal: Connected to neural hub');
-      const currentState = useKavachStore.getState();
-      if (currentState.user) {
-        newSocket.emit('join', { 
-          userId: currentState.user.uid, 
-          role: currentState.role,
-          coords: currentState.userPos
-        });
-      }
-    });
-
-    newSocket.on('incoming-call', async ({ from, offer, fromName }) => {
-      console.log('KAVACH Signal: Incoming tactical link from', fromName);
-      setCallerName(fromName);
-      setActiveCallUserId(from);
-      setCallState('ringing');
-      
-      const pc = createPeerConnection(from);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      setPeerConnection(pc);
-    });
-
-    newSocket.on('call-answered', async ({ answer }) => {
-      console.log('KAVACH Signal: Tactical link established');
-      setCallState('connected');
-      if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        // Process any queued candidates
-        pendingCandidates.current.forEach(candidate => {
-          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-        pendingCandidates.current = [];
-      }
-    });
-
-    newSocket.on('ice-candidate', ({ candidate }) => {
-      if (peerConnection && peerConnection.remoteDescription) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      } else {
-        pendingCandidates.current.push(candidate);
-      }
-    });
-
-    newSocket.on('call-ended', () => {
-      cleanupCall();
-    });
-
-    newSocket.on('call-failed', ({ reason }) => {
-      console.warn('KAVACH Signal: Link failed:', reason);
-      cleanupCall();
-    });
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
-
-  // Re-sync socket join if user changes
-  useEffect(() => {
-    if (socket && user) {
-      socket.emit('join', { 
-        userId: user.uid, 
-        role, 
-        coords: userPos 
-      });
+  const initiateCall = async (roomID: string, targetName: string, contextId?: string) => {
+    if (!profile) {
+      toast.error("Auth session required for tactical uplink.");
+      return;
     }
-  }, [socket, user, role, userPos]);
-
-  const createPeerConnection = (targetUserId: string) => {
-    const pc = new RTCPeerConnection(STUN_SERVERS);
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
-        socket.emit('ice-candidate', { to: targetUserId, candidate: event.candidate });
-      }
-    };
-
-    pc.ontrack = (event) => {
-      console.log('KAVACH Signal: Receiving remote audio stream');
-      setRemoteStream(event.streams[0]);
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        cleanupCall();
-      }
-    };
-
-    return pc;
-  };
-
-  const cleanupCall = () => {
-    if (peerConnection) {
-      peerConnection.close();
-      setPeerConnection(null);
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
-    setCallState('idle');
-    setRemoteStream(null);
-    setCallerName(null);
-    setActiveCallUserId(null);
-    pendingCandidates.current = [];
-  };
-
-  const initiateCall = async (targetUserId: string, targetName: string) => {
-    if (!socket || !auth.currentUser) return;
 
     try {
+      const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
+      const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
+
+      if (!appID || !serverSecret) {
+        throw new Error("ZEGO Credentials missing in .env");
+      }
+
       setCallState('calling');
       setCallerName(targetName);
-      setActiveCallUserId(targetUserId);
+      setActiveCallUserId(roomID);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = stream;
+      let startTime: number | null = null;
 
-      const pc = createPeerConnection(targetUserId);
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-      
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      setPeerConnection(pc);
+      // Generate Kit Token
+      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+        appID,
+        serverSecret,
+        roomID,
+        profile.uid || Date.now().toString(),
+        profile.name || "Kavach User"
+      );
 
-      socket.emit('call-user', {
-        to: targetUserId,
-        offer,
-        from: auth.currentUser.uid,
-        fromName: auth.currentUser.displayName || 'Authorized Protector'
+      // Create instance
+      const zp = ZegoUIKitPrebuilt.create(kitToken);
+      setZegoInstance(zp);
+
+      // Join Room with Voice-Only Config
+      zp.joinRoom({
+        container: null, // Floating UI handled by Zego
+        scenario: {
+          mode: ZegoUIKitPrebuilt.OneONoneCall,
+        },
+        showScreenSharingButton: false,
+        showMyCameraToggleButton: false, // 🛡️ ANONYMOUS VOICE ONLY
+        showAudioVideoSettingsButton: false,
+        showUserList: false,
+        turnOnCameraWhenJoining: false, // 🛡️ FORCE VIDEO OFF
+        showTextChat: false,
+        onJoinRoom: () => {
+          startTime = Date.now();
+          setCallState('connected');
+          toast.success("Tactical Link Established.");
+        },
+        onLeaveRoom: async () => {
+          setCallState('idle');
+          setZegoInstance(null);
+          
+          if (startTime && contextId) {
+            const durationMs = Date.now() - startTime;
+            const durationSec = Math.floor(durationMs / 1000);
+            
+            try {
+              const { doc, updateDoc, arrayUnion } = await import('firebase/firestore');
+              const { db } = await import('../firebase');
+              
+              await updateDoc(doc(db, 'alerts', contextId), {
+                callLogs: arrayUnion({
+                  callerName: profile.name,
+                  targetName,
+                  durationSeconds: durationSec,
+                  timestamp: new Date()
+                })
+              });
+              console.log(`📡 KAVACH: Call Logged - ${durationSec}s`);
+            } catch (e) {
+              console.error("Call log failure:", e);
+            }
+          }
+        }
       });
+
     } catch (error) {
-      console.error('KAVACH Signal: Microphone access denied or capture failed:', error);
-      cleanupCall();
+      console.error('KAVACH Signal: Zego Uplink Failed:', error);
+      toast.error("Tactical Link Failed.");
+      setCallState('idle');
     }
-  };
-
-  const answerCall = async () => {
-    if (!socket || !peerConnection || !activeCallUserId) return;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = stream;
-      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      setCallState('connected');
-
-      socket.emit('make-answer', { to: activeCallUserId, answer });
-    } catch (error) {
-      console.error('KAVACH Signal: Audio capture failed during handshake:', error);
-      cleanupCall();
-    }
-  };
-
-  const declineCall = () => {
-    if (socket && activeCallUserId) {
-      socket.emit('hangup', { to: activeCallUserId });
-    }
-    cleanupCall();
   };
 
   const hangupCall = () => {
-    if (socket && activeCallUserId) {
-      socket.emit('hangup', { to: activeCallUserId });
+    if (zegoInstance) {
+      // zp.destroy() or navigate away
+      window.location.reload(); // Hard reset for clean session termination in dev
     }
-    cleanupCall();
+    setCallState('idle');
   };
 
   return (
-    <CallContext.Provider value={{ initiateCall, answerCall, declineCall, hangupCall, callState, remoteStream, callerName, activeCallUserId }}>
+    <CallContext.Provider value={{ initiateCall, hangupCall, callState, callerName, activeCallUserId }}>
       {children}
-      {remoteStream && <AudioPlayer stream={remoteStream} />}
     </CallContext.Provider>
   );
-};
-
-const AudioPlayer = ({ stream }: { stream: MediaStream }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  return <audio ref={audioRef} autoPlay hidden />;
 };
 
 export const useCall = () => {

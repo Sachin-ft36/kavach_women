@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import VictimMap from '../components/maps/VictimMap';
@@ -8,9 +7,15 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 
 export default function TrackScreen() {
-  const { id } = useParams();
+  const [id, setId] = useState<string | null>(null);
   const [rideData, setRideData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    const extractedId = path.split('/')[2];
+    if (extractedId) setId(extractedId);
+  }, []);
 
   useEffect(() => {
     if (!id) return;

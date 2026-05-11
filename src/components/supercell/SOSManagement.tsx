@@ -48,9 +48,12 @@ export function SOSManagement() {
     });
 
     // 🕒 HISTORICAL FORENSICS STREAM
-    const qHistory = query(collection(db, 'alerts'), where('status', '==', 'resolved'), orderBy('timestamp', 'desc'));
+    const qHistory = query(collection(db, 'alerts'), where('status', '==', 'resolved'));
     const unsubHistory = onSnapshot(qHistory, (snap) => {
-       setHistoricalAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+       const sorted = snap.docs
+         .map(d => ({ id: d.id, ...d.data() }))
+         .sort((a: any, b: any) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+       setHistoricalAlerts(sorted);
     });
 
     // 📡 MASTER USER REGISTRY (FOR KUNDALI DATA)
@@ -223,7 +226,7 @@ export function SOSManagement() {
                  >
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl flex items-center justify-center border transition-all relative bg-rose-500/10 text-rose-500 border-rose-500/20">
-                         <Activity size={20} className="animate-pulse" />
+                         <Activity size={20} />
                       </div>
                       <div className="flex-1 min-w-0">
                          <h4 className="text-[11px] font-black text-white uppercase leading-none truncate">{alert.victimName}</h4>
@@ -294,7 +297,7 @@ export function SOSManagement() {
                      <CommandMap activeAlerts={[selectedAlert]} activeProtectors={[]} activeJourneys={[]} activeFirs={[]} pendingProtectors={[]} selectedAlertId={selectedAlert.id} />
                      <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none">
                         <div className="bg-black/60 backdrop-blur-xl px-6 py-3 rounded-2xl border border-white/10 flex items-center gap-4 pointer-events-auto">
-                           <div className="w-3 h-3 bg-rose-500 rounded-full animate-ping" />
+                           <div className="w-3 h-3 bg-rose-500 rounded-full" />
                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Target Surveillance Locked</span>
                         </div>
                      </div>

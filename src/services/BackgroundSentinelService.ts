@@ -1,9 +1,7 @@
 import { PushNotifications } from '@capacitor/push-notifications';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { KavachNative } from './KavachNative';
 import { toast } from 'sonner';
-import { KavachSafe } from '../App';
-
-const KavachNative = registerPlugin<any>('KavachPlugin');
 
 /**
  * 🛰️ STRATEGIC BACKGROUND SENTINEL
@@ -17,6 +15,8 @@ export const initializeBackgroundSentinel = async () => {
   const platform = Capacitor.getPlatform();
 
   try {
+    // 🛡️ INITIATE NATIVE HARDWARE SENTINEL (Background Persistence)
+    await KavachSafe.startBackgroundSentinel();
     // 1. Request Permissions
     const status = await PushNotifications.checkPermissions();
     if (status.receive !== 'granted') {
