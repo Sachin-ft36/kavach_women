@@ -13,22 +13,25 @@ import { toast } from 'sonner';
 
 interface ProtectorManagementProps {
   onViewReplay?: (missionId: string) => void;
+  externalSelectedId?: string | null;
+  verifiedProtectors?: any[];
+  pendingProtectors?: any[];
+  userStatusMap?: Record<string, any>;
 }
 
-export function ProtectorManagement({ onViewReplay }: ProtectorManagementProps) {
-  const [protectors, setProtectors] = useState<any[]>([]);
+export function ProtectorManagement({ 
+  onViewReplay, 
+  externalSelectedId, 
+  verifiedProtectors = [], 
+  pendingProtectors = [],
+  userStatusMap = {}
+}: ProtectorManagementProps) {
   const [selectedProtId, setSelectedProtId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [missionStats, setMissionStats] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    // 🛡️ FETCH ALL PROTECTORS (KUNDALI SOURCE)
-    const q = query(collection(db, 'users'), where('role', '==', 'protector'));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // 📡 FETCH MISSION SUCCESS DATA
+    // 📡 FETCH MISSION SUCCESS DATA (Aggregated from alerts)
     const qMissions = query(collection(db, 'alerts'), where('status', '==', 'resolved'));
     const unsubMissions = onSnapshot(qMissions, (snap) => {
        const stats: Record<string, any> = {};
@@ -48,8 +51,15 @@ export function ProtectorManagement({ onViewReplay }: ProtectorManagementProps) 
        setMissionStats(stats);
     });
 
-    return () => { unsubscribe(); unsubMissions(); };
+    return () => unsubMissions();
   }, []);
+
+  // 📡 SYNC EXTERNAL SELECTION (e.g. from Dashboard)
+  useEffect(() => {
+    if (externalSelectedId) {
+      setSelectedProtId(externalSelectedId);
+    }
+  }, [externalSelectedId]);
 
    // 🗄️ FETCH PROTECTOR SERVICE LEGACY (Resolved Missions)
    const [missionHistory, setMissionHistory] = useState<any[]>([]);
@@ -69,8 +79,9 @@ export function ProtectorManagement({ onViewReplay }: ProtectorManagementProps) 
       return () => unsubHistory();
    }, [selectedProtId]);
 
-   const selectedProt = protectors.find(p => p.id === selectedProtId);
-   const filteredProtectors = protectors.filter(p => 
+   const allProtectors = [...verifiedProtectors, ...pendingProtectors];
+   const selectedProt = allProtectors.find(p => p.id === selectedProtId);
+   const filteredProtectors = allProtectors.filter(p => 
      p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
      p.phoneNumber?.includes(searchTerm)
    );

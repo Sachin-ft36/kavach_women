@@ -37,9 +37,10 @@ export default function DashboardScreen() {
   } = useKavachStore();
   const { language } = useLanguage();
 
-  useVoiceTrigger();
-  useRideProtocol();
-  useProtectorSentinel();
+  // 🛡️ Global hooks are now handled in App.tsx to prevent duplicate background execution
+  // useVoiceTrigger();
+  // useRideProtocol();
+  // useProtectorSentinel();
 
   const [isVaultOpen, setIsVaultOpen] = React.useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = React.useState(false);

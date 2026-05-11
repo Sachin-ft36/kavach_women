@@ -28,7 +28,11 @@ import {
   MessageCircle,
   Box,
   ChevronDown,
-  LogOut
+  LogOut,
+  Navigation,
+  Globe,
+  Database,
+  Layers
 } from 'lucide-react';
 import { 
   collection, 
@@ -57,6 +61,9 @@ import { ProtectorManagement } from './supercell/ProtectorManagement';
 import { SOSManagement } from './supercell/SOSManagement';
 import { NodesControl } from './supercell/NodesControl';
 import { JusticeLedger } from './supercell/JusticeLedger';
+import { NationalEmergencyTicker } from './supercell/NationalEmergencyTicker';
+import { NeuralAnalytics } from './supercell/NeuralAnalytics';
+
 
 const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: string, onTabChange?: (m: any) => void }) => {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
@@ -68,27 +75,69 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
   const [userStatusMap, setUserStatusMap] = useState<Record<string, any>>({});
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [isSovereignActive, setIsSovereignActive] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [selectedSector, setSelectedSector] = useState('NATIONAL'); // 🛰️ SHARDING STATE
+  const [activeTab, setActiveTab] = useState('DASHBOARD'); // 🛰️ TACTICAL SUB-VIEW
   
+  const [selectedProtectorId, setSelectedProtectorId] = useState<string | null>(null);
+  const [replayMissionId, setReplayMissionId] = useState<string | null>(null);
   const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => {} });
 
+  const sectorButtons = [
+    { id: 'NORTH', label: 'Sector North', icon: Navigation, type: 'SECTOR' },
+    { id: 'SOUTH', label: 'Sector South', icon: Navigation, type: 'SECTOR' },
+    { id: 'CENTRAL', label: 'Sector Central', icon: Navigation, type: 'SECTOR' }
+  ];
+
+  const stateShards = [
+    { id: 'NATIONAL', label: 'National Grid', icon: Globe, type: 'NATIONAL' },
+    { id: 'MP', label: 'Madhya Pradesh', icon: MapPin, type: 'STATE' },
+    { id: 'DELHI', label: 'Delhi NCR', icon: MapPin, type: 'STATE' },
+    { id: 'MAHARASHTRA', label: 'Maharashtra', icon: MapPin, type: 'STATE' },
+    { id: 'KARNATAKA', label: 'Karnataka', icon: MapPin, type: 'STATE' },
+    { id: 'UP', label: 'Uttar Pradesh', icon: MapPin, type: 'STATE' },
+    { id: 'RAJASTHAN', label: 'Rajasthan', icon: MapPin, type: 'STATE' },
+    { id: 'GUJARAT', label: 'Gujarat', icon: MapPin, type: 'STATE' },
+    { id: 'WB', label: 'West Bengal', icon: MapPin, type: 'STATE' },
+    { id: 'TN', label: 'Tamil Nadu', icon: MapPin, type: 'STATE' }
+  ];
+
+  const allShards = [...sectorButtons, ...stateShards];
+
   useEffect(() => {
-    // 🛡️ RE-LINKED TO PRIMARY 'users' REGISTRY
-    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const statusMap: Record<string, any> = {};
-      const vProts: any[] = [];
-      const pProts: any[] = [];
-      snapshot.forEach(doc => {
-        const data = { id: doc.id, ...doc.data() };
-        statusMap[doc.id] = data;
-        if (data.role?.toLowerCase() === 'protector') {
-           if (data.isVerified || data.verified) vProts.push(data);
-           else pProts.push(data);
+    // 🛡️ RE-LINKED TO PRIMARY USER REGISTRIES (Unified Sync)
+    const syncCollection = (collName: string) => {
+      return onSnapshot(collection(db, collName), (snapshot) => {
+        setUserStatusMap(prev => {
+          const newMap = { ...prev };
+          snapshot.forEach(doc => {
+            const data = { id: doc.id, ...doc.data() };
+            newMap[doc.id] = data;
+          });
+          return newMap;
+        });
+
+        // Update lists for protectors specifically
+        if (collName === 'users' || collName === 'male_users') {
+          const vProts: any[] = [];
+          const pProts: any[] = [];
+          snapshot.forEach(doc => {
+            const data = { id: doc.id, ...doc.data() };
+            if (data.role?.toLowerCase() === 'protector') {
+               if (data.isVerified || data.verified) vProts.push(data);
+               else pProts.push(data);
+            }
+          });
+          setVerifiedProtectors(prev => [...prev.filter(p => p.role !== 'protector'), ...vProts]);
+          setPendingProtectors(prev => [...prev.filter(p => p.role !== 'protector'), ...pProts]);
         }
       });
-      setUserStatusMap(statusMap);
-      setVerifiedProtectors(vProts);
-      setPendingProtectors(pProts);
-    });
+    };
+
+    const unsubUsers = syncCollection('users');
+    const unsubWomen = syncCollection('women_users');
+    const unsubMales = syncCollection('male_users');
 
     // 🔴 RE-LINKED TO OFFICIAL 'alerts' REGISTRY
     const unsubscribeAlerts = onSnapshot(query(collection(db, 'alerts'), orderBy('timestamp', 'desc')), (snapshot) => {
@@ -106,8 +155,55 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       setActiveJourneys(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => { unsubscribeUsers(); unsubscribeAlerts(); unsubscribeFirs(); unsubscribeJourneys(); };
+    return () => { unsubUsers(); unsubWomen(); unsubMales(); unsubscribeAlerts(); unsubscribeFirs(); unsubscribeJourneys(); };
   }, []);
+
+   // 🛰️ STRATEGIC SHARD MAPPING (State -> Sector Bridge)
+   const sectorMap: Record<string, string> = {
+     'MP': 'CENTRAL', 'MADHYA PRADESH': 'CENTRAL', 'CHHATTISGARH': 'CENTRAL',
+     'DELHI': 'NORTH', 'NCR': 'NORTH', 'UP': 'NORTH', 'UTTAR PRADESH': 'NORTH', 'RAJASTHAN': 'NORTH', 'PUNJAB': 'NORTH', 'HARYANA': 'NORTH',
+     'KARNATAKA': 'SOUTH', 'TAMIL NADU': 'SOUTH', 'TN': 'SOUTH', 'KERALA': 'SOUTH', 'AP': 'SOUTH', 'TELANGANA': 'SOUTH',
+     'MAHARASHTRA': 'WEST', 'GUJARAT': 'WEST', 'GOA': 'WEST',
+     'WB': 'EAST', 'WEST BENGAL': 'EAST', 'BIHAR': 'EAST', 'ODISHA': 'EAST'
+   };
+
+   // 🛰️ INTELLIGENT SHARD FILTERING
+   const filterByShard = (item: any) => {
+     if (selectedSector === 'NATIONAL') return true;
+     const shard = allShards.find(s => s.id === selectedSector);
+     if (!shard) return true;
+
+     // 📡 EXTRACT TELEMETRY
+     const itemSector = (item.sector || '').toUpperCase();
+     const itemState = (item.state || '').toUpperCase();
+     const fullLoc = (item.locationName || item.fullAddress || item.address || '').toUpperCase();
+
+     // 🛡️ LOGIC A: DIRECT SECTOR MATCH
+     if (shard.type === 'SECTOR') {
+       if (itemSector === shard.id) return true;
+       // Auto-bridge: If item is in a state belonging to this sector
+       if (sectorMap[itemState] === shard.id) return true;
+       // Fuzzy scan: If location name contains state keywords for this sector
+       const isStateInSector = Object.entries(sectorMap).some(([state, sec]) => 
+         sec === shard.id && (fullLoc.includes(state) || itemState.includes(state))
+       );
+       return isStateInSector;
+     }
+
+     // 🛡️ LOGIC B: SPECIFIC STATE MATCH
+     if (shard.type === 'STATE') {
+       if (itemState === shard.id || itemState === shard.label.toUpperCase()) return true;
+       // Fuzzy scan for state name in location address
+       return fullLoc.includes(shard.label.toUpperCase()) || fullLoc.includes(shard.id);
+     }
+     
+     return itemSector === selectedSector || itemState === selectedSector;
+   };
+
+   const filteredAlerts = activeAlerts.filter(filterByShard);
+   const filteredJourneys = activeJourneys.filter(filterByShard);
+   const filteredProtectors = verifiedProtectors.filter(filterByShard);
+   const filteredPending = pendingProtectors.filter(filterByShard);
 
   const NavItem = ({ id, label, icon: Icon }: any) => {
     const isActive = viewMode === id;
@@ -121,145 +217,160 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   };
 
   const renderContent = () => {
-     switch(viewMode) {
-        case 'COMMAND':
-           return (
-              <div className="flex-1 flex overflow-hidden">
-                 {/* 📟 LEFT: ACTION CENTER (SOS + PENDING VETTING) */}
-                 <div className="w-[300px] bg-white border-r border-gray-100 flex flex-col shrink-0 overflow-hidden">
-                    <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-rose-50/20 shrink-0">
-                       <div className="flex items-center gap-2 text-rose-600">
-                          <Bell size={14} />
-                          <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">Live SOS Briefs</h2>
-                       </div>
-                       <div className="px-2 py-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full uppercase">{activeAlerts.length}</div>
-                    </div>
-                    <div className="max-h-[40vh] overflow-y-auto p-4 space-y-3 bg-gray-50/30 custom-scrollbar border-b border-gray-100">
-                       {activeAlerts.length === 0 ? (
-                          <div className="py-10 text-center opacity-20"><ShieldCheck size={30} className="mx-auto mb-2" /><p className="text-[8px] font-black uppercase tracking-widest">Grid Secure</p></div>
-                       ) : activeAlerts.map(alert => (
-                          <div key={alert.id} onClick={() => setSelectedAlertId(alert.id)} className={cn("p-4 rounded-[2rem] border transition-all cursor-pointer bg-white group shadow-sm", selectedAlertId === alert.id ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-100 hover:border-blue-200")}>
-                             <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-3">
-                                   <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100"><Activity size={14} /></div>
-                                   <div>
-                                      <h4 className="text-[10px] font-black uppercase text-gray-900 leading-none">{alert.victimName || 'Citizen'}</h4>
-                                      <p className="text-[7px] font-black text-rose-500 uppercase tracking-widest mt-1 italic">Active SOS</p>
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                       ))}
-                    </div>
+    const handleApproveProtector = async (userId: string) => {
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          isVerified: true,
+          verified: true,
+          verificationDate: new Date()
+        });
+        toast.success('Protector Verified Successfully');
+      } catch (error) {
+        console.error('Approval Error:', error);
+        toast.error('Failed to verify protector');
+      }
+    };
 
-                     <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-blue-50/20 shrink-0">
-                        <div className="flex items-center gap-2 text-blue-600">
-                           <Car size={14} />
-                           <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">Live Transit Intel</h2>
-                        </div>
-                        <div className="px-2 py-0.5 bg-blue-600 text-white text-[8px] font-black rounded-full uppercase">{activeJourneys.length}</div>
-                     </div>
-                     <div className="max-h-[30vh] overflow-y-auto p-4 space-y-3 bg-gray-50/20 custom-scrollbar border-b border-gray-100">
-                        {activeJourneys.length === 0 ? (
-                           <div className="py-6 text-center opacity-10"><Car size={24} className="mx-auto mb-2" /><p className="text-[8px] font-black uppercase tracking-widest">No Active Rides</p></div>
-                        ) : activeJourneys.map(journey => (
-                           <div key={journey.id} onClick={() => setSelectedAlertId(journey.id)} className={cn("p-4 rounded-[2rem] border transition-all cursor-pointer bg-white group shadow-sm", selectedAlertId === journey.id ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-100 hover:border-blue-200")}>
-                              <div className="flex items-center gap-3">
-                                 <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center border", journey.status === 'emergency' ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-blue-50 text-blue-600 border-blue-100")}>
-                                    <Car size={14} />
-                                 </div>
-                                 <div className="min-w-0 flex-1">
-                                    <h4 className="text-[10px] font-black uppercase text-gray-900 leading-none truncate">{journey.userName || 'Citizen'}</h4>
-                                    <div className="flex items-center gap-2 mt-1.5">
-                                       <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest truncate">{journey.vehicleNo}</p>
-                                       <div className={cn("w-1 h-1 rounded-full", journey.status === 'emergency' ? "bg-rose-500" : "bg-emerald-500")} />
-                                    </div>
-                                 </div>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-
-                    <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-emerald-50/20 shrink-0">
-                        <div className="flex items-center gap-2 text-emerald-600">
-                           <Users size={14} />
-                           <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">Pending Vetting</h2>
-                        </div>
-                        <div className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black rounded-full uppercase">{pendingProtectors.length}</div>
-                     </div>
-                     <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/10 custom-scrollbar">
-                        {pendingProtectors.length === 0 ? (
-                           <div className="py-10 text-center opacity-10"><Users size={30} className="mx-auto mb-2" /><p className="text-[8px] font-black uppercase tracking-widest">No New Recruits</p></div>
-                        ) : pendingProtectors.map(prot => (
-                           <div key={prot.id} className="p-5 rounded-[2.5rem] border border-gray-100 bg-white shadow-sm group">
-                              <div className="flex items-center gap-3 mb-4">
-                                 <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100"><User size={18} /></div>
-                                 <div className="flex-1">
-                                    <h4 className="text-[11px] font-black uppercase text-gray-900 leading-none">{prot.name || 'Operative'}</h4>
-                                    <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mt-1.5">{prot.protectorVetting?.occupation || 'Recruit'}</p>
-                                 </div>
-                              </div>
-                              <div className="flex gap-2">
-                                 <button 
-                                   onClick={async () => {
-                                     await updateDoc(doc(db, 'users', prot.id), { isVerified: true, verified: true });
-                                     toast.success(`${prot.name} Activated`);
-                                   }}
-                                   className="flex-1 py-3 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
-                                 >
-                                    Approve Node
-                                 </button>
-                                 <button className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all"><Settings size={12} /></button>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-                 </div>
-
-                 {/* 🌍 MIDDLE: STRATEGIC MAP */}
-                 <div className="flex-1 bg-[#0F172A] relative flex flex-col">
-                    <CommandMap activeAlerts={activeAlerts} activeProtectors={verifiedProtectors} activeJourneys={activeJourneys} activeFirs={activeFirs} pendingProtectors={[]} selectedAlertId={selectedAlertId} onAlertClick={setSelectedAlertId} />
-                 </div>
-
-                 {/* 🛡️ RIGHT: NODES & JUSTICE */}
-                 <div className="w-[380px] bg-white border-l border-gray-100 flex flex-col shrink-0 overflow-hidden">
-                    <div className="flex-[1.2] flex flex-col overflow-hidden">
-                       <NodesControl pendingProtectors={pendingProtectors} verifiedProtectors={verifiedProtectors} viewMode="COMMAND" />
-                    </div>
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                       <JusticeLedger zeroFirs={activeFirs} viewMode="COMMAND" onViewFir={(fir) => setSelectedAlertId(fir.id)} />
-                    </div>
-                 </div>
-              </div>
-           );
-        case 'SOS':
-           return <SOSManagement />;
-        case 'PROTECTORS':
-           return (
-             <ProtectorManagement 
-               onViewReplay={(missionId) => {
-                 setActiveMissionId(missionId);
-                 onTabChange?.('TRACK');
-               }} 
-             />
-           );
-        case 'TRACK':
-           return <ProtectorTrack activeMissionId={activeMissionId} onClearMission={() => setActiveMissionId(null)} />;
-        case 'DATA':
-           return <KavachDirectory womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={verifiedProtectors} selectedState="National" />;
-        case 'CHAT':
-           return <TacticalComms />;
-        case 'TRANSIT':
-           return <TransitTrack />;
-        case 'GUIDES':
-           return <WomenSafetyOPS activeAlerts={activeAlerts} onAlertClick={(id) => setSelectedAlertId(id)} />;
-        case 'MAP':
-           return <div className="flex-1 bg-[#0F172A] rounded-[40px] overflow-hidden m-8"><CommandMap activeAlerts={activeAlerts} activeProtectors={verifiedProtectors} activeJourneys={activeJourneys} activeFirs={activeFirs} pendingProtectors={[]} selectedAlertId={selectedAlertId} /></div>;
-        case 'SETTINGS':
-           return <StateNexusCommand />;
-        default:
-           return <div className="flex-1 flex flex-col items-center justify-center opacity-20"><History size={80} className="mb-6" /><p className="text-sm font-black uppercase tracking-[5px]">Module Linked - Scanning...</p></div>;
-     }
+    switch(viewMode) {
+      case 'COMMAND':
+        return (
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            {activeTab === 'DASHBOARD' && (
+              <NationalOverview 
+                activeAlerts={activeAlerts} // Show all, no shard
+                verifiedProtectors={verifiedProtectors} // Show all, no shard
+                pendingProtectors={pendingProtectors} // Show all, no shard
+                zeroFirs={activeFirs}
+                selectedState="NATIONAL"
+                isSovereignActive={isSovereignActive}
+                onNavigate={(tab, alertId) => {
+                  if (alertId) setSelectedAlertId(alertId);
+                  const viewMap: Record<string, string> = {
+                    'ALERTS': 'SOS',
+                    'SAFETY': 'SOS',
+                    'REPORTS': 'DATA',
+                    'FIR': 'FIR',
+                    'PROTECTORS': 'PROTECTORS'
+                  };
+                  const targetTab = viewMap[tab] || tab;
+                  if (targetTab === 'PROTECTORS' && alertId) setSelectedProtectorId(alertId);
+                  
+                  // 🚀 GLOBAL REDIRECTION
+                  onTabChange?.(targetTab);
+                }}
+                onApproveProtector={handleApproveProtector}
+                onDispatchSpecial={async (alertId, protectorIds) => {
+                  try {
+                    const alertRef = doc(db, 'alerts', alertId);
+                    await updateDoc(alertRef, {
+                      status: 'responding',
+                      dispatchedAt: new Date(),
+                      activeResponders: protectorIds.map(pid => ({
+                        id: pid,
+                        status: 'dispatched',
+                        timestamp: new Date()
+                      }))
+                    });
+                    toast.success(`Special Force Dispatched to ${protectorIds.length} Nodes`);
+                  } catch (error) {
+                    console.error('Dispatch Error:', error);
+                    toast.error('Tactical Dispatch Failed');
+                  }
+                }}
+              />
+            )}
+          </div>
+        );
+      case 'SOS':
+        return (
+          <SOSManagement 
+            externalSelectedId={selectedAlertId} 
+            verifiedProtectors={verifiedProtectors} 
+            activeAlerts={activeAlerts}
+            historicalAlerts={missionHistory}
+            userStatusMap={userStatusMap}
+          />
+        );
+      case 'FIR':
+        return <JusticeLedger zeroFirs={activeFirs} viewMode="JUSTICE" onViewFir={() => {}} userStatusMap={userStatusMap} />;
+      case 'PROTECTORS':
+        return (
+          <ProtectorManagement 
+            externalSelectedId={selectedProtectorId} 
+            onViewReplay={(id) => { setReplayMissionId(id); setActiveTab('REPLAY'); }} 
+            verifiedProtectors={filteredProtectors} 
+            pendingProtectors={filteredPending} 
+            userStatusMap={userStatusMap}
+          />
+        );
+      case 'TRACK':
+        return (
+          <ProtectorTrack 
+            activeMissionId={activeMissionId} 
+            onClearMission={() => setActiveMissionId(null)} 
+            isSovereignActive={isSovereignActive} 
+            userStatusMap={userStatusMap}
+          />
+        );
+      case 'DATA':
+        return <KavachDirectory womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={filteredProtectors} selectedState={selectedSector} isSovereignActive={isSovereignActive} />;
+      case 'ANALYTICS':
+        return (
+          <NeuralAnalytics 
+            activeAlerts={filteredAlerts}
+            activeJourneys={filteredJourneys}
+            verifiedProtectors={filteredProtectors}
+            justiceLedger={activeFirs}
+          />
+        );
+      case 'CHAT':
+        return <TacticalComms />;
+      case 'TRANSIT':
+        return (
+          <TransitIntelligence 
+            journeys={filteredJourneys} 
+            onJourneyClick={(id) => setSelectedAlertId(id)} 
+            userStatusMap={userStatusMap}
+          />
+        );
+      case 'GUIDES':
+        return <WomenSafetyOPS activeAlerts={filteredAlerts} onAlertClick={(id) => setSelectedAlertId(id)} />;
+      case 'MAP':
+        return (
+          <div className="flex-1 bg-[#0F172A] rounded-[40px] overflow-hidden m-8">
+            <CommandMap 
+              activeAlerts={filteredAlerts} 
+              activeProtectors={filteredProtectors} 
+              activeJourneys={filteredJourneys} 
+              activeFirs={activeFirs} 
+              pendingProtectors={[]} 
+              selectedAlertId={selectedAlertId}
+              isSovereignActive={isSovereignActive}
+              showHeatmap={showHeatmap}
+            />
+          </div>
+        );
+      case 'SETTINGS':
+        return (
+          <StateNexusCommand 
+            selectedState={selectedSector}
+            womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')}
+            verifiedProtectors={filteredProtectors}
+            pendingProtectors={filteredPending}
+            activeAlerts={filteredAlerts}
+            zeroFirs={activeFirs}
+            onAlertClick={(id) => setSelectedAlertId(id)}
+            onViewFir={(fir) => {
+              setSelectedAlertId(fir.id);
+              // Handle FIR navigation if needed
+            }}
+            isSovereignActive={isSovereignActive}
+            userStatusMap={userStatusMap}
+          />
+        );
+      default:
+        return <div className="flex-1 flex flex-col items-center justify-center opacity-20"><History size={80} className="mb-6" /><p className="text-sm font-black uppercase tracking-[5px]">Module Linked - Scanning...</p></div>;
+    }
   };
 
   return (
@@ -275,9 +386,11 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <NavItem id="TRACK" label="3D Track" icon={Box} />
           <NavItem id="TRANSIT" label="Transit Intel" icon={Car} />
           <NavItem id="CHAT" label="Chat" icon={MessageCircle} />
-          <NavItem id="DATA" label="Data" icon={BarChart3} />
+          <NavItem id="ANALYTICS" label="Neural Pulse" icon={BarChart3} />
+          <NavItem id="DATA" label="Directory" icon={Database} />
           <NavItem id="GUIDES" label="Guides" icon={BookOpen} />
-          <NavItem id="SETTINGS" label="Settings" icon={Settings} />
+           <NavItem id="SETTINGS" label="Settings" icon={Settings} />
+
         </div>
         <div className="py-4 border-t border-gray-50">
           <button 
@@ -285,7 +398,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
               const { auth } = await import('../firebase');
               const { signOut } = await import('firebase/auth');
               await signOut(auth);
-              localStorage.clear();
+              localStorage.clear(); // 🏛️ SYSTEM WIPE: AUTHORIZED
               window.location.reload();
             }}
             className="w-full flex flex-col items-center py-5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all duration-200 group"
@@ -296,10 +409,134 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         </div>
       </nav>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-12 bg-white border-b border-gray-100 px-6 flex items-center justify-between z-40 shrink-0">
-           <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100"><Shield size={16} /></div><div><h1 className="text-[10px] font-black text-gray-900 uppercase leading-none tracking-tighter">Kavach Supercell HQ</h1><p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Sector: National</p></div></div>
-           <div className="flex items-center gap-4"><div className="px-3 py-1 bg-gray-50 border border-gray-100 rounded-lg flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-gray-500">National <ChevronDown size={12} /></div></div>
+        <header className="h-16 bg-white border-b border-gray-100 px-8 flex items-center justify-between z-40 shrink-0">
+           {/* 🏛️ SOVEREIGN COMMAND HEADER: AUTHORIZED PERSONNEL ONLY */}
+           <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
+                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                    <Shield size={20} strokeWidth={2.5} />
+                 </div>
+                 <div>
+                    <h1 className="text-[11px] font-black text-gray-900 uppercase leading-none tracking-tighter">Kavach Supercell HQ</h1>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Sector: {allShards.find(s => s.id === selectedSector)?.label || 'National'} Command Grid</p>
+                 </div>
+              </div>
+
+              <div className="h-8 w-[1px] bg-gray-100 mx-6" />
+
+              {/* 🛰️ DIRECT SECTOR BUTTONS */}
+              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                 {sectorButtons.map((shard) => (
+                    <button 
+                      key={shard.id}
+                      onClick={() => setSelectedSector(shard.id)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                        selectedSector === shard.id ? "bg-white text-blue-600 shadow-sm border border-blue-100" : "text-gray-400 hover:text-gray-600"
+                      )}
+                    >
+                       <shard.icon size={12} />
+                       {shard.label}
+                    </button>
+                 ))}
+              </div>
+
+              <div className="h-8 w-[1px] bg-gray-100 mx-2" />
+
+              {/* 🛰️ STATE NEXUS DROPDOWN (National Grid + States) */}
+              <div className="relative group">
+                 <button className={cn(
+                   "px-5 py-2.5 border rounded-2xl flex items-center gap-3 shadow-sm transition-all group/btn",
+                   stateShards.some(s => s.id === selectedSector) 
+                     ? "bg-blue-600 border-blue-500 text-white shadow-blue-600/20" 
+                     : "bg-gray-50 border-gray-100 text-[#0F172A] hover:border-blue-200"
+                 )}>
+                    {selectedSector === 'NATIONAL' ? <div className="w-2 h-2 bg-emerald-500 rounded-full" /> : <MapPin size={12} />}
+                    <span className="text-[10px] font-black uppercase tracking-[3px]">
+                       {stateShards.find(s => s.id === selectedSector)?.label || 'National Grid'}
+                    </span>
+                    <ChevronDown size={14} className={cn("transition-transform duration-300 group-hover/btn:rotate-180", stateShards.some(s => s.id === selectedSector) ? "text-white/60" : "text-gray-400")} />
+                 </button>
+
+                 <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[100] overflow-hidden">
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-3">
+                       <div className="px-6 py-2 text-[8px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 mb-2">State Strategic Shards</div>
+                       {stateShards.map(s => (
+                          <button 
+                            key={s.id} 
+                            onClick={() => setSelectedSector(s.id)} 
+                            className={cn(
+                              "w-full px-5 py-3.5 flex items-center justify-between rounded-2xl transition-all group/item",
+                              selectedSector === s.id ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20" : "hover:bg-gray-50 text-gray-600"
+                            )}
+                          >
+                             <div className="flex items-center gap-4">
+                                <s.icon size={16} className={cn(selectedSector === s.id ? "text-white" : "text-gray-400 group-hover/item:text-blue-500")} />
+                                <div className="text-left">
+                                   <span className="text-[9px] font-black uppercase tracking-widest block leading-none">{s.label}</span>
+                                   <span className={cn("text-[6px] font-bold uppercase mt-1 block", selectedSector === s.id ? "text-white/60" : "text-gray-400")}>{s.type} CONTROL</span>
+                                </div>
+                             </div>
+                             {selectedSector === s.id && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </button>
+                       ))}
+                    </div>
+                 </div>
+              </div>
+           </div>
+
+           <div className="flex items-center gap-4">
+              {/* 🛰️ TACTICAL CONTROL CLUSTER */}
+              <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-[20px] border border-gray-100">
+                 <button 
+                   onClick={() => setShowHeatmap(!showHeatmap)}
+                   className={cn(
+                     "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                     showHeatmap ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-400 hover:text-gray-600"
+                   )}
+                 >
+                    <Activity size={12} />
+                    Neural Load
+                 </button>
+                 <button 
+                   onClick={() => {
+                     if (!isSovereignActive) {
+                       setModalConfig({
+                         isOpen: true,
+                         type: 'danger',
+                         title: 'Sovereign Override',
+                         description: 'Initiating National Tactical Lockout. This protocol overrides all regional dispatch systems. Confirm authorization?',
+                         confirmText: 'Execute Lockout',
+                         onConfirm: () => {
+                           setIsSovereignActive(true);
+                           setModalConfig({ isOpen: false });
+                           toast.error("NATIONAL GRID LOCKOUT ACTIVE", {
+                             description: "Protocol 00-X initiated. Regional nodes bypassed.",
+                             duration: 5000
+                           });
+                         }
+                       });
+                     } else {
+                       setIsSovereignActive(false);
+                       toast.success("Sovereign Control Restored", {
+                         description: "National grid back to standard ops."
+                       });
+                     }
+                   }}
+                   className={cn(
+                     "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                     isSovereignActive ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-gray-400 hover:text-gray-600"
+                   )}
+                 >
+                    <ShieldAlert size={12} />
+                    Override
+                 </button>
+              </div>
+
+              <div className="h-8 w-[1px] bg-gray-100 mx-2" />
+           </div>
         </header>
+        <NationalEmergencyTicker isActive={isSovereignActive} gridNodeCount={verifiedProtectors.length + filteredAlerts.length} />
         {renderContent()}
       </div>
     </div>
@@ -315,7 +552,7 @@ const TacticalModal = ({ config, setModalConfig }: any) => {
         <div className={cn("h-2", config.type === 'danger' ? "bg-red-600" : config.type === 'warning' ? "bg-yellow-500" : "bg-blue-600")} />
         <div className="p-10 text-center"><h3 className="text-xl font-black text-gray-900 uppercase mb-2">{config.title}</h3><p className="text-gray-400 text-[10px] font-bold uppercase mb-8">{config.description}</p>
           {config.showInput && (<select value={inputText} onChange={(e) => setInputText(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-bold mb-8 outline-none"><option value="">Select Reason...</option>{config.selectOptions?.map((opt: string) => (<option key={opt} value={opt}>{opt}</option>))}</select>)}
-          <div className="flex gap-4"><button onClick={() => setModalConfig({ isOpen: false })} className="flex-1 py-4 bg-gray-100 text-gray-900 text-[10px] font-black uppercase rounded-2xl">Cancel</button><button onClick={() => config.onConfirm(inputText)} className={cn("flex-1 py-4 text-white text-[10px] font-black uppercase rounded-2xl", config.type === 'danger' ? "bg-red-600" : "bg-blue-600")}>{config.confirmText}</button></div>
+          <div className="flex gap-4"><button onClick={() => setModalConfig({ isOpen: false })} className="flex-1 py-4 bg-gray-100 text-gray-900 text-[10px] font-black uppercase rounded-2xl">Cancel</button><button onClick={() => config.onConfirm(inputText)} className={cn("flex-1 py-4 text-white text-[10px] font-black uppercase rounded-2xl", config.type === 'danger' ? "bg-red-600" : config.type === 'warning' ? "bg-yellow-500" : "bg-blue-600")}>{config.confirmText}</button></div>
         </div>
       </motion.div>
     </div>

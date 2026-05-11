@@ -167,6 +167,15 @@ export default function ProtectorDashboard() {
     setTimeout(() => { window.location.href = `tel:${phone}`; }, 1000);
   };
 
+  const maskName = (name: string) => {
+    if (!name || name === 'Kavach Citizen') return name;
+    const parts = name.split(' ');
+    return parts.map(part => {
+      if (part.length <= 1) return part;
+      return part[0] + '*'.repeat(Math.min(part.length - 1, 7));
+    }).join(' ');
+  };
+
   return (
     <div className="min-h-screen bg-[#F1F5F9] pb-32 font-sans overflow-x-hidden relative">
       {/* 🏛️ SOVEREIGN BACKGROUND LAYER */}
@@ -246,7 +255,7 @@ export default function ProtectorDashboard() {
       <div className="px-6 mt-10">
           <div className="flex justify-between items-center mb-8 px-2">
             <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-[4px] flex items-center gap-3">
-              <Activity size={18} className="text-blue-600 animate-pulse" /> Urgent Dispatch
+              <Activity size={18} className="text-blue-600" /> Urgent Dispatch
             </h3>
             <div className="flex items-center gap-2 bg-[#0F172A] text-white px-4 py-2 rounded-full shadow-lg">
                <span className="text-[9px] font-black uppercase tracking-widest">{activeAlerts.length} Critical Units</span>
@@ -271,7 +280,7 @@ export default function ProtectorDashboard() {
                     {/* 📡 LIVE STATUS HEADER */}
                     <div className="flex items-center justify-between mb-5">
                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/5 border border-blue-600/10 rounded-full">
-                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
                           <span className="text-[7px] font-black text-blue-600/80 uppercase tracking-[2px]">Mission Active</span>
                        </div>
                        <div className="flex items-center gap-1.5">
@@ -292,7 +301,7 @@ export default function ProtectorDashboard() {
                           </div>
                         </div>
                         <div className="space-y-0.5">
-                          <h4 className="text-xl font-black text-gray-900 tracking-tighter uppercase italic leading-none">{alert.victimName}</h4>
+                          <h4 className="text-xl font-black text-gray-900 tracking-tighter uppercase italic leading-none">{maskName(alert.victimName)}</h4>
                           <div className="flex items-center gap-1.5">
                             <div className="w-3.5 h-3.5 rounded-full bg-blue-50 flex items-center justify-center">
                                <MapPin size={8} className="text-blue-500" />
@@ -331,7 +340,7 @@ export default function ProtectorDashboard() {
                           )}
                         >
                           <div className="relative z-10 flex items-center justify-center gap-2">
-                            <Navigation size={14} className={alert.status === 'responding' ? "animate-pulse" : ""} />
+                            <Navigation size={14} className="" />
                             <span>{alert.status === 'responding' ? 'Navigate' : 'Start'}</span>
                           </div>
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
@@ -369,7 +378,7 @@ export default function ProtectorDashboard() {
             ) : (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center space-y-8">
                 <div className="relative w-32 h-32">
-                   <div className="absolute inset-0 bg-emerald-100 rounded-full blur-2xl animate-pulse" />
+                   <div className="absolute inset-0 bg-emerald-100 rounded-full blur-2xl" />
                    <div className="relative w-full h-full bg-white rounded-full flex items-center justify-center shadow-2xl border border-emerald-50">
                       <ShieldCheck size={56} className="text-emerald-500" strokeWidth={1.5} />
                    </div>
@@ -399,9 +408,26 @@ export default function ProtectorDashboard() {
                     <User size={18} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-gray-900 tracking-tight">{mission.victimName}</h4>
+                    <h4 className="text-sm font-black text-gray-900 tracking-tight">
+                      {(() => {
+                        const missionDate = mission.timestamp?.seconds 
+                          ? new Date(mission.timestamp.seconds * 1000) 
+                          : new Date();
+                        const hoursSince = (Date.now() - missionDate.getTime()) / (1000 * 60 * 60);
+                        return hoursSince > 24 
+                          ? `ANONYMOUS #${mission.id.slice(-4).toUpperCase()}` 
+                          : maskName(mission.victimName);
+                      })()}
+                    </h4>
                     <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-                      {mission.type === 'TRANSIT_INTERCEPTION' ? 'Transit Intercept' : 'Emergency SOS'}
+                      {(() => {
+                        const missionDate = mission.timestamp?.seconds 
+                          ? new Date(mission.timestamp.seconds * 1000) 
+                          : new Date();
+                        const hoursSince = (Date.now() - missionDate.getTime()) / (1000 * 60 * 60);
+                        if (hoursSince > 24) return "RECORD ARCHIVED (24H PRIVACY)";
+                        return mission.reason || (mission.type === 'TRANSIT_INTERCEPTION' ? 'Transit Intercept' : 'Emergency SOS');
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -451,8 +477,18 @@ export default function ProtectorDashboard() {
                   </div>
                 </div>
 
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Tactical Summary (Closure Reason)</p>
+                  <textarea 
+                    value={resolutionSummary}
+                    onChange={(e) => setResolutionSummary(e.target.value)}
+                    placeholder="e.g. Assisted victim to nearest safe zone, suspect fled..."
+                    className="w-full h-24 bg-gray-50 border border-gray-100 rounded-3xl p-5 text-xs font-bold text-gray-900 outline-none focus:ring-8 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none"
+                  />
+                </div>
+
                 <div className="space-y-4 text-center">
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Safety Check</p>
+                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Victim Safety Code</p>
                   <div className="flex gap-3 justify-center">
                     {[0,1,2,3].map(i => (
                       <input key={i} type="text" maxLength={1} value={handshakeInput[i] || ''} onChange={(e) => {
@@ -535,7 +571,7 @@ export default function ProtectorDashboard() {
                      )}>
                         {(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') 
                           ? <CheckCircle2 size={36} className="animate-bounce" /> 
-                          : <Navigation size={36} className="animate-pulse" />}
+                          : <Navigation size={36} className="" />}
                      </div>
                      <div>
                         <p className={cn(
@@ -568,7 +604,7 @@ export default function ProtectorDashboard() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-[340px] text-center space-y-10">
               <div className="relative mx-auto w-32 h-32">
                 <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.1, 0.3, 0.1] }} transition={{ duration: 4, repeat: Infinity }} className="absolute inset-0 bg-blue-600 rounded-full blur-[60px]" />
-                <div className="relative w-full h-full rounded-full border-2 border-blue-500/20 flex items-center justify-center"><ShieldCheck size={56} className="text-blue-500 animate-pulse" strokeWidth={1} /></div>
+                <div className="relative w-full h-full rounded-full border-2 border-blue-500/20 flex items-center justify-center"><ShieldCheck size={56} className="text-blue-500" strokeWidth={1} /></div>
               </div>
               <div className="space-y-5">
                 <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic leading-none">Security Locked</h2>

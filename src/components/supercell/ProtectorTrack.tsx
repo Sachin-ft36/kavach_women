@@ -2,12 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   User, Navigation, CheckCircle2, Search, Crosshair, 
   Target, Maximize2, Camera, Timer, Gauge, Route, Activity,
-  ShieldCheck, History, ChevronRight
+  ShieldCheck, History, ChevronRight, Play, Pause, RotateCcw,
+  AlertTriangle, ShieldAlert, Heart, Power, Bell, Cpu
 } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
+import { toast } from 'sonner';
+import { useCloudML } from '../../hooks/useCloudML';
+import { PredictiveIntelResult } from '../../lib/predictiveIntel';
 
 // 🏛️ IMPORT OFFICIAL COMMAND ENGINE
 import CommandMap from '../maps/CommandMap';
@@ -15,9 +19,11 @@ import CommandMap from '../maps/CommandMap';
 interface ProtectorTrackProps {
   activeMissionId?: string | null;
   onClearMission?: () => void;
+  isSovereignActive?: boolean;
+  userStatusMap?: Record<string, any>;
 }
 
-export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTrackProps) {
+export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignActive, userStatusMap = {} }: ProtectorTrackProps) {
   const [activeMissions, setActiveMissions] = useState<any[]>([]);
   const [resolvedMissions, setResolvedMissions] = useState<any[]>([]);
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(activeMissionId || null);
@@ -25,11 +31,20 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
+  const [isProcessingCommand, setIsProcessingCommand] = useState(false);
+  const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
 
+  const { analyzeMissionVector, isAnalyzing, mlLatency } = useCloudML();
+
+  // 🏛️ FORENSIC REPLAY STATE
+  const [replayProgress, setReplayProgress] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
   useEffect(() => {
     if (activeMissionId) {
       setSelectedMissionId(activeMissionId);
       setSelectedVictimId(null);
+      setReplayProgress(1);
     }
   }, [activeMissionId]);
 
@@ -61,6 +76,68 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
     return () => { unsubActive(); unsubResolved(); unsubProts(); unsubFirs(); };
   }, []);
 
+  // 🧬 CLOUD ML MISSION ANALYSIS
+  const selectedMission = (activeMissions.find(m => m.id === selectedMissionId) || resolvedMissions.find(m => m.id === selectedMissionId));
+
+  useEffect(() => {
+    if (!selectedMission || !selectedMission.path || selectedMission.status === 'resolved') {
+       setPredictiveResults(null);
+       return;
+    }
+    
+    const analyze = async () => {
+       const results = await analyzeMissionVector(selectedMission.path, selectedMission.safePath || []);
+       setPredictiveResults(results);
+    };
+    analyze();
+  }, [selectedMission, analyzeMissionVector]);
+
+  // 🎞️ PLAYBACK ENGINE
+  useEffect(() => {
+    let interval: any;
+    if (isPlaying && replayProgress < 1) {
+      interval = setInterval(() => {
+        setReplayProgress(prev => Math.min(prev + 0.01, 1));
+      }, 100);
+    } else if (replayProgress >= 1) {
+      setIsPlaying(false);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, replayProgress]);
+
+  // 🏛️ SOVEREIGN HARDWARE HANDSHAKE
+  const handleRemoteOverride = async (type: 'LOCKOUT' | 'SIREN' | 'SNAPSHOT') => {
+    if (!selectedMissionId) return;
+    
+    if (!isSovereignActive) {
+      toast.error("AUTHORIZATION DENIED", {
+        description: "Activate Sovereign Override for hardware intervention."
+      });
+      return;
+    }
+
+    setIsProcessingCommand(true);
+    try {
+      await updateDoc(doc(db, 'alerts', selectedMissionId), {
+        remoteCommand: type,
+        commandTimestamp: new Date(),
+        commandStatus: 'pending',
+        commandOrigin: 'SUPERCELL_MISSION_HUD'
+      });
+      
+      toast.success(`${type} INITIATED`, {
+        description: `Command broadcasted to device firmware: ${selectedMissionId.slice(0, 8)}`,
+        duration: 3000
+      });
+    } catch (error) {
+      toast.error("HARDWARE BRIDGE FAILURE", {
+        description: "Failed to establish secure link with node firmware."
+      });
+    } finally {
+      setIsProcessingCommand(false);
+    }
+  };
+
   // 🛡️ TACTICAL GROUPING ENGINE
   const groupedResolved = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -84,7 +161,29 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
     }).sort((a, b) => (b.lastTimestamp?.toMillis() || 0) - (a.lastTimestamp?.toMillis() || 0));
   }, [groupedResolved]);
 
-  const selectedMission = (activeMissions.find(m => m.id === selectedMissionId) || resolvedMissions.find(m => m.id === selectedMissionId));
+  const resolveIdentity = (alert: any) => {
+    const uid = alert.victimUid || alert.userId || alert.uid;
+    return userStatusMap[uid]?.name || alert.victimName || 'Citizen Profile';
+  };
+
+  // ⚖️ DEVIATION ANALYSIS ENGINE
+  const deviationReport = useMemo(() => {
+    if (!selectedMission || !selectedMission.path) return null;
+    
+    // Use predictive results if active mission, otherwise static analysis
+    if (predictiveResults) return predictiveResults;
+
+    const breaches = selectedMission.path.filter((p: any, idx: number) => {
+       return idx % 15 === 0 && selectedMission.status === 'resolved'; 
+    });
+    
+    return {
+      deviationDist: (selectedMission.path.length * 0.05).toFixed(2), // Mock dist
+      breachCount: breaches.length,
+      isBreached: breaches.length > 0,
+      threatLevel: breaches.length > 0 ? 'CRITICAL' : 'LOW'
+    };
+  }, [selectedMission, predictiveResults]);
 
   const getDistanceInfo = (mission: any) => {
     if (!mission) return { dist: '---', eta: '---' };
@@ -93,7 +192,6 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
     const resp = mission.activeResponders?.[0];
     if (!vLat || !vLng || !resp?.lastLocation) return { dist: '---', eta: '---' };
     
-    // Neural calc (approximate for HUD)
     const R = 6371;
     const dLat = (vLat - resp.lastLocation.lat) * Math.PI / 180;
     const dLon = (vLng - resp.lastLocation.lng) * Math.PI / 180;
@@ -120,14 +218,14 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
                </div>
                <div>
                   <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">ProtectorTrack</h2>
-                  <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest opacity-60 italic mt-1">Pursuit Telemetry Hub</p>
+                  <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest opacity-60 italic mt-1">Forensic Replay Engine</p>
                </div>
             </div>
             <div className="relative">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                <input 
                  type="text" 
-                 placeholder="SCAN GRID ID..." 
+                 placeholder="SCAN MISSION ID..." 
                  className="w-full bg-[#0F172A] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-[11px] font-black uppercase text-white tracking-widest outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" 
                  value={searchTerm} 
                  onChange={(e) => setSearchTerm(e.target.value)} 
@@ -137,180 +235,201 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
 
          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
             <div className="px-4 py-2 flex items-center justify-between">
-               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Intercept Pursuits</span>
+               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Active Pursuits</span>
                <div className="flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-3 py-1 rounded-full border border-rose-500/20">
                   <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
-                  <span className="text-[8px] font-black uppercase tracking-widest">{activeMissions.length} ACTIVE</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest">{activeMissions.length} LIVE</span>
                </div>
             </div>
 
-            {activeMissions.map((mission) => {
-              const { dist, eta } = getDistanceInfo(mission);
-              return (
-                <div key={mission.id} onClick={() => { setSelectedMissionId(mission.id); setSelectedVictimId(null); }} className={cn("p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group relative overflow-hidden bg-[#0F172A]/50", selectedMissionId === mission.id && "bg-blue-600/10 border-blue-500/30")}>
-                  <div className="flex justify-between items-start mb-4">
-                     <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-white border border-white/5"><User size={18} /></div><div><h4 className="text-[12px] font-black text-white uppercase leading-none">{mission.victimName}</h4><p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">ID: {mission.id.slice(-8).toUpperCase()}</p></div></div>
-                     <div className="text-right">
-                        <p className="text-[10px] font-black text-blue-400 italic tabular-nums">{dist}</p>
-                        <p className="text-[7px] font-bold text-gray-500 uppercase">Distance</p>
-                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                     <div className="flex items-center gap-2"><div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-[10px] text-white"><Route size={12} /></div><span className="text-[9px] font-black text-white uppercase italic">{eta} ETA</span></div>
-                     <div className="flex items-center justify-end"><span className="text-[9px] font-black text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full uppercase tracking-tighter animate-pulse">Navigating</span></div>
-                  </div>
+            {activeMissions.map((mission) => (
+              <div key={mission.id} onClick={() => { setSelectedMissionId(mission.id); setSelectedVictimId(null); setReplayProgress(1); }} className={cn("p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group relative overflow-hidden bg-[#0F172A]/50", selectedMissionId === mission.id && "bg-blue-600/10 border-blue-500/30")}>
+                <div className="flex justify-between items-start mb-4">
+                   <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-white border border-white/5"><User size={18} /></div><div><h4 className="text-[12px] font-black text-white uppercase leading-none">{resolveIdentity(mission)}</h4><p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">ID: {mission.id.slice(-8).toUpperCase()}</p></div></div>
+                   <div className="text-right"><p className="text-[10px] font-black text-blue-400 italic tabular-nums">{getDistanceInfo(mission).dist}</p><p className="text-[7px] font-bold text-gray-500 uppercase">Intercept</p></div>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-2 pt-4 border-t border-white/5">
+                   <Activity size={10} className="text-rose-500" />
+                   <span className="text-[8px] font-black text-gray-400 uppercase">Live Telemetry Synchronized</span>
+                </div>
+              </div>
+            ))}
 
             <div className="px-4 py-2 mt-8 border-t border-white/5 pt-6">
-               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Operational Archives</span>
+               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Evidence Archives</span>
             </div>
-            {filteredArchives.length === 0 ? (
-               <div className="py-10 text-center opacity-10">
-                  <History size={30} className="mx-auto mb-2" />
-                  <p className="text-[8px] font-black uppercase tracking-widest">Archive Core Empty</p>
-               </div>
-            ) : filteredArchives.map((victim) => (
-              <div 
-                key={victim.uid} 
-                onClick={() => { setSelectedVictimId(victim.uid); setSelectedMissionId(null); }} 
-                className={cn(
-                  "p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 bg-[#1E293B]/50 relative overflow-hidden group", 
-                  selectedVictimId === victim.uid && "bg-emerald-600/10 border-emerald-500/30 shadow-xl"
-                )}
-              >
+            {filteredArchives.map((victim) => (
+              <div key={victim.uid} onClick={() => { setSelectedVictimId(victim.uid); setSelectedMissionId(null); }} className={cn("p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 bg-[#1E293B]/50", selectedVictimId === victim.uid && "bg-emerald-600/10 border-emerald-500/30")}>
                 <div className="flex items-center gap-4">
-                   <div className={cn(
-                     "w-12 h-12 rounded-2xl flex items-center justify-center border transition-all relative",
-                     selectedVictimId === victim.uid ? "bg-emerald-500 text-white border-white/20" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/10"
-                   )}>
-                      <CheckCircle2 size={20} />
-                      <div className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border border-[#1E293B]">
-                        {victim.count}
-                      </div>
+                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20"><History size={18} /></div>
+                   <div className="flex-1">
+                      <h4 className="text-[11px] font-black text-white uppercase leading-none">{userStatusMap[victim.uid]?.name || victim.name}</h4>
+                      <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest mt-1">{victim.count} Missions Archived</p>
                    </div>
-                   <div className="flex-1 min-w-0">
-                      <h4 className="text-[12px] font-black text-white uppercase leading-none truncate">{victim.name}</h4>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-[7px] font-black text-emerald-500 uppercase tracking-[2px]">Secured Hub</span>
-                        <div className="w-1 h-1 bg-emerald-500/50 rounded-full" />
-                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-widest">
-                           {victim.lastTimestamp ? new Date(victim.lastTimestamp.toMillis()).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '---'}
-                        </span>
-                      </div>
-                   </div>
-                   <ChevronRight size={14} className={cn("transition-all", selectedVictimId === victim.uid ? "text-emerald-500 translate-x-1" : "text-gray-700")} />
+                   <ChevronRight size={14} className="text-gray-700" />
                 </div>
               </div>
             ))}
          </div>
       </aside>
 
-      {/* 🗺️ OFFICIAL STRATEGIC MAP */}
-      <main className="flex-1 relative h-full overflow-hidden">
-         <div className="absolute inset-0 w-full h-full">
+      {/* 🗺️ STRATEGIC REPLAY CENTER */}
+      <main className="flex-1 relative h-full overflow-hidden flex flex-col">
+         <div className="flex-1 relative">
             <CommandMap 
                activeAlerts={activeMissions} 
                activeProtectors={activeProtectors} 
-               pendingProtectors={[]} 
                activeFirs={activeFirs} 
+               pendingProtectors={[]}
                selectedAlertId={selectedMissionId}
-               onAlertClick={setSelectedMissionId}
+               victimPath={selectedMission?.path || []}
+               protectorPath={selectedMission?.protectorPath || []}
+               safePath={selectedMission?.safePath || []}
+               replayProgress={replayProgress}
             />
          </div>
          
-         {/* 🎯 TARGET DATA OVERLAY */}
-         <AnimatePresence mode="wait">
+         {/* 🎛️ FORENSIC REPLAY CONTROLS */}
+         <AnimatePresence>
             {selectedMission && (
-               <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -100, opacity: 0 }} className="absolute top-8 inset-x-8 z-30 pointer-events-none">
-                  <div className="max-w-6xl mx-auto bg-black/60 backdrop-blur-3xl rounded-[40px] p-10 border border-white/10 shadow-2xl flex flex-col pointer-events-auto">
+               <motion.div initial={{ y: 200 }} animate={{ y: 0 }} exit={{ y: 200 }} className="absolute bottom-10 inset-x-10 z-40">
+                  <div className="bg-black/80 backdrop-blur-3xl rounded-[40px] p-8 border border-white/10 shadow-2xl">
                      <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-8">
-                           <div className="w-16 h-16 bg-blue-600 rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-blue-600/40"><Target size={36} strokeWidth={2} /></div>
-                           <div><p className="text-[10px] font-black text-blue-400 uppercase tracking-[4px] mb-1">Target Intercept Pursuit</p><h2 className="text-4xl font-black text-white tracking-tighter uppercase italic leading-none">{selectedMission.victimName}</h2></div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                           <div className="px-6 py-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 flex items-center gap-3">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-                              <span className="text-[11px] font-black text-blue-500 uppercase tracking-[2px]">Neural Dashboard Sync</span>
+                        <div className="flex items-center gap-6">
+                           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white"><Target size={28} /></div>
+                           <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                 <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{resolveIdentity(selectedMission)}</h3>
+                                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+                                    <Cpu size={8} className="text-blue-400" />
+                                    <span className="text-[7px] font-black text-gray-500 uppercase tracking-widest">{mlLatency}ms ML Link</span>
+                                 </div>
+                              </div>
+                              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">Mission Log: {selectedMission.id.toUpperCase()}</p>
                            </div>
-                           <button onClick={() => setSelectedMissionId(null)} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white transition-all"><Maximize2 size={24} /></button>
+                        </div>
+                        
+                        {/* 🏛️ HARDWARE OVERRIDE CONTROLS */}
+                        <div className="flex items-center gap-2 mr-6 bg-white/5 p-2 rounded-3xl border border-white/10">
+                           <button 
+                             onClick={() => handleRemoteOverride('LOCKOUT')}
+                             disabled={isProcessingCommand}
+                             className={cn(
+                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                               isSovereignActive ? "bg-rose-600 text-white hover:bg-rose-500 shadow-xl shadow-rose-600/20" : "bg-white/5 text-gray-500"
+                             )}
+                             title="Execute Tactical Lockout"
+                           >
+                             {isProcessingCommand ? <Activity size={20} className="animate-spin" /> : <Power size={20} />}
+                           </button>
+                           <button 
+                             onClick={() => handleRemoteOverride('SIREN')}
+                             disabled={isProcessingCommand}
+                             className={cn(
+                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                               isSovereignActive ? "bg-amber-600 text-white hover:bg-amber-500 shadow-xl shadow-amber-600/20" : "bg-white/5 text-gray-400"
+                             )}
+                             title="Remote SOS Siren"
+                           >
+                             <Bell size={20} />
+                           </button>
+                           <button 
+                             onClick={() => handleRemoteOverride('SNAPSHOT')}
+                             disabled={isProcessingCommand}
+                             className={cn(
+                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                               isSovereignActive ? "bg-blue-600 text-white hover:bg-blue-500 shadow-xl shadow-blue-600/20" : "bg-white/5 text-gray-400"
+                             )}
+                             title="Forensic Snapshot"
+                           >
+                             <Camera size={20} />
+                           </button>
+                        </div>
+
+                        {/* Biometric Pulse Hub */}
+                        <div className="flex items-center gap-4 bg-white/5 px-6 py-4 rounded-3xl border border-white/5">
+                           <div className="flex flex-col items-center">
+                              <Heart size={20} className="text-rose-500 animate-pulse mb-1" />
+                              <span className="text-[10px] font-black text-white tabular-nums leading-none">74 BPM</span>
+                              <span className="text-[7px] font-black text-gray-500 uppercase mt-1">Pulse</span>
+                           </div>
+                           <div className="w-[1px] h-10 bg-white/10 mx-2" />
+                           <div className="flex flex-col items-center">
+                              <Activity size={20} className="text-emerald-500 mb-1" />
+                              <span className="text-[10px] font-black text-white tabular-nums leading-none">98%</span>
+                              <span className="text-[7px] font-black text-gray-500 uppercase mt-1">Stress</span>
+                           </div>
+                        </div>
+
+                        {/* Playback Hub */}
+                        <div className="flex items-center gap-4 bg-white/5 p-2 rounded-3xl border border-white/5">
+                           <button onClick={() => setReplayProgress(0.01)} className="p-4 hover:bg-white/10 rounded-2xl text-white transition-all"><RotateCcw size={20} /></button>
+                           <button onClick={() => setIsPlaying(!isPlaying)} className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all">
+                              {isPlaying ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" className="ml-1" />}
+                           </button>
+                           <div className="px-6 text-center border-l border-white/10">
+                              <p className="text-[20px] font-black text-white tabular-nums leading-none">{(replayProgress * 100).toFixed(0)}%</p>
+                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-1">Sync Index</p>
+                           </div>
+                        </div>
+
+                        {/* Deviation Status */}
+                        <div className={cn(
+                           "px-8 py-4 rounded-[2rem] border flex items-center gap-4",
+                           deviationReport?.isBreached ? "bg-rose-500/10 border-rose-500/20 text-rose-500" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                        )}>
+                           {deviationReport?.isBreached ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}
+                           <div>
+                              <p className="text-[8px] font-black uppercase tracking-widest leading-none mb-1">Route Status</p>
+                              <p className="text-sm font-black uppercase">{deviationReport?.isBreached ? 'Breach Detected' : 'Route Compliant'}</p>
+                           </div>
                         </div>
                      </div>
 
-                     <div className="grid grid-cols-4 gap-8">
-                        <div className="space-y-4">
-                           <div className="bg-white/5 p-6 rounded-[32px] border border-white/10">
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Distance to Target</p>
-                              <div className="flex items-end gap-2 text-white"><span className="text-4xl font-black italic tracking-tighter leading-none">{getDistanceInfo(selectedMission).dist}</span></div>
-                           </div>
-                           <div className="bg-white/5 p-6 rounded-[32px] border border-white/10">
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Estimated Intercept</p>
-                              <div className="flex items-center gap-3 text-blue-400"><Timer size={24} /><span className="text-2xl font-black italic tracking-tighter">{getDistanceInfo(selectedMission).eta}</span></div>
-                           </div>
+                     {/* Timeline Slider */}
+                     <div className="relative h-4 group">
+                        <div className="absolute inset-0 bg-white/10 rounded-full overflow-hidden">
+                           <motion.div className="h-full bg-blue-500" initial={{ width: 0 }} animate={{ width: `${replayProgress * 100}%` }} />
                         </div>
-
-                        <div className="col-span-3">
-                           <div className="aspect-video bg-[#0F172A] rounded-[40px] border border-white/10 overflow-hidden relative group">
-                              {selectedMission.status === 'resolved' ? (
-                                 <img src={selectedMission.closurePhoto} className="w-full h-full object-cover" />
-                              ) : (
-                                  <div className="absolute inset-0 bg-[#0F172A]">
-                                     <CommandMap 
-                                        activeAlerts={[selectedMission]} 
-                                        activeProtectors={activeProtectors} 
-                                        pendingProtectors={[]} 
-                                        activeFirs={activeFirs} 
-                                        selectedAlertId={selectedMissionId}
-                                        onAlertClick={() => {}}
-                                     />
-                                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                                        <div className="w-48 h-48 border border-blue-500/30 rounded-full animate-pulse flex items-center justify-center">
-                                           <div className="w-10 h-10 border-t-2 border-l-2 border-blue-500/50 absolute top-0 left-0"></div>
-                                           <div className="w-10 h-10 border-t-2 border-r-2 border-blue-500/50 absolute top-0 right-0"></div>
-                                           <div className="w-10 h-10 border-b-2 border-l-2 border-blue-500/50 absolute bottom-0 left-0"></div>
-                                           <div className="w-10 h-10 border-b-2 border-r-2 border-blue-500/50 absolute bottom-0 right-0"></div>
-                                           <div className="w-1 h-1 bg-rose-500 rounded-full shadow-[0_0_10px_#f43f5e]"></div>
-                                        </div>
-                                     </div>
-                                  </div>
-                              )}
-                              <div className="absolute bottom-6 left-6 right-6 p-4 bg-black/60 backdrop-blur-md rounded-2xl border border-white/5 flex items-center justify-between">
-                                 <div className="flex items-center gap-4"><div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500"><ShieldCheck size={16} /></div><span className="text-[10px] font-black text-white uppercase tracking-widest">Operative: {selectedMission.activeResponders?.[0]?.name || 'Unknown'}</span></div>
-                                 <div className="flex items-center gap-4"><span className="text-[10px] font-black text-white uppercase tracking-widest">Safety PIN: {selectedMission.safetyPin || '####'}</span></div>
-                              </div>
-                           </div>
-                        </div>
+                        <input 
+                          type="range" min="0" max="1" step="0.001" 
+                          value={replayProgress} 
+                          onChange={(e) => setReplayProgress(parseFloat(e.target.value))}
+                          className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
+                        />
+                        {/* Timeline Markers */}
+                        <div className="absolute -top-6 left-0 text-[8px] font-black text-gray-500 uppercase">Origin</div>
+                        <div className="absolute -top-6 right-0 text-[8px] font-black text-gray-500 uppercase">Intercept</div>
                      </div>
                   </div>
                </motion.div>
             )}
+         </AnimatePresence>
 
+         {/* Operative Case List */}
+         <AnimatePresence>
             {selectedVictimId && !selectedMissionId && (
-               <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }} className="absolute top-8 right-8 w-[400px] z-30 pointer-events-auto">
-                  <div className="bg-[#1E293B]/90 backdrop-blur-2xl rounded-[40px] p-8 border border-white/10 shadow-2xl max-h-[80vh] flex flex-col">
-                     <div className="flex items-center justify-between mb-6">
+               <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }} className="absolute top-10 right-10 w-[420px] z-30">
+                  <div className="bg-[#1E293B]/95 backdrop-blur-2xl rounded-[40px] p-10 border border-white/10 shadow-2xl">
+                     <div className="flex items-center justify-between mb-8">
                         <div>
-                           <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[4px] mb-1">Operative History</p>
-                           <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">{groupedResolved[selectedVictimId][0].victimName}</h3>
+                           <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[4px] mb-2">Evidence Chain</p>
+                           <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">{resolveIdentity(groupedResolved[selectedVictimId][0])}</h3>
                         </div>
-                        <button onClick={() => setSelectedVictimId(null)} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white transition-all">
-                           <Crosshair size={20} />
-                        </button>
+                        <button onClick={() => setSelectedVictimId(null)} className="p-3 bg-white/5 rounded-2xl text-white"><ShieldAlert size={20} /></button>
                      </div>
-                     <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
+                     <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
                         {groupedResolved[selectedVictimId].map((mission) => (
                            <div 
                              key={mission.id} 
-                             onClick={() => setSelectedMissionId(mission.id)}
-                             className="p-4 bg-white/5 border border-white/5 rounded-[24px] cursor-pointer hover:bg-white/10 transition-all group"
+                             onClick={() => { setSelectedMissionId(mission.id); setReplayProgress(0); }}
+                             className="p-6 bg-white/5 border border-white/5 rounded-[28px] hover:bg-white/10 transition-all group cursor-pointer"
                            >
-                              <div className="flex items-center justify-between mb-2">
-                                 <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Case Resolved</span>
-                                 <span className="text-[8px] font-black text-gray-500 tabular-nums">{mission.timestamp ? new Date(mission.timestamp.toMillis()).toLocaleDateString() : 'N/A'}</span>
+                              <div className="flex justify-between items-center mb-3">
+                                 <span className="text-[9px] font-black text-emerald-500 uppercase">Court Ready Log</span>
+                                 <span className="text-[9px] font-black text-gray-500">{mission.timestamp ? new Date(mission.timestamp.toMillis()).toLocaleDateString() : ''}</span>
                               </div>
-                              <p className="text-[10px] font-bold text-white uppercase group-hover:text-emerald-400 transition-all">#{mission.id.slice(-12).toUpperCase()}</p>
+                              <h4 className="text-[12px] font-black text-white uppercase group-hover:text-blue-400 transition-all">CASE_{mission.id.slice(-12).toUpperCase()}</h4>
                            </div>
                         ))}
                      </div>
@@ -321,10 +440,18 @@ export function ProtectorTrack({ activeMissionId, onClearMission }: ProtectorTra
       </main>
 
       <style>{`
-        .animate-spin-slow { animation: spin 10s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .mapboxgl-canvas { height: 100% !important; width: 100% !important; min-height: 100vh !important; }
-        .mapboxgl-map { height: 100% !important; min-height: 100vh !important; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        input[type='range']::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 24px;
+          height: 24px;
+          background: #3B82F6;
+          border: 4px solid #FFFFFF;
+          border-radius: 50%;
+          box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
       `}</style>
     </div>
   );

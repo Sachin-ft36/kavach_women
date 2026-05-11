@@ -150,12 +150,12 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-6">
              <div className="relative">
-                <div className="w-24 h-24 rounded-full border-2 border-cyan-500/20 animate-ping" />
+                <div className="w-24 h-24 rounded-full border-2 border-cyan-500/20" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <Shield size={32} className="text-cyan-500 animate-pulse" />
+                   <Shield size={32} className="text-cyan-500" />
                 </div>
              </div>
-             <p className="text-[10px] text-gray-500 font-black uppercase tracking-[4px] animate-pulse text-center px-10 leading-relaxed">
+             <p className="text-[10px] text-gray-500 font-black uppercase tracking-[4px] text-center px-10 leading-relaxed">
                Locating Nearest Response Units via Satellite Triangulation...
              </p>
           </div>

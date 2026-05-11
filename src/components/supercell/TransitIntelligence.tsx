@@ -10,12 +10,17 @@ import { cn } from '../../lib/utils';
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
 
-export function TransitIntelligence({ journeys, onJourneyClick }: { journeys: any[], onJourneyClick: (id: string) => void }) {
+export function TransitIntelligence({ journeys, onJourneyClick, userStatusMap = {} }: { journeys: any[], onJourneyClick: (id: string) => void, userStatusMap?: Record<string, any> }) {
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
 
-  const selectedJourney = journeys.find(j => j.userId === selectedJourneyId);
+  const resolveIdentity = (item: any) => {
+    const uid = item.userId || item.uid || item.victimUid;
+    return userStatusMap[uid]?.name || item.userName || 'Unknown Passenger';
+  };
+
+  const selectedJourney = journeys?.find(j => j.userId === selectedJourneyId);
 
   // 📡 RESOLVE VERIFIED ADDRESS IN REAL-TIME
   const resolveAddress = async (lat: number, lng: number) => {
@@ -47,12 +52,12 @@ export function TransitIntelligence({ journeys, onJourneyClick }: { journeys: an
           <Car size={16} className="animate-pulse" /> Transit Intelligence
         </h2>
         <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black border border-blue-200">
-          {journeys.length} LIVE TRANSITS
+          {(journeys?.length || 0)} LIVE TRANSITS
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
-        {journeys.length === 0 ? (
+        {(!journeys || journeys.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center opacity-20 py-20">
              <Globe size={40} className="mb-2" />
              <p className="text-[10px] font-black uppercase tracking-widest text-center px-10">No Active Transits in National Grid</p>
@@ -83,7 +88,7 @@ export function TransitIntelligence({ journeys, onJourneyClick }: { journeys: an
                     <Car size={18} className={selectedJourneyId === journey.userId ? "text-blue-400" : "text-blue-600"} />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase">{journey.userName || 'Unknown Passenger'}</h4>
+                    <h4 className="text-xs font-black uppercase">{resolveIdentity(journey)}</h4>
                     <p className={cn("text-[9px] font-black uppercase mt-0.5", selectedJourneyId === journey.userId ? "text-blue-300" : "text-blue-600")}>
                       Vehicle: {journey.vehicleNo}
                     </p>

@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
+import { executeEmergencyBlast } from '../services/sosService';
 
 const lastLat = localStorage.getItem('kavach_last_lat');
 const lastLng = localStorage.getItem('kavach_last_lng');
@@ -456,92 +457,30 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       localStorage.setItem('kavach_sos_active', 'true');
       localStorage.setItem('kavach_trigger_method', method);
       
-      // 🛡️ TACTICAL HANDSHAKE: Fire Hardware Dispatch Sequentially
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // STEP 1: Blast SMS (Priority 1)
-          const phones = (guardianCache || []).map(g => g.phone?.replace(/\s/g, '')).filter(Boolean);
-          console.log("📡 DISPATCH: Blasting SMS to Guardians:", phones);
-          await KavachSafe.broadcastEmergencySMS(phones);
-          
-          // STEP 2: Wait for hardware handshake (Avoid collision)
-          console.log("⏳ SYNC: Tactical Delay (1000ms)...");
-          await new Promise(r => setTimeout(r, 1000));
+      const alertId = activeAlertId || `alert_${auth.currentUser?.uid || 'GUEST'}_${Date.now()}`;
+      if (!activeAlertId) set({ activeAlertId: alertId });
+      localStorage.setItem('kavach_active_alert_id', alertId);
 
-          // STEP 3: Initiate Voice Call (Priority 2)
-          console.log("📞 DISPATCH: Initiating Voice Uplink...");
-          await KavachSafe.initiateEmergencyCall();
+      const handshake = Math.floor(1000 + Math.random() * 9000).toString();
+      set({ handshakeCode: handshake });
 
-          // STEP 4: Capture & Engage Interceptors (Siren Silenced for Victim Safety)
-          console.log("🚨 DISPATCH: Engaging Interceptors...");
-          // KavachSafe.startContinuousSiren(); // REMOVED FOR STEALTH SOS
-        } catch (e) {
-          console.error("🚨 DISPATCH FAIL: Hardware Bridge Error", e);
-        }
-      }
-      if (auth.currentUser) {
-        const alertId = activeAlertId || `alert_${auth.currentUser.uid}_${Date.now()}`;
-        if (!activeAlertId) set({ activeAlertId: alertId });
-        localStorage.setItem('kavach_active_alert_id', alertId);
+      const state = get();
+      const isTransit = !!state.isRideModeActive;
+      const rideContext = isTransit ? {
+        isTransitSOS: true,
+        vehicleNo: state.rideData?.vehicleNo || 'UNKNOWN',
+        journeyId: auth.currentUser?.uid,
+        transitStatus: 'INTERCEPTION_REQUIRED'
+      } : {};
 
-        const handshake = Math.floor(1000 + Math.random() * 9000).toString();
-        set({ handshakeCode: handshake });
-
-        const state = useKavachStore.getState();
-        const safeCoords = state.userPos || [20.5937, 78.9629];
-        
-        const isTransit = !!(state.isRideModeActive || state.rideData);
-        const rideContext = isTransit ? {
-          isTransitSOS: true,
-          vehicleNo: state.rideData?.vehicleNo || 'UNKNOWN',
-          journeyId: auth.currentUser.uid,
-          transitStatus: 'INTERCEPTION_REQUIRED'
-        } : {};
-
-        try {
-          // 🚀 PHASE 1: FORCE RED STATUS ON GRID
-          if (isTransit) {
-            await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
-              status: 'emergency',
-              alertId: alertId,
-              isTransitSOS: true,
-              lastUpdated: serverTimestamp()
-            });
-            console.log("🛑 GRID: Status Forced to EMERGENCY");
-          }
-
-          // 📡 PHASE 2: BROADCAST TACTICAL ALERT
-          await setDoc(doc(db, 'alerts', alertId), {
-            id: alertId,
-            victimUid: auth.currentUser.uid,
-            victimName: auth.currentUser.displayName || 'Kavach Citizen',
-            victimPhone: auth.currentUser.phoneNumber || '',
-            latitude: safeCoords[0],
-            longitude: safeCoords[1],
-            coords: safeCoords,
-            path: [{ lng: safeCoords[1], lat: safeCoords[0] }],
-            status: 'active',
-            method: method,
-            handshakeCode: handshake,
-            isHandshakeVerified: false,
-            batteryLevel: state.batteryLevel || 100,
-            ...rideContext,
-            timestamp: serverTimestamp(),
-            lastUpdated: serverTimestamp()
-          });
-
-          toast.success("INTERCEPTION PROTOCOL ACTIVE", {
-            description: "National Grid synchronized successfully.",
-            icon: '🚨'
-          });
-          console.log("🛑 GRID SUCCESS: Emergency Protocol Synchronized.");
-        } catch (e: any) {
-          console.error("🛑 GRID ERROR:", e);
-          toast.error("PROTOCOL UPLINK FAILED", {
-            description: e.message || "Please check grid connectivity."
-          });
-        }
-      }
+      // 🛡️ CENTRALIZED TACTICAL DISPATCH: One call to rule them all
+      // Handles SMS, Calls, and Cloud Sync (Firestore alerts/journeys) via the hardened SOS Service
+      executeEmergencyBlast(get().profile || get().user, get().userPos, { 
+        type: method, 
+        alertId,
+        handshakeCode: handshake,
+        rideContext
+      });
     } else {
       localStorage.removeItem('kavach_sos_active');
       localStorage.removeItem('kavach_active_alert_id');
@@ -571,7 +510,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
                       victimName: alertData.victimName || 'Citizen',
                       timestamp: serverTimestamp(),
                       type: alertData.isTransitSOS ? 'TRANSIT_INTERCEPTION' : 'SOS_RESCUE',
-                      status: 'SUCCESSFUL_INTERVENTION'
+                      status: 'SUCCESSFUL_INTERVENTION',
+                      reason: closureReason || 'Manual Deactivation'
                     })
                   }).catch(e => console.error(`Failed to credit responder ${responder.uid}:`, e));
                 }
@@ -598,12 +538,21 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             isHandshakeVerified: useKavachStore.getState().isHandshakeVerified
           });
           
-          if (useKavachStore.getState().isRideModeActive) {
-             await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
-                status: 'active',
-                alertId: null,
-                isTransitSOS: false
-             });
+          if (alertData.isTransitSOS) {
+            if (useKavachStore.getState().isRideModeActive) {
+               await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
+                  status: 'active',
+                  alertId: null,
+                  isTransitSOS: false
+               });
+            } else {
+               await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
+                  status: 'completed',
+                  endedAt: serverTimestamp(),
+                  alertId: null,
+                  isTransitSOS: false
+               }).catch(() => {});
+            }
           }
         } catch (e) {}
       }

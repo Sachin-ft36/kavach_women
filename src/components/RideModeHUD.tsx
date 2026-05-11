@@ -114,7 +114,7 @@ export default function RideModeHUD() {
               "w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all shadow-md",
               isDeviating ? "bg-red-600 scale-110" : "bg-[#2563EB]"
             )}>
-              <Car size={20} className={isDeviating ? "animate-bounce" : ""} />
+              <Car size={20} />
             </div>
             <div>
               <h3 className="text-gray-900 font-black italic uppercase text-lg leading-none">
@@ -125,7 +125,7 @@ export default function RideModeHUD() {
                   "text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
                   isDeviating ? "text-red-600" : "text-accent-green"
                 )}>
-                  <div className={cn("w-1.5 h-1.5 rounded-full", isDeviating ? "bg-red-600 animate-ping" : "bg-accent-green animate-pulse")} />
+                  <div className={cn("w-1.5 h-1.5 rounded-full", isDeviating ? "bg-red-600" : "bg-accent-green")} />
                   {isDeviating ? "⚠️ DEVIATION DETECTED" : "Neural Link: Optimal"}
                 </p>
                 <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1 opacity-70">
@@ -146,7 +146,7 @@ export default function RideModeHUD() {
         <div className="grid grid-cols-2 gap-4 relative z-10">
           <div className="bg-gray-50 p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
             <div className="flex items-center gap-2 mb-2 text-[#2563EB]">
-              <Activity size={12} className="animate-pulse" />
+              <Activity size={12} />
               <span className="text-[8px] font-black uppercase tracking-widest">Ghost Monitor</span>
             </div>
             <p className="text-xs font-bold uppercase text-gray-900">Pulse Active</p>
@@ -164,8 +164,7 @@ export default function RideModeHUD() {
 
         {/* Dynamic Threat Monitor */}
         <motion.div
-          animate={isDeviating ? { scale: [1, 1.02, 1] } : {}}
-          transition={{ repeat: Infinity, duration: 0.5 }}
+          animate={isDeviating ? { opacity: 1 } : {}}
           className={cn(
             "p-4 rounded-2xl flex items-center justify-between border relative overflow-hidden shadow-sm",
             isDeviating ? "bg-red-50 border-red-200" : "bg-gray-50 border-[#E5E7EB]"

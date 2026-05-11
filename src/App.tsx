@@ -9,6 +9,7 @@ import { useThreatSentinel } from './hooks/useThreatSentinel';
 import { useProtectorSentinel } from './hooks/useProtectorSentinel';
 import { useVoiceTrigger } from './hooks/useVoiceTrigger';
 import { useShakeTrigger } from './hooks/useShakeTrigger';
+import { useRideProtocol } from './hooks/useRideProtocol';
 import { useAudioAI } from './hooks/useAudioAI';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeBackgroundSentinel } from './services/BackgroundSentinelService';
@@ -197,6 +198,7 @@ export default function App() {
   useVoiceTrigger();
   useShakeTrigger();
   useAudioAI();
+  useRideProtocol();
 
   const [isHardwareSynced, setIsHardwareSynced] = useState<boolean>(() => localStorage.getItem('kavach_hardware_synced') === 'true');
   const [isLanguageSelected, setIsLanguageSelected] = useState<boolean>(() => localStorage.getItem('kavach_language_selected') === 'true');

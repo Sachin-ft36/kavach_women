@@ -117,8 +117,8 @@ export default function SuperCellDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl border border-white/10">
-                 <Activity size={12} className="text-emerald-500 animate-pulse" />
-                 <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 italic">Global Sync Active</span>
+                  <Activity size={12} className="text-emerald-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 italic">Global Sync Active</span>
               </div>
             </div>
 
@@ -171,8 +171,8 @@ export default function SuperCellDashboard() {
                            <h2 className="text-lg font-black uppercase italic tracking-tighter text-white leading-none">
                              {activeSessions.find(s => s.userId === selectedChat)?.userName}
                            </h2>
-                           <p className="text-[9px] text-[#2563EB] font-black uppercase tracking-[3px] mt-1.5 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 bg-[#2563EB] rounded-full animate-pulse" />
+                            <p className="text-[9px] text-[#2563EB] font-black uppercase tracking-[3px] mt-1.5 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 bg-[#2563EB] rounded-full" />
                               Authenticated Session
                            </p>
                         </div>
@@ -227,7 +227,7 @@ export default function SuperCellDashboard() {
                </div>
              ) : (
                <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-                  <div className="w-24 h-24 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center text-white/10 mb-8 animate-pulse">
+                  <div className="w-24 h-24 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center text-white/10 mb-8">
                      <ShieldAlert size={48} />
                   </div>
                   <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white mb-4">Command Terminal Idle</h2>

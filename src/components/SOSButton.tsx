@@ -125,14 +125,12 @@ export default function SOSButton() {
         });
       }
 
-      // 3. CLOUD SYNC & SECONDARY DISPATCH
+      // 3. CLOUD SYNC & TACTICAL DISPATCH
+      // Store now handles the atomic dispatch handshake centrally
       if (isOnline) {
         await setSOSActive(true, alertId, source);
-        await executeEmergencyBlast(profile || user, userPos, { type: source, alertId });
       } else {
         await setSOSActive(true, null, source);
-        // Secondary blast handles local SMS loop if broadcast failed
-        await executeEmergencyBlast(profile || user, userPos, { type: source, skipCloud: true });
         toast.error("OFFLINE MODE: Guardian Alerts Dispatched via SMS.", {
           icon: '📡',
           duration: 4000
@@ -211,9 +209,9 @@ export default function SOSButton() {
         <div className="relative group">
           {/* 🌊 DYNAMIC RADAR WAVES (PULSING BACKGROUND) */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="absolute w-44 h-44 rounded-full bg-[#DC2626]/20 animate-ping" />
-            <div className="absolute w-56 h-56 rounded-full bg-[#DC2626]/10 animate-ping [animation-delay:1s]" />
-            <div className="absolute w-64 h-64 rounded-full bg-[#DC2626]/5 animate-ping [animation-delay:2s]" />
+            <div className="absolute w-44 h-44 rounded-full bg-[#DC2626]/20" />
+            <div className="absolute w-56 h-56 rounded-full bg-[#DC2626]/10" />
+            <div className="absolute w-64 h-64 rounded-full bg-[#DC2626]/5" />
           </div>
 
           <button
@@ -245,7 +243,7 @@ export default function SOSButton() {
       {/* Stealth Utilities */}
       <div className="flex flex-col items-center gap-6 z-10 w-full max-w-sm px-6">
         <div className="flex items-center gap-3">
-           <div className="w-1.5 h-1.5 bg-[#DC2626] rounded-full animate-pulse" />
+           <div className="w-1.5 h-1.5 bg-[#DC2626] rounded-full" />
            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[2px]">Hold 3s or Shake to Blast</p>
         </div>
         
@@ -273,7 +271,7 @@ export default function SOSButton() {
               "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
               isVoiceTriggerActive ? "bg-[#2563EB] text-white" : "bg-white/5 text-white/20"
             )}>
-              <Mic size={14} className={cn(isVoiceTriggerActive && "animate-pulse")} />
+               <Mic size={14} />
             </div>
             <span className={cn(
               "text-[9px] font-black uppercase tracking-widest",

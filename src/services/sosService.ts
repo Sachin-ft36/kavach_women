@@ -5,17 +5,31 @@ import { getReverseMetadata } from './locationService';
 import { KavachSafe } from '../App';
 
 let lastTriggerTime = 0;
-const TRIGGER_THROTTLE = 3000; // 🛡️ 3s Tactical Gate to prevent double-logs
+const TRIGGER_THROTTLE = 5000; // 🛡️ 5s Tactical Gate to prevent double-logs
+const activeBlasts = new Set<string>(); // 🛰️ ATOMIC DEDUPLICATION GATE
 
 export const executeEmergencyBlast = async (user: any, userPos: [number, number], data?: any) => {
+  const victimId = user?.uid || user?.id || localStorage.getItem('kavach_user_uid');
+  if (!victimId) return [];
+
   const now = Date.now();
-  if (now - lastTriggerTime < TRIGGER_THROTTLE) {
-    console.warn("⚠️ KAVACH: Redundant Mission Blast Blocked (Throttle Active).");
+  
+  // 1. GLOBAL THROTTLE
+  if (now - lastTriggerTime < 2000) {
+    console.warn("⚠️ KAVACH: Global Redundant Mission Blast Blocked.");
     return [];
   }
+
+  // 2. PER-USER ATOMIC LOCK (Prevents milliseconds race conditions)
+  if (activeBlasts.has(victimId)) {
+    console.warn(`⚠️ KAVACH: Mission Blast for ${victimId} already in progress. Blocking duplicate.`);
+    return [];
+  }
+
+  activeBlasts.add(victimId);
   lastTriggerTime = now;
 
-  console.log("🚀 KAVACH: Parallel Tactical Dispatch Engaged.");
+  console.log("🚀 KAVACH: Parallel Tactical Dispatch Engaged for:", victimId);
   
   // Tactical Parallelization Engine
   const tacticalMission = async () => {
@@ -25,9 +39,6 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
         if (!user || data?.skipCloud) return null;
         
         try {
-          const victimId = user.uid || user.id || localStorage.getItem('kavach_user_uid');
-          if (!victimId) return null;
-
           const alertsRef = collection(db, 'alerts');
           // 🛡️ SIMPLIFIED DEDUPLICATION QUERY (No index required)
           const q = query(
@@ -66,8 +77,25 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             country: "India",
             type: data?.type || 'SOS_TRIGGER',
             verification_lock: true, 
-            dispatch_status: 'ACTIVE_UPLINK'
+            dispatch_status: 'ACTIVE_UPLINK',
+            handshakeCode: data?.handshakeCode || '0000',
+            ...data?.rideContext
           };
+
+          // 🚗 TRANSIT SYNC: If mission is transit-bound, force journey status
+          if (data?.rideContext?.isTransitSOS) {
+            try {
+              const { updateDoc, doc } = await import('firebase/firestore');
+              await updateDoc(doc(db, 'journeys', victimId), {
+                status: 'emergency',
+                alertId: data.alertId,
+                lastUpdated: serverTimestamp()
+              });
+              console.log("🛑 GRID: Journey Status Escalated to EMERGENCY");
+            } catch (e) {
+              console.error("❌ KAVACH: Journey Escalation Failed:", e);
+            }
+          }
 
           if (existingAlert) {
              console.log(`🛰️ KAVACH: Existing Mission Found [${existingAlert.id}]. Merging Telemetry.`);
@@ -80,15 +108,19 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             return { id: data.alertId };
           }
 
-          return addDoc(collection(db, 'alerts'), alertData);
+          const newDoc = await addDoc(collection(db, 'alerts'), alertData);
+          return newDoc;
         } catch (error) {
           console.error("❌ KAVACH: Alert Deduplication Error:", error);
           // Fallback to basic creation if query fails
           return addDoc(collection(db, 'alerts'), {
-            victimUid: user.uid || user.id,
+            victimUid: victimId,
             status: 'active',
             timestamp: serverTimestamp()
           });
+        } finally {
+           // Release the lock after 10 seconds to allow new missions if needed
+           setTimeout(() => activeBlasts.delete(victimId), 10000);
         }
       })(),
 

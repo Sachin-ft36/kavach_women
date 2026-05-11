@@ -40,6 +40,7 @@ export default function SOSActiveOverlay() {
         setAlertData(data);
       }
     });
+
     return () => unsub();
   }, [activeAlertId, isSOSActive, alertData]);
 
@@ -77,8 +78,10 @@ export default function SOSActiveOverlay() {
   if (isSOSBlocked) {
     return (
       <div className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-24 h-24 bg-red-600/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
-          <ShieldAlert size={48} className="text-red-600" />
+        <div className="w-24 h-24 bg-red-600/20 rounded-full flex items-center justify-center mb-6">
+          <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+            <ShieldAlert size={32} className="text-white" />
+          </div>
         </div>
         <h2 className="text-2xl font-black text-white uppercase italic mb-2 tracking-tighter">Account Blocked</h2>
         <p className="text-[10px] text-red-500 font-black uppercase tracking-[3px] mb-8">Grid Access Revoked by SuperCell</p>
@@ -130,14 +133,14 @@ export default function SOSActiveOverlay() {
       <div className="flex-1 relative">
          <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
          <div className="absolute top-10 left-6 right-6 z-[1100] space-y-3">
-            <div className="bg-red-600 px-4 py-2 rounded-2xl border border-red-500 shadow-2xl flex items-center gap-3 animate-pulse">
-               <ShieldAlert size={20} className="text-white" />
-               <span className="text-[10px] font-black text-white uppercase tracking-[2px]">Emergency SOS Active</span>
+            <div className="bg-red-600 px-4 py-2 rounded-2xl border border-red-500 shadow-2xl flex items-center gap-3">
+               <Activity size={14} className="text-white" />
+               <span className="text-[10px] font-black text-white uppercase tracking-[2px]">High-Intensity Feed</span>
             </div>
             <AnimatePresence>
                {dispatchNotif.active && (
                  <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className={cn("p-4 rounded-[24px] border shadow-2xl flex items-center gap-4 relative overflow-hidden", dispatchNotif.type === 'protector' ? "bg-blue-600 border-blue-500" : "bg-red-700 border-red-600")}>
-                    <div className="absolute inset-0 bg-white/10 animate-pulse" />
+                    <div className="absolute inset-0 bg-white/10" />
                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
                        {dispatchNotif.type === 'protector' ? <Navigation size={20} className="text-white" /> : <Shield size={20} className="text-white" />}
                     </div>

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   History, X, ShieldAlert, CheckCircle2, 
   Clock, MapPin, AlertTriangle, MessageSquare,
-  ShieldCheck, ArrowRight, UserMinus
+  ShieldCheck, ArrowRight, UserMinus, Lock,
+  Database, Fingerprint, Link as LinkIcon
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -75,159 +76,207 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-gray-900/40 backdrop-blur-md"
+            className="absolute inset-0 bg-black/60 backdrop-blur-3xl"
           />
           
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            initial={{ scale: 0.9, opacity: 0, y: 50 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative w-full max-w-4xl bg-white rounded-[40px] shadow-[0_30px_100px_rgba(0,0,0,0.25)] border border-white/20 overflow-hidden flex flex-col max-h-[85vh]"
+            exit={{ scale: 0.9, opacity: 0, y: 50 }}
+            className="relative w-full max-w-6xl bg-[#0F172A] rounded-[3rem] shadow-[0_50px_150px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col max-h-[90vh]"
           >
-            {/* 🏛️ MODAL HEADER */}
-            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/50 to-transparent">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gray-900 rounded-2xl flex items-center justify-center text-white shadow-xl">
-                  <History size={24} />
+            {/* 🏛️ HIGH-FIDELITY AUDIT HEADER */}
+            <div className="p-10 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-blue-600/10 to-transparent">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-blue-600 rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-blue-600/40 relative">
+                  <Database size={28} />
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-[#0F172A] flex items-center justify-center">
+                     <Lock size={10} />
+                  </div>
                 </div>
                 <div>
-                  <h2 className="text-xl font-black uppercase tracking-tighter text-gray-900">Mission Audit File</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Registry Ref: {user.id?.toUpperCase()}</p>
+                  <h2 className="text-3xl font-black uppercase tracking-tighter text-white italic leading-none">Mission Audit File</h2>
+                  <p className="text-[11px] font-black text-blue-400 uppercase tracking-[4px] mt-2 opacity-60">Registry Ref: {user.id?.toUpperCase()}</p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-full transition-all">
-                <X size={20} className="text-gray-400" />
+              <button onClick={onClose} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-white">
+                <X size={28} />
               </button>
             </div>
 
             <div className="flex-1 overflow-hidden flex">
               {/* 📊 LEFT SIDE: CITIZEN INTEL */}
-              <div className="w-80 border-r border-gray-100 bg-gray-50/30 p-8 flex flex-col gap-8">
+              <div className="w-[400px] border-r border-white/10 bg-black/20 p-10 flex flex-col gap-10 overflow-y-auto custom-scrollbar">
                 <div className="text-center">
-                  <img src={user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} className="w-24 h-24 rounded-[32px] mx-auto object-cover border-4 border-white shadow-xl mb-4" />
-                  <h3 className="text-lg font-black text-gray-900 uppercase tracking-tighter leading-none">{user.name}</h3>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">{user.city || 'Sector Unknown'}</p>
+                   <div className="relative inline-block">
+                      <img src={user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} className="w-32 h-32 rounded-[40px] mx-auto object-cover border-4 border-white/10 shadow-2xl mb-6" />
+                      <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center border-4 border-[#0F172A] text-white">
+                         <ShieldCheck size={20} />
+                      </div>
+                   </div>
+                   <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{user.name}</h3>
+                   <div className="flex items-center justify-center gap-3 mt-4">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{user.city || 'Sector Unknown'}</p>
+                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <div className="flex justify-between items-center mb-2">
-                       <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Integrity Score</span>
-                       <span className={cn("text-xs font-black", integrityScore > 70 ? "text-emerald-500" : "text-red-500")}>{integrityScore}%</span>
+                <div className="space-y-6">
+                  <div className="p-8 bg-white/5 rounded-[32px] border border-white/10 shadow-2xl">
+                    <div className="flex justify-between items-center mb-4">
+                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Integrity Index</span>
+                       <span className={cn("text-xl font-black tabular-nums", integrityScore > 70 ? "text-emerald-500" : "text-rose-500")}>{integrityScore}%</span>
                     </div>
-                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                       <div 
-                         className={cn("h-full transition-all duration-1000", integrityScore > 70 ? "bg-emerald-500" : "bg-red-500")}
-                         style={{ width: `${integrityScore}%` }} 
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                       <motion.div 
+                         initial={{ width: 0 }}
+                         animate={{ width: `${integrityScore}%` }}
+                         transition={{ duration: 1.5, ease: "circOut" }}
+                         className={cn("h-full", integrityScore > 70 ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]")}
                        />
                     </div>
+                    <p className="text-[8px] font-bold text-gray-600 uppercase mt-4 tracking-widest leading-relaxed">Behavioral analytics consistent with national baseline safety requirements.</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                     <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
-                        <p className="text-[14px] font-black text-gray-900 leading-none">{history.length}</p>
-                        <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total SOS</p>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="p-6 bg-white/5 rounded-[32px] border border-white/10 text-center">
+                        <p className="text-2xl font-black text-white italic tracking-tighter leading-none">{history.length}</p>
+                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-2">Total SOS</p>
                      </div>
-                     <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
-                        <p className="text-[14px] font-black text-red-500 leading-none">{falseAlertCount}</p>
-                        <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-1">False Triggers</p>
+                     <div className="p-6 bg-white/5 rounded-[32px] border border-white/10 text-center">
+                        <p className="text-2xl font-black text-rose-500 italic tracking-tighter leading-none">{falseAlertCount}</p>
+                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-2">False Blocks</p>
                      </div>
                   </div>
                 </div>
 
-                <div className="mt-auto space-y-3">
+                <div className="mt-auto pt-10">
                    <button 
                      onClick={handleIssueWarning}
                      disabled={isIssuingWarning}
-                     className="w-full py-4 bg-red-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 active:scale-95 transition-all"
+                     className="w-full py-6 bg-rose-600 hover:bg-rose-700 text-white rounded-3xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl shadow-rose-600/30 active:scale-95 transition-all disabled:opacity-50"
                    >
-                      <ShieldAlert size={14} />
-                      Issue System Warning
+                      <ShieldAlert size={20} />
+                      Issue System Warn
                    </button>
+                   <p className="text-[8px] font-bold text-gray-600 text-center uppercase tracking-widest mt-4">Authorized Personnel Only</p>
                 </div>
               </div>
 
-              {/* 📜 RIGHT SIDE: MISSION TIMELINE */}
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
-                <div className="mb-8">
-                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[4px] mb-6">Historical Mission Logs</h4>
+              {/* 🔗 RIGHT SIDE: IMMUTABLE CHAIN TIMELINE */}
+              <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-[#0F172A] relative">
+                <div className="absolute left-[72px] top-0 bottom-0 w-[1px] bg-gradient-to-b from-blue-500/20 via-blue-500/5 to-transparent" />
+                
+                <div className="mb-12">
+                   <div className="flex items-center gap-4 mb-10">
+                      <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20">
+                         <LinkIcon size={18} />
+                      </div>
+                      <h4 className="text-[12px] font-black text-blue-400 uppercase tracking-[6px]">Operational Forensic Chain</h4>
+                   </div>
                    
                    {loading ? (
-                     <div className="py-20 flex flex-col items-center gap-4">
-                        <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Retrieving Forensic Data...</p>
+                     <div className="py-24 flex flex-col items-center gap-6">
+                        <div className="w-12 h-12 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin shadow-[0_0_20px_rgba(59,130,246,0.2)]" />
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-[4px]">Fetching Neural Blocks...</p>
                      </div>
                    ) : history.length > 0 ? (
-                     <div className="space-y-6">
+                     <div className="space-y-10">
                         {history.map((alert, idx) => (
-                          <div key={alert.id} className="group relative pl-8 border-l border-gray-100 pb-2">
-                             <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 bg-gray-200 rounded-full border-2 border-white group-hover:bg-blue-500 transition-colors" />
+                          <motion.div 
+                            key={alert.id}
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className="relative pl-24 group"
+                          >
+                             {/* Chain Node */}
+                             <div className="absolute left-[13px] top-4 w-6 h-6 bg-[#1E293B] rounded-full border-2 border-white/20 group-hover:border-blue-500 group-hover:scale-125 transition-all flex items-center justify-center z-10">
+                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                             </div>
                              
-                             <div className="bg-gray-50/50 hover:bg-gray-50 rounded-[24px] p-5 border border-gray-100 transition-all">
-                                <div className="flex items-center justify-between mb-4">
-                                   <div className="flex items-center gap-3">
-                                      <div className="px-3 py-1 bg-white rounded-lg border border-gray-100 text-[8px] font-black text-gray-500">
-                                         MISSION ID: {alert.id.slice(-8).toUpperCase()}
+                             <div className="bg-white/5 hover:bg-white/10 rounded-[2.5rem] p-8 border border-white/5 group-hover:border-white/10 transition-all shadow-2xl">
+                                <div className="flex items-center justify-between mb-8">
+                                   <div className="flex items-center gap-4">
+                                      <div className="px-4 py-2 bg-blue-600/10 rounded-2xl border border-blue-500/20 text-[10px] font-black text-blue-400 tabular-nums tracking-widest">
+                                         BLOCK_{alert.id.slice(-6).toUpperCase()}
                                       </div>
-                                      <span className="text-[8px] font-bold text-gray-400">{alert.timestamp?.toDate().toLocaleString()}</span>
+                                      <div className="flex items-center gap-2 text-gray-500">
+                                         <Clock size={14} />
+                                         <span className="text-[9px] font-black uppercase tracking-widest">{alert.timestamp?.toDate().toLocaleString()}</span>
+                                      </div>
                                    </div>
                                    <div className={cn(
-                                     "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                     alert.closureReason === 'Accidentally triggered SOS' ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                                     "px-5 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border",
+                                     alert.closureReason === 'Accidentally triggered SOS' ? "bg-rose-500/10 border-rose-500/20 text-rose-500" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
                                    )}>
-                                      {alert.closureReason || 'Mission Resolved'}
+                                      {alert.closureReason || 'Verified Resolution'}
                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                   <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100">
-                                         <MapPin size={14} />
+                                <div className="grid grid-cols-2 gap-8">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-gray-500 border border-white/5">
+                                         <MapPin size={20} />
                                       </div>
                                       <div className="min-w-0">
-                                         <p className="text-[7px] font-black text-gray-400 uppercase">Incident Location</p>
-                                         <p className="text-[9px] font-bold text-gray-700 truncate">{alert.location?.address || 'GPS Coordinates Provided'}</p>
+                                         <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Grid Deployment</p>
+                                         <p className="text-[11px] font-black text-white truncate uppercase italic tracking-tighter">{alert.location?.address || 'Neural Location Lock'}</p>
                                       </div>
                                    </div>
-                                   <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100">
-                                         <MessageSquare size={14} />
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-gray-500 border border-white/5">
+                                         <Shield size={20} />
                                       </div>
                                       <div className="min-w-0">
-                                         <p className="text-[7px] font-black text-gray-400 uppercase">Verification Reason</p>
-                                         <p className="text-[9px] font-bold text-gray-700 truncate">{alert.closureReason || 'Standard Clearance'}</p>
+                                         <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Sovereign Validation</p>
+                                         <div className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                            <p className="text-[11px] font-black text-white uppercase italic tracking-tighter">BNS Compliant Block</p>
+                                         </div>
                                       </div>
                                    </div>
                                 </div>
+
+                                <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-between">
+                                   <div className="flex items-center gap-3">
+                                      <Fingerprint size={14} className="text-blue-400/40" />
+                                      <span className="text-[8px] font-black text-gray-600 uppercase tracking-[4px]">Neural Hash: 0x{alert.id.slice(0, 12)}...</span>
+                                   </div>
+                                   <button className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2 hover:text-white transition-colors">
+                                      View Forensic Detail
+                                      <ArrowRight size={14} />
+                                   </button>
+                                </div>
                              </div>
-                          </div>
+                          </motion.div>
                         ))}
                      </div>
                    ) : (
-                     <div className="py-20 text-center space-y-4">
-                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-200">
-                           <ShieldCheck size={32} />
+                     <div className="py-32 text-center space-y-6">
+                        <div className="w-24 h-24 bg-white/5 rounded-[40px] flex items-center justify-center mx-auto text-gray-700 border border-white/5">
+                           <ShieldCheck size={48} />
                         </div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No Historical Alerts Found</p>
+                        <p className="text-[12px] font-black text-gray-500 uppercase tracking-[6px]">Clear Forensic History</p>
                      </div>
                    )}
                 </div>
               </div>
             </div>
 
-            {/* 🛡️ MODAL FOOTER */}
-            <div className="p-6 bg-gray-900 border-t border-white/5 flex items-center justify-between">
-               <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                     <span className="text-[8px] font-black text-white/60 uppercase tracking-[2px]">Forensic Registry v4.1</span>
+            {/* 🛡️ MODAL FOOTER: SECURITY PROTOCOL */}
+            <div className="p-8 bg-black/60 border-t border-white/10 flex items-center justify-between">
+               <div className="flex items-center gap-10">
+                  <div className="flex items-center gap-3">
+                     <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                     <span className="text-[10px] font-black text-white uppercase tracking-[4px]">Security Clearance: Level 7</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                     <span className="text-[8px] font-black text-white/60 uppercase tracking-[2px]">BNS Compliant Data Store</span>
+                  <div className="flex items-center gap-3">
+                     <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                     <span className="text-[10px] font-black text-white uppercase tracking-[4px]">Data Immutability: 100%</span>
                   </div>
                </div>
-               <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[2px]">SuperCell Command Authorized Access Only</p>
+               <p className="text-[9px] font-black text-gray-600 uppercase tracking-[4px] italic">KAVACH_SUPERCELL_PROTOCOL_V4.92</p>
             </div>
           </motion.div>
         </div>

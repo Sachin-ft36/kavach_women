@@ -209,7 +209,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
             {/* 🎥 LIVE CAMERA PREVIEW */}
             <div className="absolute inset-0 bg-black flex items-center justify-center">
               {!isCameraReady && (
-                <div className="flex flex-col items-center gap-4 text-[#2563EB] animate-pulse">
+                <div className="flex flex-col items-center gap-4 text-[#2563EB]">
                    <Activity size={32} />
                    <span className="text-[10px] font-black uppercase tracking-[5px]">Waking Forensic Lens...</span>
                 </div>
@@ -232,7 +232,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
               <div className="flex justify-between items-start">
                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                       <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]" />
+                       <div className="w-2 h-2 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.8)]" />
                        <span className="text-[10px] font-black text-white uppercase tracking-[3px]">REC • LIVE FORENSIC</span>
                     </div>
                     <p className="text-[24px] font-black text-white italic tabular-nums tracking-tighter">{formatTime(recordingTime)}</p>
@@ -246,7 +246,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
                        <span className="text-[8px] font-black text-white uppercase tracking-widest">Minimize to Hub</span>
                     </button>
                     <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-                       <Activity size={10} className="text-blue-500 animate-pulse" />
+                       <Activity size={10} className="text-blue-500" />
                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">Uplink Active</span>
                     </div>
                     <span className="text-[7px] font-bold text-gray-500 uppercase tracking-widest mt-1">

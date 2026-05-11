@@ -196,7 +196,7 @@ const VictimMap = React.memo(({
         if (!markersRef.current.victim) {
           const el = document.createElement('div');
           el.className = 'victim-pos-marker';
-          el.innerHTML = `<div style="width: 20px; height: 20px; background: #EF4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); animation: pulse 2s infinite;"></div>`;
+          el.innerHTML = `<div style="width: 20px; height: 20px; background: #EF4444; border: 3px solid white; border-radius: 50%; shadow: 0 0 10px rgba(239, 68, 68, 0.4);"></div>`;
           markersRef.current.victim = new mapboxgl.Marker(el)
             .setLngLat(vCoords)
             .addTo(m);
@@ -274,7 +274,7 @@ const VictimMap = React.memo(({
         "absolute left-6 z-[10] flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full shadow-lg transition-all",
         isInterceptMode ? "top-24" : "top-6"
       )}>
-         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
          <span className="text-[8px] font-black text-[#0F172A] uppercase tracking-widest">Live Tracking</span>
       </div>
 
