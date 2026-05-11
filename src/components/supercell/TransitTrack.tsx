@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useCloudML } from '../../hooks/useCloudML';
 import { PredictiveIntelResult } from '../../lib/predictiveIntel';
 import CommandMap from '../maps/CommandMap';
+import { useCall } from '../../contexts/CallContext';
 
 interface TransitTrackProps {
   isSovereignActive?: boolean;
@@ -35,6 +36,7 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {} }: TransitT
   const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
 
   const { analyzeMissionVector, isAnalyzing, mlLatency } = useCloudML();
+  const { initiateCall } = useCall();
 
   // 📡 LIVE TACTICAL STREAMS
   useEffect(() => {
@@ -317,6 +319,42 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {} }: TransitT
                            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center border", predictiveResults?.isBreached ? "bg-rose-500/20 border-rose-500/40 text-rose-500" : "bg-cyan-500/20 border-cyan-500/40 text-cyan-500")}>
                               {predictiveResults?.isBreached ? <Lock size={24} /> : <ShieldCheck size={24} />}
                            </div>
+                        </div>
+                     </div>
+                     
+                     {/* 🛡️ TACTICAL RESPONDER HUD (3D TRACK SYNC) */}
+                     <div className="mt-8 pt-8 border-t border-white/5">
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                           <Shield size={12} className="text-blue-500" /> Active Tactical Responders (Interceptors)
+                        </p>
+                        <div className="flex flex-wrap gap-4">
+                           {selectedJourney?.activeResponders?.map((responder: any) => (
+                              <div key={responder.uid} className="flex items-center gap-3 bg-blue-600/10 border border-blue-500/20 px-5 py-3 rounded-2xl shadow-xl">
+                                 <div className="w-8 h-8 rounded-xl bg-[#0F172A] border border-white/10 flex items-center justify-center overflow-hidden">
+                                    {responder.photo ? (
+                                       <img src={responder.photo} className="w-full h-full object-cover" />
+                                    ) : (
+                                       <User size={14} className="text-blue-400" />
+                                    )}
+                                 </div>
+                                 <div>
+                                    <p className="text-[10px] font-black text-white uppercase italic leading-none">{responder.name}</p>
+                                    <p className="text-[7px] font-black text-blue-400 uppercase tracking-widest mt-1.5">{responder.phone}</p>
+                                 </div>
+                                 <button 
+                                    onClick={() => initiateCall(responder.uid, responder.name, selectedJourneyId || undefined)}
+                                    className="ml-auto w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+                                 >
+                                    <Phone size={14} />
+                                 </button>
+                              </div>
+                           ))}
+                           {(!selectedJourney?.activeResponders || selectedJourney.activeResponders.length === 0) && (
+                              <div className="flex items-center gap-3 bg-white/5 border border-white/5 px-5 py-3 rounded-2xl opacity-40">
+                                 <Shield size={14} className="text-gray-500" />
+                                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">Awaiting Sector Reinforcement...</p>
+                              </div>
+                           )}
                         </div>
                      </div>
                   </div>

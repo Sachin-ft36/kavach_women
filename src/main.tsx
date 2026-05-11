@@ -6,13 +6,16 @@ import './index.css';
 import { Toaster } from 'sonner';
 
 import { LanguageProvider } from './contexts/LanguageContext';
+import { CallProvider } from './contexts/CallContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <LanguageProvider>
-      <App />
-      <Toaster position="top-center" theme="dark" />
-    </LanguageProvider>
+    <CallProvider>
+      <LanguageProvider>
+        <App />
+        <Toaster position="top-center" theme="dark" />
+      </LanguageProvider>
+    </CallProvider>
   </StrictMode>,
 );
 

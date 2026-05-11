@@ -19,7 +19,7 @@ import VictimMap from './maps/VictimMap';
 export default function ProtectorDashboard() {
   const { language } = useLanguage();
   const { initiateCall } = useCall();
-  const { user, profile, userPos, isEmergencyOverrideRequested } = useKavachStore();
+  const { user, profile, userPos, isEmergencyOverrideRequested, activeTab } = useKavachStore();
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [rescuePhoto, setRescuePhoto] = useState<string | null>(null);
   const [resolvingAlert, setResolvingAlert] = useState<any | null>(null);
@@ -100,6 +100,32 @@ export default function ProtectorDashboard() {
     return () => unsub();
   }, [userPos, user]);
 
+  // 🛡️ MISSION CLOSURE LISTENER: Notify responder if victim clears the alert
+  useEffect(() => {
+    if (!user || !activeTab) return;
+    
+    // Check if we are responding to anything
+    const respondingAlert = activeAlerts.find(a => a.responderUid === user.uid);
+    if (respondingAlert) {
+      const alertRef = doc(db, 'alerts', respondingAlert.id);
+      const unsub = onSnapshot(alertRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.status === 'resolved') {
+             toast.success(`MISSION RESOLVED: Victim confirmed safety [${data.verification?.closureReason || 'Manual'}]`, {
+               duration: 6000,
+               icon: <ShieldCheck className="text-emerald-500" />
+             });
+             // Cleanup local states
+             setIsInterceptHUDOpen(false);
+             setInterceptActive(false);
+          }
+        }
+      });
+      return () => unsub();
+    }
+  }, [activeAlerts, user, activeTab]);
+
   const handleStartHelp = (alertId: string) => {
     setShowTacticalPledge({ isOpen: true, alertId });
   };
@@ -128,6 +154,25 @@ export default function ProtectorDashboard() {
         responderUid: user.uid, 
         responderName: state.profile?.name || user.displayName || 'Protector Saathi'
       });
+
+      // 🛡️ SYNC PROTECTOR STATE FOR SUPERCELL 3D TRACKING
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        status: 'responding',
+        respondingToAlertId: alertId,
+        lastUpdated: serverTimestamp()
+      });
+
+      // 📡 ACTIVATE HUD IMMEDIATELY
+      const activeAlert = activeAlerts.find(a => a.id === alertId);
+      if (activeAlert) {
+        useKavachStore.setState({ activeAlertId: alertId }); // 📞 CRITICAL FOR CALL SIGNALING
+        setActiveInterceptAlert(activeAlert);
+        setIsInterceptHUDOpen(true);
+        setInterceptActive(true);
+        setIsNavigating(true);
+      }
+
       setShowUplinkActive(true);
       toast.success("Grid Saturation Initialized.");
     } catch (error) {
@@ -137,8 +182,10 @@ export default function ProtectorDashboard() {
 
 
   const handleResolveAlert = async () => {
-    if (!resolvingAlert || !handshakeInput || handshakeInput.length !== 4) {
-      toast.error("Enter the 4-digit Safety Code.");
+    if (!resolvingAlert) return;
+    
+    if (handshakeInput !== resolvingAlert.handshakeCode) {
+      toast.error("Invalid Tactical Handshake Code. Access Denied.");
       return;
     }
     
@@ -146,10 +193,13 @@ export default function ProtectorDashboard() {
       const alertRef = doc(db, 'alerts', resolvingAlert.id);
       await updateDoc(alertRef, {
         status: 'rescued_pending_victim_clearance',
-        closureReason: resolutionSummary,
-        handshakeCode: handshakeInput,
-        rescuePhotoUrl: rescuePhoto,
-        resolvedAt: serverTimestamp()
+        verification: {
+          closureReason: resolutionSummary,
+          handshakeCode: handshakeInput,
+          rescuePhotoUrl: rescuePhoto,
+          resolvedAt: serverTimestamp(),
+          verifiedBy: user.uid
+        }
       });
       toast.success("Verification Uplinked. Awaiting Victim Clearance.");
       setResolvingAlert(null);

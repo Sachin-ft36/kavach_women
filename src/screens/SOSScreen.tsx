@@ -1,10 +1,10 @@
 import React from 'react';
 import SOSButton from '../components/SOSButton';
-import { Lock, Fingerprint, Shield, AlertTriangle, X, Mic, Radio, Signal, ShieldCheck, Eye, MessageSquare } from 'lucide-react';
+import { Lock, Fingerprint, Shield, AlertTriangle, X, Mic, Radio, Signal, ShieldCheck, Eye, MessageSquare, Phone, User, UserCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useKavachStore } from '../store/useKavachStore';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, serverTimestamp, updateDoc, doc, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '../lib/utils';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { KavachSafe } from '../App';
 import KavachAIChat from '../components/KavachAIChat';
 import SecurityRadarMap from '../components/maps/SecurityRadarMap';
+import { useCall } from '../contexts/CallContext';
 
 interface SOSScreenProps {
   isLocked: boolean;
@@ -22,7 +23,13 @@ interface SOSScreenProps {
 
 export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManualUnlock }: SOSScreenProps) {
   const { t } = useLanguage();
-  const { isSOSActive, setSOSActive, triggerMethod, safetyPin, userPos, activeRadius, setActiveRadius } = useKavachStore();
+  const { role, isSOSActive, activeAlertId, setSOSActive, triggerMethod, safetyPin, userPos, activeRadius, setActiveRadius, handshakeCode } = useKavachStore();
+
+  // 🛡️ TACTICAL PURITY: Responders must NEVER see the victim's emergency UI.
+  // We check both the store and the persistent storage to prevent identity leakage.
+  const storedRole = localStorage.getItem('kavach_user_role');
+  if (role === 'protector' || storedRole === 'protector') return null;
+
   const [showPinOverlay, setShowPinOverlay] = React.useState(false);
   const [showAbortReason, setShowAbortReason] = React.useState(false);
   const [abortReason, setAbortReason] = React.useState('');
@@ -58,9 +65,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   // ⚡ LIGHTNING TACTICAL ESCALATION: 15-Second Tiered Expansion (1km -> 5km)
   React.useEffect(() => {
     let expansionTimer: any;
-    const alertId = useKavachStore.getState().activeAlertId;
 
-    if (isSOSActive && alertId) {
+    if (isSOSActive && activeAlertId) {
       expansionTimer = setInterval(async () => {
         const currentRadius = useKavachStore.getState().activeRadius;
         if (currentRadius >= 5.0) {
@@ -72,39 +78,37 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
         setActiveRadius(nextTier);
         
         // 🛡️ SYNC RADIUS TO NATIONAL GRID
-        updateDoc(doc(db, 'alerts', alertId), {
+        setDoc(doc(db, 'alerts', activeAlertId), {
           dispatchRadius: nextTier,
           lastEscalatedAt: serverTimestamp()
-        }).catch(e => console.error("🛰️ RADIUS_SYNC_ERROR:", e));
+        }, { merge: true }).catch(e => console.error("🛰️ RADIUS_SYNC_ERROR:", e));
 
         console.log(`⚡ KAVACH ESCALATION: Search Perimeter Expanded to ${nextTier}KM`);
       }, 15000); // 🕒 15-Second Lightning Interval
     }
 
     return () => clearInterval(expansionTimer);
-  }, [isSOSActive]);
+  }, [isSOSActive, activeAlertId]);
 
   // 🧠 SMART "GHOST-TOWN" SKIP: Reactive Jump if 0 assets found
   React.useEffect(() => {
-    const alertId = useKavachStore.getState().activeAlertId;
-    
-    if (isSOSActive && nearbyCount === 0 && activeRadius < 5.0 && alertId) {
+    if (isSOSActive && nearbyCount === 0 && activeRadius < 5.0 && activeAlertId) {
       const skipDelay = setTimeout(() => {
         const nextTier = activeRadius + 1.0;
         setActiveRadius(nextTier);
         
-        updateDoc(doc(db, 'alerts', alertId), {
+        setDoc(doc(db, 'alerts', activeAlertId), {
           dispatchRadius: nextTier,
           lastEscalatedAt: serverTimestamp(),
           escalationReason: 'ZERO_ASSETS_DETECTED'
-        }).catch(e => console.error("🛰️ RADIUS_JUMP_ERROR:", e));
+        }, { merge: true }).catch(e => console.error("🛰️ RADIUS_JUMP_ERROR:", e));
         
         console.warn(`⚡ KAVACH SMART JUMP: No assets in ${activeRadius}KM. Expanding to ${nextTier}KM.`);
       }, 3000); // 🛡️ 3s Tactical Delay to allow snapshot to settle
       
       return () => clearTimeout(skipDelay);
     }
-  }, [isSOSActive, nearbyCount, activeRadius]);
+  }, [isSOSActive, nearbyCount, activeRadius, activeAlertId]);
 
   // 📡 PROTECTOR RADAR LOGIC (ADAPTIVE RANGE SCAN)
   React.useEffect(() => {
@@ -147,61 +151,58 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const [isBeingMonitored, setIsBeingMonitored] = React.useState(false);
   const [showSafetyVerification, setShowSafetyVerification] = React.useState(false);
   const [activeAlertData, setActiveAlertData] = React.useState<any>(null);
+  const { initiateCall } = useCall();
 
-  // 🛰️ MISSION CRITICAL: MONITORING STATUS SENTINEL
+  // 📡 ACTIVE MISSION SYNC: Real-time Alert Data Stream
   React.useEffect(() => {
     let unsubscribe = () => {};
-    const alertId = useKavachStore.getState().activeAlertId;
 
-    if (isSOSActive && alertId) {
-      const alertRef = doc(db, 'alerts', alertId);
+    if (isSOSActive && activeAlertId) {
+      console.log(`🛰️ SOS GRID: Establishing Uplink for Mission [${activeAlertId}]`);
+      const alertRef = doc(db, 'alerts', activeAlertId);
       unsubscribe = onSnapshot(alertRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data();
+          console.log(`🛡️ SOS GRID: Mission Status Update [${data.status}]`, data);
           setActiveAlertData(data);
           
           if (data.isBeingMonitored && !isBeingMonitored) {
              if (Capacitor.isNativePlatform()) KavachSafe.triggerHapticPulse();
-             toast.info("COMMAND CENTER: TACTICAL UPLINK ESTABLISHED.", {
-               icon: <ShieldCheck className="text-accent-blue" />
-             });
+             toast.info("COMMAND CENTER: TACTICAL UPLINK ESTABLISHED.");
           }
           setIsBeingMonitored(!!data.isBeingMonitored);
 
-          // 🛡️ SAFETY HANDSHAKE DETECTION
-          if (data.status === 'rescued_pending_victim_clearance') {
+          // 🛰️ SYNC HANDSHAKE CODE FROM CLOUD
+          if (data.handshakeCode && !useKavachStore.getState().handshakeCode) {
+            useKavachStore.setState({ handshakeCode: data.handshakeCode });
+          }
+
+          // 🛡️ SAFETY HANDSHAKE DETECTION (Inclusive Check)
+          if (data.status === 'rescued_pending_victim_clearance' || data.verification?.verifiedBy) {
+             console.log("🛡️ SOS GRID: Safety Verification Required - Opening HUD");
              setShowSafetyVerification(true);
-          } else if (data.status === 'resolved' || data.status === 'active') {
+          } else {
              setShowSafetyVerification(false);
           }
         }
       });
     }
     return () => unsubscribe();
-  }, [isSOSActive, isBeingMonitored]);
+  }, [isSOSActive, activeAlertId]); // Removed isBeingMonitored to prevent flicker/resub
 
   const handleConfirmSafety = async () => {
     const alertId = useKavachStore.getState().activeAlertId;
+    setShowSafetyVerification(false);
     
+    // 🛡️ FAST-TRACK RESOLUTION: Protector already verified, just close it
     try {
-      if (alertId) {
-        await updateDoc(doc(db, 'alerts', alertId), {
-          status: 'resolved',
-          victimClearedAt: serverTimestamp(),
-          victimSafetyStatus: 'safe'
-        });
-      }
-    } catch (e: any) {
-      console.warn("⚠️ SOS: Document already cleared from grid. Performing local cleanup.");
-    } finally {
-      // 🛡️ GUARANTEED CLEANUP: Always restore local state
-      if (Capacitor.isNativePlatform()) {
-        KavachSafe.stopForensicCapture();
-        KavachSafe.stopContinuousSiren();
-      }
-      setSOSActive(false);
-      setShowSafetyVerification(false);
+      toast.info("Finalizing Mission Clearance...");
+      await setSOSActive(false, alertId, triggerMethod, 'Verified Safe: Rescue Completed');
       toast.success("Mission Verified. Safety Grid Restored.");
+    } catch (e) {
+      console.error("Safety Clearance Error:", e);
+      // Fallback: Force local state reset if network fails
+      setSOSActive(false);
     }
   };
 
@@ -272,6 +273,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const [isAborting, setIsAborting] = React.useState(false);
 
   const handleFinalAbort = async () => {
+
     if (!abortReason.trim()) {
       toast.error("Please provide a mission clearance reason.");
       return;
@@ -440,7 +442,10 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
                 <div className="space-y-3 sm:space-y-4 mb-6">
                   <p className="text-[10px] sm:text-[11px] font-medium text-white/60 leading-relaxed text-center px-2">
-                    Please confirm why you are closing this SOS request.
+                    {activeAlertData?.status === 'rescued_pending_victim_clearance' 
+                      ? "The Protector has confirmed your safety. Please provide a final closure note."
+                      : "Please confirm why you are closing this SOS request."
+                    }
                   </p>
 
                   <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
@@ -628,6 +633,86 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
               </div>
 
             </div>
+            
+            {/* 🛡️ RESPONDER HUB: Live Tactical Support */}
+            <AnimatePresence mode="wait">
+              {(activeAlertData?.activeResponders?.length > 0) && (
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -20, opacity: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[3px] flex items-center gap-2">
+                      <ShieldCheck size={14} /> {activeAlertData.activeResponders.length} Protector{activeAlertData.activeResponders.length > 1 ? 's' : ''} Responding
+                    </p>
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 bg-emerald-500 rounded-full animate-ping" />
+                      <div className="w-1 h-1 bg-emerald-500 rounded-full animate-ping delay-75" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {activeAlertData.activeResponders.map((responder: any) => (
+                      <motion.div 
+                        key={responder.uid}
+                        layout
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-5 rounded-[32px] flex items-center justify-between shadow-2xl relative overflow-hidden group"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        
+                        <div className="flex items-center gap-4 relative z-10">
+                          <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center border border-emerald-500/30">
+                             <UserCheck size={24} className="text-emerald-500" />
+                          </div>
+                          <div className="space-y-1">
+                            <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight">{responder.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Active Dispatch</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 relative z-10">
+                          <button 
+                            onClick={() => {
+                              console.log("📞 KAVACH UI: Secure Link Initiated for", responder.name);
+                              initiateCall(responder.uid, responder.name);
+                            }}
+                            className="w-14 h-14 bg-emerald-500 text-black rounded-[20px] flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.4)] active:scale-90 transition-all hover:bg-emerald-400"
+                          >
+                             <Phone size={24} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* 🛡️ TACTICAL HANDSHAKE HUB */}
+            <motion.div 
+               initial={{ y: 20, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               transition={{ delay: 0.5 }}
+               className="p-5 bg-blue-600/10 backdrop-blur-xl border border-blue-500/30 rounded-[24px] flex flex-col items-center justify-center space-y-2"
+            >
+               <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest leading-none">Tactical Handshake Code</span>
+               <div className="flex items-center gap-4 py-1">
+                  <Fingerprint size={20} className="text-blue-400" />
+                  <span className="text-4xl font-black text-white italic tracking-[0.3em] ml-1">
+                     {handshakeCode || activeAlertData?.verification?.handshakeCode || '----'}
+                  </span>
+               </div>
+               <p className="text-[7px] font-bold text-blue-400/60 uppercase tracking-widest text-center px-4 leading-tight">
+                  Share this code ONLY with verified Kavach Protectors to verify your rescue.
+               </p>
+            </motion.div>
           </div>
         </div>
 

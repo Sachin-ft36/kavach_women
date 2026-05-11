@@ -147,15 +147,18 @@ export default function SOSButton() {
   const handleManualTrigger = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(2);
+    
+    let currentVal = 2;
     timerRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          goLive('button');
-          return 3;
-        }
-        return prev - 1;
-      });
+      currentVal -= 1;
+      if (currentVal <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = null;
+        setCountdown(3);
+        goLive('button');
+      } else {
+        setCountdown(currentVal);
+      }
     }, 1000);
   };
 

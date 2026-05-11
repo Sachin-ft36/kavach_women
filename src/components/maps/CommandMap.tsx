@@ -46,6 +46,7 @@ export default function CommandMap({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const [isMapLoaded, setIsMapLoaded] = React.useState(false);
 
   // 🛡️ TACTICAL MARKER STYLES
   const injectStyles = () => {
@@ -59,6 +60,12 @@ export default function CommandMap({
       .marker-prot-pro { width: 12px; height: 12px; background: #EAB308; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(234, 179, 8, 0.8); }
       .marker-prot-elite { width: 14px; height: 14px; background: #FACC15; border: 2px solid #FFF; border-radius: 50%; box-shadow: 0 0 20px rgba(250, 204, 21, 1); position: relative; }
       .marker-prot-elite::before { content: ''; position: absolute; inset: -4px; border: 1px solid #FACC15; border-radius: 50%; opacity: 0.5; }
+      .marker-prot-responding { width: 18px; height: 18px; background: #2563EB; border: 3px solid #FFF; border-radius: 50%; box-shadow: 0 0 25px rgba(37, 99, 235, 0.8); animation: pulse-blue 2s infinite; z-index: 1000; }
+      @keyframes pulse-blue {
+        0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+        70% { box-shadow: 0 0 0 15px rgba(37, 99, 235, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+      }
       .marker-transit { width: 24px; height: 24px; background: #3B82F6; border: 2px solid white; border-radius: 6px; transform: rotate(45deg); box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
     `;
     document.head.appendChild(style);
@@ -79,7 +86,8 @@ export default function CommandMap({
       antialias: true
     });
 
-    map.current.on('load', () => {
+    map.current.on('style.load', () => {
+      setIsMapLoaded(true);
       // Radius Sources
       map.current.addSource('selected-radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: 'radius-circle', type: 'fill', source: 'selected-radius', paint: { 'fill-color': '#3B82F6', 'fill-opacity': 0.1 } });
@@ -97,7 +105,7 @@ export default function CommandMap({
 
   // 🌍 FORENSIC PATH SYNC
   useEffect(() => {
-    if (!map.current || !map.current.getSource('forensic-source')) return;
+    if (!map.current || !isMapLoaded || !map.current.getSource('forensic-source')) return;
 
     const slicePath = (path: any[], progress: number) => {
       if (!path || path.length === 0) return [];
@@ -116,7 +124,7 @@ export default function CommandMap({
   // 📍 SYNC MARKERS & RADIUS
   useEffect(() => {
     const mb = (window as any).mapboxgl;
-    if (!map.current || !mb) return;
+    if (!map.current || !mb || !isMapLoaded) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -180,8 +188,11 @@ export default function CommandMap({
       const occ = (p.protectorVetting?.occupation || '').toLowerCase();
       const rating = p.protectorVetting?.rating || 0;
       let category = 'marker-prot-normal';
-      if (occ.includes('police') || occ.includes('army') || occ.includes('military')) category = 'marker-prot-pro';
-      if (rating > 4.8) category = 'marker-prot-elite';
+      if (p.status === 'responding') category = 'marker-prot-responding';
+      else {
+        if (occ.includes('police') || occ.includes('army') || occ.includes('military')) category = 'marker-prot-pro';
+        if (rating > 4.8) category = 'marker-prot-elite';
+      }
 
       const el = document.createElement('div');
       el.className = category;

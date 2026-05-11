@@ -2,17 +2,17 @@ import { create } from 'zustand';
 import { User as FirebaseUser } from 'firebase/auth';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { db, auth } from '../firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  serverTimestamp, 
-  getDoc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  doc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  getDoc,
   arrayUnion,
   limit,
   increment
@@ -30,6 +30,9 @@ const savedAlertId = localStorage.getItem('kavach_active_alert_id');
 const savedMethod = localStorage.getItem('kavach_trigger_method') as any;
 const savedRideMode = localStorage.getItem('kavach_ride_mode_active') === 'true';
 const savedRideData = JSON.parse(localStorage.getItem('kavach_ride_data') || 'null');
+const savedIsRegistered = localStorage.getItem('kavach_is_registered') === 'true';
+const savedIsHardwareSynced = localStorage.getItem('kavach_hardware_synced') === 'true';
+const savedIsVerified = localStorage.getItem('kavach_is_verified') === 'true';
 
 interface KavachState {
   user: FirebaseUser | null;
@@ -137,13 +140,15 @@ interface KavachState {
   setActiveRadius: (radius: number) => void;
 }
 
+const savedHandshake = localStorage.getItem('kavach_handshake_code');
+
 export const useKavachStore = create<KavachState>((set, get) => ({
   user: null,
   profile: null,
-  role: 'citizen',
+  role: (localStorage.getItem('kavach_user_role') as any) || 'citizen',
   gender: 'female',
-  isRegistered: false,
-  isVerified: false,
+  isRegistered: savedIsRegistered,
+  isVerified: savedIsVerified,
   safetyPin: localStorage.getItem('kavach_safety_pin'),
   userPos: (lastLat && lastLng) ? [parseFloat(lastLat), parseFloat(lastLng)] : [20.5937, 78.9629],
   batteryLevel: null,
@@ -162,7 +167,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   sosStrikeCount: 0,
   hasPendingWarning: false,
   warningMessage: null,
-  handshakeCode: null,
+  handshakeCode: savedHandshake,
   isHandshakeVerified: false,
   isEmergencyOverrideRequested: false,
   isDuressTriggered: false,
@@ -191,12 +196,12 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
   setPendingSOS: (active, method = 'button') => {
     if (active) {
-      set({ 
-        pendingSOS: { 
-          active: true, 
-          method, 
-          expiresAt: Date.now() + 5000 
-        } 
+      set({
+        pendingSOS: {
+          active: true,
+          method,
+          expiresAt: Date.now() + 5000
+        }
       });
     } else {
       set({ pendingSOS: null });
@@ -236,11 +241,11 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     if (user) {
       const { db } = await import('../firebase');
       const { doc, onSnapshot } = await import('firebase/firestore');
-      
+
       onSnapshot(doc(db, 'users', user.uid), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          set({ 
+          set({
             isSOSBlocked: !!data.isSOSBlocked,
             sosBlockedReason: data.sosBlockedReason || null,
             sosStrikeCount: data.sosStrikeCount || 0,
@@ -254,10 +259,19 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     }
   },
   setProfile: (profile) => set({ profile }),
-  setRole: (role) => set({ role }),
+  setRole: (role) => {
+    localStorage.setItem('kavach_user_role', role);
+    set({ role });
+  },
   setGender: (gender) => set({ gender }),
-  setRegistered: (isRegistered) => set({ isRegistered }),
-  setVerified: (isVerified) => set({ isVerified }),
+  setRegistered: (isRegistered) => {
+    localStorage.setItem('kavach_is_registered', isRegistered.toString());
+    set({ isRegistered });
+  },
+  setVerified: (isVerified) => {
+    localStorage.setItem('kavach_is_verified', isVerified.toString());
+    set({ isVerified });
+  },
   setSafetyPin: (safetyPin) => {
     if (safetyPin) localStorage.setItem('kavach_safety_pin', safetyPin);
     else localStorage.removeItem('kavach_safety_pin');
@@ -314,13 +328,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       } else {
         localStorage.removeItem('kavach_ride_active');
         if (!state.isSOSActive) {
-          await updateDoc(journeyRef, { 
-            status: 'completed', 
+          await updateDoc(journeyRef, {
+            status: 'completed',
             endedAt: serverTimestamp(),
             lastUpdated: serverTimestamp()
           }).catch(async () => {
-             // Fallback if update fails (e.g. document doesn't exist yet)
-             await deleteDoc(journeyRef).catch(() => {});
+            // Fallback if update fails (e.g. document doesn't exist yet)
+            await deleteDoc(journeyRef).catch(() => { });
           });
         }
       }
@@ -363,9 +377,9 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       const { getLiveLocation } = await import('../services/locationService');
       const { db, auth } = await import('../firebase');
       const { doc, updateDoc, serverTimestamp, arrayUnion, setDoc } = await import('firebase/firestore');
-      
+
       const loc: any = providedCoords || await getLiveLocation();
-      if (loc) { 
+      if (loc) {
         // 🛰️ TACTICAL EXTRACTION: Handle both standard and high-fidelity coordinate objects
         const lat = loc.latitude ?? loc.coords?.latitude;
         const lng = loc.longitude ?? loc.coords?.longitude;
@@ -382,43 +396,43 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               };
               await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
 
-            const state = useKavachStore.getState();
-            if (state.isRideModeActive && state.rideData) {
-              try {
-                await setDoc(doc(db, 'journeys', auth.currentUser.uid), {
+              const state = useKavachStore.getState();
+              if (state.isRideModeActive && state.rideData) {
+                try {
+                  await setDoc(doc(db, 'journeys', auth.currentUser.uid), {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    path: arrayUnion({ lng: loc.longitude, lat: loc.latitude }),
+                    lastUpdated: serverTimestamp(),
+                    heartbeat: serverTimestamp()
+                  }, { merge: true });
+                  console.log("📍 KAVACH: Transit Heartbeat Pulse... Movement Mirrored to Grid.");
+                } catch (e) {
+                  console.warn("⚠️ KAVACH: Transit Sync Interrupted. Check National Grid Rules.");
+                }
+              }
+
+              if (state.isSOSActive && state.activeAlertId) {
+                await updateDoc(doc(db, 'alerts', state.activeAlertId), {
                   latitude: loc.latitude,
                   longitude: loc.longitude,
                   path: arrayUnion({ lng: loc.longitude, lat: loc.latitude }),
-                  lastUpdated: serverTimestamp(),
-                  heartbeat: serverTimestamp()
-                }, { merge: true });
-                console.log("📍 KAVACH: Transit Heartbeat Pulse... Movement Mirrored to Grid.");
-              } catch (e) {
-                console.warn("⚠️ KAVACH: Transit Sync Interrupted. Check National Grid Rules.");
+                  lastUpdated: serverTimestamp()
+                });
               }
-            }
 
-            if (state.isSOSActive && state.activeAlertId) {
-              await updateDoc(doc(db, 'alerts', state.activeAlertId), {
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-                path: arrayUnion({ lng: loc.longitude, lat: loc.latitude }),
-                lastUpdated: serverTimestamp()
-              });
-            }
-
-            // 🛡️ SYNC ACCOUNTABILITY STATES
-            const userSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-            if (userSnap.exists()) {
-              const data = userSnap.data();
-              set({ 
-                isSOSBlocked: !!data.isSOSBlocked,
-                sosBlockedReason: data.sosBlockedReason || null,
-                sosStrikeCount: data.sosStrikeCount || 0,
-                hasPendingWarning: !!data.hasPendingWarning,
-                warningMessage: data.warningMessage || null
-              });
-            }
+              // 🛡️ SYNC ACCOUNTABILITY STATES
+              const userSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+              if (userSnap.exists()) {
+                const data = userSnap.data();
+                set({
+                  isSOSBlocked: !!data.isSOSBlocked,
+                  sosBlockedReason: data.sosBlockedReason || null,
+                  sosStrikeCount: data.sosStrikeCount || 0,
+                  hasPendingWarning: !!data.hasPendingWarning,
+                  warningMessage: data.warningMessage || null
+                });
+              }
             } catch (e) {
               console.error("Cloud Hub Sync Failed:", e);
             }
@@ -435,34 +449,41 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       const { db } = await import('../firebase');
       const { query, collection, where, onSnapshot } = await import('firebase/firestore');
       const protectorsQuery = query(
-        collection(db, 'users'), 
-        where('role', '==', 'protector'), 
+        collection(db, 'users'),
+        where('role', '==', 'protector'),
         where('isVerified', '==', true)
       );
       onSnapshot(protectorsQuery, (snap) => {
         set({ verifiedProtectorCount: snap.size });
       });
-    } catch (e) {}
+    } catch (e) { }
 
     return null;
   },
   setSOSActive: async (isSOSActive: boolean, activeAlertId: string | null = null, method = 'button', closureReason = null) => {
-    const { guardianCache, userPos, isBriefingActive } = get();
-    
-    set({ isSOSActive, activeAlertId, triggerMethod: method, pendingSOS: null });
-    if (!isSOSActive) set({ activeRadius: 1.0 }); // Reset perimeter on de-escalation
-    
+    const { userPos } = get();
+
     if (isSOSActive) {
       console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
+
+      // 🛡️ NEW MISSION PROTOCOL: Always start with a clean state
+      const currentUid = auth.currentUser?.uid || get().user?.uid || get().profile?.uid || localStorage.getItem('kavach_user_uid') || 'GUEST';
+      const alertId = activeAlertId || `alert_${currentUid}_${Date.now()}`;
+
+      set({
+        isSOSActive: true,
+        activeAlertId: alertId,
+        triggerMethod: method,
+        pendingSOS: null,
+        isHandshakeVerified: false,
+        handshakeCode: Math.floor(1000 + Math.random() * 9000).toString(),
+        activeTab: (get().role || localStorage.getItem('kavach_user_role') || 'citizen') === 'citizen' ? 'sos' : get().activeTab
+      });
+
       localStorage.setItem('kavach_sos_active', 'true');
       localStorage.setItem('kavach_trigger_method', method);
-      
-      const alertId = activeAlertId || `alert_${auth.currentUser?.uid || 'GUEST'}_${Date.now()}`;
-      if (!activeAlertId) set({ activeAlertId: alertId });
       localStorage.setItem('kavach_active_alert_id', alertId);
-
-      const handshake = Math.floor(1000 + Math.random() * 9000).toString();
-      set({ handshakeCode: handshake });
+      localStorage.setItem('kavach_handshake_code', get().handshakeCode || '');
 
       const state = get();
       const isTransit = !!state.isRideModeActive;
@@ -473,90 +494,90 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         transitStatus: 'INTERCEPTION_REQUIRED'
       } : {};
 
-      // 🛡️ CENTRALIZED TACTICAL DISPATCH: One call to rule them all
-      // Handles SMS, Calls, and Cloud Sync (Firestore alerts/journeys) via the hardened SOS Service
-      executeEmergencyBlast(get().profile || get().user, get().userPos, { 
-        type: method, 
+      executeEmergencyBlast(get().profile || get().user, get().userPos, {
+        type: method,
         alertId,
-        handshakeCode: handshake,
+        handshakeCode: get().handshakeCode,
         rideContext
       });
     } else {
-      localStorage.removeItem('kavach_sos_active');
-      localStorage.removeItem('kavach_active_alert_id');
-      localStorage.removeItem('kavach_trigger_method');
-      
-      const currentAlertId = activeAlertId || useKavachStore.getState().activeAlertId;
+      const currentAlertId = activeAlertId || get().activeAlertId;
       if (auth.currentUser && currentAlertId) {
         try {
-          // 🛡️ FETCH ALERT DATA TO IDENTIFY RESPONDERS & SYNC GRID
           const alertRef = doc(db, 'alerts', currentAlertId);
           const alertSnap = await getDoc(alertRef);
-          
+
           if (alertSnap.exists()) {
             const alertData = alertSnap.data();
             const responders = alertData.activeResponders || [];
-            
-            // 🏅 CREDIT MERIT POINTS TO ALL ACTIVE RESPONDERS (Honor for Readiness)
+
             if (responders.length > 0) {
               for (const responder of responders) {
                 if (responder.uid) {
                   const responderRef = doc(db, 'users', responder.uid);
                   await updateDoc(responderRef, {
-                    xp: increment(100), // Standard 100 XP for being dispatched
-                    livesSaved: increment(1), // Persistent merit tracking
+                    xp: increment(100),
+                    livesSaved: increment(1),
                     missionHistory: arrayUnion({
                       id: currentAlertId,
                       victimName: alertData.victimName || 'Citizen',
-                      timestamp: serverTimestamp(),
+                      timestamp: Date.now(),
                       type: alertData.isTransitSOS ? 'TRANSIT_INTERCEPTION' : 'SOS_RESCUE',
                       status: 'SUCCESSFUL_INTERVENTION',
                       reason: closureReason || 'Manual Deactivation'
                     })
-                  }).catch(e => console.error(`Failed to credit responder ${responder.uid}:`, e));
+                  }).catch(() => { });
                 }
               }
             }
 
-            // ⚠️ VICTIM ACCOUNTABILITY: Handle False Triggers
             if (closureReason === 'Accidentally triggered SOS') {
-              const victimRef = doc(db, 'users', auth.currentUser.uid);
-              await updateDoc(victimRef, {
+              await updateDoc(doc(db, 'users', auth.currentUser.uid), {
                 falseSOSCount: increment(1),
                 hasPendingWarning: true,
-                warningMessage: "⚠️ KAVACH ALERT: False trigger detected. Frequent accidental SOS activations may lead to temporary grid suspension.",
+                warningMessage: "⚠️ KAVACH ALERT: False trigger detected.",
                 lastPenaltyAt: serverTimestamp()
               });
-              console.warn("🛡️ KAVACH ACCOUNTABILITY: Victim flagged for false trigger.");
             }
-          }
 
-          await updateDoc(doc(db, 'alerts', currentAlertId), {
-            status: 'resolved',
-            closureReason: closureReason || 'Manual Deactivation',
-            resolvedAt: serverTimestamp(),
-            isHandshakeVerified: useKavachStore.getState().isHandshakeVerified
-          });
-          
-          if (alertData.isTransitSOS) {
-            if (useKavachStore.getState().isRideModeActive) {
-               await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
-                  status: 'active',
-                  alertId: null,
-                  isTransitSOS: false
-               });
-            } else {
-               await updateDoc(doc(db, 'journeys', auth.currentUser.uid), {
-                  status: 'completed',
-                  endedAt: serverTimestamp(),
-                  alertId: null,
-                  isTransitSOS: false
-               }).catch(() => {});
+            await updateDoc(alertRef, {
+              status: 'resolved',
+              victimSafetyStatus: 'safe',
+              victimClearedAt: serverTimestamp(),
+              'verification.closureReason': closureReason || 'Manual Deactivation',
+              'verification.resolvedAt': serverTimestamp(),
+              'verification.isHandshakeVerified': get().isHandshakeVerified
+            });
+
+            if (alertData.isTransitSOS) {
+              const journeyRef = doc(db, 'journeys', auth.currentUser.uid);
+              if (get().isRideModeActive) {
+                await updateDoc(journeyRef, { status: 'active', alertId: null, isTransitSOS: false });
+              } else {
+                await updateDoc(journeyRef, { status: 'completed', endedAt: serverTimestamp(), alertId: null, isTransitSOS: false }).catch(() => { });
+              }
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error("SOS De-escalation Error:", e);
+        } finally {
+          set({
+            isSOSActive: false,
+            activeRadius: 1.0,
+            activeTab: 'dashboard',
+            handshakeCode: null,
+            isHandshakeVerified: false
+          });
+          localStorage.removeItem('kavach_sos_active');
+          localStorage.removeItem('kavach_active_alert_id');
+          localStorage.removeItem('kavach_trigger_method');
+          localStorage.removeItem('kavach_handshake_code');
+        }
+      } else {
+        // Fallback for local cleanup if no user/id
+        set({ isSOSActive: false, activeTab: 'dashboard' });
+        localStorage.removeItem('kavach_sos_active');
       }
-      set({ handshakeCode: null, isHandshakeVerified: false });
     }
   },
   requestEmergencyOverride: async () => {
@@ -570,7 +591,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         });
         set({ isEmergencyOverrideRequested: true });
         toast.warning("OVERRIDE REQUESTED: Live Forensic Patch initiated to SuperCell.");
-      } catch (e) {}
+      } catch (e) { }
     }
   },
   triggerDuress: async (distressCode: string) => {
@@ -587,14 +608,14 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           set({ isDuressTriggered: true });
           toast.error("SILENT DURESS TRIGGERED: Reinforcements notified.");
           return true;
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return false;
   },
-  setSentinelActive: (isSentinelActive) => set({ 
-    isSentinelActive, 
-    lastSentinelPulse: isSentinelActive ? Date.now() : null 
+  setSentinelActive: (isSentinelActive) => set({
+    isSentinelActive,
+    lastSentinelPulse: isSentinelActive ? Date.now() : null
   }),
   resetSentinelPulse: () => set({ lastSentinelPulse: Date.now() }),
   setShadowActive: (isShadowActive) => {
@@ -606,7 +627,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
   setSOSBlocked: (isSOSBlocked, reason = null) => set({ isSOSBlocked, sosBlockedReason: reason }),
   setStrikeCount: (sosStrikeCount) => set({ sosStrikeCount }),
-  
+
   acknowledgeWarning: async () => {
     const { auth, db } = await import('../firebase');
     const { doc, updateDoc } = await import('firebase/firestore');

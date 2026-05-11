@@ -172,6 +172,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         isVerified: role === 'citizen' ? true : (gender === 'female' ? true : false),
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : null,
         aadhar: aadhaar || null,
+        onboardedAt: serverTimestamp(),
         
         // 🛰️ FORENSIC LOCATION PACKET (Professional Standard)
         lastLocation: initialLocation, // { lat, lng, accuracy }
@@ -198,55 +199,62 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         protectorVetting: role === 'protector' && gender === 'male' ? protectorData : null
       };
 
-      // 🛰️ MULTI-PATH SYSTEMATIC SYNC
-      // 1. Master Ledger
-      await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
+      // 🛰️ MULTI-PATH SYSTEMATIC SYNC WITH TACTICAL TIMEOUT
+      const syncTasks = async () => {
+        // 1. Master Ledger
+        const cleanProfile = Object.fromEntries(
+          Object.entries(userProfile).filter(([_, v]) => v !== "" && v !== null)
+        );
+        await setDoc(doc(db, 'users', user.uid), cleanProfile, { merge: true });
 
-      // 2. Gender-Specific Partitioning
-      if (gender === 'male') {
-        await setDoc(doc(db, 'male_users', user.uid), userProfile, { merge: true });
-      } else {
-        await setDoc(doc(db, 'women_users', user.uid), userProfile, { merge: true });
-        
-        // 3. Women-Specific Tactical Sub-Collections
-        if (role === 'citizen') {
-          await setDoc(doc(db, 'women_users', user.uid, 'safety_data', 'status'), {
-            active: true,
-            setupAt: serverTimestamp(),
-            type: 'Citizen/Safety'
-          });
-        }
-        if (role === 'protector') {
-          await setDoc(doc(db, 'women_users', user.uid, 'protector_data', 'status'), {
-            active: true,
-            setupAt: serverTimestamp(),
-            type: 'Protector/Rakshak'
-          });
-        }
-      }
-
-      if (role === 'citizen' && guardians.length > 0) {
-        const guardianCol = collection(db, 'users', user.uid, 'guardians');
-        for (const g of guardians) {
-          if (g.name && g.phone) {
-            const cleanPhone = g.phone.replace(/\D/g, '');
-            await addDoc(guardianCol, { 
-              name: g.name, 
-              phone: `+91${cleanPhone}`, 
-              relation: g.relation || 'Guardian',
-              createdAt: serverTimestamp() 
-            }).catch(() => {});
+        // 2. Gender-Specific Partitioning
+        if (gender === 'male') {
+          await setDoc(doc(db, 'male_users', user.uid), userProfile, { merge: true });
+        } else {
+          await setDoc(doc(db, 'women_users', user.uid), userProfile, { merge: true });
+          if (role === 'citizen') {
+            await setDoc(doc(db, 'women_users', user.uid, 'safety_data', 'status'), {
+              active: true, setupAt: serverTimestamp(), type: 'Citizen/Safety'
+            });
+          }
+          if (role === 'protector') {
+            await setDoc(doc(db, 'women_users', user.uid, 'protector_data', 'status'), {
+              active: true, setupAt: serverTimestamp(), type: 'Protector/Rakshak'
+            });
           }
         }
-      }
 
-      if (Capacitor.isNativePlatform()) {
-        await KavachNative.initializeService({ userId: user.uid, role: role }).catch(() => {});
-      }
+        if (role === 'citizen' && guardians.length > 0) {
+          const guardianCol = collection(db, 'users', user.uid, 'guardians');
+          for (const g of guardians) {
+            if (g.name && g.phone) {
+              const cleanPhone = g.phone.replace(/\D/g, '');
+              await addDoc(guardianCol, { 
+                name: g.name, phone: `+91${cleanPhone}`, relation: g.relation || 'Guardian', createdAt: serverTimestamp() 
+              }).catch(() => {});
+            }
+          }
+        }
+
+        if (Capacitor.isNativePlatform()) {
+          // 🛡️ NATIVE HANDSHAKE: Non-blocking to prevent UI hang
+          KavachNative.initializeService({ userId: user.uid, role: role }).catch(() => {});
+        }
+      };
+
+      // ⚡ FAST-TRACK EXECUTION: Don't wait for everything if it's taking too long
+      await Promise.race([
+        syncTasks(),
+        new Promise(resolve => setTimeout(resolve, 3000)) // 3s Max Wait
+      ]);
 
       setStoreRole(role || 'citizen');
       setStoreGender(gender || 'female');
-      useKavachStore.getState().setSafetyPin(safetyPin);
+      const store = useKavachStore.getState();
+      store.setSafetyPin(safetyPin);
+      store.setRegistered(true);
+      store.setVerified(role === 'citizen' ? true : (gender === 'female' ? true : false));
+      localStorage.setItem('kavach_hardware_synced', 'true');
       onComplete();
     } catch (e: any) {
       toast.error(`Configuration Error: ${e.message}`);

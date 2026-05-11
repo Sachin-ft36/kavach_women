@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { PhoneCall, X, CheckCircle2, Navigation } from 'lucide-react';
+import { PhoneCall, X, CheckCircle2, Navigation, Phone } from 'lucide-react';
 import mapboxgl from 'mapbox-gl';
 import { useKavachStore } from '../../store/useKavachStore';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
+import { useCall } from '../../contexts/CallContext';
 
 const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -26,9 +27,11 @@ const VictimMap = React.memo(({
   distance?: string
 }) => {
   const { userPos } = useKavachStore();
+  const { initiateCall } = useCall();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<{user?: mapboxgl.Marker, victim?: mapboxgl.Marker, path?: any}>({});
+  const [isMapLoaded, setIsMapLoaded] = React.useState(false);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -46,12 +49,12 @@ const VictimMap = React.memo(({
       antialias: true
     });
 
-    map.current.on('load', () => {
+    map.current.on('style.load', () => {
       console.log("🛰️ KAVACH: Mapbox Tactical Grid Online.");
+      setIsMapLoaded(true);
       
       // Add 3D building layer
       if (map.current) {
-        // ... (existing 3D logic)
         const layers = map.current.getStyle()?.layers;
         const labelLayerId = layers?.find(
           (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
@@ -145,7 +148,7 @@ const VictimMap = React.memo(({
 
   // 🛰️ USER LOCATION SYNC
   useEffect(() => {
-    if (!map.current || !userPos) return;
+    if (!map.current || !userPos || !isMapLoaded) return;
     const coords: [number, number] = [userPos[1], userPos[0]];
 
     // 🛡️ UPDATE SAFETY RADIUS VISUAL
@@ -176,12 +179,12 @@ const VictimMap = React.memo(({
       map.current.setCenter(coords);
       map.current.setZoom(18);
     }
-  }, [userPos, isNavigating]);
+  }, [userPos, isNavigating, isMapLoaded]);
 
   // 🚨 VICTIM & ROUTE SYNC
   useEffect(() => {
     const m = map.current;
-    if (!m || !userPos) return;
+    if (!m || !userPos || !isMapLoaded) return;
 
     const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
     if (activeAlert) {
@@ -261,8 +264,8 @@ const VictimMap = React.memo(({
   const handleSecureCall = () => {
     const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
     if (activeAlert) {
-      toast.info("Initiating KAVACH Secure Bridge...");
-      setTimeout(() => { window.location.href = `tel:${activeAlert.victimPhone}`; }, 1500);
+      console.log("📞 KAVACH PROTECTOR: Initiating Tactical Uplink...", activeAlert);
+      initiateCall(activeAlert.victimUid, activeAlert.victimName || "Victim", activeAlert.id);
     }
   };
 

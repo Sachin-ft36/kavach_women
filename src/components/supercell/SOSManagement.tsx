@@ -68,11 +68,14 @@ export function SOSManagement({
   useEffect(() => {
     const selectedAlert = (sidebarTab === 'LIVE' ? activeAlerts : historicalAlerts).find(a => a.id === selectedAlertId);
     
-    if (selectedAlert?.latitude && selectedAlert?.longitude) {
+    const lat = selectedAlert?.latitude || selectedAlert?.lat || selectedAlert?.location?.latitude || selectedAlert?.location?.lat;
+    const lng = selectedAlert?.longitude || selectedAlert?.lng || selectedAlert?.location?.longitude || selectedAlert?.location?.lng;
+    
+    if (lat && lng) {
       const resolveAddr = async () => {
         setLoadingAddress(true);
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${selectedAlert.latitude}&lon=${selectedAlert.longitude}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
           const data = await res.json();
           setResolvedAddress(data.display_name || "Verified GPS Signal");
         } catch (e) { setResolvedAddress("Tactical Resolution Failed"); }
@@ -281,29 +284,33 @@ export function SOSManagement({
                                  <span className="text-xs font-black text-white lowercase">{victimData.email}</span>
                               </div>
                            )}
-                           {victimData?.gender && (
-                              <div className="bg-[#1E293B] px-5 py-2.5 rounded-2xl border border-white/5 flex items-center gap-3 shadow-lg">
-                                 <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
-                                 <span className="text-xs font-black text-white uppercase">{victimData.gender}</span>
-                              </div>
-                           )}
-                           {victimData?.role && (
-                              <div className="bg-blue-500/10 px-5 py-2.5 rounded-2xl border border-blue-500/20 flex items-center gap-3 shadow-lg">
-                                 <Shield size={14} className="text-blue-500" />
-                                 <span className="text-xs font-black text-blue-500 uppercase">{victimData.role}</span>
-                              </div>
-                           )}
-                           {victimData?.isVerified && (
-                              <div className="bg-emerald-500/10 px-5 py-2.5 rounded-2xl border border-emerald-500/20 flex items-center gap-3 shadow-lg">
-                                 <ShieldCheck size={14} className="text-emerald-500" />
-                                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Verified</span>
-                              </div>
-                           )}
-                           {victimData?.specialCellLinked && (
-                              <div className="bg-rose-500/10 px-5 py-2.5 rounded-2xl border border-rose-500/20 flex items-center gap-3 shadow-lg">
-                                 <Zap size={14} className="text-rose-500" />
-                                 <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
-                              </div>
+                           {sidebarTab === 'HISTORY' && (
+                              <>
+                                 {victimData?.gender && (
+                                    <div className="bg-[#1E293B] px-5 py-2.5 rounded-2xl border border-white/5 flex items-center gap-3 shadow-lg">
+                                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
+                                       <span className="text-xs font-black text-white uppercase">{victimData.gender}</span>
+                                    </div>
+                                 )}
+                                 {victimData?.role && (
+                                    <div className="bg-blue-500/10 px-5 py-2.5 rounded-2xl border border-blue-500/20 flex items-center gap-3 shadow-lg">
+                                       <Shield size={14} className="text-blue-500" />
+                                       <span className="text-xs font-black text-blue-500 uppercase">{victimData.role}</span>
+                                    </div>
+                                 )}
+                                 {victimData?.isVerified && (
+                                    <div className="bg-emerald-500/10 px-5 py-2.5 rounded-2xl border border-emerald-500/20 flex items-center gap-3 shadow-lg">
+                                       <ShieldCheck size={14} className="text-emerald-500" />
+                                       <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Verified</span>
+                                    </div>
+                                 )}
+                                 {victimData?.specialCellLinked && (
+                                    <div className="bg-rose-500/10 px-5 py-2.5 rounded-2xl border border-rose-500/20 flex items-center gap-3 shadow-lg">
+                                       <Zap size={14} className="text-rose-500" />
+                                       <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
+                                    </div>
+                                 )}
+                              </>
                            )}
                         </div>
                         {(victimData?.fullAddress || victimData?.locationData?.formattedAddress) && (
@@ -361,6 +368,34 @@ export function SOSManagement({
                                     ))}
 </div>
                           </div>
+                           <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl mt-6">
+                              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                 <Shield size={12} className="text-blue-500" /> Active Tactical Responders
+                              </p>
+                              <div className="space-y-3">
+                                 {selectedAlert?.activeResponders?.map((responder: any) => (
+                                    <div key={responder.uid} className="flex justify-between items-center bg-blue-500/10 px-4 py-2.5 rounded-xl border border-blue-500/20 shadow-lg shadow-blue-500/5">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-6 h-6 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                                             {responder.photo ? (
+                                                <img src={responder.photo} className="w-full h-full object-cover" />
+                                             ) : (
+                                                <User size={12} className="text-blue-400" />
+                                             )}
+                                          </div>
+                                          <div className="flex flex-col">
+                                             <span className="text-[10px] font-black text-white uppercase italic leading-none">{responder.name}</span>
+                                             <span className="text-[6px] font-black text-blue-500 uppercase tracking-widest mt-1">Status: Intercepting</span>
+                                          </div>
+                                       </div>
+                                       <span className="text-[10px] font-black text-blue-400 tabular-nums">{responder.phone}</span>
+                                    </div>
+                                 ))}
+                                 {(!selectedAlert?.activeResponders || selectedAlert.activeResponders.length === 0) && (
+                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest text-center py-2 italic">Awaiting National Grid Interception...</p>
+                                 )}
+                              </div>
+                           </div>
                         </div>
                         <button onClick={() => { const msg = `🚨 *KAVACH SOVEREIGN DISPATCH*\nTarget: ${selectedAlert?.victimName}`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank'); }} className="w-full py-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-[2.5rem] text-[12px] font-black uppercase tracking-[4px] shadow-2xl flex items-center justify-center gap-4 transition-all group">
                            <Zap size={22} className="group-hover:animate-pulse" /> Dispatch Tactical Units

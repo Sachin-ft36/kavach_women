@@ -269,7 +269,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
         markersRef.current.responders[pid].setLngLat([lng, lat]);
         const el = markersRef.current.responders[pid].getElement();
         el.style.zIndex = isElite ? '1000' : '500';
-        const dot = el.firstChild as HTMLElement;
+        const dot = el.firstElementChild as HTMLElement;
         if (dot) {
           dot.style.background = markerColor;
           dot.style.boxShadow = `0 0 15px ${markerGlow}`;

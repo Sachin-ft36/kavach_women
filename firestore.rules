@@ -62,7 +62,8 @@ service cloud.firestore {
 
     // 🚗 4. NATIONAL TRANSIT REGISTRY (SAFE RIDE)
     match /journeys/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin() || isProtector();
+      allow read: if isAuthenticated(); // Allow reading for call signaling
+      allow write: if isOwner(userId) || isAdmin() || isProtector();
     }
 
     // --- 📖 SECTOR: SAFETY TIPS & FIELD REPORTS ---
@@ -82,7 +83,7 @@ service cloud.firestore {
     match /alerts/{alertId} { 
       allow read: if isAuthenticated();
       allow create: if isAuthenticated(); 
-      allow update: if isAuthenticated() || isProtector() || isAdmin();
+      allow update: if isAuthenticated(); 
     }
 
     match /firs/{firId} {

@@ -59,8 +59,8 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             victimPhone: user.phoneNumber || user.phone || localStorage.getItem('kavach_user_phone') || 'UNREGISTERED',
             victimAadhaar: user.aadhar || user.aadhaar || user.victimAadhaar || localStorage.getItem('kavach_user_aadhar') || 'NOT_VERIFIED',
             victimEmail: user.email || 'N/A',
-            status: existingAlert ? existingAlert.data().status : 'active',
-            timestamp: existingAlert ? existingAlert.data().timestamp : serverTimestamp(),
+            status: 'active',
+            timestamp: serverTimestamp(),
             lastUpdateAt: serverTimestamp(),
             location: { 
               latitude: userPos[0], 

@@ -9,11 +9,16 @@ import { toast } from 'sonner';
 
 export default function SOSActiveOverlay() {
   const { 
+    role,
     isSOSActive, setSOSActive, activeAlertId,
     isSOSBlocked, sosBlockedReason,
     hasPendingWarning, warningMessage, acknowledgeWarning,
     handshakeCode, activeRadius
   } = useKavachStore();
+  
+  // 🛡️ TACTICAL PURITY: Responders must NEVER see the victim's emergency HUD.
+  const storedRole = localStorage.getItem('kavach_user_role');
+  if (role === 'protector' || storedRole === 'protector') return null;
   
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [showReasonEntry, setShowReasonEntry] = useState(false);
@@ -126,7 +131,8 @@ export default function SOSActiveOverlay() {
     );
   }
 
-  if (!isSOSActive) return null;
+  const { activeTab } = useKavachStore();
+  if (!isSOSActive || activeTab === 'sos') return null;
 
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col font-sans">
