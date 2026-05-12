@@ -435,8 +435,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                     <Shield size={28} className="sm:w-8 sm:h-8" strokeWidth={2.5} />
                   </div>
                   <div className="text-center space-y-1">
-                    <h2 className="text-lg sm:text-xl font-black text-white tracking-tighter uppercase">Safety Confirmation</h2>
-                    <p className="text-[9px] sm:text-[10px] font-bold text-blue-400/50 uppercase tracking-[2px]">National Grid Update</p>
+                    <h2 className="text-base sm:text-lg font-black text-white tracking-tighter uppercase leading-none">Safety Confirmation</h2>
+                    <p className="text-[7px] sm:text-[8px] font-bold text-blue-400/50 uppercase tracking-[2px]">National Grid Update</p>
                   </div>
                 </div>
 
@@ -584,7 +584,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
             </span>
           </div>
 
-          <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[8px] font-bold text-gray-500 uppercase tracking-widest">
+          <div className="px-2 py-1 bg-white/5 border border-white/10 rounded-full text-[7px] font-bold text-gray-500 uppercase tracking-widest">
             NODE: {triggerMethod?.toUpperCase() || 'MANUAL'}
           </div>
         </div>
@@ -605,7 +605,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                   <Radio size={16} className="text-green-500" />
                   <span className="text-[9px] font-black uppercase tracking-widest text-white/80">Uplink Status</span>
                 </div>
-                <span className="text-[8px] font-black text-green-500 uppercase italic">STABLE</span>
+                <span className="text-[7px] font-black text-green-500 uppercase italic">STABLE</span>
               </div>
               <div className="space-y-2 border-t border-white/5 pt-4">
                 <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
@@ -669,7 +669,24 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                              <UserCheck size={24} className="text-emerald-500" />
                           </div>
                           <div className="space-y-1">
-                            <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight">{responder.name}</h4>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight">{responder.name}</h4>
+                              
+                              {/* 🛡️ DYNAMIC GRID RANK BADGES */}
+                              {(responder.xp || 0) >= 25000 && (
+                                <div className="px-2 py-0.5 bg-emerald-500 rounded-full flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.3)]">
+                                  <ShieldCheck size={8} className="text-white" />
+                                  <span className="text-[6px] font-black text-white uppercase tracking-tighter">VERIFIED</span>
+                                </div>
+                              )}
+                              
+                              {(responder.xp || 0) >= 100000 && (
+                                <div className="px-2 py-0.5 bg-gradient-to-r from-orange-500 via-white to-emerald-500 rounded-full flex items-center gap-1 border border-white/20">
+                                  <Globe size={8} className="text-blue-900" />
+                                  <span className="text-[6px] font-black text-[#0F172A] uppercase tracking-tighter">ASSET</span>
+                                </div>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                               <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Active Dispatch</p>

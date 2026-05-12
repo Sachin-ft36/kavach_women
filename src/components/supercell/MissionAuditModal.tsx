@@ -52,7 +52,8 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
     setIsIssuingWarning(true);
     try {
       await updateDoc(doc(db, 'users', user.id), {
-        safetyWarningActive: true,
+        hasPendingWarning: true,
+        warningMessage: `⚠️ KAVACH DISCIPLINARY: Misuse of SOS protocol detected. Your account is under forensic review.`,
         lastWarningAt: serverTimestamp(),
         warningCount: (user.warningCount || 0) + 1,
         systemStatus: 'UNDER_FORENSIC_REVIEW'

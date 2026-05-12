@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc } from 'firebase/firestore';
 import { getReverseMetadata } from './locationService';
 import { KavachSafe } from '../App';
@@ -9,7 +9,7 @@ const TRIGGER_THROTTLE = 5000; // 🛡️ 5s Tactical Gate to prevent double-log
 const activeBlasts = new Set<string>(); // 🛰️ ATOMIC DEDUPLICATION GATE
 
 export const executeEmergencyBlast = async (user: any, userPos: [number, number], data?: any) => {
-  const victimId = user?.uid || user?.id || localStorage.getItem('kavach_user_uid');
+  const victimId = auth.currentUser?.uid || user?.uid || user?.id || localStorage.getItem('kavach_user_uid');
   if (!victimId) return [];
 
   const now = Date.now();

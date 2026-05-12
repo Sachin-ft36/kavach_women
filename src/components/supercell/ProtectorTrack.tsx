@@ -31,6 +31,7 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
+  const [historicalJourneys, setHistoricalJourneys] = useState<any[]>([]);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
 
@@ -69,15 +70,23 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
        setActiveProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubFirs = onSnapshot(collection(db, 'firs'), (snap) => {
+    const unsubFirs = onSnapshot(collection(db, 'zero_firs'), (snap) => {
        setActiveFirs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => { unsubActive(); unsubResolved(); unsubProts(); unsubFirs(); };
+    const unsubJourneyHistory = onSnapshot(query(collection(db, 'journey_history'), orderBy('endTime', 'desc')), (snap) => {
+       setHistoricalJourneys(snap.docs.map(d => ({ id: d.id, ...d.data(), isJourney: true })));
+    });
+
+    return () => { unsubActive(); unsubResolved(); unsubProts(); unsubFirs(); unsubJourneyHistory(); };
   }, []);
 
   // 🧬 CLOUD ML MISSION ANALYSIS
-  const selectedMission = (activeMissions.find(m => m.id === selectedMissionId) || resolvedMissions.find(m => m.id === selectedMissionId));
+  const selectedMission = (
+    activeMissions.find(m => m.id === selectedMissionId) || 
+    resolvedMissions.find(m => m.id === selectedMissionId) ||
+    historicalJourneys.find(m => m.id === selectedMissionId)
+  );
 
   useEffect(() => {
     if (!selectedMission || !selectedMission.path || selectedMission.status === 'resolved') {
@@ -141,22 +150,31 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
   // 🛡️ TACTICAL GROUPING ENGINE
   const groupedResolved = useMemo(() => {
     const groups: Record<string, any[]> = {};
-    resolvedMissions.forEach(mission => {
-      const uid = mission.victimUid || 'anonymous';
+    const allHistorical = [
+      ...resolvedMissions.map(m => ({ ...m, type: 'ALERT' })),
+      ...historicalJourneys.map(j => ({ ...j, type: 'JOURNEY' }))
+    ].sort((a: any, b: any) => {
+      const timeA = a.timestamp?.toMillis() || a.endTime?.toMillis() || 0;
+      const timeB = b.timestamp?.toMillis() || b.endTime?.toMillis() || 0;
+      return timeB - timeA;
+    });
+
+    allHistorical.forEach(item => {
+      const uid = item.victimUid || item.userId || 'anonymous';
       if (!groups[uid]) groups[uid] = [];
-      groups[uid].push(mission);
+      groups[uid].push(item);
     });
     return groups;
-  }, [resolvedMissions]);
+  }, [resolvedMissions, historicalJourneys]);
 
   const uniqueResolvedVictims = useMemo(() => {
     return Object.keys(groupedResolved).map(uid => {
-      const victimMissions = groupedResolved[uid];
+      const items = groupedResolved[uid];
       return {
         uid,
-        name: victimMissions[0].victimName,
-        count: victimMissions.length,
-        lastTimestamp: victimMissions[0].timestamp
+        name: items[0].victimName || items[0].userName,
+        count: items.length,
+        lastTimestamp: items[0].timestamp || items[0].endTime
       };
     }).sort((a, b) => (b.lastTimestamp?.toMillis() || 0) - (a.lastTimestamp?.toMillis() || 0));
   }, [groupedResolved]);
@@ -425,9 +443,16 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
                              onClick={() => { setSelectedMissionId(mission.id); setReplayProgress(0); }}
                              className="p-6 bg-white/5 border border-white/5 rounded-[28px] hover:bg-white/10 transition-all group cursor-pointer"
                            >
-                              <div className="flex justify-between items-center mb-3">
-                                 <span className="text-[9px] font-black text-emerald-500 uppercase">Court Ready Log</span>
-                                 <span className="text-[9px] font-black text-gray-500">{mission.timestamp ? new Date(mission.timestamp.toMillis()).toLocaleDateString() : ''}</span>
+                               <div className="flex justify-between items-center mb-3">
+                                 <span className={cn(
+                                   "text-[9px] font-black uppercase",
+                                   mission.type === 'JOURNEY' ? "text-blue-500" : "text-emerald-500"
+                                 )}>
+                                   {mission.type === 'JOURNEY' ? 'Safe Journey Data' : 'Court Ready Log'}
+                                 </span>
+                                 <span className="text-[9px] font-black text-gray-500">
+                                   {mission.timestamp ? new Date(mission.timestamp.toMillis()).toLocaleDateString() : (mission.endTime ? new Date(mission.endTime.toMillis()).toLocaleDateString() : '')}
+                                 </span>
                               </div>
                               <h4 className="text-[12px] font-black text-white uppercase group-hover:text-blue-400 transition-all">CASE_{mission.id.slice(-12).toUpperCase()}</h4>
                            </div>

@@ -16,8 +16,9 @@ export function NodesControl({ pendingProtectors, verifiedProtectors, viewMode }
 
   const approveProtector = async (p: any) => {
     try { 
+      const coll = p.originCollection || 'users';
       // 🛡️ SYNC FIX: Update both legacy and new verification fields
-      await updateDoc(doc(db, 'users', p.id), { 
+      await updateDoc(doc(db, coll, p.id), { 
         isVerified: true,
         verified: true 
       }); 
@@ -29,8 +30,9 @@ export function NodesControl({ pendingProtectors, verifiedProtectors, viewMode }
 
   const rejectProtector = async (p: any) => {
     try { 
+      const coll = p.originCollection || 'users';
       // 🛡️ REVERSION: Clear all verification flags when reverting to citizen
-      await updateDoc(doc(db, 'users', p.id), { 
+      await updateDoc(doc(db, coll, p.id), { 
         role: 'citizen', 
         isVerified: false,
         verified: false 

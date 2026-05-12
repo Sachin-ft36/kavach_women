@@ -52,6 +52,14 @@ export default function EmergencyContacts() {
       return;
     }
 
+    const fullPhone = `+91${cleanedPhone}`;
+    const isDuplicate = contacts.some(c => c.phone.replace(/\D/g, '').slice(-10) === cleanedPhone);
+    
+    if (isDuplicate) {
+      alert("This contact is already in your Guardian Circle.");
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'users', auth.currentUser.uid, 'guardians'), {
         name: newName,
@@ -206,32 +214,33 @@ export default function EmergencyContacts() {
             layout
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-[#E5E7EB] rounded-[28px] p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all group"
+            className="bg-white border border-[#E5E7EB] rounded-[28px] p-4 pr-6 flex items-center shadow-sm hover:shadow-md transition-all group"
           >
-            <div className="flex items-center gap-5 min-w-0">
-              <div className="w-14 h-14 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-2xl flex items-center justify-center text-[#2563EB] shrink-0 shadow-sm">
-                <ShieldCheck size={28} />
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-2xl flex items-center justify-center text-[#2563EB] shrink-0 shadow-sm">
+                <ShieldCheck size={24} sm:size={28} />
               </div>
               <div className="min-w-0">
-                <p className="font-bold text-gray-900 text-base leading-tight truncate">{contact.name}</p>
+                <p className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">{contact.name}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full">{contact.relation}</span>
-                  <span className="text-xs font-bold text-gray-400 font-mono tracking-tight">{contact.phone}</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full">{contact.relation}</span>
+                  <span className="text-[10px] sm:text-xs font-bold text-gray-400 font-mono tracking-tight">{contact.phone}</span>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
               <a 
                 href={`tel:${contact.phone}`}
-                className="w-12 h-12 rounded-2xl bg-[#2563EB]/10 border border-[#2563EB]/20 text-[#2563EB] flex items-center justify-center hover:bg-[#2563EB] hover:text-white active:scale-90 transition-all shadow-sm"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-[#2563EB]/5 border border-[#2563EB]/10 text-[#2563EB] flex items-center justify-center hover:bg-[#2563EB] hover:text-white active:scale-90 transition-all shadow-sm"
               >
-                <Phone size={20} />
+                <Phone size={18} sm:size={20} />
               </a>
               <button 
                 onClick={() => removeContact(contact.id)}
-                className="w-12 h-12 rounded-2xl bg-[#DC2626]/10 border border-[#DC2626]/20 text-[#DC2626] flex items-center justify-center hover:bg-[#DC2626] hover:text-white active:scale-90 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-red-50/50 border border-red-100 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white active:scale-90 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
               >
-                <Trash2 size={20} />
+                <Trash2 size={18} sm:size={20} />
               </button>
             </div>
           </motion.div>

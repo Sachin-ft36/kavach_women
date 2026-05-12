@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { executeEmergencyBlast } from '../services/sosService';
 import { KavachSafe } from '../App';
+import { auth } from '../firebase';
 
 export default function SOSButton() {
   const { 
@@ -111,7 +112,8 @@ export default function SOSButton() {
       });
 
       // 2. TACTICAL DISPATCH: SMS & CALLS (PHYSICAL SIGNALS)
-      const alertId = `alert_${user?.uid || 'GUEST'}_${Date.now()}`;
+      const currentUid = auth.currentUser?.uid || user?.uid || localStorage.getItem('kavach_user_uid') || 'GUEST';
+      const alertId = `alert_${currentUid}_${Date.now()}`;
       
       if (Capacitor.isNativePlatform()) {
         const googleMapsLink = `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}`;

@@ -19,7 +19,8 @@ export function useThreatSentinel() {
     isSOSActive,
     isSentinelActive,
     lastSentinelPulse,
-    resetSentinelPulse
+    resetSentinelPulse,
+    isSOSBlocked
   } = useKavachStore();
 
   const lastPosRef = useRef<[number, number]>(userPos);
@@ -28,7 +29,7 @@ export function useThreatSentinel() {
 
   useEffect(() => {
     const isCitizen = useKavachStore.getState().role === 'citizen';
-    if (isSOSActive || !isCitizen) return;
+    if (isSOSActive || !isCitizen || isSOSBlocked) return;
 
     const checkThreats = () => {
       // 1. MOTION INACTIVITY CHECK (Ride Mode only)
@@ -68,7 +69,7 @@ export function useThreatSentinel() {
 
     const interval = setInterval(checkThreats, 5000);
     return () => clearInterval(interval);
-  }, [userPos, isRideModeActive, isSOSActive, isSentinelActive, lastSentinelPulse]);
+  }, [userPos, isRideModeActive, isSOSActive, isSentinelActive, lastSentinelPulse, isSOSBlocked]);
 
   useEffect(() => {
     const isCitizen = useKavachStore.getState().role === 'citizen';
@@ -110,5 +111,5 @@ export function useThreatSentinel() {
       window.addEventListener('devicemotion', handleMotion);
     }
     return () => window.removeEventListener('devicemotion', handleMotion);
-  }, [isSOSActive, resetSentinelPulse]);
+  }, [isSOSActive, resetSentinelPulse, isSOSBlocked]);
 }

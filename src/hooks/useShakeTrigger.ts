@@ -8,7 +8,7 @@ import { Capacitor } from '@capacitor/core';
  * Logic: 3 high-force movements within 1 second.
  */
 export const useShakeTrigger = () => {
-  const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive } = useKavachStore();
+  const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive, isSOSBlocked } = useKavachStore();
   const lastShakeRef = useRef(0);
   const shakeCountRef = useRef(0);
   
@@ -18,7 +18,7 @@ export const useShakeTrigger = () => {
 
   useEffect(() => {
     // 🛡️ Trigger Gating
-    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive) return;
+    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked) return;
 
     const handleMotion = (event: DeviceMotionEvent) => {
       // 🛡️ ANTI-WALK FIX: Use linear acceleration
@@ -69,5 +69,5 @@ export const useShakeTrigger = () => {
     }
 
     return () => window.removeEventListener('devicemotion', handleMotion);
-  }, [isSOSActive, pendingSOS, role, isBriefingActive]);
+  }, [isSOSActive, pendingSOS, role, isBriefingActive, isSOSBlocked]);
 };

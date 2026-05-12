@@ -57,7 +57,7 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {} }: TransitT
        setActiveProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubFirs = onSnapshot(collection(db, 'firs'), (snap) => {
+    const unsubFirs = onSnapshot(collection(db, 'zero_firs'), (snap) => {
        setActiveFirs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 

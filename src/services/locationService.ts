@@ -23,17 +23,21 @@ export const getLiveLocation = async () => {
       provider: 'GPS_HARDWARE'
     };
   } catch (error) {
-    const coarse = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: false,
-      timeout: 15000,
-      maximumAge: 10000
-    });
-    return {
-      latitude: coarse.coords.latitude,
-      longitude: coarse.coords.longitude,
-      accuracy: coarse.coords.accuracy,
-      provider: 'NETWORK_LINK'
-    };
+    try {
+      const coarse = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: 20000,
+        maximumAge: 15000
+      });
+      return {
+        latitude: coarse.coords.latitude,
+        longitude: coarse.coords.longitude,
+        accuracy: coarse.coords.accuracy,
+        provider: 'NETWORK_LINK'
+      };
+    } catch (e) {
+      return null;
+    }
   }
 };
 

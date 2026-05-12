@@ -4,13 +4,13 @@ import { calculateHaversineDistance } from '../utils/geoUtils';
 import { executeEmergencyBlast } from '../services/sosService';
 
 export function useRideProtocol() {
-  const { isRideModeActive, rideData, updateRideData, userPos, user, setSOSActive, setActiveTab } = useKavachStore();
+  const { isRideModeActive, rideData, updateRideData, userPos, user, setSOSActive, setActiveTab, isSOSBlocked } = useKavachStore();
   const lastPosRef = useRef<[number, number] | null>(null);
   const consecutiveStopsRef = useRef(0);
   const baselineDistRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!isRideModeActive || !rideData || !rideData.targetCoords) return;
+    if (!isRideModeActive || !rideData || !rideData.targetCoords || isSOSBlocked) return;
 
     const interval = setInterval(() => {
       const distToTarget = calculateHaversineDistance(
@@ -71,7 +71,7 @@ export function useRideProtocol() {
       baselineDistRef.current = null;
       consecutiveStopsRef.current = 0;
     };
-  }, [isRideModeActive, rideData?.targetCoords, userPos]);
+  }, [isRideModeActive, rideData?.targetCoords, userPos, isSOSBlocked]);
 
   return null;
 }

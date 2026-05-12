@@ -49,7 +49,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const { t, language, setLanguage } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showProtectorOnboarding, setShowProtectorOnboarding] = useState(false);
-  const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive } = useKavachStore();
+  const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive, isSOSBlocked } = useKavachStore();
   const user = auth.currentUser;
 
 
@@ -220,9 +220,6 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         </div>
       </div>
 
-      {/* 🚨 SOS COMMAND OVERLAY */}
-      <SOSActiveOverlay />
-      
       {/* 🛡️ STREAMLINED PROTECTOR PLEDGE OVERLAY */}
       <AnimatePresence>
         {showProtectorOnboarding && (
@@ -273,7 +270,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         )}
       </AnimatePresence>
 
-      {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && (
+      {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && !isSOSBlocked && (
         <header className="relative z-[150] flex justify-between items-center mb-4 sm:mb-8 max-w-7xl mx-auto px-1">
           <div className="flex items-center gap-3 sm:gap-4">
                 <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-500 overflow-hidden border border-[#F1F5F9]">

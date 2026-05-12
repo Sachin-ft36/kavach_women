@@ -10,7 +10,7 @@ import { KavachSafe } from '../App';
  * Implements 'Hardware Handshake' to prevent Mic clashes.
  */
 export const useVoiceTrigger = () => {
-  const { isSOSActive, isVoiceTriggerActive, setSOSActive, isHubReady, isBriefingActive, setPendingSOS } = useKavachStore();
+  const { isSOSActive, isVoiceTriggerActive, setSOSActive, isHubReady, isBriefingActive, setPendingSOS, isSOSBlocked } = useKavachStore();
   const recognitionRef = useRef<any>(null);
   const helpCountRef = useRef(0);
   const lastHelpTimeRef = useRef(0);
@@ -20,7 +20,7 @@ export const useVoiceTrigger = () => {
     const { role } = useKavachStore.getState();
     const isResponder = role === 'protector' || role === 'super_cell' || role === 'admin';
 
-    if (!isVoiceTriggerActive || isSOSActive || isResponder || role === null || isBriefingActive) {
+    if (!isVoiceTriggerActive || isSOSActive || isResponder || role === null || isBriefingActive || isSOSBlocked) {
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
         recognitionRef.current.stop();
@@ -126,5 +126,5 @@ export const useVoiceTrigger = () => {
         recognitionRef.current = null;
       }
     };
-  }, [isSOSActive, isVoiceTriggerActive, isHubReady, isBriefingActive]);
+  }, [isSOSActive, isVoiceTriggerActive, isHubReady, isBriefingActive, isSOSBlocked]);
 };

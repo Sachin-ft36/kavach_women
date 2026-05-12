@@ -7,7 +7,7 @@ import { KavachSafe } from '../App';
  * 🧠 KAVACH AUDIO AI (Advanced Stress Detection)
  */
 export const useAudioAI = () => {
-  const { isSOSActive, setSOSActive, isHubReady, role, user } = useKavachStore();
+  const { isSOSActive, setSOSActive, isHubReady, role, user, isSOSBlocked } = useKavachStore();
   const [volume, setVolume] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -24,7 +24,7 @@ export const useAudioAI = () => {
     };
 
     const { isVoiceTriggerActive } = useKavachStore.getState();
-    if (role !== 'citizen' || isSOSActive || !isVoiceTriggerActive || !user) {
+    if (role !== 'citizen' || isSOSActive || !isVoiceTriggerActive || !user || isSOSBlocked) {
       stopAnalysis();
       return;
     }
@@ -47,8 +47,12 @@ export const useAudioAI = () => {
         dataArrayRef.current = dataArray;
 
         analyzeLoop();
-      } catch (err) {
-        console.error("🧠 AUDIO_AI: Hardware Access Denied", err);
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          console.warn("🧠 AUDIO_AI: Microphone access standby. (Permission Pending)");
+        } else {
+          console.error("🧠 AUDIO_AI: Hardware Access Denied", err);
+        }
       }
     };
 
@@ -96,7 +100,7 @@ export const useAudioAI = () => {
 
     startAnalysis();
     return () => stopAnalysis();
-  }, [isSOSActive, isHubReady, role]);
+  }, [isSOSActive, isHubReady, role, user, isSOSBlocked]);
 
   return { volume };
 };

@@ -10,9 +10,13 @@ service cloud.firestore {
       return isAuthenticated() && (
              request.auth.token.email == 'singh.sachin16559@gmail.com' ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell')
+              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell' ||
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperCell')) ||
+             (exists(/databases/$(database)/documents/male_users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/male_users/$(request.auth.uid)).data.role == 'super_cell') ||
+             (exists(/databases/$(database)/documents/women_users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/women_users/$(request.auth.uid)).data.role == 'super_cell')
       );
     }
 
@@ -32,7 +36,12 @@ service cloud.firestore {
     
     // 1. MASTER LEDGER (CITIZENS & PROTECTORS)
     match /users/{userId} {
-      allow read: if isAuthenticated(); 
+      allow read: if isAuthenticated() && (
+        isOwner(userId) || 
+        isAdmin() || 
+        isProtector() ||
+        resource.data.role == 'protector'
+      ); 
       allow write: if isOwner(userId) || isAdmin();
       
       // 🛡️ FORENSIC EVIDENCE VAULT (WORM: Write Once, Read Many)
@@ -81,9 +90,14 @@ service cloud.firestore {
 
     // --- 🚨 SOS ALERTS & JUSTICE ---
     match /alerts/{alertId} { 
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated(); 
       allow create: if isAuthenticated(); 
       allow update: if isAuthenticated(); 
+      allow delete: if isAdmin();
+      
+      match /evidence/{evidenceId} {
+        allow read, create: if isAuthenticated();
+      }
     }
 
     match /firs/{firId} {
@@ -94,7 +108,7 @@ service cloud.firestore {
 
     match /zero_firs/{firId} {
       allow create: if isAuthenticated(); 
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.victimUid || isAdmin());
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.victimUid);
       allow update, delete: if isAdmin();
     }
 
@@ -122,6 +136,14 @@ service cloud.firestore {
     match /protectors/{uid} { 
       allow read: if isAuthenticated();
       allow write: if isAdmin(); 
+    }
+
+    // --- ⚖️ NATIONAL ADJUDICATION REGISTRY (APPEALS) ---
+    match /appeals/{appealId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // --- 🚨 FINAL SAFETY NET ---

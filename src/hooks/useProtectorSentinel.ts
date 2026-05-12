@@ -13,7 +13,7 @@ import { toast } from 'sonner';
  * Optimized for battery and real-time response.
  */
 export function useProtectorSentinel() {
-  const { role, userPos, isRegistered, profile } = useKavachStore();
+  const { role, userPos, isRegistered, profile, isSOSBlocked } = useKavachStore();
   const activeAlertsRef = useRef<Set<string>>(new Set());
   const userPosRef = useRef(userPos);
 
@@ -46,7 +46,7 @@ export function useProtectorSentinel() {
   };
 
   const triggerInternalCheck = () => {
-    if (!userPosRef.current || role !== 'protector' || !profile?.isVerified) return;
+    if (!userPosRef.current || role !== 'protector' || !profile?.isVerified || isSOSBlocked) return;
     
     // 🎖️ PROTECTOR ELITE STATUS
     const occupation = profile?.protectorVetting?.occupation || '';
@@ -72,7 +72,7 @@ export function useProtectorSentinel() {
 
   useEffect(() => {
     // Only Protectors listen for nearby distress signals, and ONLY IF VERIFIED
-    if (!isRegistered || role !== 'protector' || !profile?.isVerified) return;
+    if (!isRegistered || role !== 'protector' || !profile?.isVerified || isSOSBlocked) return;
 
     // 🎖️ PROTECTOR ELITE STATUS
     const occupation = profile?.protectorVetting?.occupation || '';
@@ -166,7 +166,7 @@ export function useProtectorSentinel() {
         KavachNative.stopContinuousSiren().catch(() => {});
       }
     };
-  }, [role, isRegistered, profile]);
+  }, [role, isRegistered, profile, isSOSBlocked]);
 
   return null;
 }

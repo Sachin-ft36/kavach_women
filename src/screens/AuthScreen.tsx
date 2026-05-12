@@ -90,10 +90,33 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
             setLoading(false);
             return;
           }
-          loginEmail = snapshot.docs[0].data().email;
+
+          const userData = snapshot.docs[0].data();
+          if (userData.isPermanentlyBlocked) {
+            toast.error("TERMINAL LOCKOUT: This identity has been permanently blacklisted from the National Grid due to severe protocol violations.", {
+              description: "All access is summarily rejected by SuperCell Command.",
+              className: "bg-rose-950 border-rose-500 text-white font-black"
+            });
+            setLoading(false);
+            return;
+          }
+
+          loginEmail = userData.email;
         }
 
         const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
+
+        // 🛡️ Post-Auth Registry Validation
+        const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", userCred.user.uid)));
+        if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
+          await auth.signOut();
+          toast.error("TERMINAL LOCKOUT: This identity is permanently blacklisted.", {
+            className: "bg-rose-950 border-rose-500 text-white font-black"
+          });
+          setLoading(false);
+          return;
+        }
+
         if (!userCred.user.emailVerified) {
           toast.warning("Verification Required: Email not verified.");
           setNeedsVerification(true);
@@ -114,8 +137,22 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      await handleLogin();
+      // 🛡️ Google Auth requires post-auth check since we don't know the email/uid yet
+      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      
+      const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", result.user.uid)));
+      if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
+        await auth.signOut();
+        toast.error("TERMINAL LOCKOUT: This identity is blacklisted.", {
+          className: "bg-rose-950 border-rose-500 text-white font-black"
+        });
+        return;
+      }
+
       sessionStorage.setItem('kavach_just_logged_in', 'true');
+      toast.success("Login successful.");
     } catch (error: any) {
       toast.error(error.message || "Google Auth Error");
     } finally {

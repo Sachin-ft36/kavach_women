@@ -5,7 +5,7 @@ import {
   Activity, Zap, ShieldAlert, Ban, 
   CheckCircle2, Users, Search, Target, Clock,
   ChevronRight, Filter, Fingerprint, Car, X,
-  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck
+  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, getDocs, serverTimestamp } from 'firebase/firestore';
@@ -141,6 +141,8 @@ export function SOSManagement({
     ? (selectedAlert?.phone || selectedAlert?.victimPhone || selectedAlert?.phoneNumber)
     : (firstHistoryAlert?.phone || firstHistoryAlert?.victimPhone || firstHistoryAlert?.phoneNumber);
 
+  const [pendingAppeal, setPendingAppeal] = useState<any>(null);
+
   // 🛰️ DEEP PROFILE SEARCH (ID -> PHONE -> NAME)
   const findVictimProfile = () => {
     if (victimId && userStatusMap[victimId]) return userStatusMap[victimId];
@@ -167,6 +169,22 @@ export function SOSManagement({
   };
 
   const victimData = findVictimProfile() || victimDataFromAlert;
+
+  useEffect(() => {
+    if (victimId && victimData?.isSOSBlocked) {
+      const q = query(collection(db, 'appeals'), where('userId', '==', victimId), where('status', '==', 'pending'));
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          setPendingAppeal({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        } else {
+          setPendingAppeal(null);
+        }
+      });
+      return () => unsub();
+    } else {
+      setPendingAppeal(null);
+    }
+  }, [victimId, victimData?.isSOSBlocked]);
 
   const handleAction = async (type: 'warn' | 'ban') => {
     if (!victimData) return;
@@ -218,6 +236,52 @@ export function SOSManagement({
       setIsOverrideModalOpen(false);
     } catch (e) { toast.error("Override Failed"); }
     finally { setIsOverriding(false); }
+  };
+
+  const handleRestoreAccess = async (uid: string) => {
+    if (!window.confirm("COMMAND CENTER: Restore full tactical access?")) return;
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        isSOSBlocked: false,
+        isPermanentlyBlocked: false,
+        sosBlockedReason: null,
+        hasPendingWarning: false,
+        sosStrikeCount: 0
+      });
+
+      // ⚖️ Resolve Pending Appeal if exists
+      if (pendingAppeal?.id) {
+        await updateDoc(doc(db, 'appeals', pendingAppeal.id), {
+          status: 'resolved',
+          resolvedAt: serverTimestamp(),
+          resolvedBy: 'SuperCell Command'
+        });
+      }
+
+      toast.success("Access Restored. National Grid Updated.");
+    } catch (e) { toast.error("Restoration Failed."); }
+  };
+
+  const handlePermanentBan = async (uid: string) => {
+    if (!window.confirm("CRITICAL: Enforce Permanent Terminal Ban? This identity will be blacklisted.")) return;
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        isSOSBlocked: true,
+        isPermanentlyBlocked: true,
+        sosBlockedReason: "Permanent Grid Exclusion by SuperCell Command"
+      });
+
+      // ⚖️ Reject Pending Appeal if exists
+      if (pendingAppeal?.id) {
+        await updateDoc(doc(db, 'appeals', pendingAppeal.id), {
+          status: 'rejected',
+          resolvedAt: serverTimestamp(),
+          resolvedBy: 'SuperCell Command'
+        });
+      }
+
+      toast.error("Identity Blacklisted. Terminal Ban Active.");
+    } catch (e) { toast.error("Ban Failed."); }
   };
 
   return (
@@ -322,6 +386,54 @@ export function SOSManagement({
                            </div>
                         )}
                      </div>
+
+                      {/* 🛡️ DISCIPLINARY OVERLAY */}
+                      <AnimatePresence>
+                        {victimData?.isSOSBlocked && (
+                          <motion.div 
+                            initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                            animate={{ opacity: 1, backdropFilter: "blur(6px)" }}
+                            className="absolute inset-x-0 bottom-0 top-[15%] z-50 bg-rose-950/20 flex flex-col items-center justify-center p-12 text-center rounded-[3rem]"
+                          >
+                             <div className="max-w-md w-full bg-[#1E293B] border-2 border-rose-500/50 rounded-[40px] p-10 shadow-[0_0_100px_rgba(244,63,94,0.4)] space-y-8 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-rose-500 animate-pulse" />
+                                <div className="space-y-3">
+                                   <div className="w-20 h-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto border border-rose-500/20">
+                                      <Lock size={40} className="text-rose-500" />
+                                   </div>
+                                   <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Account Blocked</h2>
+                                   <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">
+                                      This identity has been restricted from the National Safety Grid. Adjudication Required.
+                                   </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                   <div className="bg-black/40 border border-white/5 rounded-3xl p-6 text-left">
+                                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-3">Victim Appeal Statement:</p>
+                                      <p className="text-xs font-bold text-gray-200 uppercase leading-relaxed italic">
+                                         {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL SUBMITTED."}
+                                      </p>
+                                   </div>
+
+                                   <div className="flex gap-3">
+                                      <button 
+                                         onClick={() => handleRestoreAccess(victimData.id)}
+                                         className="flex-1 py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                                      >
+                                         Restore Access
+                                      </button>
+                                      <button 
+                                         onClick={() => handlePermanentBan(victimData.id)}
+                                         className="flex-1 py-5 bg-black/40 border border-rose-900 text-rose-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all active:scale-[0.98]"
+                                      >
+                                         Permanent Ban
+                                      </button>
+                                   </div>
+                                </div>
+                             </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                      
                      {/* 🛡️ COMPACT ACTION BUTTONS */}
                      <div className="flex items-center gap-3">
@@ -369,7 +481,7 @@ export function SOSManagement({
 </div>
                           </div>
                            <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl mt-6">
-                              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                  <Shield size={12} className="text-blue-500" /> Active Tactical Responders
                               </p>
                               <div className="space-y-3">
@@ -384,7 +496,21 @@ export function SOSManagement({
                                              )}
                                           </div>
                                           <div className="flex flex-col">
-                                             <span className="text-[10px] font-black text-white uppercase italic leading-none">{responder.name}</span>
+                                             <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] font-black text-white uppercase italic leading-none">{responder.name}</span>
+                                                {(responder.xp || 0) >= 25000 && (
+                                                   <div className="px-1.5 py-0.5 bg-emerald-500 rounded flex items-center gap-0.5">
+                                                      <ShieldCheck size={6} className="text-white" />
+                                                      <span className="text-[5px] font-black text-white uppercase">VERIFIED</span>
+                                                   </div>
+                                                )}
+                                                {(responder.xp || 0) >= 100000 && (
+                                                   <div className="px-1.5 py-0.5 bg-gradient-to-r from-orange-500 via-white to-emerald-500 rounded flex items-center gap-0.5">
+                                                      <Globe size={6} className="text-blue-900" />
+                                                      <span className="text-[5px] font-black text-[#0F172A] uppercase">ASSET</span>
+                                                   </div>
+                                                )}
+                                             </div>
                                              <span className="text-[6px] font-black text-blue-500 uppercase tracking-widest mt-1">Status: Intercepting</span>
                                           </div>
                                        </div>
@@ -465,20 +591,38 @@ export function SOSManagement({
                                 </div>
                                 <div className="grid grid-cols-2 gap-8">
                                    <div className="bg-black/20 p-5 rounded-2xl border border-white/5">
-                                      <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-2">Closing Reason (Citizen App)</p>
-                                      <p className="text-[10px] font-bold text-white uppercase italic">{incident.resolutionReason || 'Self Resolved / App Closed'}</p>
+                                      <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-2">Closing Reason (Mission Resolution)</p>
+                                      <div className="flex flex-col gap-1">
+                                         <p className="text-[10px] font-bold text-white uppercase italic">
+                                            {incident.verification?.verifiedBy ? (
+                                               <span className="text-emerald-400">Verified Rescue Completed</span>
+                                            ) : (incident.resolutionReason || 'Self Resolved / App Closed')}
+                                         </p>
+                                         {incident.verification?.closureReason && (
+                                            <p className="text-[8px] font-medium text-gray-400 italic">"{incident.verification.closureReason}"</p>
+                                         )}
+                                      </div>
                                    </div>
                                    <div className="bg-black/20 p-5 rounded-2xl border border-white/5">
-                                      <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-2">Operational Responders</p>
+                                      <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-2">Operational Responders & Savior</p>
                                       <div className="flex flex-wrap gap-2 mt-1">
-                                         {incident.assignedProtectors && incident.assignedProtectors.length > 0 ? (
-                                            incident.assignedProtectors.map((pid: string) => (
-                                               <span key={pid} className="px-3 py-1 bg-blue-600/20 text-blue-400 text-[8px] font-black rounded-lg border border-blue-400/10 uppercase tracking-tighter">
-                                                  {userStatusMap[pid]?.name || 'Protector Node'}
-                                               </span>
-                                            ))
+                                         {incident.verification?.verifiedBy && (
+                                            <div className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] font-black rounded-lg border border-emerald-400/20 uppercase tracking-tighter flex items-center gap-1.5">
+                                               <ShieldCheck size={10} />
+                                               LIFE SAVER: {userStatusMap[incident.verification.verifiedBy]?.name || 'Protector Node'}
+                                            </div>
+                                         )}
+                                         {incident.activeResponders && incident.activeResponders.length > 0 ? (
+                                            incident.activeResponders.map((resp: any) => {
+                                               if (resp.uid === incident.verification?.verifiedBy) return null;
+                                               return (
+                                                  <span key={resp.uid || resp.id} className="px-3 py-1 bg-blue-600/10 text-blue-400 text-[8px] font-black rounded-lg border border-blue-400/10 uppercase tracking-tighter">
+                                                     {resp.name || userStatusMap[resp.uid || resp.id]?.name || 'Supporting Node'}
+                                                  </span>
+                                               );
+                                            })
                                          ) : (
-                                            <p className="text-[10px] font-bold text-gray-500 uppercase italic">No Grid Responders Linked</p>
+                                            !incident.verification?.verifiedBy && <p className="text-[10px] font-bold text-gray-500 uppercase italic">No Grid Responders Linked</p>
                                          )}
                                       </div>
                                    </div>

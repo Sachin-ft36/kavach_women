@@ -208,7 +208,10 @@ export default function RideSafeOverlay({
               </div>
 
               <button 
-                onClick={() => setSOSActive(true, null, 'ride')}
+                onClick={() => {
+                  setSOSActive(true, null, 'ride');
+                  onClose();
+                }}
                 className="w-full py-5 sm:py-6 bg-red-600 text-white rounded-[24px] sm:rounded-[32px] text-[10px] sm:text-xs font-black uppercase tracking-[2.5px] sm:tracking-[3px] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-red-600/30 active:scale-95 transition-all"
               >
                  <span>Trigger Interception Protocol</span>

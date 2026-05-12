@@ -14,6 +14,9 @@ import { useAudioAI } from './hooks/useAudioAI';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeBackgroundSentinel } from './services/BackgroundSentinelService';
 import SOSConfirmationOverlay from './components/SOSConfirmationOverlay';
+import WarningOverlay from './components/WarningOverlay';
+import BanOverlay from './components/BanOverlay';
+import RemoteCommandListener from './components/RemoteCommandListener';
 import { TacticalCallOverlay } from './components/TacticalCallOverlay';
 
 const SOSButton = React.lazy(() => import('./components/SOSButton'));
@@ -28,7 +31,6 @@ const Rewards = React.lazy(() => import('./components/Rewards'));
 const AuthScreen = React.lazy(() => import('./screens/AuthScreen'));
 const DashboardScreen = React.lazy(() => import('./screens/DashboardScreen'));
 const SOSScreen = React.lazy(() => import('./screens/SOSScreen'));
-const SpecialCellScreen = React.lazy(() => import('./screens/SpecialCellScreen'));
 const MissionHistoryScreen = React.lazy(() => import('./screens/MissionHistoryScreen'));
 const GuideScreen = React.lazy(() => import('./screens/GuideScreen'));
 const ProtectorGuideScreen = React.lazy(() => import('./screens/ProtectorGuideScreen'));
@@ -55,7 +57,6 @@ import {
   Shield
 } from 'lucide-react';
 import KavachAIChat from './components/KavachAIChat';
-import RemoteCommandListener from './components/RemoteCommandListener';
 import StealthOverlay from './components/StealthOverlay';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
@@ -162,6 +163,7 @@ export default function App() {
   const [showFailSafe, setShowFailSafe] = useState(false);
   const handleHardReset = () => { localStorage.clear(); window.location.reload(); };
   const isSOSActive = useKavachStore(state => state.isSOSActive);
+  const handshakeCode = useKavachStore(state => state.handshakeCode);
   const activeTab = useKavachStore(state => state.activeTab);
   const role = useKavachStore(state => state.role);
   const isRegistered = useKavachStore(state => state.isRegistered);
@@ -181,8 +183,10 @@ export default function App() {
     setLoading,
     handleManualUnlock, isFakeCallActive, setFakeCallActive, setGuardianCache,
     isHubReady, setHubReady, setSafetyPin, performanceMode, setProfile,
-    isOverlayActive
+    isOverlayActive, isSOSBlocked
   } = useKavachStore();
+
+  // ... (some code)
 
   // 🛡️ RECOVERY PROTOCOL: Ensure triggerMethod is restored from storage if state is lost
   useEffect(() => {
@@ -262,21 +266,53 @@ export default function App() {
     const storedRole = localStorage.getItem('kavach_user_role');
     const effectiveRole = role || storedRole;
 
-    if (isSOSActive && effectiveRole === 'citizen') {
-      console.log(`🚨 KAVACH NAV: SOS detected. Redirecting... | Current Tab: ${activeTab}`);
+    if (isSOSActive && (effectiveRole === 'citizen' || user?.email === 'singh.sachin16559@gmail.com')) {
       if (activeTab !== 'sos') {
         setActiveTab('sos');
       }
     }
-  }, [isSOSActive, role, activeTab, setActiveTab]);
+  }, [isSOSActive, role, activeTab, setActiveTab, user]);
+
+  // 🛡️ SOS RECOVERY ENGINE: Sync local state with Cloud Hub on mount/refresh
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(
+      collection(db, 'alerts'), 
+      where('victimUid', '==', user.uid),
+      where('status', 'in', ['active', 'responding', 'rescued_pending_victim_clearance'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const activeAlert = snapshot.docs[0];
+        const alertData = activeAlert.data();
+        console.log("🛰️ KAVACH RECOVERY: Active Mission Detected in Cloud Hub. Syncing local state...");
+        if (!isSOSActive || (alertData.handshakeCode && handshakeCode !== alertData.handshakeCode)) {
+          setSOSActive(true, activeAlert.id, alertData.type || 'remote', null, alertData.handshakeCode);
+        }
+      } else {
+        // 🛡️ RACE CONDITION SHIELD: Do not stand down if the SOS was triggered very recently (within 10s)
+        const lastTrigger = localStorage.getItem('kavach_last_trigger_time');
+        const isRecentlyTriggered = lastTrigger && (Date.now() - parseInt(lastTrigger) < 10000);
+
+        if (isSOSActive && !isRecentlyTriggered) {
+          console.log("✅ KAVACH RECOVERY: Mission Resolved in Cloud Hub. Standing down.");
+          setSOSActive(false);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // 🛡️ ROLE-AWARE SNAPBACK: Ensure Protectors never stay on the SOS interface
   useEffect(() => {
-    if (activeTab === 'sos' && role === 'protector') {
+    if (activeTab === 'sos' && role === 'protector' && user?.email !== 'singh.sachin16559@gmail.com') {
       console.log("🛡️ KAVACH NAV: Protector detected on Victim interface. Snapping back to Command...");
       setActiveTab('dashboard');
     }
-  }, [activeTab, role, setActiveTab]);
+  }, [activeTab, role, setActiveTab, user]);
 
   useEffect(() => {
     // 🛰️ GUARDIAN LINK DETECTION
@@ -310,9 +346,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let activePulse: { watchId: any, pulseInterval: any } | null = null;
+    let activePulse: any = null;
+    
     const startTracking = async () => {
-      if (user && isRegistered && isHardwareSynced && isHubReady) {
+      if (user && isRegistered && isHardwareSynced && !isSOSBlocked && isHubReady) {
         const state = useKavachStore.getState();
         activePulse = await watchLiveLocation((pos, acc) => {
           setUserPos(pos);
@@ -341,7 +378,7 @@ export default function App() {
       }
       listener.then(l => l.remove());
     };
-  }, [user, isRegistered, isHardwareSynced, performanceMode]);
+  }, [user, isRegistered, isHardwareSynced, performanceMode, isSOSBlocked]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -508,6 +545,8 @@ export default function App() {
   return (
     <>
       <SOSConfirmationOverlay />
+      <WarningOverlay />
+      <BanOverlay />
       <RemoteCommandListener />
       <React.Suspense fallback={
         <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
@@ -527,6 +566,8 @@ export default function App() {
               }} />
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
+            ) : isSOSActive ? (
+              <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : user?.email === 'singh.sachin16559@gmail.com' ? (
               <Layout 
                 isGhostMode={isGhostMode} 
@@ -539,8 +580,6 @@ export default function App() {
               >
                 <SuperCellDashboard viewMode={activeTab === 'dashboard' ? 'COMMAND' : activeTab} onTabChange={setActiveTab} />
               </Layout>
-            ) : (isSOSActive && (role === 'citizen' || (localStorage.getItem('kavach_user_role') || 'citizen') === 'citizen')) ? (
-              <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : (!isRegistered || !isHardwareSynced) ? (
               <div className="w-full h-full">
                 <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
@@ -557,7 +596,7 @@ export default function App() {
       </React.Suspense>
 
       {/* 🚀 GLOBAL TACTICAL SHELL (TRULY FIXED VIA PORTAL) */}
-      {!isSOSActive && !isOverlayActive && !['radar', 'special_cell'].includes(activeTab) && user && !trackId && isRegistered && isHardwareSynced && createPortal(
+      {!isSOSActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced && createPortal(
         <>
           <motion.nav 
             initial={{ y: 120, opacity: 0 }}
@@ -585,7 +624,6 @@ export default function App() {
                   <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Home" />
                   <NavButton active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} icon={<Globe size={20} />} label="Radar" />
                   <NavButton active={activeTab === 'contacts'} onClick={() => setActiveTab('contacts')} icon={<Users size={20} />} label="Guardians" />
-                  <NavButton active={activeTab === 'special_cell'} onClick={() => setActiveTab('special_cell')} icon={<ShieldCheck size={20} />} label="Safety Cell" />
                   <NavButton active={activeTab === 'vault'} onClick={() => setActiveTab('vault')} icon={<Upload size={20} />} label="Vault" />
                 </>
               )}
@@ -688,7 +726,6 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
       case 'sos': return (isVisible && role === 'citizen') ? <SOSScreen key="sos" isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} /> : null;
       case 'vault': return isVisible ? <div key="vault" className="max-w-2xl mx-auto"><EvidenceVault /></div> : null;
       case 'contacts': return isVisible ? <div key="contacts" className="max-w-2xl mx-auto"><EmergencyContacts /></div> : null;
-      case 'special_cell': return isVisible ? <div key="special_cell" className="max-w-2xl mx-auto"><SpecialCellScreen /></div> : null;
       case 'radar': return isVisible ? <div key="radar" className="max-w-4xl mx-auto px-4"><ProtectorsRadarScreen /></div> : null;
       case 'rewards': return isVisible ? <div key="rewards" className="max-w-2xl mx-auto"><Rewards /></div> : null;
       case 'history': return isVisible ? <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div> : null;
@@ -700,7 +737,7 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
   };
 
   // 🛡️ TACTICAL STACK SEPARATION
-  const citizenStack = ['dashboard', 'map', 'sos', 'vault', 'contacts', 'special_cell', 'history'];
+  const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history'];
   const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history'];
   const adminStack = ['dashboard', 'map', 'vault', 'history'];
   

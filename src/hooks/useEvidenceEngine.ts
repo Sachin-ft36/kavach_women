@@ -38,7 +38,7 @@ async function saveToLocalBlackbox(fileName: string, blob: Blob, type: string) {
 }
 
 export const useEvidenceEngine = () => {
-  const { isSOSActive, activeAlertId, user, userPos } = useKavachStore();
+  const { isSOSActive, activeAlertId, user, userPos, isSOSBlocked } = useKavachStore();
   const snapshotIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Hardware Media Refs
@@ -58,7 +58,7 @@ export const useEvidenceEngine = () => {
   }, [userPos]);
 
   useEffect(() => {
-    if (isSOSActive && activeAlertId && user) {
+    if (isSOSActive && activeAlertId && user && !isSOSBlocked) {
       if (isHardwareLocked.current) return;
       isHardwareLocked.current = true;
       
@@ -100,6 +100,7 @@ export const useEvidenceEngine = () => {
                   await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
                     type: 'Audio Log', timestamp: serverTimestamp(), status: 'Immutable Anchor',
                     hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
+                    victimUid: user.uid,
                     metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'TACTICAL_SILENT_AUDIO', storage: 'FIREBASE_BUCKET' }
                   });
                } catch (e) {
@@ -108,6 +109,7 @@ export const useEvidenceEngine = () => {
                     await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
                       type: 'Audio Log', timestamp: serverTimestamp(), status: 'LOCAL_BACKUP_ONLY',
                       hash: await generateForensicHash(`AUDIO-${timestamp}-${user.uid}`), coords: userPosRef.current, url: localPath, isLocalBackup: true,
+                      victimUid: user.uid,
                       metadata: { auth: 'SHA-256-OFFLINE', mode: 'LOCAL_BLACKBOX_STORAGE' }
                     });
                   }
@@ -136,6 +138,7 @@ export const useEvidenceEngine = () => {
               await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
                 type: 'CCTV_FEED', timestamp: serverTimestamp(), status: 'LIVE_BRIDGE_ACTIVE',
                 hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
+                victimUid: user.uid,
                 metadata: { auth: 'SHA-256-AES-ENCRYPTED', mode: 'TACTICAL_CCTV_UPLINK' }
               });
             } catch (e) {}
@@ -162,6 +165,7 @@ export const useEvidenceEngine = () => {
                   await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
                     type: 'Snapshot', timestamp: serverTimestamp(), status: 'Immutable Anchor',
                     hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
+                    victimUid: user.uid,
                     metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'REAL_HARDWARE_CAPTURE' }
                   });
                 } catch (e) {}
@@ -196,7 +200,7 @@ export const useEvidenceEngine = () => {
       if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
       if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      isHardwareLocked.current = false;
-    };
-  }, [isSOSActive, activeAlertId, user]);
+      mediaStreamRef.current = null;
+    }
+  }, [isSOSActive, activeAlertId, user, isSOSBlocked]);
 };

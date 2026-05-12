@@ -178,7 +178,23 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
       </div>
 
       <div className="relative z-10 space-y-6 sm:space-y-10">
-        <ZeroFIR evidenceLogs={logs} />
+        {(() => {
+          // 🛡️ FORENSIC INTEGRITY: Identify evidence already anchored in existing FIRs
+          const usedEvidenceIds = new Set();
+          firs.forEach(fir => {
+            if (Array.isArray(fir.evidence)) {
+              fir.evidence.forEach((ev: any) => {
+                // Check for various possible identifiers (id, hash, or url)
+                if (ev.id) usedEvidenceIds.add(ev.id);
+                if (ev.hash) usedEvidenceIds.add(ev.hash);
+              });
+            }
+          });
+
+          const unusedLogs = logs.filter(log => !usedEvidenceIds.has(log.id) && !usedEvidenceIds.has(log.hash));
+
+          return <ZeroFIR evidenceLogs={unusedLogs} />;
+        })()}
 
         {/* 📋 COMPLAINT HISTORY SECTION */}
         <div className="space-y-6">
@@ -294,21 +310,76 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
 
         {/* 📊 EVIDENCE HISTORY LOG */}
         <div className="space-y-6">
-          <h3 className="text-xs font-black text-[#94A3B8] uppercase tracking-[4px] px-2">Evidence History</h3>
+          <div className="flex items-center gap-3 px-2">
+            <Database size={18} className="text-[#94A3B8]" />
+            <h3 className="text-xs font-black text-[#94A3B8] uppercase tracking-[4px]">Forensic Ledger</h3>
+          </div>
           
-          <div className="bg-white/40 backdrop-blur-sm border-2 border-dashed border-[#F1F5F9] rounded-[32px] p-10 sm:p-20 flex flex-col items-center text-center gap-6">
-            <div className="relative">
-               <Database size={48} className="text-[#E2E8F0]" />
-               <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border border-[#E2E8F0] flex items-center justify-center">
-                  <Clock size={10} className="text-[#94A3B8]" />
-               </div>
-            </div>
-            <div>
-              <h4 className="font-bold text-[#94A3B8] uppercase tracking-[2px] text-[10px]">Vault Activity Monitor</h4>
-              <p className="text-[11px] text-[#64748B] mt-2 max-w-xs leading-relaxed font-medium">
-                Emergency recordings and evidence will appear here.
-              </p>
-            </div>
+          <div className="grid gap-4">
+            {logs.length > 0 ? (
+              logs.map((log) => {
+                const firsWithThisEvidence = firs.filter(f => 
+                  f.evidence?.some((ev: any) => ev.id === log.id || ev.hash === log.hash)
+                );
+                const isLinked = firsWithThisEvidence.length > 0;
+
+                return (
+                  <motion.div
+                    key={log.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/60 backdrop-blur-md border border-[#F1F5F9] rounded-[24px] p-4 flex items-center justify-between group hover:bg-white transition-all shadow-sm"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
+                        log.type?.includes('SOS') ? "bg-red-50 text-red-500 border-red-100" : "bg-blue-50 text-blue-500 border-blue-100"
+                      )}>
+                        {log.type?.includes('Audio') ? <Mic size={20} /> : <Video size={20} />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-[#1E293B] text-sm truncate">{log.type}</h4>
+                          {isLinked && (
+                            <span className="px-2 py-0.5 bg-emerald-50 text-[#059669] border border-emerald-100 rounded-md text-[8px] font-black uppercase tracking-tighter">
+                              Linked to Case
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                       {log.url && (
+                         <button 
+                           onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
+                           className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
+                         >
+                           <Download size={16} />
+                         </button>
+                       )}
+                       <span className="text-[10px] font-mono text-gray-300 font-bold pr-2">#{log.hash.slice(0,8)}</span>
+                    </div>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="bg-white/40 backdrop-blur-sm border-2 border-dashed border-[#F1F5F9] rounded-[32px] p-10 sm:p-20 flex flex-col items-center text-center gap-6">
+                <div className="relative">
+                   <Database size={48} className="text-[#E2E8F0]" />
+                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border border-[#E2E8F0] flex items-center justify-center">
+                      <Clock size={10} className="text-[#94A3B8]" />
+                   </div>
+                </div>
+                <div>
+                  <h4 className="font-bold text-[#94A3B8] uppercase tracking-[2px] text-[10px]">Vault Activity Monitor</h4>
+                  <p className="text-[11px] text-[#64748B] mt-2 max-w-xs leading-relaxed font-medium">
+                    No forensic records detected in your safety grid.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

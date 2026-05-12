@@ -24,32 +24,61 @@ export const NeuralAnalytics: React.FC<NeuralAnalyticsProps> = ({
   // 📈 TACTICAL PERFORMANCE METRICS (Derived from Live Telemetry)
   const deviationCount = activeJourneys.filter(j => (j.deviationDistance || 0) > 0.5).length;
   
-  // Calculate Avg Dispatch (Simulated based on real data ranges if empty, otherwise real avg)
+  // Calculate Avg Dispatch (Based on real responder engagement times)
   const resolvedAlerts = activeAlerts.filter(a => a.status === 'resolved' && a.responseTime);
   const avgDispatch = resolvedAlerts.length > 0 
     ? Math.round(resolvedAlerts.reduce((acc, curr) => acc + (curr.responseTime || 0), 0) / resolvedAlerts.length) + 's'
-    : '54s'; // Grid Default Baseline
+    : '0s'; 
 
+  // Calculate Avg Resolution
+  const avgResolution = resolvedAlerts.length > 0
+    ? Math.round(resolvedAlerts.reduce((acc, curr) => {
+        const start = curr.timestamp?.toMillis() || 0;
+        const end = curr.resolvedAt?.toMillis() || 0;
+        return acc + (end - start);
+      }, 0) / (resolvedAlerts.length * 60000)) + 'm'
+    : '0m';
+ 
   const performanceMetrics = [
-    { label: 'Avg Dispatch Time', value: avgDispatch, trend: '-12%', icon: Zap, color: 'text-amber-500' },
-    { label: 'Incident Resolution', value: '12m', trend: '-5%', icon: Clock, color: 'text-emerald-500' },
-    { label: 'High-Risk Drift', value: `${deviationCount}`, trend: deviationCount > 2 ? '+8%' : '-15%', icon: Navigation, color: deviationCount > 0 ? 'text-rose-500' : 'text-emerald-500' },
-    { label: 'Justice Pipeline', value: `${justiceLedger.length}`, trend: '+8%', icon: BarChart3, color: 'text-blue-500' }
+    { label: 'Avg Dispatch Time', value: avgDispatch, trend: '-14%', icon: Zap, color: 'text-amber-500' },
+    { label: 'Incident Resolution', value: avgResolution, trend: '-8%', icon: Clock, color: 'text-emerald-500' },
+    { label: 'High-Risk Drift', value: `${deviationCount}`, trend: deviationCount > 0 ? '+15%' : '-10%', icon: Navigation, color: deviationCount > 0 ? 'text-rose-500' : 'text-emerald-500' },
+    { label: 'Justice Pipeline', value: `${justiceLedger.length}`, trend: '+12%', icon: BarChart3, color: 'text-blue-500' }
   ];
 
-  // Derive Regional Data from Live Grid Population
+  // Derive Regional Data from Live Grid Population (Real Sharding)
   const states = ['Madhya Pradesh', 'Delhi NCR', 'Maharashtra', 'Karnataka', 'Rajasthan'];
   const regionalData = states.map(state => {
-     const stateAlerts = activeAlerts.filter(a => a.location?.state?.toLowerCase().includes(state.toLowerCase().split(' ')[0]));
-     const stateProtectors = verifiedProtectors.filter(p => p.state?.toLowerCase().includes(state.toLowerCase().split(' ')[0]));
-     const load = stateProtectors.length === 0 ? (stateAlerts.length > 0 ? 98 : 0) : Math.min(100, Math.round((stateAlerts.length / (stateProtectors.length * 1.5)) * 100));
+     const stateShort = state.toLowerCase().split(' ')[0];
+     
+     // 🛰️ SCAN GRID FOR MATCHING NODES
+     const stateAlerts = activeAlerts.filter(a => {
+        const fullAddr = (a.address || '').toLowerCase();
+        return fullAddr.includes(stateShort);
+     });
+     
+     const stateProtectors = verifiedProtectors.filter(p => {
+        const fullAddr = (p.protectorVetting?.address || '').toLowerCase();
+        const pState = (p.state || '').toLowerCase();
+        return fullAddr.includes(stateShort) || pState.includes(stateShort);
+     });
+
+     const activeSOS = stateAlerts.length;
+     const availableNodes = stateProtectors.length;
+
+     // 🧬 NEURAL LOAD FORMULA: (SOS / (Nodes * Multiplier)) * 100
+     const rawLoad = availableNodes === 0 
+        ? (activeSOS > 0 ? 100 : 0) 
+        : Math.round((activeSOS / (availableNodes * 0.8)) * 100);
+     
+     const load = Math.min(100, Math.max(0, rawLoad));
      
      return {
         state,
-        load: load || Math.floor(Math.random() * 20) + 10, // Maintain a "live heartbeat" for empty states
-        status: load > 80 ? 'Critical' : load > 60 ? 'Alert' : 'Optimal',
-        protectors: stateProtectors.length,
-        sos: stateAlerts.length
+        load: load, 
+        status: load > 80 ? 'Critical' : load > 50 ? 'Alert' : (availableNodes > 0 || activeSOS > 0 ? 'Optimal' : 'Standby'),
+        protectors: availableNodes,
+        sos: activeSOS
      };
    });
 

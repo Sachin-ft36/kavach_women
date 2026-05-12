@@ -10,7 +10,17 @@ import { cn } from '../../lib/utils';
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
 
-export function TransitIntelligence({ journeys, onJourneyClick, userStatusMap = {} }: { journeys: any[], onJourneyClick: (id: string) => void, userStatusMap?: Record<string, any> }) {
+export function TransitIntelligence({ 
+  journeys, 
+  onJourneyClick, 
+  onNavigate,
+  userStatusMap = {} 
+}: { 
+  journeys: any[], 
+  onJourneyClick: (id: string) => void, 
+  onNavigate?: (tab: string) => void,
+  userStatusMap?: Record<string, any> 
+}) {
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
@@ -128,7 +138,14 @@ export function TransitIntelligence({ journeys, onJourneyClick, userStatusMap = 
                     </div>
 
                     <div className="flex gap-2">
-                       <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2">
+                       <button 
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           onJourneyClick(journey.userId);
+                           onNavigate?.('MAP');
+                         }}
+                         className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+                       >
                           <Navigation size={12} /> Live Trace
                        </button>
                        <button className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest transition-all">

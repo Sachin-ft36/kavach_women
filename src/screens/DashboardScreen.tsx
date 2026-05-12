@@ -33,7 +33,8 @@ export default function DashboardScreen() {
     batteryLevel, gender, userPos, syncLocation, 
     setFakeCallActive, isBatteryExempt, setBatteryExempt,
     isSOSActive, isRideModeActive, rideData, updateRideData,
-    setBriefingActive, verifiedProtectorCount, setOverlayActive
+    setBriefingActive, verifiedProtectorCount, setOverlayActive,
+    setActiveTab, setIsFirFlowActive
   } = useKavachStore();
   const { language } = useLanguage();
 
@@ -46,7 +47,6 @@ export default function DashboardScreen() {
   const [isAIChatOpen, setIsAIChatOpen] = React.useState(false);
   const [isShadowOpen, setIsShadowOpen] = React.useState(false);
   const [isFakeCallHubOpen, setIsFakeCallHubOpen] = React.useState(false);
-  const [isZeroFIROpen, setIsZeroFIROpen] = React.useState(false);
   const [isSafeTimerOpen, setIsSafeTimerOpen] = React.useState(false);
   const [isNearbyHubOpen, setIsNearbyHubOpen] = React.useState(false);
   const [isRideSafeOpen, setIsRideSafeOpen] = React.useState(isRideModeActive);
@@ -224,7 +224,17 @@ export default function DashboardScreen() {
           <ActionCard icon={<Shield />} title="Nearby Help" desc={`${verifiedProtectorCount > 0 ? verifiedProtectorCount : 'Multiple'} protectors standing by`} tint="#ECFDF3" iconColor="#22C55E" onClick={() => toggleOverlay(setIsNearbyHubOpen, true)} />
           <ActionCard icon={<EyeOff />} title="ThreatProtect" desc="Silent safety recording" tint="#EEF2FF" iconColor="#3B82F6" onClick={() => toggleOverlay(setIsShadowOpen, true)} />
           <ActionCard icon={<MapPin />} title="Safe Journey" desc="Live travel protection" tint="#EFF6FF" iconColor="#0EA5E9" onClick={() => toggleOverlay(setIsRideSafeOpen, true)} />
-          <ActionCard icon={<FileText />} title="Digital Complaint" desc="Online FIR support" tint="#F8FAFC" iconColor="#64748B" onClick={() => toggleOverlay(setIsZeroFIROpen, true)} />
+          <ActionCard 
+            icon={<FileText />} 
+            title="Digital Complaint" 
+            desc="Online FIR support" 
+            tint="#F8FAFC" 
+            iconColor="#64748B" 
+            onClick={() => {
+              setActiveTab('vault');
+              setIsFirFlowActive(true);
+            }} 
+          />
           <ActionCard icon={<PhoneCall />} title="FakeCall" desc="Quick exit assistance" tint="#FFF7ED" iconColor="#F59E0B" onClick={() => toggleOverlay(setIsFakeCallHubOpen, true)} />
           <ActionCard icon={<Clock />} title="Safe Timer" desc="Reach home safely" tint="#FFF4EE" iconColor="#F97316" onClick={() => toggleOverlay(setIsSafeTimerOpen, true)} />
         </div>
@@ -232,7 +242,6 @@ export default function DashboardScreen() {
       </main>
 
       <RideSafeOverlay isOpen={isRideSafeOpen} onClose={() => toggleOverlay(setIsRideSafeOpen, false)} isRideActive={isRideActive} setIsRideActive={setIsRideActive} vehicleNo={vehicleNo} setVehicleNo={setVehicleNo} />
-      <ZeroFIRModal isOpen={isZeroFIROpen} onClose={() => toggleOverlay(setIsZeroFIROpen, false)} />
       <SafeTimerModal isOpen={isSafeTimerOpen} onClose={() => toggleOverlay(setIsSafeTimerOpen, false)} />
       <NearbyHubModal isOpen={isNearbyHubOpen} onClose={() => toggleOverlay(setIsNearbyHubOpen, false)} />
       <ShadowProtectMode isOpen={isShadowOpen} onClose={() => toggleOverlay(setIsShadowOpen, false)} />

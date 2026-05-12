@@ -20,10 +20,11 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
     occurenceTime: '',
     offenseType: '',
     suspectDetails: '',
+    policeStation: '',
     victimStatement: ''
   });
 
-  const { userPos, activeAlertId, triggerMethod } = useKavachStore();
+   const { userPos, activeAlertId, triggerMethod, isFirFlowActive, setIsFirFlowActive, setOverlayActive } = useKavachStore();
 
   const generateFIR = async () => {
     setIsGenerating(true);
@@ -56,6 +57,7 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
               userPhone: { stringValue: localStorage.getItem('kavach_user_phone') || 'UNREGISTERED' },
               offenseType: { stringValue: firForm.offenseType || 'UNDEFINED' },
               statement: { stringValue: firForm.victimStatement || 'NO_STATEMENT_PROVIDED' },
+              policeStation: { stringValue: firForm.policeStation || 'NEAREST_AVAILABLE_STATION' },
               status: { stringValue: "UNDER_REVIEW" },
               state: { stringValue: String(meta.state || 'Unknown') },
               triggerMethod: { stringValue: String(triggerMethod || 'MANUAL') },
@@ -102,6 +104,18 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
       setIsGenerating(false);
     }
   };
+
+  useEffect(() => {
+    if (isFirFlowActive) {
+      setShowReviewModal(true);
+      setIsFirFlowActive(false);
+    }
+  }, [isFirFlowActive, setIsFirFlowActive]);
+
+  useEffect(() => {
+    setOverlayActive(showReviewModal);
+    return () => setOverlayActive(false);
+  }, [showReviewModal, setOverlayActive]);
 
   const downloadFIR = async () => {
     if (!firData) return;
@@ -169,9 +183,12 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
       doc.text(`FILING DATE/TIME:`, 20, 89);
       doc.text(timestamp, 65, 89);
       
-      doc.text(`INCIDENT CATEGORY:`, 20, 96);
-      doc.setFont("helvetica", "bold");
       doc.text(firForm.offenseType.toUpperCase(), 65, 96);
+      
+      doc.setFont("helvetica", "normal");
+      doc.text(`JURISDICTION STATION:`, 20, 103);
+      doc.setFont("helvetica", "bold");
+      doc.text(firForm.policeStation.toUpperCase() || "ZERO FIR (NATIONWIDE)", 65, 103);
 
       // 🖋️ STATEMENT SECTION
       doc.setFontSize(11);
@@ -304,32 +321,37 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
 
       <AnimatePresence>
         {showReviewModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-10 bg-gray-900/60 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-5xl bg-white border border-[#E5E7EB] shadow-2xl rounded-[32px] sm:rounded-[40px] overflow-hidden flex flex-col max-h-[75vh] sm:max-h-[90vh] my-auto">
-              
-              <div className="flex justify-between items-center p-5 sm:p-8 border-b border-gray-100 bg-gray-50">
-                <div className="flex items-center gap-4 sm:gap-6">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center border border-[#2563EB]/10 shrink-0">
-                    <FileText className="text-[#2563EB]" size={32} strokeWidth={1.5} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-[#1E293B] leading-none">Digital Complaint Center</h3>
-                    <p className="text-[9px] sm:text-[10px] text-[#64748B] font-bold uppercase tracking-widest mt-1.5">National Safety Reporting Portal</p>
-                  </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 100 }} 
+            className="fixed inset-0 z-[10000] bg-[#F8FAFC] flex flex-col"
+          >
+            {/* 🛡️ TACTICAL HEADER */}
+            <div className="p-6 bg-white border-b border-[#E5E7EB] flex items-center justify-between sticky top-0 z-[101]">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center text-[#2563EB]">
+                  <Shield size={24} />
                 </div>
-                <button onClick={() => setShowReviewModal(false)} className="w-10 h-10 sm:w-12 sm:h-12 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-2xl flex items-center justify-center text-gray-400 hover:text-gray-900 transition-all shadow-sm active:scale-90 shrink-0">
-                  <X size={18} />
-                </button>
+                <div>
+                  <h2 className="text-xl font-black text-[#111827] uppercase tracking-tighter italic leading-none">Digital Complaint Center</h2>
+                  <p className="text-[10px] font-black text-[#2563EB] uppercase tracking-[3px] mt-1.5 opacity-60">National Safety Reporting Portal</p>
+                </div>
               </div>
+              <button 
+                onClick={() => setShowReviewModal(false)}
+                className="p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all text-gray-500 active:scale-90"
+              >
+                <X size={24} />
+              </button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-5 sm:p-10 custom-scrollbar bg-white">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-12">
+              <div className="max-w-5xl mx-auto w-full bg-white border border-[#E5E7EB] shadow-sm rounded-[3rem] overflow-hidden flex flex-col">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 p-8 sm:p-12">
                   {/* Left: Forensic Evidence Summary */}
                   <div className="space-y-6 sm:space-y-8">
                     <div className="p-5 sm:p-8 bg-gray-50 border border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-[#2563EB]/5 rounded-bl-full flex items-center justify-center pl-2 pb-2">
-                         <Lock size={18} className="text-[#2563EB]/20" />
-                      </div>
                       <h4 className="text-[9px] sm:text-[10px] font-black text-[#1E293B] uppercase tracking-[3px] mb-6 sm:mb-8 flex items-center gap-3">
                         <Video size={16} className="text-[#2563EB]" /> SECTION I: FORENSIC ATTACHMENTS
                       </h4>
@@ -401,6 +423,20 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
                     </div>
 
                     <div className="space-y-2">
+                      <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Nearest Police Station (Search on Google)</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Noida Sector 63 PS (Search nearest PS on Google)" 
+                        className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold placeholder:text-gray-300" 
+                        value={firForm.policeStation} 
+                        onChange={(e) => setFirForm({...firForm, policeStation: e.target.value})} 
+                      />
+                      <p className="text-[7px] sm:text-[8px] text-gray-400 font-bold uppercase tracking-widest ml-1 italic">
+                        Please search "Nearest Police Station" on Google and enter the official name here.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
                       <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest ml-1">Detailed Deposition of Facts *</label>
                       <textarea rows={4} placeholder="Describe the events..." className="w-full bg-gray-50 border border-[#E5E7EB] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-gray-900 outline-none focus:border-[#2563EB] focus:bg-white transition-all font-bold placeholder:text-gray-300 resize-none font-sans" value={firForm.victimStatement} onChange={(e) => setFirForm({...firForm, victimStatement: e.target.value})} />
                     </div>
@@ -414,26 +450,26 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="p-5 sm:p-8 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-3 sm:gap-4 w-full sm:max-w-md">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gray-200 flex items-center justify-center text-gray-500 shadow-inner shrink-0">
-                    <Lock size={16} />
-                  </div>
-                  <p className="text-[8px] sm:text-[9px] text-gray-500 font-bold uppercase tracking-wider leading-relaxed">
-                    Submission is encrypted and digitally signed for admissibility in Indian Courts under BNSS-2023.
-                  </p>
+            <div className="p-6 sm:p-10 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-6 sticky bottom-0 z-[101]">
+              <div className="flex items-center gap-3 sm:gap-4 w-full sm:max-w-md">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 shadow-inner shrink-0 border border-gray-100">
+                  <Lock size={16} />
                 </div>
-                <button 
-                  onClick={generateFIR}
-                  disabled={isGenerating || !firForm.offenseType || !firForm.victimStatement}
-                  className="w-full sm:w-auto px-10 py-4 sm:px-12 sm:py-5 bg-gray-900 text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-[2px] sm:tracking-[3px] text-[10px] sm:text-xs flex items-center justify-center gap-3 sm:gap-4 hover:bg-black active:scale-[0.98] transition-all shadow-2xl shadow-black/20 disabled:opacity-50 disabled:grayscale"
-                >
-                  {isGenerating ? <Radio className="animate-spin" size={14} /> : <Shield size={18} />} 
-                  {isGenerating ? "DISPATCHING..." : "OFFICIALLY DISPATCH REPORT"}
-                </button>
+                <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold uppercase tracking-wider leading-relaxed">
+                  Submission is encrypted and digitally signed for admissibility in Indian Courts under BNSS-2023.
+                </p>
               </div>
-            </motion.div>
+              <button 
+                onClick={generateFIR}
+                disabled={isGenerating || !firForm.offenseType || !firForm.victimStatement}
+                className="w-full sm:w-auto px-10 py-4 sm:px-12 sm:py-5 bg-[#111827] text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-[2px] sm:tracking-[3px] text-[10px] sm:text-xs flex items-center justify-center gap-3 sm:gap-4 hover:bg-black active:scale-[0.95] transition-all shadow-2xl shadow-black/20 disabled:opacity-50 disabled:grayscale"
+              >
+                {isGenerating ? <Radio className="animate-spin" size={14} /> : <Shield size={18} />} 
+                {isGenerating ? "DISPATCHING..." : "OFFICIALLY DISPATCH REPORT"}
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

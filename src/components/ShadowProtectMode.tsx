@@ -105,14 +105,16 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
     await KavachSafe.startForensicCapture();
     
     // 📂 SEAL EVIDENCE IN VAULT (SIMULATED FOR LOGS)
-    const evidenceRef = doc(collection(db, 'users', useKavachStore.getState().user?.uid || 'anonymous', 'evidence'));
+    const currentUser = useKavachStore.getState().user;
+    const evidenceRef = doc(collection(db, 'users', currentUser?.uid || 'anonymous', 'evidence'));
     await setDoc(evidenceRef, {
       type: 'SHADOW_PROTECT_LOG',
       timestamp: serverTimestamp(),
       status: 'SEALED_ENCRYPTED',
       details: 'Silent background forensic capture initiated by ThreatProtect protocol.',
       gps_locked: true,
-      audio_stream_active: true
+      audio_stream_active: true,
+      victimUid: currentUser?.uid || 'anonymous'
     }).catch(() => {});
 
     toast.success("SHADOW PROTECT: STEALTH MODE ENGAGED", {
