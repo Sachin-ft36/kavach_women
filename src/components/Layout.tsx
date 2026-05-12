@@ -278,10 +278,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                 </div>
               <div>
                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-tight">{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-1 h-1 bg-accent-green rounded-full animate-pulse" />
-                   <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-[1.5px] sm:tracking-[2px]">National Grid v4.2</span>
-                 </div>
+                 <p className="text-[7px] font-bold text-gray-400 uppercase tracking-[2px] mt-0.5">women safety network</p>
               </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">

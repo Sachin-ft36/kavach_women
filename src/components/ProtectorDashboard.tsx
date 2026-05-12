@@ -3,7 +3,7 @@ import {
   Shield, MapPin, Bell, Activity, Clock, Phone, Navigation,
   CheckCircle2, Camera, User, ChevronRight, Info, Heart,
   ShieldCheck, MessageSquare, AlertCircle, RefreshCw, Layers,
-  LocateFixed, PhoneCall, Globe, Zap, Cpu, Car
+  LocateFixed, PhoneCall, Globe, Zap, Cpu, Car, Volume2
 } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import { db } from '../firebase';
@@ -36,6 +36,35 @@ export default function ProtectorDashboard() {
   const [activeInterceptAlert, setActiveInterceptAlert] = useState<any | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const { setInterceptActive } = useKavachStore();
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [isBriefingPlaying, setIsBriefingPlaying] = useState(false);
+
+  const handleVoiceBriefing = (isManual = false) => {
+    if (isBriefingPlaying && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsBriefingPlaying(false);
+      return;
+    }
+
+    if (isBriefingPlaying) return;
+
+    const audioPath = '/voice/protectorenglish.mp3';
+    const audio = new Audio(audioPath);
+    audioRef.current = audio;
+    
+    setIsBriefingPlaying(true);
+
+    audio.onended = () => {
+      setIsBriefingPlaying(false);
+      localStorage.setItem('kavach_protector_briefing_completed', 'true');
+    };
+
+    audio.play().catch(err => {
+      setIsBriefingPlaying(false);
+      console.log("Voice blocked by browser autoplay policy.");
+    });
+  };
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; // km
@@ -111,6 +140,18 @@ export default function ProtectorDashboard() {
       return () => unsub();
     }
   }, [activeAlerts, user, activeTab]);
+
+  useEffect(() => {
+    const isJustLoggedIn = sessionStorage.getItem('kavach_just_logged_in');
+    if (isJustLoggedIn) {
+      handleVoiceBriefing();
+      const playOnInteract = () => {
+        handleVoiceBriefing();
+        document.removeEventListener('click', playOnInteract);
+      };
+      document.addEventListener('click', playOnInteract);
+    }
+  }, []);
 
   const handleStartHelp = (alertId: string) => {
     setShowTacticalPledge({ isOpen: true, alertId });
@@ -200,103 +241,45 @@ export default function ProtectorDashboard() {
     <div className="min-h-screen bg-[#F1F5F9] pb-32 font-sans overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#1E40AF 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
 
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-10 flex justify-between items-end mb-6">
+        <div>
+          <h1 className="text-3xl font-black text-[#0F172A] tracking-tighter uppercase italic leading-none">Protector</h1>
+          <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[4px] mt-2">Mission Control Dashboard</p>
+        </div>
+        
+        <button 
+          disabled={!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying}
+          onClick={() => handleVoiceBriefing(true)}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-2.5 bg-white rounded-2xl border border-blue-100 text-[10px] font-black transition-all shadow-sm uppercase tracking-widest active:scale-95",
+            (!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying)
+              ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75" 
+              : "text-[#0F172A] hover:bg-blue-50"
+          )}
+        >
+          <Volume2 size={14} className={isBriefingPlaying ? "text-gray-400" : "text-blue-600"} />
+          {isBriefingPlaying 
+            ? "Stop" 
+            : "Listen Now"}
+        </button>
+      </div>
+
+      <div className="px-6">
         <div className="relative h-[380px] w-full rounded-[40px] bg-[#0F172A] overflow-hidden shadow-2xl border-4 border-white">
           <VictimMap activeAlerts={activeAlerts} />
           <div className="absolute inset-x-6 top-6 flex justify-between pointer-events-none">
-            <div className="px-4 py-2 bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-xl flex items-center gap-3">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-              <span className="text-[9px] font-black text-[#0F172A] uppercase tracking-widest">Network Online // Sector 04</span>
+            <div className="px-4 py-2 bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-xl flex items-center justify-center">
+              <span className="text-[9px] font-black text-[#0F172A] uppercase tracking-widest">Network Online</span>
             </div>
-            <div className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 flex items-center justify-center text-white pointer-events-auto">
               <Layers size={18} />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-6 mt-6 grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl p-3 border border-white shadow-sm flex items-center gap-3 group hover:shadow-md transition-all">
-          <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0">
-            <Globe size={16} />
-          </div>
-          <div>
-            <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest leading-none">Grid Load</p>
-            <h4 className="text-sm font-black text-[#0F172A] tracking-tighter mt-1">98.2%</h4>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-3 border border-white shadow-sm flex items-center gap-3 group hover:shadow-md transition-all">
-          <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all shrink-0">
-            <Zap size={16} />
-          </div>
-          <div>
-            <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest leading-none">Latency</p>
-            <h4 className="text-sm font-black text-[#0F172A] tracking-tighter mt-1">14ms</h4>
-          </div>
-        </div>
-      </div>
 
-      <div className="px-6 mt-4">
-        <div className="bg-[#0F172A] rounded-[30px] p-5 shadow-2xl relative overflow-hidden border border-white/10">
-          {(profile?.xp || 0) >= 100000 && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-              <Globe size={300} strokeWidth={0.5} className="text-white" />
-            </div>
-          )}
-          <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/10 rounded-full blur-[60px] -mr-20 -mt-20" />
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full w-fit">
-                  <ShieldCheck size={8} className="text-blue-400" />
-                  <span className="text-[6px] font-black text-blue-400 uppercase tracking-[1.5px]">Merit Credentials</span>
-                </div>
-                {(profile?.xp || 0) >= 25000 && (
-                  <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500 text-white rounded-full">
-                    <CheckCircle2 size={8} className="fill-white text-emerald-500" />
-                    <span className="text-[6px] font-black uppercase tracking-widest">Verified</span>
-                  </motion.div>
-                )}
-                {(profile?.xp || 0) >= 100000 && (
-                  <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-orange-500 via-white to-emerald-500 text-[#0F172A] rounded-full">
-                    <Globe size={8} className="text-blue-900" />
-                    <span className="text-[6px] font-black uppercase tracking-widest">National Asset</span>
-                  </motion.div>
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-white tracking-tighter uppercase italic leading-none">Protector Merit Hub</h3>
-                <p className="text-[7px] font-bold text-gray-400 uppercase tracking-[3px] mt-1.5 opacity-80">National Safety Network // Authorized Personnel Only</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <div className="text-right">
-                <span className="text-xl font-black text-white tracking-tighter leading-none">{profile?.xp || 0}</span>
-                <p className="text-[6px] font-black text-blue-400 uppercase tracking-[1px] mt-0.5 opacity-60">XP Points</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3 px-6 mt-4">
-        <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="bg-white/40 backdrop-blur-3xl rounded-[24px] p-3.5 border border-white shadow-sm">
-          <div className="w-6 h-6 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-600 mb-2"><ShieldCheck size={14} /></div>
-          <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-1">RESCUES</p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-black text-[#0F172A] leading-none">{profile?.successfulRescues || 0}</span>
-            <span className="text-[8px] font-bold text-emerald-500 uppercase italic">SAVED</span>
-          </div>
-        </motion.div>
-        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="bg-white/40 backdrop-blur-3xl rounded-[24px] p-3.5 border border-white shadow-sm">
-          <div className="w-6 h-6 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-600 mb-2"><AlertCircle size={14} /></div>
-          <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-1">ASSISTS</p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-black text-[#0F172A] leading-none">{profile?.abortedAssists || 0}</span>
-            <span className="text-[8px] font-bold text-blue-500 uppercase italic">LOGGED</span>
-          </div>
-        </motion.div>
-      </div>
 
       <div className="px-6 mt-10">
         <div className="flex justify-between items-center mb-8 px-2">
@@ -481,7 +464,7 @@ export default function ProtectorDashboard() {
               <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cn("backdrop-blur-3xl rounded-[40px] p-8 border border-white/10 shadow-2xl flex items-center justify-between transition-all duration-700", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-600/95" : "bg-[#0F172A]/90")}>
                 <div className="flex items-center gap-6">
                   <div className={cn("w-16 h-16 rounded-[28px] flex items-center justify-center text-white transition-all shadow-2xl", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-white text-emerald-600" : "bg-blue-600")}>
-                    {(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? <CheckCircle2 size={36} className="animate-bounce" /> : <Navigation size={36} />}
+                    {(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? <CheckCircle2 size={36} /> : <Navigation size={36} />}
                   </div>
                   <div>
                     <p className={cn("text-[11px] font-black uppercase tracking-[4px]", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "text-emerald-100" : "text-blue-400")}>{(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "TARGET REACHED" : "Tactical Intercept Active"}</p>
@@ -509,7 +492,7 @@ export default function ProtectorDashboard() {
               </div>
               <div className="flex flex-col items-center gap-4">
                 <div className="flex items-center gap-3 px-6 py-2.5 bg-blue-600/10 border border-blue-500/20 rounded-full">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+                  <div className="w-2 h-2 bg-blue-500 rounded-full" />
                   <span className="text-[10px] font-black text-blue-500 uppercase tracking-[4px]">Uplink Pending</span>
                 </div>
               </div>

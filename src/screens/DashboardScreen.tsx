@@ -263,7 +263,7 @@ const ActionCard = React.memo(({ icon, title, desc, iconColor, tint, onClick }: 
       <div style={{ color: iconColor, backgroundColor: tint }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 border border-black/[0.02]">
         {React.cloneElement(icon as any, { size: 16 })}
       </div>
-      <h3 className="text-[12px] sm:text-[13px] font-semibold text-[#1E293B] tracking-tight leading-tight flex-1 break-words">
+      <h3 className="text-[10px] sm:text-[12px] font-bold text-[#1E293B] tracking-tight leading-tight flex-1 break-words">
         {title}
       </h3>
     </div>

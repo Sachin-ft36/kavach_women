@@ -267,56 +267,48 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
 
   return (
     <>
-      <div className="bg-white border border-[#E5E7EB] rounded-[32px] p-6 space-y-6 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Shield size={80} /></div>
-        <div className="flex items-center gap-5 relative z-10">
-          <div className="w-14 h-14 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center border border-[#2563EB]/10">
-            <FileText className="text-[#2563EB]" size={28} strokeWidth={1.5} />
+      <div className="bg-white border border-[#E5E7EB] rounded-[32px] p-8 space-y-8 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+        <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none group-hover:scale-110 transition-transform duration-700"><Shield size={120} /></div>
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner">
+              <FileText className="text-[#0F172A]" size={28} strokeWidth={1.5} />
+            </div>
+            <div>
+              <h3 className="font-black text-[#0F172A] text-2xl tracking-tighter uppercase italic">Digital Complaint</h3>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[3px] mt-1">Online FIR Support Center</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-[#1E293B] text-xl">Digital Complaint Center</h3>
-            <p className="text-[11px] text-[#64748B] font-bold uppercase tracking-widest mt-0.5">Online FIR & Safety Reporting</p>
-          </div>
-        </div>
 
-        {!firData ? (
-          <div className="flex flex-col gap-3 relative z-10">
+          {!firData ? (
             <button
               onClick={() => setShowReviewModal(true)}
-              className="w-full py-4 sm:py-5 bg-[#2563EB] text-white rounded-2xl font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-3 hover:bg-[#1d4ed8] active:scale-[0.98] transition-all shadow-xl shadow-[#2563EB]/20"
+              className="px-8 py-4 bg-[#0F172A] text-white rounded-2xl font-black uppercase tracking-[2px] text-[10px] flex items-center justify-center gap-3 hover:bg-black active:scale-95 transition-all shadow-xl shadow-black/10"
             >
-              <Upload size={18} /> Start Complaint
+              <Upload size={16} /> Start Complaint
             </button>
-            <div className="flex items-center justify-center gap-2 text-[#64748B]">
-              <Shield size={14} className="text-[#2563EB]" />
-              <span className="text-[10px] font-bold uppercase tracking-wider italic">Your information is securely protected.</span>
-            </div>
-          </div>
-        ) : (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 relative z-10">
-            <div className="bg-accent-green/5 border border-accent-green/20 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-              <CheckCircle className="text-accent-green" />
-              <div>
-                <p className="text-sm font-bold text-gray-900 tracking-tight">O-FIR: {firData.firId}</p>
-                <p className="text-[10px] text-accent-green uppercase tracking-widest font-bold">LEGALLY REGISTERED</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex items-center gap-3">
+                <CheckCircle className="text-emerald-500" size={16} />
+                <div>
+                  <p className="text-[10px] font-black text-gray-900 tracking-tight leading-none uppercase">FIR: {firData.firId}</p>
+                  <p className="text-[7px] text-emerald-600 uppercase tracking-widest font-black mt-1">Legally Registered</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={downloadFIR} className="flex-1 py-2 bg-white border border-gray-100 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Download</button>
+                <button onClick={trackFIR} className="flex-1 py-2 bg-white border border-gray-100 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Track</button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button 
-                onClick={downloadFIR}
-                className="py-4 bg-white border border-[#E5E7EB] text-gray-900 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 shadow-sm"
-              >
-                <Download size={14} className="text-[#2563EB]" /> ACKNOWLEDGEMENT
-              </button>
-              <button 
-                onClick={trackFIR}
-                className="py-4 bg-white border border-[#E5E7EB] text-gray-900 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 shadow-sm"
-              >
-                <Shield size={14} className="text-accent-green" /> TRACK FILING
-              </button>
-            </div>
-          </motion.div>
-        )}
+          )}
+        </div>
+
+        <div className="pt-6 border-t border-gray-50 flex items-center gap-2 text-gray-400 relative z-10">
+          <Lock size={12} className="text-blue-600" />
+          <span className="text-[9px] font-bold uppercase tracking-widest italic leading-none">Your identity and evidence are protected via end-to-end encryption.</span>
+        </div>
       </div>
 
       <AnimatePresence>
