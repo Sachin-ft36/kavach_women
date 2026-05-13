@@ -212,10 +212,10 @@ export function NationalOverview({
 
          {/* 🗺️ CENTER COLUMN: SITUATIONAL MAP (50%) */}
          <div className="col-span-6 bg-[#0F172A]/50 border border-white/5 rounded-[3rem] overflow-hidden relative shadow-2xl">
-            <div className="absolute top-6 left-6 z-10 flex flex-col gap-2">
-               <div className="px-4 py-2 bg-[#020617]/80 backdrop-blur-md rounded-2xl border border-white/5 flex items-center gap-3">
-                  <Globe size={14} className="text-blue-500" />
-                  <span className="text-[9px] font-black text-white uppercase tracking-widest">
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+               <div className="px-2 py-1 bg-[#020617]/80 backdrop-blur-md rounded-xl border border-white/5 flex items-center gap-2">
+                  <Globe size={10} className="text-blue-500" />
+                  <span className="text-[7px] font-black text-white uppercase tracking-widest">
                      {selectedAlertId ? 'Tactical Lock: Radius Active' : 'National Grid View'}
                   </span>
                </div>

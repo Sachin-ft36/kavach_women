@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useRef } from 'react';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useKavachStore } from '../store/useKavachStore';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { KavachSafe } from '../services/KavachNative';
 
 interface CallContextType {
   initiateCall: (targetUserId: string, targetName: string, contextId?: string) => Promise<void>;
@@ -29,72 +31,50 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeCallUserId, setActiveCallUserId] = useState<string | null>(null);
   const [activeContextId, setActiveContextId] = useState<string | null>(null);
   const [zegoInstance, setZegoInstance] = useState<any>(null);
+  const zegoContainerRef = useRef<HTMLDivElement>(null);
+  const isJoiningRef = useRef(false);
   
   const { profile, user, activeAlertId } = useKavachStore();
 
-  // 📡 REAL-TIME SIGNALING SENTINEL: Listen for incoming calls via Alert Document
+  // 📡 REAL-TIME SIGNALING SENTINEL
   React.useEffect(() => {
     const contextId = activeAlertId || activeContextId;
     const currentUid = profile?.uid || user?.uid || localStorage.getItem('kavach_user_uid');
     
-    if (!contextId || !currentUid) {
-      console.log("📞 KAVACH SIGNAL: Listener Standby - Waiting for Context/Auth", { contextId, hasUid: !!currentUid });
-      return;
-    }
+    if (!contextId || !currentUid) return;
 
     const setupSignalListener = async () => {
       const { doc, onSnapshot } = await import('firebase/firestore');
       const { db } = await import('../firebase');
 
-      console.log("📞 KAVACH SIGNAL: Sentinel Active for", contextId);
-
       const processSnap = (snap: any) => {
         if (snap.exists()) {
           const data = snap.data();
-          
           if (data.activeCall) {
-             const isTargetMe = data.activeCall.targetUid === currentUid;
-             const isAuthorizedResponder = data.activeResponders?.some((r: any) => r.uid === currentUid);
-             const isVictim = data.victimUid === currentUid;
              const amITargeted = data.activeCall.targetUid === currentUid;
-             
-             console.log("📞 KAVACH SIGNAL: Tactical Logic Check", { 
-               amITargeted,
-               isVictim,
-               isAuthorizedResponder,
-               callerUid: data.activeCall.callerUid,
-               myUid: currentUid,
-               callState
-             });
-
-             // Ring if I am specifically targeted OR if I am the victim and a responder is calling me
-             const shouldRing = (amITargeted || (isVictim && !isTargetMe)) && 
+             const isVictim = data.victimUid === currentUid;
+             const shouldRing = (amITargeted || (isVictim && data.activeCall.targetUid === currentUid)) && 
                                 data.activeCall.callerUid !== currentUid && 
                                 callState === 'idle';
 
              if (shouldRing) {
-                console.log("📞 KAVACH SIGNAL: Match Found! Initiating Ring Sequence...");
                 setCallState('ringing');
                 setCallerName(data.activeCall.callerName);
                 setActiveCallUserId(data.activeCall.callerUid);
                 setActiveContextId(contextId);
              }
           }
-
-          if (!data.activeCall && callState === 'ringing') {
-            console.log("📞 KAVACH SIGNAL: Remote Hangup Detected.");
+          if (!data.activeCall && callState !== 'idle') {
             setCallState('idle');
+            if (zegoInstance) zegoInstance.destroy();
+            setZegoInstance(null);
           }
         }
       };
 
       const unsubAlert = onSnapshot(doc(db, 'alerts', contextId), processSnap);
       const unsubJourney = onSnapshot(doc(db, 'journeys', contextId), processSnap);
-
-      return () => {
-        unsubAlert();
-        unsubJourney();
-      };
+      return () => { unsubAlert(); unsubJourney(); };
     };
 
     let unsub: any;
@@ -106,66 +86,56 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const targetId = contextId || activeAlertId || activeContextId;
       if (!targetId) return;
-
       const { doc, updateDoc, deleteField } = await import('firebase/firestore');
       const { db } = await import('../firebase');
-      
-      await updateDoc(doc(db, 'alerts', targetId), {
-        activeCall: deleteField()
-      });
-    } catch (e) { console.error("Signal Clear Error:", e); }
+      await updateDoc(doc(db, 'alerts', targetId), { activeCall: deleteField() });
+    } catch (e) {}
   };
 
   const initiateCall = async (targetUid: string, targetName: string, contextId?: string) => {
+    if (isJoiningRef.current) return;
+    
     const state = useKavachStore.getState();
     const currentUser = state.profile || state.user;
-    
-    console.log("📞 KAVACH SIGNAL: initiateCall triggered", { targetUid, targetName, profile: !!state.profile, user: !!state.user });
-
-    if (!currentUser?.uid) {
-      toast.error("Auth session required for tactical uplink.");
-      return;
-    }
+    if (!currentUser?.uid) return;
 
     const finalContextId = contextId || activeAlertId || state.activeAlertId;
-
-    if (!finalContextId) {
-      console.warn("📞 KAVACH SIGNAL: Blocked - No Mission Context Found.");
-      toast.error("No active mission context for tactical call.");
-      return;
-    }
+    if (!finalContextId) return;
 
     try {
+      isJoiningRef.current = true;
       const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
       const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
 
-      console.log("📞 KAVACH SIGNAL: Zego Config", { appID, hasSecret: !!serverSecret });
-
-      if (!appID || isNaN(appID) || !serverSecret) {
-        throw new Error("ZEGO Credentials missing or invalid in .env");
-      }
-
-      // 📡 BROADCAST SIGNAL TO ALERT OR JOURNEY DOC
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       
       const signalData = {
         activeCall: {
-          callerName: currentUser.name || currentUser.displayName || "Kavach Guardian",
+          callerName: currentUser.name || currentUser.displayName || "Kavach Citizen",
           callerUid: currentUser.uid,
           targetUid: targetUid,
           timestamp: new Date()
         }
       };
 
-      console.log("📞 KAVACH SIGNAL: Broadcasting to Firebase...", signalData);
+      await updateDoc(doc(db, 'alerts', finalContextId), signalData);
+
+      // 📡 VOIP PUSH TRIGGER: Wake up the protector if the app is closed
       try {
-        await updateDoc(doc(db, 'alerts', finalContextId), signalData);
-        console.log("📞 KAVACH SIGNAL: Alert Document Updated.");
-      } catch (e) {
-        console.warn("Signal attempt on alerts failed, trying journeys...");
-        await updateDoc(doc(db, 'journeys', finalContextId), signalData);
-        console.log("📞 KAVACH SIGNAL: Journey Document Updated.");
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+        await addDoc(collection(db, 'notifications'), {
+          type: 'VOIP_CALL',
+          targetUid: targetUid,
+          callerName: currentUser.name || currentUser.displayName || "Kavach Citizen",
+          contextId: finalContextId,
+          timestamp: serverTimestamp(),
+          status: 'pending',
+          priority: 'high'
+        });
+        console.log("🚀 KAVACH: VoIP Wake-up Signal Dispatched to Grid.");
+      } catch (pushErr) {
+        console.error("⚠️ KAVACH: VoIP Push Trigger Failed.", pushErr);
       }
 
       setCallState('calling');
@@ -173,87 +143,87 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveCallUserId(targetUid);
       setActiveContextId(finalContextId);
 
-      console.log("📞 KAVACH SIGNAL: Generating Zego Token...");
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID,
-        serverSecret,
-        finalContextId,
-        currentUser.uid || Date.now().toString(),
-        currentUser.name || currentUser.displayName || "Kavach User"
+        appID, serverSecret, finalContextId, currentUser.uid, currentUser.name || "User"
       );
 
-      console.log("📞 KAVACH SIGNAL: Joining Zego Room...");
       const zp = ZegoUIKitPrebuilt.create(kitToken);
       setZegoInstance(zp);
 
       zp.joinRoom({
-        container: null,
+        container: zegoContainerRef.current,
         scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
         showScreenSharingButton: false,
         showMyCameraToggleButton: false,
-        showAudioVideoSettingsButton: false,
-        showUserList: false,
-        turnOnCameraWhenJoining: false,
+        showPreJoinView: false,
+        showLeaveRoomConfirmDialog: false,
         showTextChat: false,
-        onJoinRoom: () => {
-          console.log("📞 KAVACH SIGNAL: Zego Room Joined Successfully!");
+        showUserList: false,
+        onUserJoin: (user: any) => {
           setCallState('connected');
-          toast.success("Tactical Link Established.");
+          if (Capacitor.isNativePlatform()) KavachSafe.triggerHapticPulse();
+          toast.success("🛡️ PROTECTOR LINKED");
+        },
+        onJoinRoom: () => {
+          setCallState('calling');
+          isJoiningRef.current = false;
         },
         onLeaveRoom: () => {
-          console.log("📞 KAVACH SIGNAL: Left Zego Room.");
           setCallState('idle');
           setZegoInstance(null);
           clearSignal(finalContextId);
+          isJoiningRef.current = false;
+          // Force immediate UI reset
+          window.dispatchEvent(new CustomEvent('kavach-call-ended'));
         }
       });
-
     } catch (error) {
-      console.error('KAVACH Signal: Zego Uplink Failed:', error);
-      toast.error("Tactical Link Failed.");
+      isJoiningRef.current = false;
       setCallState('idle');
-      clearSignal(finalContextId);
     }
   };
 
   const answerCall = async () => {
+    if (isJoiningRef.current || callState === 'connected') return;
     const contextId = activeAlertId || activeContextId;
     if (!contextId || !profile) return;
 
     try {
+      isJoiningRef.current = true;
       const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
       const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID,
-        serverSecret,
-        contextId, // Join the alert room
-        profile.uid || Date.now().toString(),
-        profile.name || "Kavach User"
+        appID, serverSecret, contextId, profile.uid, profile.name || "Protector"
       );
 
       const zp = ZegoUIKitPrebuilt.create(kitToken);
       setZegoInstance(zp);
 
       zp.joinRoom({
-        container: null,
+        container: zegoContainerRef.current,
         scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
         showScreenSharingButton: false,
         showMyCameraToggleButton: false,
-        showAudioVideoSettingsButton: false,
-        showUserList: false,
-        turnOnCameraWhenJoining: false,
+        showPreJoinView: false,
+        showLeaveRoomConfirmDialog: false,
         showTextChat: false,
+        showUserList: false,
         onJoinRoom: () => {
           setCallState('connected');
+          isJoiningRef.current = false;
         },
         onLeaveRoom: () => {
           setCallState('idle');
           setZegoInstance(null);
+          clearSignal(contextId);
+          isJoiningRef.current = false;
+          // Force immediate UI reset
+          window.dispatchEvent(new CustomEvent('kavach-call-ended'));
         }
       });
     } catch (error) {
-      toast.error("Link Failure.");
+      isJoiningRef.current = false;
       setCallState('idle');
     }
   };
@@ -262,24 +232,35 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCallState('idle');
     if (zegoInstance) zegoInstance.destroy();
     clearSignal();
+    isJoiningRef.current = false;
   };
 
   const hangupCall = () => {
-    if (zegoInstance) {
-      zegoInstance.destroy();
-      setZegoInstance(null);
-    }
+    if (zegoInstance) zegoInstance.destroy();
+    setZegoInstance(null);
     setCallState('idle');
     clearSignal();
+    isJoiningRef.current = false;
   };
 
   return (
     <CallContext.Provider value={{ initiateCall, answerCall, declineCall, hangupCall, callState, callerName, activeCallUserId }}>
       {children}
+      <div 
+        ref={zegoContainerRef}
+        style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          width: '1px', 
+          height: '1px', 
+          opacity: 0,
+          pointerEvents: 'none',
+          zIndex: -1
+        }} 
+      />
     </CallContext.Provider>
   );
 };
 
-export const useCall = () => {
-  return useContext(CallContext);
-};
+export const useCall = () => useContext(CallContext);

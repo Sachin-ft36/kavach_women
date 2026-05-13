@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
 import { executeEmergencyBlast } from '../services/sosService';
+import { supabase } from '../lib/supabase';
 
 const lastLat = localStorage.getItem('kavach_last_lat');
 const lastLng = localStorage.getItem('kavach_last_lng');
@@ -80,6 +81,7 @@ interface KavachState {
   isFakeCallActive: boolean;
   isVoiceTriggerActive: boolean;
   isBatteryExempt: boolean;
+  respondingToAlertId: string | null;
   setBatteryExempt: (exempt: boolean) => void;
   guardianCache: any[];
   isSentinelActive: boolean;
@@ -180,6 +182,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   isFakeCallActive: false,
   isVoiceTriggerActive: localStorage.getItem('kavach_voice_trigger') === 'true',
   isBatteryExempt: true,
+  respondingToAlertId: null,
   setBatteryExempt: (isBatteryExempt) => set({ isBatteryExempt }),
   guardianCache: cachedGuardians,
   isSentinelActive: false,
@@ -195,7 +198,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setIsAIChatOpen: (isAIChatOpen) => set({ isAIChatOpen }),
   activeProtectorAlertId: null,
   setActiveProtectorAlert: (activeProtectorAlertId) => set({ activeProtectorAlertId }),
-  activeRadius: 1.0,
+  activeRadius: 5.0,
   setActiveRadius: (activeRadius) => set({ activeRadius }),
   isFirFlowActive: false,
   setIsFirFlowActive: (isFirFlowActive) => set({ isFirFlowActive }),
@@ -248,9 +251,42 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       const { db } = await import('../firebase');
       const { doc, onSnapshot } = await import('firebase/firestore');
 
+      // ⚡ SUPABASE SYNC & AUTO-MIGRATION (Optimized)
+      let lastSyncedData = "";
+      const syncProfile = async (firebaseData: any) => {
+        const syncString = JSON.stringify({
+          n: firebaseData.name,
+          r: firebaseData.role,
+          v: firebaseData.isVerified || firebaseData.verified,
+          xp: firebaseData.xp
+        });
+        
+        if (syncString === lastSyncedData) return; // Skip if no meaningful change
+        lastSyncedData = syncString;
+
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.uid,
+            email: user.email,
+            display_name: firebaseData.name || user.displayName || 'Kavach Citizen',
+            role: firebaseData.role || 'citizen',
+            gender: firebaseData.gender || 'female',
+            is_verified: !!(firebaseData.isVerified || firebaseData.verified),
+            xp: firebaseData.xp || 0
+          });
+        
+        if (error) console.error("⚡ SUPABASE: Sync Error", error);
+        else console.log("⚡ SUPABASE: Profile Synced & Migrated.");
+      };
+
       onSnapshot(doc(db, 'users', user.uid), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
+          
+          // 🛡️ DEVICE LOCK PROTOCOL (DECOMMISSIONED)
+          // Users can now login from multiple devices without lockout.
+
           set({
             isSOSBlocked: !!data.isSOSBlocked,
             isPermanentlyBlocked: !!data.isPermanentlyBlocked,
@@ -261,8 +297,29 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             profile: data,
             isVerified: !!(data.isVerified || data.verified)
           });
+          
+          // Trigger Auto-Migration to Supabase
+          syncProfile(data);
         }
       });
+
+      // REAL-TIME SUBSCRIPTION
+      supabase
+        .channel(`profile:${user.uid}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'profiles',
+          filter: `id=eq.${user.uid}` 
+        }, (payload) => {
+          console.log('⚡ SUPABASE: Real-time update', payload);
+          if (payload.new) {
+            set((state) => ({
+              profile: { ...state.profile, ...payload.new as any }
+            }));
+          }
+        })
+        .subscribe();
     }
   },
   setProfile: (profile) => set({ profile }),
@@ -404,6 +461,15 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
 
               const state = useKavachStore.getState();
+              
+              // ⚡ SUPABASE LOCATION SYNC
+              await supabase
+                .from('profiles')
+                .update({ 
+                  last_location: `POINT(${lng} ${lat})` 
+                })
+                .eq('id', auth.currentUser.uid);
+
               if (state.isRideModeActive && state.rideData) {
                 try {
                   await setDoc(doc(db, 'journeys', auth.currentUser.uid), {
@@ -475,6 +541,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     return null;
   },
   setSOSActive: async (isSOSActive: boolean, activeAlertId: string | null = null, method = 'button', closureReason = null, providedHandshake: string | null = null) => {
+    const wasAlreadyActive = get().isSOSActive;
     const { userPos } = get();
 
     if (isSOSActive) {
@@ -491,6 +558,15 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       const alertId = activeAlertId || `alert_${currentUid}_${Date.now()}`;
       const existingHandshake = providedHandshake || get().handshakeCode || localStorage.getItem('kavach_handshake_code');
       const finalHandshake = existingHandshake || Math.floor(1000 + Math.random() * 9000).toString();
+
+      // 🛡️ PERMISSION ESCALATION: Ensure hardware access before engaging forensic sentinel
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await KavachSafe.requestSensitivePermissions();
+        } catch (e) {
+          console.warn("⚠️ KAVACH: Permission escalation failed. Evidence capture may be restricted.");
+        }
+      }
 
       set({
         isSOSActive: true,
@@ -517,17 +593,39 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         transitStatus: 'INTERCEPTION_REQUIRED'
       } : {};
 
-      executeEmergencyBlast(get().profile || get().user, get().userPos, {
-        type: method,
-        alertId,
-        handshakeCode: get().handshakeCode,
-        rideContext
-      });
+      // 🛡️ TACTICAL GATE: Only trigger mission blast if this is a NEW activation
+      if (!wasAlreadyActive) {
+        executeEmergencyBlast(get().profile || get().user, get().userPos, {
+          type: method,
+          alertId,
+          handshakeCode: get().handshakeCode,
+          rideContext
+        });
+      } else {
+        console.log("🛰️ KAVACH SYNC: State aligned with Cloud. Dispatch already operational.");
+      }
+
+      // ⚡ SUPABASE ALERT SYNC (Using upsert to prevent 409 Conflict on redundant triggers)
+      supabase
+        .from('alerts')
+        .upsert({
+          id: alertId,
+          victim_id: currentUid,
+          status: 'active',
+          trigger_method: method,
+          handshake_code: finalHandshake,
+          location: `POINT(${userPos[1]} ${userPos[0]})`,
+          priority: 'high'
+        })
+        .then(({ error }) => {
+          if (error) console.error("⚡ SUPABASE: Alert Sync Failed.", error);
+          else console.log("⚡ SUPABASE: Alert Mirrored to National Grid.");
+        });
     } else {
       // ⚡ INSTANT UI SNAPBACK: Clear local state immediately for zero-latency response
       set({
         isSOSActive: false,
-        activeRadius: 1.0,
+        activeRadius: 5.0,
         activeTab: 'dashboard',
         handshakeCode: null,
         isHandshakeVerified: false
@@ -550,24 +648,12 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             if (responders.length > 0) {
               for (const responder of responders) {
                 if (responder.uid) {
-                  // 🛡️ DYNAMIC MERIT CALCULATION: Effort-Based Rewards
-                  let meritPoints = 250; // Base Response Pledge
+                  // 🛡️ REBALANCED MERIT SYSTEM: Simplified for 100/50 logic
+                  let meritPoints = 50; // Base points for responding (even if aborted)
                   
-                  const startDist = responder.startDistance || 0;
-                  const maxProx = responder.maxProximity || startDist;
-                  const distCovered = Math.max(0, startDist - maxProx);
-                  
-                  // Movement Bonus: 200 XP per KM covered towards victim
-                  meritPoints += Math.floor(distCovered * 200);
-
-                  // Tactical Milestone Bonuses (Stackable Tiers)
-                  if (maxProx <= 0.4) meritPoints += 2000;
-                  else if (maxProx <= 1.0) meritPoints += 1000;
-                  else if (maxProx <= 3.0) meritPoints += 500;
-
                   // Ultimate Rescue Bonus (The Hero who verified the Handshake)
                   const isSavior = alertData.verification?.verifiedBy === responder.uid;
-                  if (isSavior) meritPoints += 5000;
+                  if (isSavior) meritPoints = 100; // Total 100 for a confirmed save
 
                   const responderRef = doc(db, 'users', responder.uid);
                   await updateDoc(responderRef, {
@@ -581,7 +667,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
                       timestamp: Date.now(),
                       meritEarned: meritPoints,
                       outcome: isSavior ? 'VERIFIED_RESCUE' : 'ABORTED_DURING_ASSIST',
-                      maxProximityReached: maxProx,
+                      maxProximityReached: responder.maxProximity || 0,
                       type: alertData.isTransitSOS ? 'TRANSIT_INTERCEPTION' : 'SOS_RESCUE',
                       status: 'SUCCESSFUL_INTERVENTION',
                       reason: closureReason || 'Manual Deactivation'
@@ -608,6 +694,15 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               'verification.resolvedAt': serverTimestamp(),
               'verification.isHandshakeVerified': get().isHandshakeVerified
             });
+
+            // ⚡ SUPABASE ALERT DE-ESCALATION
+            await supabase
+              .from('alerts')
+              .update({ 
+                status: 'resolved',
+                created_at: new Date().toISOString() // Or resolution_at if added
+              })
+              .eq('id', currentAlertId);
 
             if (alertData.isTransitSOS) {
               const journeyRef = doc(db, 'journeys', auth.currentUser.uid);

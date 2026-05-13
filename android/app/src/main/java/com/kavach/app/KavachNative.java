@@ -66,7 +66,7 @@ public class KavachNative extends Plugin {
     // ╚══════════════════════════════════════════════════════════════════════╝
 
     @PluginMethod
-    public void directCall(PluginCall call) {
+    public void initiateEmergencyCall(PluginCall call) {
         String phone = call.getString("number");
         if (phone == null) { call.reject("Phone number required"); return; }
         try {
@@ -81,41 +81,38 @@ public class KavachNative extends Plugin {
     }
 
     @PluginMethod
-    public void sendSilentSMS(PluginCall call) {
-        String phone   = call.getString("number");
+    public void broadcastEmergencySMS(PluginCall call) {
+        com.getcapacitor.JSArray numbers = call.getArray("numbers");
         String message = call.getString("message");
-        if (phone == null || message == null) {
-            call.reject("Phone and message required");
+        if (numbers == null || message == null) {
+            call.reject("Numbers array and message required");
             return;
         }
 
         try {
-            // Hardened SMS Selection: Prefer Subscription-based manager to avoid Dual-SIM deadlock
             SmsManager sm;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 sm = getContext().getSystemService(SmsManager.class);
             } else {
-                // Fallback for older APIs — using default for initial tactical release
                 sm = SmsManager.getDefault();
             }
 
             if (sm == null) {
-                call.reject("CRITICAL: SmsManager unavailable on this hardware tier.");
+                call.reject("CRITICAL: SmsManager unavailable.");
                 return;
             }
 
-            // Clean number — Ensure no strange characters break the telephony stack
-            String cleanPhone = phone.replaceAll("[^0-9+]", "");
+            for (int i = 0; i < numbers.length(); i++) {
+                String phone = numbers.getString(i);
+                String cleanPhone = phone.replaceAll("[^0-9+]", "");
 
-            // MISSION: Dispatch Tactical Intel
-            if (message.length() > 70 || message.codePointCount(0, message.length()) != message.length()) {
-                // SMS Standard: Multi-part required for long or Unicode (Emoji) messages
-                java.util.ArrayList<String> parts = sm.divideMessage(message);
-                sm.sendMultipartTextMessage(cleanPhone, null, parts, null, null);
-                Log.i(TAG, "TACTICAL DISPATCH [MULTI-PART]: " + parts.size() + " segments sent to " + cleanPhone);
-            } else {
-                sm.sendTextMessage(cleanPhone, null, message, null, null);
-                Log.i(TAG, "TACTICAL DISPATCH [SINGLE]: Sent to " + cleanPhone);
+                if (message.length() > 70 || message.codePointCount(0, message.length()) != message.length()) {
+                    java.util.ArrayList<String> parts = sm.divideMessage(message);
+                    sm.sendMultipartTextMessage(cleanPhone, null, parts, null, null);
+                } else {
+                    sm.sendTextMessage(cleanPhone, null, message, null, null);
+                }
+                Log.i(TAG, "TACTICAL DISPATCH: Sent to " + cleanPhone);
             }
             
             call.resolve();

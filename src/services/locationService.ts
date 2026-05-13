@@ -169,11 +169,17 @@ export const syncTelemetry = async (uid: string, role: string, battery: number |
 
     await updateDoc(userRef, telemetryData);
 
-    // 🛡️ ALERT HEARTBEAT: SDK implementation
+    // 🛡️ SOS LIVE TRACKING HEARTBEAT: Push real-time movement to tactical units
     const activeAlertId = localStorage.getItem('kavach_active_alert_id');
     if (activeAlertId) {
       const alertRef = doc(db, 'alerts', activeAlertId);
-      await updateDoc(alertRef, { lastPulse: serverTimestamp() }).catch(() => { });
+      await updateDoc(alertRef, { 
+        'location.latitude': coords[0],
+        'location.longitude': coords[1],
+        'lastPulse': serverTimestamp(),
+        'telemetry.battery': battery || 0,
+        'telemetry.accuracy': accuracy || 0
+      }).catch(() => { });
     }
   } catch (error: any) {
     // 🛡️ SILENT FAILSAFE: If Firestore internal state is corrupt, don't crash the location thread

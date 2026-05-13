@@ -2,12 +2,12 @@ import React from 'react';
 import RideSafeOverlay from '../components/RideSafeOverlay';
 import SOSButton from '../components/SOSButton';
 import VictimMap from '../components/maps/VictimMap';
-import { Shield, Activity, ShieldCheck, Lock, PhoneCall, Mic, FileText, ChevronRight, Radio, MapPin, MessageSquare, EyeOff, User, Clock, Volume2 } from 'lucide-react';
+import { Shield, Activity, ShieldCheck, Lock, PhoneCall, Mic, MicOff, FileText, ChevronRight, Radio, MapPin, MessageSquare, EyeOff, User, Clock, Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useCall } from '../contexts/CallContext';
@@ -34,7 +34,7 @@ export default function DashboardScreen() {
     setFakeCallActive, isBatteryExempt, setBatteryExempt,
     isSOSActive, isRideModeActive, rideData, updateRideData,
     setBriefingActive, verifiedProtectorCount, setOverlayActive,
-    setActiveTab, setIsFirFlowActive
+    setActiveTab, setIsFirFlowActive, isVoiceTriggerActive, setVoiceTriggerActive
   } = useKavachStore();
   const { language } = useLanguage();
 
@@ -155,6 +155,25 @@ export default function DashboardScreen() {
           
           <div className="flex items-center gap-2">
             <button 
+              onClick={() => {
+                setVoiceTriggerActive(!isVoiceTriggerActive);
+                toast.success(isVoiceTriggerActive ? "Voice Sentinel Offline" : "Voice Sentinel Engaged", {
+                  description: isVoiceTriggerActive ? "Microphone released." : "Listening for 'Kavach Help'...",
+                  icon: isVoiceTriggerActive ? '🔇' : '🎙️'
+                });
+              }}
+              className={cn(
+                "p-2 sm:p-2.5 rounded-xl border transition-all shadow-sm active:scale-95",
+                isVoiceTriggerActive 
+                  ? "bg-blue-50 border-blue-200 text-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.1)]" 
+                  : "bg-white border-[#E5E7EB] text-[#64748B]"
+              )}
+              title={isVoiceTriggerActive ? "Disable Voice Trigger" : "Enable Voice Trigger"}
+            >
+              {isVoiceTriggerActive ? <Mic size={14} className="sm:size-[16px]" /> : <MicOff size={14} className="sm:size-[16px]" />}
+            </button>
+
+            <button 
               disabled={!localStorage.getItem('kavach_briefing_completed') && isBriefingPlaying}
               onClick={() => handleVoiceBriefing(true)}
               className={cn(
@@ -181,7 +200,12 @@ export default function DashboardScreen() {
             <div className="flex items-center gap-2 px-3 py-1 bg-accent-red/10 rounded-full border border-accent-red/20 mx-auto w-fit">
                <span className="text-[7px] sm:text-[8px] font-bold text-accent-red tracking-[2px]">SOS Emergency Control</span>
             </div>
-             <p className="text-[8px] sm:text-[9px] text-gray-500 font-bold tracking-[2px]">Shout "Kavach Help" to Activate</p>
+             <p className={cn(
+               "text-[8px] sm:text-[9px] font-bold tracking-[2px] transition-colors",
+               isVoiceTriggerActive ? "text-blue-500" : "text-gray-500"
+             )}>
+               {isVoiceTriggerActive ? 'Shout "Kavach Help" to Activate' : 'Voice Sentinel Offline'}
+             </p>
           </div>
           <div className="relative z-10 scale-[0.9] sm:scale-[1.08]">
             <SOSButton />

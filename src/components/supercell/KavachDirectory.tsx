@@ -4,10 +4,12 @@ import {
   Users, Shield, Heart, MapPin, CheckCircle2, 
   XCircle, Search, Filter, History, Phone,
   ArrowUpRight, Zap, Activity, Mail, Printer,
-  Globe, ShieldCheck, LayoutGrid, AlertTriangle
+  Globe, ShieldCheck, LayoutGrid, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { MissionAuditModal } from './MissionAuditModal';
+import { db } from '../../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface KavachDirectoryProps {
   womenUsers: any[];
@@ -81,6 +83,56 @@ function AddressCell({ user, activeAlerts = [] }: { user: any, activeAlerts?: an
   );
 }
 
+// 🛡️ GUARDIAN NETWORK RESOLVER
+function GuardianCell({ userId }: { userId: string }) {
+  const [guardians, setGuardians] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    const fetchGuardians = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users', userId, 'guardians'));
+        setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) {
+        console.error("Guardian Fetch Error", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGuardians();
+  }, [userId]);
+
+  return (
+    <div className="flex flex-col items-center gap-1 group/g">
+      <div className={cn(
+        "flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all",
+        guardians.length > 0 ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-gray-50 border-gray-100 text-gray-400"
+      )}>
+        <Shield size={10} strokeWidth={3} />
+        <span className="text-[10px] font-black tabular-nums">{loading ? '...' : guardians.length}</span>
+      </div>
+      
+      {guardians.length > 0 && (
+        <div className="absolute z-[100] mt-8 scale-0 group-hover/g:scale-100 transition-all origin-top bg-white border border-gray-100 p-3 rounded-2xl shadow-2xl min-w-[180px] pointer-events-none">
+           <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-50 pb-1.5">Emergency Network</p>
+           <div className="space-y-2">
+             {guardians.map((g, i) => (
+               <div key={i} className="flex flex-col">
+                 <span className="text-[10px] font-black text-gray-900 leading-none">{g.name}</span>
+                 <div className="flex items-center gap-1.5 mt-0.5">
+                   <span className="text-[7px] font-black text-blue-500 uppercase">{g.relation}</span>
+                   <span className="text-[8px] font-bold text-gray-400">{g.phone}</span>
+                 </div>
+               </div>
+             ))}
+           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function KavachDirectory({ womenUsers, protectors, selectedState, activeAlerts = [], isSovereignActive }: KavachDirectoryProps) {
   const [activeTab, setActiveTab] = useState<'UNIVERSAL' | 'WOMEN' | 'PROTECTORS'>('UNIVERSAL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -149,6 +201,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Aadhaar / Digital ID</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Digital Contact</th>
+                  <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Guardian Circle</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Tactical Location</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
                </tr>
@@ -181,6 +234,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                      </td>
                      <td className="px-8 py-5"><div className="flex flex-col gap-1"><span className="text-[10px] font-black text-gray-900 tabular-nums tracking-[2px]">{user.aadhaar || user.aadhar || "DATA_NOT_SYNCED"}</span><div className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={10} /><span className="text-[7px] font-black uppercase tracking-widest">Full Forensic ID</span></div></div></td>
                      <td className="px-8 py-5"><div className="flex flex-col gap-2"><div className="flex items-center gap-2 text-blue-600"><Phone size={12} strokeWidth={3} /><span className="text-[10px] font-black tabular-nums">{user.phoneNumber || user.phone || "NO_PHONE_RECORD"}</span></div><div className="flex items-center gap-2 text-gray-400"><Mail size={12} /><span className="text-[9px] font-bold truncate max-w-[140px]">{user.email || "N/A"}</span></div></div></td>
+                     <td className="px-8 py-5 text-center relative"><GuardianCell userId={user.id || user.uid} /></td>
                      <td className="px-8 py-5"><AddressCell user={user} activeAlerts={activeAlerts} /></td>
                      <td className="px-8 py-5 text-right no-print"><div className="flex items-center justify-end gap-3"><button onClick={() => { setSelectedUserForAudit(user); setIsAuditModalOpen(true); }} className="p-2.5 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-gray-100"><History size={16} /></button><button className="p-2.5 bg-gray-900 text-white hover:bg-black rounded-xl transition-all shadow-lg shadow-gray-900/10"><ArrowUpRight size={16} /></button></div></td>
                   </motion.tr>

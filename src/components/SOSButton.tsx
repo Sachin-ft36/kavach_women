@@ -5,7 +5,7 @@ import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { executeEmergencyBlast } from '../services/sosService';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 import { auth } from '../firebase';
 
 export default function SOSButton() {
@@ -98,6 +98,7 @@ export default function SOSButton() {
 
   // 🛡️ EMERGENCY PROTOCOLS
   const goLive = async (source: 'button' | 'shake' | 'voice' | 'ride' | 'silent' = 'button') => {
+    console.log(`🚨 KAVACH ALERT: Mission Triggered via [${source.toUpperCase()}]`);
     try {
       const { userPos, batteryLevel } = useKavachStore.getState();
       const isOnline = navigator.onLine;
@@ -111,29 +112,15 @@ export default function SOSButton() {
         status: isOnline ? 'syncing' : 'offline_pending'
       });
 
-      // 2. TACTICAL DISPATCH: SMS & CALLS (PHYSICAL SIGNALS)
+      // 2. CLOUD SYNC & TACTICAL DISPATCH (Delegated to Store/Service)
       const currentUid = auth.currentUser?.uid || user?.uid || localStorage.getItem('kavach_user_uid') || 'GUEST';
       const alertId = `alert_${currentUid}_${Date.now()}`;
       
-      if (Capacitor.isNativePlatform()) {
-        const googleMapsLink = `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}`;
-        const timestamp = new Date().toLocaleTimeString();
-        const smsMessage = `🚨 EMERGENCY SOS (KAVACH) 🚨\n\nI need help immediately!\n\nLocation: ${googleMapsLink}\nBattery: ${batteryLevel}%\nTime: ${timestamp}\n\nSent automatically via Kavach Safety System.`;
-        
-        // Native Broadcast (All Guardians)
-        await KavachSafe.broadcastEmergencySMS({
-          message: smsMessage,
-          location: { lat: userPos[0], lng: userPos[1] }
-        });
-      }
-
-      // 3. CLOUD SYNC & TACTICAL DISPATCH
-      // Store now handles the atomic dispatch handshake centrally
       if (isOnline) {
         await setSOSActive(true, alertId, source);
       } else {
         await setSOSActive(true, null, source);
-        toast.error("OFFLINE MODE: Guardian Alerts Dispatched via SMS.", {
+        toast.error("OFFLINE MODE: Guardian Alerts Dispatched via Local Signal.", {
           icon: '📡',
           duration: 4000
         });
@@ -166,7 +153,9 @@ export default function SOSButton() {
 
   // ── Voice Sentinel ──────────
   const startRecognition = () => {
-    if (isSOSActive) return;
+    // 🛡️ TACTICAL BLOCK: Never start if SOS is already active
+    if (useKavachStore.getState().isSOSActive) return;
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition && !recognitionRef.current) {
       try {
@@ -174,38 +163,77 @@ export default function SOSButton() {
         rc.continuous = true;
         rc.interimResults = true;
         rc.lang = 'en-IN';
-        rc.onstart = () => { setIsListening(true); helpCountRef.current = 0; setVoiceProgress(0); };
-        rc.onerror = () => setIsListening(false);
+        
+        rc.onstart = () => { 
+          setIsListening(true); 
+          helpCountRef.current = 0; 
+          setVoiceProgress(0); 
+        };
+
+        rc.onerror = (event: any) => {
+          setIsListening(false);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setVoiceTriggerActive(false);
+          }
+        };
+
         rc.onend = () => { 
           setIsListening(false); 
           recognitionRef.current = null; 
-          if (isVoiceTriggerActive && !isSOSActive) setTimeout(startRecognition, 1000);
+          
+          // 🛡️ PERSISTENT SAFETY CHECK: Only restart if mission is NOT active
+          const { isVoiceTriggerActive, isSOSActive } = useKavachStore.getState();
+          if (isVoiceTriggerActive && !isSOSActive) {
+            setTimeout(() => {
+              // Final check before re-start
+              if (!useKavachStore.getState().isSOSActive) startRecognition();
+            }, 1000);
+          }
         };
+
         rc.onresult = (e: any) => {
+          if (useKavachStore.getState().isSOSActive) {
+            stopRecognition();
+            return;
+          }
+
           const transcript = e.results[e.results.length - 1][0].transcript.toLowerCase();
           if (transcript.includes('help') || transcript.includes('kavach')) {
             helpCountRef.current += 1;
             setVoiceProgress(Math.min((helpCountRef.current / 3) * 100, 100));
-            if (helpCountRef.current >= 3) goLive('voice');
+            if (helpCountRef.current >= 3) {
+              stopRecognition();
+              goLive('voice');
+            }
           }
         };
+
         rc.start();
         recognitionRef.current = rc;
-      } catch (e) {}
+      } catch (e) {
+        console.error("🎤 VOICE_SENTINEL: Hardware Clash Swallowed", e);
+      }
     }
   };
 
   const stopRecognition = () => {
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch(e){}
+      try { 
+        recognitionRef.current.onend = null; // Prevent restart loop
+        recognitionRef.current.stop(); 
+      } catch(e){}
+      recognitionRef.current = null;
     }
     setIsListening(false);
     setVoiceProgress(0);
   };
 
   useEffect(() => {
-    if (isVoiceTriggerActive && !isSOSActive) startRecognition();
-    else stopRecognition();
+    if (isVoiceTriggerActive && !isSOSActive) {
+      startRecognition();
+    } else {
+      stopRecognition();
+    }
     return () => stopRecognition();
   }, [isVoiceTriggerActive, isSOSActive]);
 

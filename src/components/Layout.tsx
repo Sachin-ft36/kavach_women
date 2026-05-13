@@ -208,8 +208,8 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
   return (
     <div className={cn(
-      "min-h-screen bg-bg text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative overflow-x-hidden",
-      role === 'super_cell' ? "p-0" : "px-3 sm:px-6 pt-4 sm:pt-10 pb-10"
+      "text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative",
+      role === 'super_cell' ? "h-screen overflow-hidden p-0" : "min-h-screen overflow-x-hidden px-3 sm:px-6 pt-4 sm:pt-10 pb-10"
     )}>
       
       {/* 🏛️ GLOBAL INSTITUTIONAL WATERMARK (OVERLAY) */}

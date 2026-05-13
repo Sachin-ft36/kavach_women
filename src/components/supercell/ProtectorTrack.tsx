@@ -307,99 +307,82 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
             />
          </div>
          
+         {/* 🗺️ STRATEGIC ROUTE STATUS: RELOCATED TO TOP CORNER */}
+         <AnimatePresence>
+            {selectedMission && deviationReport && (
+               <motion.div 
+                 initial={{ x: -100, opacity: 0 }} 
+                 animate={{ x: 0, opacity: 1 }} 
+                 className={cn(
+                    "absolute top-8 right-8 z-50 px-5 py-3 rounded-2xl border flex items-center gap-3 shadow-2xl backdrop-blur-md",
+                    deviationReport.isBreached ? "bg-rose-500/20 border-rose-500/30 text-rose-500" : "bg-emerald-500/20 border-emerald-500/30 text-emerald-500"
+                 )}
+               >
+                  {deviationReport.isBreached ? <AlertTriangle size={14} className="animate-pulse" /> : <ShieldCheck size={14} />}
+                  <div>
+                     <p className="text-[7px] font-black uppercase tracking-widest leading-none mb-1 opacity-60">Route Integrity</p>
+                     <p className="text-[9px] font-black uppercase tracking-wider">{deviationReport.isBreached ? 'Breach Detected' : 'Route Normal'}</p>
+                  </div>
+               </motion.div>
+            )}
+         </AnimatePresence>
+
          {/* 🎛️ FORENSIC REPLAY CONTROLS */}
          <AnimatePresence>
             {selectedMission && (
                <motion.div initial={{ y: 200 }} animate={{ y: 0 }} exit={{ y: 200 }} className="absolute bottom-10 inset-x-10 z-40">
-                  <div className="bg-black/80 backdrop-blur-3xl rounded-[40px] p-8 border border-white/10 shadow-2xl">
-                     <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-6">
-                           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white"><Target size={28} /></div>
-                           <div>
+                  <div className="bg-black/90 backdrop-blur-3xl rounded-[32px] p-5 border border-white/10 shadow-2xl">
+                     <div className="grid grid-cols-3 items-center mb-6">
+                        {/* LEFT: IDENTITY */}
+                        <div className="flex items-center gap-3">
+                           <div className="min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                 <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{resolveIdentity(selectedMission)}</h3>
-                                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+                                 <h3 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none truncate max-w-[150px]">{resolveIdentity(selectedMission)}</h3>
+                                 <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-white/5 rounded-full border border-white/10 shrink-0">
                                     <Cpu size={8} className="text-blue-400" />
-                                    <span className="text-[7px] font-black text-gray-500 uppercase tracking-widest">{mlLatency}ms ML Link</span>
+                                    <span className="text-[6px] font-black text-gray-500 uppercase tracking-widest">OMS ML LINK</span>
                                  </div>
                               </div>
-                              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">Mission Log: {selectedMission.id.toUpperCase()}</p>
+                              <p className="text-[7px] font-black text-blue-400 uppercase tracking-[2px] truncate max-w-[200px]">Mission Log: <span className="opacity-60">{selectedMission.id}</span></p>
+                           </div>
+                        </div>
+
+                        {/* CENTER: REPLAY CONTROLS */}
+                        <div className="flex items-center justify-center gap-3">
+                           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
+                              <button onClick={() => setReplayProgress(0.01)} className="w-10 h-10 hover:bg-white/10 rounded-xl text-white transition-all flex items-center justify-center"><RotateCcw size={16} /></button>
+                              <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all">
+                                 {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+                              </button>
                            </div>
                         </div>
                         
-                        {/* 🏛️ HARDWARE OVERRIDE CONTROLS */}
-                        <div className="flex items-center gap-2 mr-6 bg-white/5 p-2 rounded-3xl border border-white/10">
-                           <button 
-                             onClick={() => handleRemoteOverride('LOCKOUT')}
-                             disabled={isProcessingCommand}
-                             className={cn(
-                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                               isSovereignActive ? "bg-rose-600 text-white hover:bg-rose-500 shadow-xl shadow-rose-600/20" : "bg-white/5 text-gray-500"
-                             )}
-                             title="Execute Tactical Lockout"
-                           >
-                             {isProcessingCommand ? <Activity size={20} className="animate-spin" /> : <Power size={20} />}
-                           </button>
-                           <button 
-                             onClick={() => handleRemoteOverride('SIREN')}
-                             disabled={isProcessingCommand}
-                             className={cn(
-                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                               isSovereignActive ? "bg-amber-600 text-white hover:bg-amber-500 shadow-xl shadow-amber-600/20" : "bg-white/5 text-gray-400"
-                             )}
-                             title="Remote SOS Siren"
-                           >
-                             <Bell size={20} />
-                           </button>
-                           <button 
-                             onClick={() => handleRemoteOverride('SNAPSHOT')}
-                             disabled={isProcessingCommand}
-                             className={cn(
-                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                               isSovereignActive ? "bg-blue-600 text-white hover:bg-blue-500 shadow-xl shadow-blue-600/20" : "bg-white/5 text-gray-400"
-                             )}
-                             title="Forensic Snapshot"
-                           >
-                             <Camera size={20} />
-                           </button>
-                        </div>
-
-                        {/* Biometric Pulse Hub */}
-                        <div className="flex items-center gap-4 bg-white/5 px-6 py-4 rounded-3xl border border-white/5">
-                           <div className="flex flex-col items-center">
-                              <Heart size={20} className="text-rose-500 animate-pulse mb-1" />
-                              <span className="text-[10px] font-black text-white tabular-nums leading-none">74 BPM</span>
-                              <span className="text-[7px] font-black text-gray-500 uppercase mt-1">Pulse</span>
+                        {/* RIGHT: OVERRIDES & BIOMETRICS */}
+                        <div className="flex items-center justify-end gap-3">
+                           <div className="flex items-center gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/10">
+                              <button onClick={() => handleRemoteOverride('LOCKOUT')} disabled={isProcessingCommand} className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all", isSovereignActive ? "bg-rose-600 text-white shadow-lg" : "bg-white/5 text-gray-600")}>
+                                 {isProcessingCommand ? <Activity size={16} className="animate-spin" /> : <Power size={16} />}
+                              </button>
+                              <button onClick={() => handleRemoteOverride('SIREN')} disabled={isProcessingCommand} className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all", isSovereignActive ? "bg-amber-600 text-white shadow-lg" : "bg-white/5 text-gray-500")}>
+                                 <Bell size={16} />
+                              </button>
+                              <button onClick={() => handleRemoteOverride('SNAPSHOT')} disabled={isProcessingCommand} className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all", isSovereignActive ? "bg-blue-600 text-white shadow-lg" : "bg-white/5 text-gray-500")}>
+                                 <Camera size={16} />
+                              </button>
                            </div>
-                           <div className="w-[1px] h-10 bg-white/10 mx-2" />
-                           <div className="flex flex-col items-center">
-                              <Activity size={20} className="text-emerald-500 mb-1" />
-                              <span className="text-[10px] font-black text-white tabular-nums leading-none">98%</span>
-                              <span className="text-[7px] font-black text-gray-500 uppercase mt-1">Stress</span>
-                           </div>
-                        </div>
 
-                        {/* Playback Hub */}
-                        <div className="flex items-center gap-4 bg-white/5 p-2 rounded-3xl border border-white/5">
-                           <button onClick={() => setReplayProgress(0.01)} className="p-4 hover:bg-white/10 rounded-2xl text-white transition-all"><RotateCcw size={20} /></button>
-                           <button onClick={() => setIsPlaying(!isPlaying)} className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all">
-                              {isPlaying ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" className="ml-1" />}
-                           </button>
-                           <div className="px-6 text-center border-l border-white/10">
-                              <p className="text-[20px] font-black text-white tabular-nums leading-none">{(replayProgress * 100).toFixed(0)}%</p>
-                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-1">Sync Index</p>
-                           </div>
-                        </div>
-
-                        {/* Deviation Status */}
-                        <div className={cn(
-                           "px-8 py-4 rounded-[2rem] border flex items-center gap-4",
-                           deviationReport?.isBreached ? "bg-rose-500/10 border-rose-500/20 text-rose-500" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-                        )}>
-                           {deviationReport?.isBreached ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}
-                           <div>
-                              <p className="text-[8px] font-black uppercase tracking-widest leading-none mb-1">Route Status</p>
-                              <p className="text-sm font-black uppercase">{deviationReport?.isBreached ? 'Breach Detected' : 'Route Compliant'}</p>
+                           <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 shrink-0">
+                              <div className="flex flex-col items-center">
+                                 <Heart size={14} className="text-rose-500 animate-pulse mb-1" />
+                                 <span className="text-[9px] font-black text-white tabular-nums leading-none">74 BPM</span>
+                                 <span className="text-[6px] font-black text-gray-500 uppercase mt-0.5">Pulse</span>
+                              </div>
+                              <div className="w-[1px] h-6 bg-white/10" />
+                              <div className="flex flex-col items-center">
+                                 <Activity size={14} className="text-emerald-500 mb-1" />
+                                 <span className="text-[9px] font-black text-white tabular-nums leading-none">98%</span>
+                                 <span className="text-[6px] font-black text-gray-500 uppercase mt-0.5">Stress</span>
+                              </div>
                            </div>
                         </div>
                      </div>
@@ -410,12 +393,11 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
                            <motion.div className="h-full bg-blue-500" initial={{ width: 0 }} animate={{ width: `${replayProgress * 100}%` }} />
                         </div>
                         <input 
-                          type="range" min="0" max="1" step="0.001" 
-                          value={replayProgress} 
-                          onChange={(e) => setReplayProgress(parseFloat(e.target.value))}
-                          className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
+                           type="range" min="0" max="1" step="0.001" 
+                           value={replayProgress} 
+                           onChange={(e) => setReplayProgress(parseFloat(e.target.value))}
+                           className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
                         />
-                        {/* Timeline Markers */}
                         <div className="absolute -top-6 left-0 text-[8px] font-black text-gray-500 uppercase">Origin</div>
                         <div className="absolute -top-6 right-0 text-[8px] font-black text-gray-500 uppercase">Intercept</div>
                      </div>

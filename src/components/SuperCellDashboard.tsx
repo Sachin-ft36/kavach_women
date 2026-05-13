@@ -270,7 +270,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const NavItem = ({ id, label, icon: Icon }: any) => {
     const isActive = viewMode === id;
     return (
-      <button onClick={() => onTabChange?.(id)} className={cn("w-full flex flex-col items-center py-4 px-1 transition-all duration-200 relative group", isActive ? "bg-blue-600 text-white" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50")}>
+      <button onClick={() => onTabChange?.(id)} className={cn("w-full flex flex-col items-center py-2 px-1 transition-all duration-200 relative group", isActive ? "bg-blue-600 text-white" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50")}>
         <Icon size={18} className={cn("mb-1", isActive && "scale-110")} />
         <span className="text-[5.5px] font-black uppercase tracking-[0.5px] text-center leading-none">{label}</span>
         {isActive && <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-[2px] bg-white" />}
@@ -338,6 +338,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             activeAlerts={activeAlerts}
             historicalAlerts={missionHistory}
             userStatusMap={userStatusMap}
+            onViewReplay={(alertId) => {
+               setActiveMissionId(alertId);
+               onTabChange?.('TRACK');
+            }}
           />
         );
       case 'FIR':
@@ -436,10 +440,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   };
 
   return (
-    <div className="fixed inset-0 flex bg-white font-['Outfit'] overflow-hidden">
+    <div className="relative w-full h-screen flex bg-white font-['Outfit'] overflow-hidden">
       <TacticalModal config={modalConfig} setModalConfig={setModalConfig} />
       <nav className="w-[70px] bg-white border-r border-gray-100 flex flex-col h-full z-50 shrink-0">
-        <div className="p-4 flex justify-center border-b border-gray-50"><div className="w-8 h-8 rounded-lg bg-white border border-blue-600 flex items-center justify-center text-blue-600"><Shield size={18} strokeWidth={2.5} /></div></div>
+        <div className="p-3 flex justify-center border-b border-gray-50"><div className="w-8 h-8 rounded-lg bg-white border border-blue-600 flex items-center justify-center text-blue-600"><Shield size={18} strokeWidth={2.5} /></div></div>
         <div className="flex-1 py-2 overflow-y-auto scrollbar-hide">
           <NavItem id="COMMAND" label="Dashboard" icon={LayoutDashboard} />
           <NavItem id="SOS" label="SOS Alerts" icon={Bell} />
@@ -464,7 +468,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
               localStorage.clear(); // 🏛️ SYSTEM WIPE: AUTHORIZED
               window.location.reload();
             }}
-            className="w-full flex flex-col items-center py-5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all duration-200 group"
+            className="w-full flex flex-col items-center py-4 text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all duration-200 group"
           >
             <LogOut size={20} className="mb-1.5 group-hover:scale-110" />
             <span className="text-[6px] font-black uppercase tracking-[1px] text-center leading-none">Log Out</span>
@@ -532,42 +536,57 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                              ) : (
                                 <div className="flex flex-col gap-1">
                                    {notifications.map((n) => (
-                                      <div key={n.id} className="p-4 rounded-2xl hover:bg-gray-50 transition-all group/item border border-transparent hover:border-gray-100">
-                                         <div className="flex items-start gap-4">
-                                            <div className={cn(
-                                               "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                               n.type === 'SOS' ? "bg-rose-50 text-rose-600" : 
-                                               n.type === 'JOURNEY' ? "bg-amber-50 text-amber-600" : 
-                                               n.type === 'FIR' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-                                            )}>
-                                               {n.type === 'SOS' ? <ShieldAlert size={14} /> : n.type === 'JOURNEY' ? <Car size={14} /> : n.type === 'FIR' ? <Gavel size={14} /> : <Users size={14} />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                               <div className="flex items-center justify-between mb-1">
-                                                  <span className={cn("text-[9px] font-black uppercase tracking-wider", 
-                                                     n.type === 'SOS' ? "text-rose-600" : 
-                                                     n.type === 'JOURNEY' ? "text-amber-600" : 
-                                                     n.type === 'FIR' ? "text-emerald-600" : "text-blue-600"
-                                                  )}>{n.title}</span>
-                                                  <span className="text-[7px] font-bold text-gray-400">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                               </div>
-                                               <p className="text-[10px] font-bold text-gray-600 leading-relaxed truncate">{n.description}</p>
-                                               
-                                               {/* 🏛️ DIRECT ACTIONS */}
-                                               {n.type === 'VETTING' && (
-                                                  <div className="mt-3 flex gap-2">
-                                                     <button 
-                                                       onClick={() => handleApproveProtector(n.data.id)}
-                                                       className="px-3 py-1.5 bg-blue-600 text-white text-[8px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
-                                                     >
-                                                        Verify Credentials
-                                                     </button>
-                                                  </div>
-                                               )}
-                                            </div>
-                                         </div>
-                                      </div>
-                                   ))}
+                                       <div 
+                                         key={n.id} 
+                                         onClick={() => {
+                                           // 🚀 TACTICAL REDIRECT
+                                           const tabMap: Record<string, any> = {
+                                             'SOS': 'SOS',
+                                             'JOURNEY': 'ANALYTICS',
+                                             'FIR': 'FIR',
+                                             'VETTING': 'DATA'
+                                           };
+                                           const targetTab = tabMap[n.type] || 'COMMAND';
+                                           onTabChange(targetTab);
+                                           
+                                           // 🧹 AUTO-DISMISS
+                                           setNotifications(prev => prev.filter(item => item.id !== n.id));
+                                           setIsLedgerOpen(false);
+                                         }}
+                                         className="p-4 rounded-2xl hover:bg-gray-50 transition-all group/item border border-transparent hover:border-gray-100 cursor-pointer active:scale-[0.98]"
+                                       >
+                                          <div className="flex items-start gap-4">
+                                             <div className={cn(
+                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                                n.type === 'SOS' ? "bg-rose-50 text-rose-600" : 
+                                                n.type === 'JOURNEY' ? "bg-amber-50 text-amber-600" : 
+                                                n.type === 'FIR' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                                             )}>
+                                                {n.type === 'SOS' ? <ShieldAlert size={14} /> : n.type === 'JOURNEY' ? <Car size={14} /> : n.type === 'FIR' ? <Gavel size={14} /> : <Users size={14} />}
+                                             </div>
+                                             <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between mb-1">
+                                                   <span className={cn("text-[9px] font-black uppercase tracking-wider", 
+                                                      n.type === 'SOS' ? "text-rose-600" : 
+                                                      n.type === 'JOURNEY' ? "text-amber-600" : 
+                                                      n.type === 'FIR' ? "text-emerald-600" : "text-blue-600"
+                                                   )}>{n.title}</span>
+                                                   <span className="text-[7px] font-bold text-gray-400">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-gray-600 leading-relaxed truncate">{n.description}</p>
+                                                
+                                                {/* 🏛️ DIRECT ACTIONS */}
+                                                {n.type === 'VETTING' && (
+                                                   <div className="mt-3 flex gap-2">
+                                                      <div className="px-3 py-1.5 bg-blue-600 text-white text-[8px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+                                                         Verify Credentials
+                                                      </div>
+                                                   </div>
+                                                )}
+                                             </div>
+                                          </div>
+                                       </div>
+                                    ))}
                                 </div>
                              )}
                           </div>
@@ -635,7 +654,9 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
            </div>
         </header>
         <NationalEmergencyTicker isActive={isSovereignActive} gridNodeCount={verifiedProtectors.length + activeAlerts.length} />
-        {renderContent()}
+        <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {renderContent()}
+        </main>
       </div>
       <JusticeBlockModal 
         fir={selectedFir} 

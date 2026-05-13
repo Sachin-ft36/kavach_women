@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 
 /**
  * 🎙️ KAVACH VOICE TRIGGER (Beta)
@@ -103,15 +103,16 @@ export const useVoiceTrigger = () => {
     const triggerVoiceSOS = async () => {
       console.error("🚨 VOICE TRIGGER: CRITICAL THRESHOLD REACHED. DISPATCHING SOS.");
 
-      // 🛡️ HARDWARE HANDSHAKE: Release Mic BEFORE SOS starts
+      // 🛡️ HARDWARE HANDSHAKE: Instant Abort to release Mic BEFORE SOS starts
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
+        recognitionRef.current.onerror = null;
+        try { recognitionRef.current.abort(); } catch (e) { }
         recognitionRef.current = null;
       }
 
       // Wait for hardware release
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 800));
 
       setPendingSOS(true, 'voice');
       helpCountRef.current = 0;

@@ -80,10 +80,10 @@ export const NeuralAnalytics: React.FC<NeuralAnalyticsProps> = ({
         protectors: availableNodes,
         sos: activeSOS
      };
-   });
+    });
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#020617] flex flex-col gap-8">
+    <div className="w-full h-full overflow-y-auto custom-scrollbar p-8 bg-[#020617] flex flex-col gap-8">
       {/* 🔮 NEURAL ANALYTICS HEADER */}
       <div className="relative p-12 bg-[#0F172A] border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-transparent pointer-events-none" />
@@ -105,10 +105,10 @@ export const NeuralAnalytics: React.FC<NeuralAnalyticsProps> = ({
             <div className="flex flex-col gap-4 py-8">
                {[...Array(12)].map((_, i) => (
                   <motion.div 
-                    key={i} 
-                    animate={{ x: [0, 40, 0] }} 
-                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
-                    className="w-4 h-4 bg-blue-500 rounded-full" 
+                     key={i} 
+                     animate={{ x: [0, 40, 0] }} 
+                     transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
+                     className="w-4 h-4 bg-blue-500 rounded-full" 
                   />
                ))}
             </div>
@@ -185,25 +185,27 @@ export const NeuralAnalytics: React.FC<NeuralAnalyticsProps> = ({
                </p>
             </div>
             
-            <div className="relative z-10 mt-12 bg-white/5 rounded-[2rem] border border-white/5 p-6 space-y-4 overflow-y-auto max-h-[200px] custom-scrollbar">
-                {activeJourneys.filter(j => j.deviationDistance > 0.5).length === 0 ? (
-                   <div className="py-10 text-center opacity-20">
-                      <CheckCircle2 size={30} className="mx-auto mb-2 text-emerald-500" />
-                      <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Grid Vectors Normal</p>
-                   </div>
-                ) : activeJourneys.filter(j => j.deviationDistance > 0.5).slice(0, 5).map((j, i) => (
-                   <div key={i} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                         <div className="w-2 h-2 bg-rose-500 rounded-full" />
-                         <span className="text-[9px] font-black text-white uppercase tracking-widest italic truncate max-w-[120px]">{j.vehicleNo || `V-LINK-${j.id.slice(0,4)}`}</span>
-                      </div>
-                      <span className="text-rose-500 text-[9px] font-black uppercase tracking-widest italic">
-                        {(j.deviationDistance * 100).toFixed(0)}% Drift
-                      </span>
-                   </div>
-                ))}
-                <button className="w-full py-4 mt-4 bg-rose-600 text-white text-[9px] font-black uppercase tracking-[4px] rounded-2xl shadow-xl shadow-rose-600/20 active:scale-95 transition-all">Sovereign Override</button>
-             </div>
+            <div className="relative z-10 mt-12 flex flex-col min-h-0 h-full">
+               <div className="bg-white/5 rounded-[2rem] border border-white/5 p-6 space-y-4 overflow-y-auto max-h-[160px] custom-scrollbar mb-4">
+                  {activeJourneys.filter(j => j.deviationDistance > 0.5).length === 0 ? (
+                     <div className="py-10 text-center opacity-20">
+                        <CheckCircle2 size={30} className="mx-auto mb-2 text-emerald-500" />
+                        <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Grid Vectors Normal</p>
+                     </div>
+                  ) : activeJourneys.filter(j => j.deviationDistance > 0.5).slice(0, 5).map((j, i) => (
+                     <div key={i} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <div className="w-2 h-2 bg-rose-500 rounded-full" />
+                           <span className="text-[9px] font-black text-white uppercase tracking-widest italic truncate max-w-[120px]">{j.vehicleNo || `V-LINK-${j.id.slice(0,4)}`}</span>
+                        </div>
+                        <span className="text-rose-500 text-[9px] font-black uppercase tracking-widest italic">
+                          {(j.deviationDistance * 100).toFixed(0)}% Drift
+                        </span>
+                     </div>
+                  ))}
+               </div>
+               <button className="w-full py-5 bg-rose-600 text-white text-[10px] font-black uppercase tracking-[4px] rounded-2xl shadow-xl shadow-rose-600/20 active:scale-95 transition-all shrink-0">Sovereign Override</button>
+            </div>
          </div>
       </div>
       

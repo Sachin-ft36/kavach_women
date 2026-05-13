@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { db } from '../firebase';
-import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { useKavachStore } from '../store/useKavachStore';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera } from '@capacitor/camera';
@@ -97,11 +97,23 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   useEffect(() => {
     let checkInterval: any;
-    if (step === 6 && Capacitor.isNativePlatform()) {
+    const isShieldsStep = step === 7;
+    
+    if (isShieldsStep && Capacitor.isNativePlatform()) {
       checkHardwareStatus();
-      checkInterval = setInterval(checkHardwareStatus, 300);
+      // 🛰️ CONTINUOUS POLLING: Ensure UI updates immediately when permissions are granted
+      checkInterval = setInterval(checkHardwareStatus, 1000);
+
+      // 🛡️ FOCUS SENTINEL: Re-check immediately when user returns from System Settings
+      const listener = import('@capacitor/app').then(m => m.App.addListener('appStateChange', (state) => {
+        if (state.isActive) checkHardwareStatus();
+      }));
+
+      return () => {
+        if (checkInterval) clearInterval(checkInterval);
+        listener.then(l => l.remove());
+      };
     }
-    return () => { if (checkInterval) clearInterval(checkInterval); };
   }, [step]);
 
   const handleShieldToggle = async (id: string) => {
@@ -124,11 +136,40 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     }
   };
 
+  useEffect(() => {
+    // 🛡️ DATA HYDRATION SENTINEL: Pre-load existing profile data to prevent empty state overwrites
+    const hydrateState = async () => {
+      if (!user?.uid) return;
+      try {
+        const docRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.name) setUserName(data.name);
+          if (data.phoneNumber) setUserPhone(data.phoneNumber);
+          if (data.gender) setGender(data.gender);
+          if (data.role) setRole(data.role);
+          if (data.aadhar) setAadhaar(data.aadhar);
+          if (data.safetyPin) setLocalSafetyPin(data.safetyPin);
+          if (data.protectorVetting) setProtectorData(data.protectorVetting);
+          console.log("🛰️ KAVACH ONBOARDING: Profile Hydrated. Existing records protected.");
+        }
+      } catch (e) {
+        console.warn("Hydration Error:", e);
+      }
+    };
+    hydrateState();
+  }, [user?.uid]);
+
   const finishOnboarding = async () => {
     if (!user) return;
     setIsFinishing(true);
     try {
-      if (aadhaar) {
+      // 🛡️ PRE-FLIGHT SYNC: Get current data one last time to merge safely
+      const currentSnap = await getDoc(doc(db, 'users', user.uid));
+      const existingData = currentSnap.exists() ? currentSnap.data() : {};
+
+      if (aadhaar && aadhaar !== existingData.aadhar) {
         // Master Ledger Check (Everyone is in 'users')
         const q = query(collection(db, 'users'), where('aadhar', '==', aadhaar));
         const snap = await getDocs(q);
@@ -139,7 +180,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           return;
         }
       }
-      if (userPhone) {
+      if (userPhone && userPhone !== existingData.phoneNumber) {
         const q = query(collection(db, 'users'), where('phoneNumber', '==', userPhone));
         const snap = await getDocs(q);
         const duplicate = snap.docs.find(d => d.id !== user.uid);
@@ -150,8 +191,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         }
       }
 
-      let initialLocation = null;
-      let fullAddress = "Sector Unknown";
+      let initialLocation = existingData.lastLocation || null;
+      let fullAddress = existingData.fullAddress || "Sector Unknown";
       try {
         const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
         initialLocation = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
@@ -160,22 +201,21 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         fullAddress = `Sector Grid: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
       } catch (geoError) {}
 
-        const userProfile = {
+      // 🛡️ TACTICAL MERGE PAYLOAD: Only update what we have, preserve what we don't
+      const userProfile = {
         uid: user.uid,
-        name: (userName || "User"),
-        email: user.email || "",
-        phoneNumber: userPhone || user.phoneNumber || "",
-        safetyPin: safetyPin,
-        role: role || 'citizen',
-        gender: gender || 'female',
+        name: (userName || existingData.name || user?.displayName || "User"),
+        email: user.email || existingData.email || "",
+        phoneNumber: userPhone || existingData.phoneNumber || user.phoneNumber || "",
+        safetyPin: safetyPin || existingData.safetyPin || "",
+        role: role || existingData.role || 'citizen',
+        gender: gender || existingData.gender || 'female',
         isRegistered: true,
-        isVerified: role === 'citizen' ? true : (gender === 'female' ? true : false),
-        aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : null,
-        aadhar: aadhaar || null,
-        onboardedAt: serverTimestamp(),
+        isVerified: role === 'citizen' ? true : (gender === 'female' ? true : (existingData.isVerified || false)),
+        aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
+        aadhar: aadhaar || existingData.aadhar || null,
         
-        // 🛰️ FORENSIC LOCATION PACKET (Professional Standard)
-        lastLocation: initialLocation, // { lat, lng, accuracy }
+        lastLocation: initialLocation,
         locationData: {
           lat: initialLocation?.lat || null,
           lng: initialLocation?.lng || null,
@@ -189,43 +229,54 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         fullAddress: fullAddress,
         state: fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
         
-        primaryGuardian: guardians.length > 0 ? {
+        primaryGuardian: (guardians.length > 0) ? {
           name: guardians[0].name,
           phone: `+91${guardians[0].phone.replace(/\D/g, '')}`,
           relation: guardians[0].relation
-        } : null,
-        onboardedAt: serverTimestamp(),
+        } : (existingData.primaryGuardian || null),
+        
+        onboardedAt: existingData.onboardedAt || serverTimestamp(),
         lastActive: serverTimestamp(),
-        protectorVetting: role === 'protector' && gender === 'male' ? protectorData : null
+        protectorVetting: (role === 'protector' && gender === 'male') ? (protectorData.fullName ? protectorData : existingData.protectorVetting) : null
       };
 
       // 🛰️ MULTI-PATH SYSTEMATIC SYNC WITH TACTICAL TIMEOUT
       const syncTasks = async () => {
-        // 1. Master Ledger
+        // 1. Master Ledger (Clean only truly empty/undefined values)
         const cleanProfile = Object.fromEntries(
-          Object.entries(userProfile).filter(([_, v]) => v !== "" && v !== null)
+          Object.entries(userProfile).filter(([_, v]) => v !== undefined && v !== null && v !== "")
         );
+        
         await setDoc(doc(db, 'users', user.uid), cleanProfile, { merge: true });
 
         // 2. Gender-Specific Partitioning
-        if (gender === 'male') {
-          await setDoc(doc(db, 'male_users', user.uid), userProfile, { merge: true });
+        const finalGender = gender || existingData.gender || 'female';
+        if (finalGender === 'male') {
+          await setDoc(doc(db, 'male_users', user.uid), cleanProfile, { merge: true });
         } else {
-          await setDoc(doc(db, 'women_users', user.uid), userProfile, { merge: true });
-          if (role === 'citizen') {
+          await setDoc(doc(db, 'women_users', user.uid), cleanProfile, { merge: true });
+          if (userProfile.role === 'citizen') {
             await setDoc(doc(db, 'women_users', user.uid, 'safety_data', 'status'), {
               active: true, setupAt: serverTimestamp(), type: 'Citizen/Safety'
-            });
+            }, { merge: true });
           }
-          if (role === 'protector') {
+          if (userProfile.role === 'protector') {
             await setDoc(doc(db, 'women_users', user.uid, 'protector_data', 'status'), {
               active: true, setupAt: serverTimestamp(), type: 'Protector/Rakshak'
-            });
+            }, { merge: true });
           }
         }
 
-        if (role === 'citizen' && guardians.length > 0) {
+        if (userProfile.role === 'citizen' && guardians.length > 0) {
           const guardianCol = collection(db, 'users', user.uid, 'guardians');
+          // 🛡️ EMERGENCY CACHE: Ensure guardians are accessible to local SOS service
+          const localGuardians = guardians.map(g => ({
+            name: g.name,
+            phone: `+91${g.phone.replace(/\D/g, '')}`,
+            relation: g.relation
+          }));
+          localStorage.setItem('kavach_guardian_cache', JSON.stringify(localGuardians));
+
           for (const g of guardians) {
             if (g.name && g.phone) {
               const cleanPhone = g.phone.replace(/\D/g, '');
@@ -237,26 +288,28 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         }
 
         if (Capacitor.isNativePlatform()) {
-          // 🛡️ NATIVE HANDSHAKE: Non-blocking to prevent UI hang
-          KavachNative.initializeService({ userId: user.uid, role: role }).catch(() => {});
+          KavachNative.startBackgroundSentinel().catch(() => {});
         }
       };
 
-      // ⚡ FAST-TRACK EXECUTION: Don't wait for everything if it's taking too long
       await Promise.race([
         syncTasks(),
-        new Promise(resolve => setTimeout(resolve, 3000)) // 3s Max Wait
+        new Promise(resolve => setTimeout(resolve, 4000)) // Increased to 4s for safety
       ]);
 
-      setStoreRole(role || 'citizen');
-      setStoreGender(gender || 'female');
+      const finalRole = userProfile.role;
+      const finalGender = userProfile.gender;
+      
+      setStoreRole(finalRole);
+      setStoreGender(finalGender);
       const store = useKavachStore.getState();
-      store.setSafetyPin(safetyPin);
+      if (userProfile.safetyPin) store.setSafetyPin(userProfile.safetyPin);
       store.setRegistered(true);
-      store.setVerified(role === 'citizen' ? true : (gender === 'female' ? true : false));
+      store.setVerified(userProfile.isVerified);
       localStorage.setItem('kavach_hardware_synced', 'true');
       onComplete();
     } catch (e: any) {
+      console.error("Configuration Sync Failure:", e);
       toast.error(`Configuration Error: ${e.message}`);
     } finally {
       setIsFinishing(false);
@@ -292,7 +345,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       <div className="w-full max-w-lg mx-auto flex-1 flex flex-col relative z-10 px-4 sm:px-8 py-3 sm:py-8">
         {/* Step Progress Indicator */}
         <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-10">
-          {[1, 2, 3, 4, 5, 6].map((s) => (
+          {[1, 2, 3, 4, 5, 6, 7].map((s) => (
             <div 
               key={s} 
               className={cn(

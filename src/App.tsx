@@ -54,7 +54,8 @@ import {
   BookOpen, 
   UserCheck, 
   Trophy,
-  Shield
+  Shield,
+  Volume2
 } from 'lucide-react';
 import KavachAIChat from './components/KavachAIChat';
 import StealthOverlay from './components/StealthOverlay';
@@ -69,75 +70,12 @@ import { doc, getDoc, collection, getDocs, setDoc, onSnapshot, query, where, ter
 import { App as CapApp } from '@capacitor/app';
 import { cn } from './lib/utils';
 
-// KavachNative is now imported from services
 
-export const KavachSafe = {
-  startContinuousSiren: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.startContinuousSiren(); } catch (e) { console.error("Native Siren Error:", e); }
-    }
-  },
-  stopContinuousSiren: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.stopContinuousSiren(); } catch (e) { console.error("Native Siren Stop Error:", e); }
-    }
-  },
-  triggerHapticPulse: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.triggerHapticPulse(); } catch (e) { console.error("Native Haptic Error:", e); }
-    }
-  },
-  requestSensitivePermissions: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.requestSensitivePermissions(); } catch (e) { console.error("Native Permissions Error:", e); }
-    }
-  },
-  startForensicCapture: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.startForensicCapture(); } catch (e) { console.error("Native Capture Error:", e); }
-    }
-  },
-  stopForensicCapture: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.stopForensicCapture(); } catch (e) { console.error("Native Capture Stop Error:", e); }
-    }
-  },
-  broadcastEmergencySMS: async (options: { message: string, location: { lat: number, lng: number } }) => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.broadcastEmergencySMS(options); } catch (e) { console.error("Native Broadcast Error:", e); }
-    }
-  },
-  sendSilentSMS: async (options: { number: string, message: string }) => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.sendSilentSMS(options); } catch (e) { console.error("Native SMS Error:", e); }
-    }
-  },
-  directCall: async (options: { number: string }) => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.directCall(options); } catch (e) { console.error("Native Call Error:", e); }
-    }
-  },
-  isIgnoringBatteryOptimizations: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { return await KavachNative.isIgnoringBatteryOptimizations(); } catch (e) { console.error("Native Battery Check Error:", e); return { isExempt: true }; }
-    }
-    return { isExempt: true };
-  },
-  openBatterySettings: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.openBatterySettings(); } catch (e) { console.error("Native Settings Error:", e); }
-    }
-  },
-  startBackgroundSentinel: async () => {
-    if (Capacitor.isNativePlatform()) {
-      try { await KavachNative.startBackgroundSentinel(); } catch (e) { console.error("Native Sentinel Start Error:", e); }
-    }
-  }
-};
 
 export default function App() {
   const isAIChatOpen = useKavachStore(state => state.isAIChatOpen);
   const setIsAIChatOpen = useKavachStore(state => state.setIsAIChatOpen);
+  const isInterceptActive = useKavachStore(state => state.isInterceptActive);
   
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -161,6 +99,21 @@ export default function App() {
 
   const [trackId, setTrackId] = useState<string | null>(null);
   const [showFailSafe, setShowFailSafe] = useState(false);
+
+  // 🛡️ TACTICAL ZOOM LOCK: Prevent browser scaling from breaking the war room layout
+  useEffect(() => {
+    const preventZoom = (e: any) => {
+      if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.deltaY)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', preventZoom);
+    window.addEventListener('wheel', preventZoom, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', preventZoom);
+      window.removeEventListener('wheel', preventZoom);
+    };
+  }, []);
   const handleHardReset = () => { localStorage.clear(); window.location.reload(); };
   const isSOSActive = useKavachStore(state => state.isSOSActive);
   const handshakeCode = useKavachStore(state => state.handshakeCode);
@@ -496,44 +449,6 @@ export default function App() {
     setRegistered(true);
   };
 
-  // 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro
-  if (!hasSeenIntro && !trackId) return (
-    <motion.div 
-      initial={{ opacity: 1 }}
-      animate={{ opacity: isIntroEnding ? 0 : 1 }}
-      transition={{ duration: 1 }}
-      className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden"
-    >
-      <video 
-        autoPlay 
-        playsInline
-        muted
-        onEnded={onIntroEnd}
-        className="w-full h-full object-cover scale-[1.01]"
-      >
-        <source src="/kavachintro.mp4" type="video/mp4" />
-      </video>
-      
-      {/* 🏛️ NATIONAL HUD OVERLAY */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
-      
-      <div className="absolute bottom-12 left-0 right-0 text-center space-y-4">
-         <div className="flex items-center justify-center gap-3">
-            <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
-            <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.4em] italic">Tactical Briefing in Progress</p>
-            <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
-         </div>
-         <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
-      </div>
-      
-      <div className="absolute top-10 left-10 flex items-center gap-3 opacity-40">
-         <Shield size={20} className="text-white" />
-         <div className="h-4 w-[1px] bg-white/20" />
-         <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
-      </div>
-    </motion.div>
-  );
-
   // 🛰️ VETERAN SYNC: High-speed loading for returning users
   if (loading && !trackId) return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
@@ -564,6 +479,41 @@ export default function App() {
                 localStorage.setItem('kavach_language_selected', 'true');
                 setIsLanguageSelected(true);
               }} />
+            ) : !hasSeenIntro ? (
+              /* 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro AFTER interaction */
+              <motion.div 
+                initial={{ opacity: 1 }}
+                animate={{ opacity: isIntroEnding ? 0 : 1 }}
+                transition={{ duration: 1 }}
+                className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden"
+              >
+                <video 
+                  autoPlay 
+                  playsInline
+                  onEnded={onIntroEnd}
+                  className="w-full h-full object-cover scale-[1.01]"
+                >
+                  <source src="/kavachintro.mp4" type="video/mp4" />
+                </video>
+                
+                {/* 🏛️ NATIONAL HUD OVERLAY */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+                
+                <div className="absolute bottom-12 left-0 right-0 text-center space-y-4">
+                   <div className="flex items-center justify-center gap-3">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                      <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.4em] italic">Tactical Briefing in Progress</p>
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                   </div>
+                   <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
+                </div>
+                
+                <div className="absolute top-10 left-10 flex items-center gap-3 opacity-40">
+                   <Shield size={20} className="text-white" />
+                   <div className="h-4 w-[1px] bg-white/20" />
+                   <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
+                </div>
+              </motion.div>
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
             ) : isSOSActive ? (
@@ -595,15 +545,14 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {/* 🚀 GLOBAL TACTICAL SHELL (TRULY FIXED VIA PORTAL) */}
-      {!isSOSActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced && createPortal(
-        <>
-          <motion.nav 
-            initial={{ y: 120, opacity: 0 }}
-            animate={{ 
-              y: isNavVisible ? 0 : 120, 
-              opacity: isNavVisible ? 1 : 0 
-            }}
+  {(!isSOSActive && !isInterceptActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
+    <>
+      <motion.nav 
+        initial={{ y: 120, opacity: 0 }}
+        animate={{ 
+          y: isNavVisible ? 0 : 120, 
+          opacity: isNavVisible ? 1 : 0 
+        }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             style={{ 
               position: 'fixed', 

@@ -1,6 +1,6 @@
 import React from 'react';
 import SOSButton from '../components/SOSButton';
-import { Lock, Fingerprint, Shield, AlertTriangle, X, Mic, Radio, Signal, ShieldCheck, Eye, MessageSquare, Phone, User, UserCheck } from 'lucide-react';
+import { Lock, Fingerprint, Shield, AlertTriangle, X, Mic, Radio, Signal, ShieldCheck, Eye, MessageSquare, Phone, User, UserCheck, Volume2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useKavachStore } from '../store/useKavachStore';
 import { db } from '../firebase';
@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 import KavachAIChat from '../components/KavachAIChat';
 import SecurityRadarMap from '../components/maps/SecurityRadarMap';
 import { useCall } from '../contexts/CallContext';
@@ -37,9 +37,9 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const [nearbyCount, setNearbyCount] = React.useState(0);
   const [isAIChatOpen, setIsAIChatOpen] = React.useState(false);
   const [smsStatus, setSmsStatus] = React.useState('INITIALIZING...');
-  const [callStatus, setCallStatus] = React.useState('ENROUTE');
   const [protectors, setProtectors] = React.useState<any[]>([]);
   const recognitionRef = React.useRef<any>(null);
+  const { initiateCall, callState } = useCall();
 
   // 📡 SOS DISPATCH HANDSHAKE SEQUENCE
   React.useEffect(() => {
@@ -47,68 +47,30 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
       const smsTimer1 = setTimeout(() => setSmsStatus('SENDING...'), 2000);
       const smsTimer2 = setTimeout(() => setSmsStatus('DELIVERED'), 5000);
       
-      const callTimer1 = setTimeout(() => setCallStatus('DIALING...'), 3000);
-      const callTimer2 = setTimeout(() => setCallStatus('CONNECTED'), 7000);
-
       return () => {
         clearTimeout(smsTimer1);
         clearTimeout(smsTimer2);
-        clearTimeout(callTimer1);
-        clearTimeout(callTimer2);
       };
     } else {
       setSmsStatus('INITIALIZING...');
-      setCallStatus('ENROUTE');
     }
   }, [isSOSActive]);
 
-  // ⚡ LIGHTNING TACTICAL ESCALATION: 15-Second Tiered Expansion (1km -> 5km)
+  // ⚡ TACTICAL RANGE HARDENING: Fixed 5KM Scanning (Optimized for performance)
   React.useEffect(() => {
-    let expansionTimer: any;
-
-    if (isSOSActive && activeAlertId) {
-      expansionTimer = setInterval(async () => {
-        const currentRadius = useKavachStore.getState().activeRadius;
-        if (currentRadius >= 5.0) {
-          clearInterval(expansionTimer);
-          return;
-        }
-        
-        const nextTier = currentRadius + 1.0;
-        setActiveRadius(nextTier);
-        
-        // 🛡️ SYNC RADIUS TO NATIONAL GRID
-        setDoc(doc(db, 'alerts', activeAlertId), {
-          dispatchRadius: nextTier,
-          lastEscalatedAt: serverTimestamp()
-        }, { merge: true }).catch(e => console.error("🛰️ RADIUS_SYNC_ERROR:", e));
-
-        console.log(`⚡ KAVACH ESCALATION: Search Perimeter Expanded to ${nextTier}KM`);
-      }, 15000); // 🕒 15-Second Lightning Interval
-    }
-
-    return () => clearInterval(expansionTimer);
-  }, [isSOSActive, activeAlertId]);
-
-  // 🧠 SMART "GHOST-TOWN" SKIP: Reactive Jump if 0 assets found
-  React.useEffect(() => {
-    if (isSOSActive && nearbyCount === 0 && activeRadius < 5.0 && activeAlertId) {
-      const skipDelay = setTimeout(() => {
-        const nextTier = activeRadius + 1.0;
-        setActiveRadius(nextTier);
-        
-        setDoc(doc(db, 'alerts', activeAlertId), {
-          dispatchRadius: nextTier,
-          lastEscalatedAt: serverTimestamp(),
-          escalationReason: 'ZERO_ASSETS_DETECTED'
-        }, { merge: true }).catch(e => console.error("🛰️ RADIUS_JUMP_ERROR:", e));
-        
-        console.warn(`⚡ KAVACH SMART JUMP: No assets in ${activeRadius}KM. Expanding to ${nextTier}KM.`);
-      }, 3000); // 🛡️ 3s Tactical Delay to allow snapshot to settle
+    if (isSOSActive && activeAlertId && activeRadius < 5.0) {
+      setActiveRadius(5.0);
       
-      return () => clearTimeout(skipDelay);
+      // 🛡️ SYNC FINAL RADIUS TO NATIONAL GRID IMMEDIATELY
+      setDoc(doc(db, 'alerts', activeAlertId), {
+        dispatchRadius: 5.0,
+        lastEscalatedAt: serverTimestamp(),
+        escalationReason: 'MAX_RANGE_FORCE_OVERRIDE'
+      }, { merge: true }).catch(e => console.error("🛰️ RADIUS_FORCE_SYNC_ERROR:", e));
+
+      console.log("⚡ KAVACH: Search Perimeter Hardened to 5.0KM (Max Range)");
     }
-  }, [isSOSActive, nearbyCount, activeRadius, activeAlertId]);
+  }, [isSOSActive, activeAlertId, activeRadius]);
 
   // 📡 PROTECTOR RADAR LOGIC (ADAPTIVE RANGE SCAN)
   React.useEffect(() => {
@@ -134,6 +96,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
         setNearbyCount(inRange.length);
         setProtectors(inRange);
+        console.log(`📡 RADAR UPDATE: Found ${inRange.length} verified protectors in tactical range.`);
       });
     }
 
@@ -144,6 +107,31 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
     };
   }, [isSOSActive, userPos, activeRadius]);
 
+  // 📡 MISSION CRITICAL: 2-Second High-Precision Location Uplink
+  React.useEffect(() => {
+    let updateTimer: any;
+    if (isSOSActive && activeAlertId && userPos) {
+      updateTimer = setInterval(async () => {
+        try {
+          const { doc, setDoc } = await import('firebase/firestore');
+          const { db } = await import('../firebase');
+          
+          await setDoc(doc(db, 'alerts', activeAlertId), {
+            latitude: userPos[0],
+            longitude: userPos[1],
+            'location.latitude': userPos[0],
+            'location.longitude': userPos[1],
+            lastLocationUpdate: serverTimestamp()
+          }, { merge: true });
+          console.log("🛰️ KAVACH UPLINK: Precision coordinates transmitted.");
+        } catch (e) {
+          console.error("🛰️ UPLINK_SYNC_ERROR:", e);
+        }
+      }, 2000); // 🕒 2-Second Tactical Interval
+    }
+    return () => clearInterval(updateTimer);
+  }, [isSOSActive, activeAlertId, userPos]);
+
   // 🎙️ MISSION CRITICAL: LIVE TRANSCRIPT ENGINE (RETIRED DUE TO HARDWARE CLASH)
   // Transcription during SOS is disabled to prioritize high-fidelity native recording.
   // This prevents the 'Mic Busy' error on critical SOS interceptors.
@@ -151,7 +139,6 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const [isBeingMonitored, setIsBeingMonitored] = React.useState(false);
   const [showSafetyVerification, setShowSafetyVerification] = React.useState(false);
   const [activeAlertData, setActiveAlertData] = React.useState<any>(null);
-  const { initiateCall } = useCall();
 
   // 📡 ACTIVE MISSION SYNC: Real-time Alert Data Stream
   React.useEffect(() => {
@@ -289,17 +276,19 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
       KavachSafe.stopContinuousSiren();
     }
     
-    // 🛡️ PHASE 2: GRID SYNC & ACCOUNTABILITY (Unified Store Protocol)
+    // 🛡️ PHASE 2: INSTANT LOCAL SNAPBACK (Optimistic UI)
+    // We clear the local state first so the UI changes within milliseconds.
+    setSOSActive(false); 
+    setShowAbortReason(false);
+    setAbortReason('');
+    setIsAborting(false);
+    toast.success("Mission De-escalated. Grid Restored.");
+
+    // 🛡️ PHASE 3: GRID SYNC & ACCOUNTABILITY (Background)
     try {
       await setSOSActive(false, alertId, triggerMethod, abortReason);
     } catch (e: any) {
       console.warn("⚠️ SOS Grid Sync: Background update failed.", e);
-    } finally {
-      // 🛡️ PHASE 3: FINAL UI COLLAPSE
-      setShowAbortReason(false);
-      setAbortReason('');
-      setIsAborting(false);
-      toast.success("Mission De-escalated. Grid Restored.");
     }
   };
 
@@ -550,102 +539,86 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
         )}
 
         {/* Header: Recording Stats */}
-        <div className="relative z-10 flex items-center justify-between pt-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-red-600 rounded-full" />
-            <span className="text-[10px] font-black uppercase tracking-[3px] text-red-500 italic">LIVE FORENSIC RECORDING</span>
+        <div className="relative z-10 flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-white/20 rounded-full" />
+            <span className="text-[8px] font-black uppercase tracking-[2px] text-white/40 italic">LIVE FORENSIC</span>
           </div>
 
-          {/* 🚨 MANUAL PANIC OVERRIDE */}
-          <button 
-            onClick={async () => {
-              const isSirenPlaying = (window as any)._kavach_manual_siren;
-              if (isSirenPlaying) {
-                await KavachSafe.stopContinuousSiren();
-                (window as any)._kavach_manual_siren = false;
-                toast.success("Manual Alarm Disengaged.");
-              } else {
-                await KavachSafe.startContinuousSiren();
-                (window as any)._kavach_manual_siren = true;
-                toast.error("MANUAL PANIC ALARM ACTIVE", { icon: '🚨' });
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-full border border-white/20 shadow-[0_0_20px_rgba(220,38,38,0.4)] active:scale-90 transition-all animate-pulse"
-          >
-            <AlertTriangle size={12} fill="white" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Manual Alarm</span>
-          </button>
-
           {/* Protector Radar Count */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/10 border border-accent-blue/30 rounded-full">
-            <Shield size={10} className="text-accent-blue" />
-            <span className="text-[8px] font-black text-accent-blue uppercase tracking-widest">
-              {nearbyCount} PROTECTORS IN RANGE
+          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/30 rounded-full">
+            <Shield size={8} className="text-accent-blue" />
+            <span className="text-[7px] font-black text-accent-blue uppercase tracking-widest">
+              {nearbyCount} IN RANGE
             </span>
           </div>
 
-          <div className="px-2 py-1 bg-white/5 border border-white/10 rounded-full text-[7px] font-bold text-gray-500 uppercase tracking-widest">
-            NODE: {triggerMethod?.toUpperCase() || 'MANUAL'}
+          <div className="px-2 py-0.5 bg-white/5 border border-white/10 rounded-full text-[6px] font-bold text-gray-500 uppercase tracking-widest">
+             {triggerMethod?.toUpperCase() || 'MANUAL'}
           </div>
         </div>
 
-        {/* Main Pulsator Copy (Centered) */}
-        <div className="flex-1 flex flex-col items-center justify-center space-y-12 relative z-10 pointer-events-none">
+        {/* Main Pulsator Copy (Centered) - Now Composed */}
+        <div className="flex-1 flex flex-col items-center justify-center space-y-8 relative z-10 pointer-events-none">
           <div className="relative">
-            <div className="w-48 h-48 bg-red-600/20 rounded-full flex flex-col items-center justify-center backdrop-blur-md border-4 border-white/10 shadow-[0_0_80px_rgba(220,38,38,0.2)]">
-              <Shield size={48} className="text-white/80 animate-pulse" />
-              <p className="mt-4 text-white/60 font-black uppercase tracking-[4px] text-[8px]">GRID ACTIVE</p>
+            <div className="w-36 h-36 bg-white/[0.03] rounded-full flex flex-col items-center justify-center backdrop-blur-md border border-white/10 shadow-2xl">
+              <Shield size={36} className="text-white/20" />
+              <p className="mt-3 text-white/20 font-black uppercase tracking-[3px] text-[7px]">GRID ACTIVE</p>
             </div>
           </div>
 
           <div className="w-full max-w-sm space-y-4 pointer-events-auto">
-            <div className="p-5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[24px] space-y-4">
+            <div className="p-4 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[20px] space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Radio size={16} className="text-green-500" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-white/80">Uplink Status</span>
+                <div className="flex items-center gap-2">
+                  <Radio size={14} className="text-green-500" />
+                  <span className="text-[8px] font-black uppercase tracking-widest text-white/80">Uplink Status</span>
                 </div>
                 <span className="text-[7px] font-black text-green-500 uppercase italic">STABLE</span>
               </div>
-              <div className="space-y-2 border-t border-white/5 pt-4">
-                <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
-                  <span>Police Control Dispatch</span>
+              <div className="space-y-1.5 border-t border-white/5 pt-3">
+                <div className="flex items-center justify-between text-[6px] font-bold uppercase tracking-widest text-gray-500">
+                  <span>Police Dispatch</span>
                   <span className={cn(
                     "transition-colors duration-500", 
-                    !Capacitor.isNativePlatform() ? "text-gray-600" : (callStatus === 'CONNECTED' ? "text-green-500" : "text-white italic")
+                    !Capacitor.isNativePlatform() ? "text-gray-600" : (callState === 'connected' ? "text-green-500 font-black" : "text-white italic")
                   )}>
-                    {Capacitor.isNativePlatform() ? callStatus : 'PLATFORM UNAVAILABLE'}
+                    {Capacitor.isNativePlatform() 
+                      ? (callState === 'connected' ? '🛡️ SECURED' : callState === 'calling' ? 'DIALING...' : callState === 'ringing' ? 'RINGING...' : 'ENROUTE') 
+                      : 'UNAVAILABLE'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
-                  <span>Guardian SMS Alert</span>
+                <div className="flex items-center justify-between text-[6px] font-bold uppercase tracking-widest text-gray-500">
+                  <span>Guardian SMS</span>
                   <span className={cn(
                     "transition-colors duration-500", 
                     !Capacitor.isNativePlatform() ? "text-gray-600" : (smsStatus === 'DELIVERED' ? "text-green-500" : "text-white italic")
                   )}>
-                    {Capacitor.isNativePlatform() ? smsStatus : 'PLATFORM UNAVAILABLE'}
+                    {Capacitor.isNativePlatform() ? smsStatus : 'UNAVAILABLE'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[7px] font-bold uppercase tracking-widest text-gray-500">
-                  <span>Audio Log Storage</span>
+                <div className="flex items-center justify-between text-[6px] font-bold uppercase tracking-widest text-gray-500">
+                  <span>Audio Storage</span>
                   <span className="text-white italic">LOGGING...</span>
                 </div>
               </div>
-
             </div>
             
             {/* 🛡️ RESPONDER HUB: Live Tactical Support */}
             <AnimatePresence mode="wait">
               {(activeAlertData?.activeResponders?.length > 0) && (
                 <motion.div 
-                  initial={{ y: 20, opacity: 0 }}
+initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: -20, opacity: 0 }}
-                  className="space-y-4"
+                  className="space-y-2"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[3px] flex items-center gap-2">
-                      <ShieldCheck size={14} /> {activeAlertData.activeResponders.length} Protector{activeAlertData.activeResponders.length > 1 ? 's' : ''} Responding
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[2px] flex items-center gap-1.5">
+                      <ShieldCheck size={12} /> {(() => {
+                        const unique = activeAlertData.activeResponders.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.uid === v.uid) === i);
+                        return unique.length;
+                      })()} Protector{activeAlertData.activeResponders.length > 1 ? 's' : ''} Responding
                     </p>
                     <div className="flex gap-1">
                       <div className="w-1 h-1 bg-emerald-500 rounded-full animate-ping" />
@@ -653,43 +626,34 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {activeAlertData.activeResponders.map((responder: any) => (
+                  <div className="max-h-[180px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                    {activeAlertData.activeResponders.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.uid === v.uid) === i).map((responder: any) => (
                       <motion.div 
                         key={responder.uid}
                         layout
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-5 rounded-[32px] flex items-center justify-between shadow-2xl relative overflow-hidden group"
+                        className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-3 rounded-[24px] flex items-center justify-between shadow-xl relative overflow-hidden group"
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                         
-                        <div className="flex items-center gap-4 relative z-10">
-                          <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center border border-emerald-500/30">
-                             <UserCheck size={24} className="text-emerald-500" />
+                        <div className="flex items-center gap-3 relative z-10">
+                          <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
+                             <UserCheck size={20} className="text-emerald-500" />
                           </div>
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight">{responder.name}</h4>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-[11px] font-black text-white uppercase italic tracking-tight">{responder.name}</h4>
                               
-                              {/* 🛡️ DYNAMIC GRID RANK BADGES */}
                               {(responder.xp || 0) >= 25000 && (
-                                <div className="px-2 py-0.5 bg-emerald-500 rounded-full flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-                                  <ShieldCheck size={8} className="text-white" />
-                                  <span className="text-[6px] font-black text-white uppercase tracking-tighter">VERIFIED</span>
-                                </div>
-                              )}
-                              
-                              {(responder.xp || 0) >= 100000 && (
-                                <div className="px-2 py-0.5 bg-gradient-to-r from-orange-500 via-white to-emerald-500 rounded-full flex items-center gap-1 border border-white/20">
-                                  <Globe size={8} className="text-blue-900" />
-                                  <span className="text-[6px] font-black text-[#0F172A] uppercase tracking-tighter">ASSET</span>
+                                <div className="px-1.5 py-0.5 bg-emerald-500 rounded-full flex items-center shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                                  <ShieldCheck size={6} className="text-white" />
                                 </div>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Active Dispatch</p>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                              <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest">Active Dispatch</p>
                             </div>
                           </div>
                         </div>
@@ -700,9 +664,9 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                               console.log("📞 KAVACH UI: Secure Link Initiated for", responder.name);
                               initiateCall(responder.uid, responder.name);
                             }}
-                            className="w-14 h-14 bg-emerald-500 text-black rounded-[20px] flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.4)] active:scale-90 transition-all hover:bg-emerald-400"
+                            className="w-10 h-10 bg-emerald-500 text-black rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-90 transition-all hover:bg-emerald-400"
                           >
-                             <Phone size={24} strokeWidth={2.5} />
+                             <Phone size={18} strokeWidth={2.5} />
                           </button>
                         </div>
                       </motion.div>
@@ -717,41 +681,83 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
                initial={{ y: 20, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.5 }}
-               className="p-5 bg-blue-600/10 backdrop-blur-xl border border-blue-500/30 rounded-[24px] flex flex-col items-center justify-center space-y-2"
+               className="p-4 bg-blue-600/10 backdrop-blur-xl border border-blue-500/20 rounded-[20px] flex flex-col items-center justify-center space-y-1.5"
             >
-               <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest leading-none">Tactical Handshake Code</span>
-               <div className="flex items-center gap-4 py-1">
-                  <Fingerprint size={20} className="text-blue-400" />
-                  <span className="text-4xl font-black text-white italic tracking-[0.3em] ml-1">
+               <span className="text-[7px] font-black text-blue-400 uppercase tracking-widest leading-none">Handshake Code</span>
+               <div className="flex items-center gap-3 py-0.5">
+                  <Fingerprint size={16} className="text-blue-400" />
+                  <span className="text-3xl font-black text-white italic tracking-[0.2em] ml-1">
                      {handshakeCode || activeAlertData?.verification?.handshakeCode || '----'}
                   </span>
                </div>
-               <p className="text-[7px] font-bold text-blue-400/60 uppercase tracking-widest text-center px-4 leading-tight">
-                  Share this code ONLY with verified Kavach Protectors to verify your rescue.
+               <p className="text-[6px] font-bold text-blue-400/50 uppercase tracking-widest text-center px-4 leading-tight">
+                  Share ONLY with verified protectors.
                </p>
             </motion.div>
           </div>
         </div>
 
-        <div className="relative z-10 pb-8 flex flex-col items-center space-y-6">
-          <div className="flex items-center gap-2 text-red-500/60">
-            <AlertTriangle size={14} />
-            <p className="text-[8px] font-black uppercase tracking-[3px]">Evidence processing under BNSS protocols</p>
+        {/* 🚨 MISSION CONTROL HUB (RE-ENGINEERED) */}
+        <div className="relative z-10 mt-auto pb-12 space-y-4">
+          
+          {/* 🚨 ACOUSTIC PANIC CONTROLLER */}
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={async () => {
+                await KavachSafe.startContinuousSiren();
+                (window as any)._kavach_manual_siren = true;
+                toast.error("MANUAL PANIC ALARM ACTIVE", { icon: '🚨', duration: 5000 });
+              }}
+              className="py-5 bg-red-600/20 border-2 border-red-500/30 rounded-[32px] flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_0_40px_rgba(239,68,68,0.15)]"
+            >
+              <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]">
+                <AlertTriangle size={20} />
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-[3px] text-red-500 italic">Panic Alarm</span>
+            </button>
+
+            <button 
+              onClick={async () => {
+                await KavachSafe.stopContinuousSiren();
+                (window as any)._kavach_manual_siren = false;
+                toast.success("All Audible Alarms Silenced.");
+              }}
+              className="py-5 bg-white/5 border-2 border-white/10 rounded-[32px] flex flex-col items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white/40">
+                <Volume2 size={20} />
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-[3px] text-white/40 italic">Stop Siren</span>
+            </button>
           </div>
 
-          <button
-            onClick={handleAbort}
-            className="w-full py-6 bg-white text-black rounded-[28px] font-black uppercase tracking-[4px] text-xs flex items-center justify-center gap-4 active:scale-95 transition-all shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
-          >
-            <div className="flex items-center gap-2 border-r border-black/10 pr-4">
-              <Fingerprint size={20} />
-              <Lock size={16} />
-            </div>
-            ABORT MISSION
-          </button>
+          {/* 🛡️ CENTRAL SAFETY VAULT: ABORT MISSION */}
+          <div className="p-2 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[40px] shadow-2xl">
+            <button
+              onClick={handleAbort}
+              className="w-full py-6 bg-white text-black rounded-[32px] font-black uppercase tracking-[5px] text-xs flex items-center justify-center gap-4 active:scale-[0.98] transition-all shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
+            >
+              <div className="flex items-center gap-2 border-r border-black/10 pr-4">
+                <Fingerprint size={20} />
+                <Shield size={16} />
+              </div>
+              ABORT MISSION
+            </button>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-[7px] font-black text-white/20 uppercase tracking-[4px] italic">Kavach Neural Link Active • SECURE</p>
+          </div>
         </div>
 
         <KavachAIChat isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+        
+        <style>{`
+          .custom-scrollbar::-webkit-scrollbar { width: 2px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.4); }
+        `}</style>
       </div>
     );
   }

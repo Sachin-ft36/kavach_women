@@ -1,7 +1,6 @@
 package com.kavach.app;
 
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.WindowManager;
@@ -14,18 +13,14 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(KavachNative.class);
 
         // 🛡️ TACTICAL OVERRIDE: Show App over Lock Screen
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
-        } else {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                    | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
-        }
+        // Using WindowManager flags for universal compatibility across all SDK levels
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
 
         super.onCreate(savedInstanceState);
-        Log.i("KAVACH", "TACTICAL GRID: Neural Bridge anchored. Lock-override ACTIVE.");
+        Log.i("KAVACH_SYS", "TACTICAL GRID: Neural Bridge anchored. Lock-override ACTIVE.");
     }
 
     @Override
@@ -33,15 +28,12 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         
         // Ensure screen wakes up on new SOS triggers
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setTurnScreenOn(true);
-        } else {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-        }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         if (intent != null && intent.hasExtra("trigger")) {
              String source = intent.getStringExtra("trigger");
-             Log.i("KAVACH", "CODE RED: Signal received via Intent from " + source);
+             Log.i("KAVACH_SYS", "CODE RED: Signal received via Intent from " + source);
              
              KavachNative plugin = (KavachNative) getBridge().getPlugin("KavachPlugin").getInstance();
              if (plugin != null) {

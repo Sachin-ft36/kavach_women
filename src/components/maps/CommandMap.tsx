@@ -256,35 +256,35 @@ export default function CommandMap({
           <motion.div 
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="flex gap-4"
+            className="flex gap-2"
           >
-             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] flex items-center gap-4 shadow-2xl pointer-events-auto">
-                <div className="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-500 border border-rose-500/20">
-                   <AlertTriangle size={20} className="animate-pulse" />
+             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-2.5 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-auto">
+                <div className="w-7 h-7 bg-rose-500/10 rounded-lg flex items-center justify-center text-rose-500 border border-rose-500/20">
+                   <AlertTriangle size={14} className="animate-pulse" />
                 </div>
                 <div>
-                   <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Active SOS</p>
-                   <p className="text-xl font-black text-white tabular-nums leading-none">{activeAlerts.length}</p>
+                   <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Active SOS</p>
+                   <p className="text-sm font-black text-white tabular-nums leading-none">{activeAlerts.length}</p>
                 </div>
              </div>
              
-             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] flex items-center gap-4 shadow-2xl pointer-events-auto">
-                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 border border-blue-500/20">
-                   <Users size={20} />
+             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-2.5 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-auto">
+                <div className="w-7 h-7 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 border border-blue-500/20">
+                   <Users size={14} />
                 </div>
                 <div>
-                   <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Grid Nodes</p>
-                   <p className="text-xl font-black text-white tabular-nums leading-none">{activeProtectors.length}</p>
+                   <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Protectors</p>
+                   <p className="text-sm font-black text-white tabular-nums leading-none">{activeProtectors.length}</p>
                 </div>
              </div>
 
-             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] flex items-center gap-4 shadow-2xl pointer-events-auto">
-                <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-                   <Navigation size={20} />
+             <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-2.5 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-auto">
+                <div className="w-7 h-7 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+                   <Navigation size={14} />
                 </div>
                 <div>
-                   <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Transits</p>
-                   <p className="text-xl font-black text-white tabular-nums leading-none">{activeJourneys.length}</p>
+                   <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Transits</p>
+                   <p className="text-sm font-black text-white tabular-nums leading-none">{activeJourneys.length}</p>
                 </div>
              </div>
           </motion.div>
@@ -321,7 +321,13 @@ export default function CommandMap({
                          </div>
                          <div className="flex-1 bg-white/10 p-3 rounded-2xl border border-white/10 text-center">
                             <p className="text-[7px] font-black text-white/50 uppercase tracking-widest mb-1">Responders</p>
-                            <p className="text-[9px] font-black text-white uppercase">{(activeAlerts.find(a => a.id === selectedAlertId)?.activeResponders?.length || 0)} Units</p>
+                            <p className="text-[9px] font-black text-white uppercase">
+                               {(() => {
+                                  const responders = activeAlerts.find(a => a.id === selectedAlertId)?.activeResponders || [];
+                                  const uniqueResponders = responders.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.uid === v.uid) === i);
+                                  return uniqueResponders.length;
+                               })()} Units
+                            </p>
                          </div>
                       </div>
                    </div>

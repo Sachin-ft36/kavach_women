@@ -288,25 +288,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
         <div className="w-1.5 h-1.5 bg-[#0A84FF] rounded-full animate-pulse" />
         <span className="text-[9px] font-black text-white uppercase tracking-widest">Tactical Radar Grid</span>
       </div>
-      {responderId && (
-        <div className="absolute bottom-4 left-4 right-4 z-20 bg-green-500/10 backdrop-blur-xl border border-green-500/20 p-4 rounded-3xl flex items-center justify-between">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-500/20">
-                 <ShieldCheck size={24} />
-              </div>
-              <div>
-                 <p className="text-[8px] font-black uppercase text-green-400 tracking-[2px]">Responder Identified</p>
-                 <p className="text-[12px] font-black text-white uppercase">Help is Approaching</p>
-              </div>
-           </div>
-           <div className="text-right">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
-                 <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Live Route</span>
-              </div>
-           </div>
-        </div>
-      )}
+      {/* Status bars removed for tactical clarity and to prevent overlap with SOS controls */}
       <style>{`
         @keyframes responder-pulse {
           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }

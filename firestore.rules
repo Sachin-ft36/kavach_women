@@ -36,13 +36,17 @@ service cloud.firestore {
     
     // 1. MASTER LEDGER (CITIZENS & PROTECTORS)
     match /users/{userId} {
+      allow list: if isAuthenticated();
       allow read: if isAuthenticated() && (
         isOwner(userId) || 
         isAdmin() || 
         isProtector() ||
         resource.data.role == 'protector'
       ); 
-      allow write: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin() || 
+        (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'livesSaved', 'successfulRescues', 'abortedAssists', 'missionHistory']));
+      allow create: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
       
       // 🛡️ FORENSIC EVIDENCE VAULT (WORM: Write Once, Read Many)
       match /evidence/{evidenceId} {

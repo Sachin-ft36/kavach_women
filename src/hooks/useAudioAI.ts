@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 
 /**
  * 🧠 KAVACH AUDIO AI (Advanced Stress Detection)
@@ -20,6 +20,14 @@ export const useAudioAI = () => {
         audioContextRef.current.close().catch(() => { });
         audioContextRef.current = null;
       }
+      
+      // 🛡️ TACTICAL SILENCE: Explicitly kill mic stream tracks to prevent feedback
+      if ((window as any)._kavach_audio_ai_stream) {
+        const stream = (window as any)._kavach_audio_ai_stream as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        (window as any)._kavach_audio_ai_stream = null;
+      }
+      
       setVolume(0);
     };
 
@@ -30,8 +38,20 @@ export const useAudioAI = () => {
     }
 
     const startAnalysis = async () => {
+      // 🛡️ PRE-FLIGHT CHECK: Abandon if SOS is already hot
+      if (useKavachStore.getState().isSOSActive) return;
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // 🛡️ POST-PERM CHECK: Abandon if SOS triggered while waiting for permission
+        if (useKavachStore.getState().isSOSActive) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        (window as any)._kavach_audio_ai_stream = stream;
+        
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         const audioContext = new AudioContextClass();
         const source = audioContext.createMediaStreamSource(stream);

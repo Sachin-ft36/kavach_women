@@ -65,16 +65,11 @@ export default function MissionReadiness({
   }, [isReturningUser, setTosChecked]);
 
   useEffect(() => {
-    if (allShieldsActive) {
-      if (isReturningUser) {
-        // 🚀 INSTANT RELAY: Returning users proceed instantly to Dashboard
-        onActivate();
-      } else {
-        // 🛰️ NEW USER: Scroll to final mission brief (TOS)
-        protocolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+    if (allShieldsActive && !isReturningUser) {
+      // 🛰️ NEW USER: Scroll to final mission brief (TOS)
+      protocolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [allShieldsActive, isReturningUser, onActivate]);
+  }, [allShieldsActive, isReturningUser]);
 
   return (
     <motion.div 

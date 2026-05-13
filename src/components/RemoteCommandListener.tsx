@@ -3,7 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useKavachStore } from '../store/useKavachStore';
 import { toast } from 'sonner';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 
 export default function RemoteCommandListener() {
   const { activeAlertId, isSOSActive, user, setSOSActive } = useKavachStore();

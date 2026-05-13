@@ -4,7 +4,7 @@ import {
   History, X, ShieldAlert, CheckCircle2, 
   Clock, MapPin, AlertTriangle, MessageSquare,
   ShieldCheck, ArrowRight, UserMinus, Lock,
-  Database, Fingerprint, Link as LinkIcon
+  Database, Fingerprint, Link as LinkIcon, Users
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -19,6 +19,7 @@ interface MissionAuditModalProps {
 
 export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalProps) {
   const [history, setHistory] = useState<any[]>([]);
+  const [guardians, setGuardians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isIssuingWarning, setIsIssuingWarning] = useState(false);
 
@@ -31,17 +32,52 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
   const fetchMissionHistory = async () => {
     setLoading(true);
     try {
+      // 🛡️ FORENSIC RECOVERY: Broad search across multiple possible ID fields
+      const userId = user.id || user.uid;
+      const isProtector = user.role?.toLowerCase() === 'protector' || user.isVerified;
+      
+      // Fetch all alerts to ensure we don't miss any due to field naming variations
+      // We limit to 200 for performance but filter in JS for maximum accuracy
       const q = query(
         collection(db, 'alerts'),
-        where('victimUid', '==', user.id),
-        where('status', '==', 'resolved'),
         orderBy('timestamp', 'desc'),
-        limit(20)
+        limit(200)
       );
+
       const snap = await getDocs(q);
-      setHistory(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const allAlerts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      
+      const historicalData = allAlerts.filter(h => {
+        // Match user role in the mission
+        const isVictimMatch = h.victimUid === userId || h.uid === userId;
+        const isResponderMatch = h.responderUid === userId || (h.activeResponders || []).some((r: any) => r.uid === userId);
+        
+        const isUserInvolved = isVictimMatch || isResponderMatch;
+        const isNotActive = !['active', 'responding', 'Active', 'Responding'].includes(h.status);
+        
+        return isUserInvolved && isNotActive;
+      });
+
+      setHistory(historicalData);
+
+      // 🛡️ FETCH GUARDIANS
+      const gSnap = await getDocs(collection(db, 'users', userId, 'guardians'));
+      setGuardians(gSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error("Audit Fetch Error:", e);
+      // Final Fallback: Simple collection scan
+      try {
+        const fallbackSnap = await getDocs(collection(db, 'alerts'));
+        const userId = user.id || user.uid;
+        const fallbackData = fallbackSnap.docs
+          .map(d => ({ id: d.id, ...d.data() as any }))
+          .filter(h => (h.victimUid === userId || h.uid === userId || h.responderUid === userId))
+          .filter(h => !['active', 'responding'].includes(h.status?.toLowerCase()))
+          .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        setHistory(fallbackData);
+      } catch (err) {
+        console.error("Critical Audit Failure:", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -148,6 +184,35 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
                         <p className="text-2xl font-black text-rose-500 italic tracking-tighter leading-none">{falseAlertCount}</p>
                         <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-2">False Blocks</p>
                      </div>
+                  </div>
+
+                  {/* 🛡️ GUARDIAN NETWORK SECTION */}
+                  <div className="p-8 bg-blue-600/5 rounded-[40px] border border-blue-500/10">
+                     <div className="flex items-center gap-3 mb-6">
+                        <Users size={18} className="text-blue-400" />
+                        <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-[3px]">Guardian Network</h4>
+                     </div>
+                     
+                     {guardians.length > 0 ? (
+                        <div className="space-y-4">
+                           {guardians.map((g, idx) => (
+                              <div key={idx} className="flex items-center gap-4">
+                                 <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-blue-400 border border-white/5 text-[10px] font-black italic">
+                                    {g.name?.charAt(0)}
+                                 </div>
+                                 <div className="min-w-0">
+                                    <p className="text-[11px] font-black text-white uppercase truncate">{g.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                       <span className="text-[8px] font-black text-blue-500/60 uppercase tracking-widest">{g.relation}</span>
+                                       <span className="text-[8px] font-bold text-gray-600">{g.phone}</span>
+                                    </div>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     ) : (
+                        <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest text-center py-4">No Guardians Registered</p>
+                     )}
                   </div>
                 </div>
 

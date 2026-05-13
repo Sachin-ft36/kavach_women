@@ -5,14 +5,7 @@ import { useKavachStore } from '../store/useKavachStore';
 import { auth } from '../firebase';
 import VictimMap from './maps/VictimMap';
 import { toast } from 'sonner';
-import { Capacitor } from '@capacitor/core';
-
-// Mock/Native Bridge
-const KavachSafe = (window as any).KavachNative || {
-  triggerHapticPulse: () => console.log("Haptic Pulse triggered"),
-  startContinuousSiren: () => console.log("Siren started"),
-  startForensicCapture: () => console.log("Forensic capture started")
-};
+import { KavachSafe } from '../services/KavachNative';
 
 interface RideSafeOverlayProps {
   isOpen: boolean;

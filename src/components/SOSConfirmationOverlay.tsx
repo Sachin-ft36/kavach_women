@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldAlert, X, AlertTriangle, Zap } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import { cn } from '../lib/utils';
-import { KavachSafe } from '../App';
+import { KavachSafe } from '../services/KavachNative';
 import { Capacitor } from '@capacitor/core';
 
 export default function SOSConfirmationOverlay() {

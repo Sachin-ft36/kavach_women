@@ -18,13 +18,13 @@ export const TacticalCallOverlay: React.FC = () => {
         className="fixed inset-x-0 top-0 z-[20000] p-4 lg:p-8 flex justify-center pointer-events-none"
       >
         <div className="w-full max-w-md bg-[#0a0a0f]/90 backdrop-blur-3xl border border-white/10 rounded-[32px] p-6 shadow-[0_0_50px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden relative">
-          {/* Background Signal Pulse */}
-          <div className="absolute inset-0 bg-accent-blue/5 animate-pulse pointer-events-none" />
-          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-accent-blue/50 to-transparent" />
+          {/* Background Signal Pulse - Now Static */}
+          <div className="absolute inset-0 bg-white/[0.02] pointer-events-none" />
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-white/10" />
 
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-accent-blue animate-ping" />
+              <div className="w-2 h-2 rounded-full bg-accent-blue" />
               <span className="text-[10px] font-black uppercase tracking-[4px] text-accent-blue italic">KAVACH_SIGNAL: {callState.toUpperCase()}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -35,19 +35,14 @@ export const TacticalCallOverlay: React.FC = () => {
 
           <div className="flex flex-col items-center gap-6 mb-10">
             <div className="relative">
-              <div className="absolute inset-0 bg-accent-blue blur-2xl opacity-20 animate-pulse rounded-full" />
-              <div className="w-24 h-24 bg-black border-2 border-white/5 rounded-full flex items-center justify-center relative z-10 overflow-hidden shadow-2xl">
+              <div className="w-24 h-24 bg-black border border-white/10 rounded-full flex items-center justify-center relative z-10 overflow-hidden shadow-2xl">
                 <User size={48} className="text-gray-700" />
                 {callState === 'connected' && (
-                  <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: '100%' }}
-                    className="absolute bottom-0 left-0 w-full bg-accent-blue/10 animate-pulse" 
-                  />
+                  <div className="absolute bottom-0 left-0 w-full bg-accent-blue/5 h-1/2" />
                 )}
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#0a0a0f] border border-white/10 rounded-2xl flex items-center justify-center shadow-xl">
-                 <Radio size={20} className={cn("text-accent-blue", callState === 'connected' ? "animate-spin-slow" : "animate-pulse")} />
+                 <Radio size={20} className="text-accent-blue" />
               </div>
             </div>
 
@@ -62,13 +57,13 @@ export const TacticalCallOverlay: React.FC = () => {
               <>
                 <button
                   onClick={declineCall}
-                  className="w-16 h-16 bg-accent-red/10 border border-accent-red/20 rounded-full flex items-center justify-center text-accent-red hover:bg-accent-red hover:text-white transition-all shadow-xl group"
+                  className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-gray-500 hover:bg-accent-red hover:text-white transition-all shadow-xl group"
                 >
-                  <PhoneOff size={28} className="group-hover:rotate-12 transition-transform" />
+                  <PhoneOff size={28} className="transition-transform" />
                 </button>
                 <button
                   onClick={answerCall}
-                  className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-black hover:bg-white transition-all shadow-[0_0_30px_rgba(34,197,94,0.3)] animate-bounce-slow"
+                  className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-black hover:bg-white transition-all shadow-xl"
                 >
                   <Phone size={32} />
                 </button>
@@ -76,7 +71,7 @@ export const TacticalCallOverlay: React.FC = () => {
             ) : (
               <button
                 onClick={hangupCall}
-                className="w-20 h-20 bg-accent-red rounded-full flex items-center justify-center text-white hover:bg-white hover:text-black transition-all shadow-[0_0_30px_rgba(255,0,0,0.3)]"
+                className="w-20 h-20 bg-accent-red rounded-full flex items-center justify-center text-white hover:bg-white hover:text-black transition-all"
               >
                 <PhoneOff size={32} />
               </button>

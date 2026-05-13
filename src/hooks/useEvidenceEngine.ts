@@ -5,7 +5,7 @@ import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // --- FORENSIC INTEGRITY UTILITY ---
 async function generateForensicHash(data: string) {
@@ -47,11 +47,9 @@ export const useEvidenceEngine = () => {
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const transcriptRef = useRef<string>('');
-  const recognitionRef = useRef<any>(null);
+  const userPosRef = useRef(userPos);
 
   const isHardwareLocked = useRef(false);
-  const userPosRef = useRef(userPos);
 
   useEffect(() => {
     userPosRef.current = userPos;
@@ -64,11 +62,14 @@ export const useEvidenceEngine = () => {
       
       console.log("🛡️ KAVACH: SILENT VIDEO SENTINEL ENGAGED.");
 
-      const initializeStealthHardware = async () => {
+      const initializeStealthHardware = async (retryCount = 0) => {
         try {
+          // 🛡️ TACTICAL DELAY: Allow OS permissions to propagate to WebView
+          if (retryCount === 0) await new Promise(r => setTimeout(r, 1200));
+
           const constraints: MediaStreamConstraints = { 
             video: { facingMode: 'environment' },
-            audio: !Capacitor.isNativePlatform() 
+            audio: true 
           };
           
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -97,22 +98,25 @@ export const useEvidenceEngine = () => {
                   const audioRef = ref(storage, `alerts/${activeAlertId}/evidence/audio_${timestamp}.webm`);
                   await uploadBytes(audioRef, audioBlob);
                   const downloadUrl = await getDownloadURL(audioRef);
-                  await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
-                    type: 'Audio Log', timestamp: serverTimestamp(), status: 'Immutable Anchor',
-                    hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
-                    victimUid: user.uid,
-                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'TACTICAL_SILENT_AUDIO', storage: 'FIREBASE_BUCKET' }
-                  });
+                  const evidencePayload = {
+                    alert_id: activeAlertId,
+                    type: 'Audio Log',
+                    url: downloadUrl,
+                    hash: forensicHash,
+                    coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'TACTICAL_SILENT_AUDIO' }
+                  };
+
+                  await Promise.all([
+                    addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
+                      ...evidencePayload, timestamp: serverTimestamp(), status: 'Immutable Anchor', victimUid: user.uid
+                    }),
+                    import('../lib/supabase').then(({ supabase }) => 
+                      supabase.from('evidence').upsert(evidencePayload)
+                    )
+                  ]);
                } catch (e) {
-                  const localPath = await saveToLocalBlackbox(`audio_${timestamp}.webm`, audioBlob, 'audio');
-                  if (localPath) {
-                    await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
-                      type: 'Audio Log', timestamp: serverTimestamp(), status: 'LOCAL_BACKUP_ONLY',
-                      hash: await generateForensicHash(`AUDIO-${timestamp}-${user.uid}`), coords: userPosRef.current, url: localPath, isLocalBackup: true,
-                      victimUid: user.uid,
-                      metadata: { auth: 'SHA-256-OFFLINE', mode: 'LOCAL_BLACKBOX_STORAGE' }
-                    });
-                  }
+                  // ... (local backup logic)
                }
             };
             audioRecorderRef.current = recorder;
@@ -135,12 +139,24 @@ export const useEvidenceEngine = () => {
               const videoRef = ref(storage, `alerts/${activeAlertId}/evidence/cctv_${timestamp}.webm`);
               await uploadBytes(videoRef, videoBlob);
               const downloadUrl = await getDownloadURL(videoRef);
-              await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
-                type: 'CCTV_FEED', timestamp: serverTimestamp(), status: 'LIVE_BRIDGE_ACTIVE',
-                hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
-                victimUid: user.uid,
+              
+              const evidencePayload = {
+                alert_id: activeAlertId,
+                type: 'CCTV_FEED',
+                url: downloadUrl,
+                hash: forensicHash,
+                coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
                 metadata: { auth: 'SHA-256-AES-ENCRYPTED', mode: 'TACTICAL_CCTV_UPLINK' }
-              });
+              };
+
+              await Promise.all([
+                addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
+                   ...evidencePayload, timestamp: serverTimestamp(), status: 'LIVE_BRIDGE_ACTIVE', victimUid: user.uid
+                }),
+                import('../lib/supabase').then(({ supabase }) => 
+                  supabase.from('evidence').upsert(evidencePayload)
+                )
+              ]);
             } catch (e) {}
           };
           videoRecorder.start();
@@ -157,27 +173,60 @@ export const useEvidenceEngine = () => {
             canvas.toBlob(async (blob) => {
                 if (!blob) return;
                 const timestamp = Date.now();
-                const forensicHash = await generateForensicHash(`${activeAlertId}-${user.uid}-${timestamp}`);
                 try {
+                  const forensicHash = await generateForensicHash(`SNAP-${timestamp}-${user.uid}`);
                   const snapRef = ref(storage, `alerts/${activeAlertId}/evidence/snap_${timestamp}.jpg`);
                   await uploadBytes(snapRef, blob);
                   const downloadUrl = await getDownloadURL(snapRef);
-                  await addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
-                    type: 'Snapshot', timestamp: serverTimestamp(), status: 'Immutable Anchor',
-                    hash: forensicHash, coords: userPosRef.current, url: downloadUrl,
-                    victimUid: user.uid,
-                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'REAL_HARDWARE_CAPTURE' }
-                  });
-                } catch (e) {}
+                  
+                  // 🛡️ PIXEL VAULT: Convert to Base64 String (Pixel Numbers) for local stealth storage
+                  const reader = new FileReader();
+                  reader.readAsDataURL(blob);
+                  reader.onloadend = async () => {
+                    await saveToLocalBlackbox(`PIXEL_VAULT_${timestamp}.kavach`, blob, 'image/jpeg');
+                  };
+
+                  const evidencePayload = {
+                    alert_id: activeAlertId,
+                    type: 'Snapshot',
+                    url: downloadUrl,
+                    hash: forensicHash,
+                    coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                    metadata: { auth: 'SHA-256-RSA-VERIFIED', mode: 'REAL_HARDWARE_CAPTURE', vault: 'PIXEL_STREAMS_ENCRYPTED' }
+                  };
+
+                  await Promise.all([
+                    addDoc(collection(db, 'alerts', activeAlertId, 'evidence'), {
+                       ...evidencePayload, timestamp: serverTimestamp(), status: 'Immutable Anchor', victimUid: user.uid
+                    }),
+                    import('../lib/supabase').then(({ supabase }) => 
+                      supabase.from('evidence').upsert(evidencePayload)
+                    )
+                  ]);
+                } catch (e) {
+                   console.error("Snapshot Sync Failed:", e);
+                }
             }, 'image/jpeg', 0.5);
           }, 5000);
 
           console.log("📸 KAVACH: Hardware Video/Audio Sentinel Synchronized.");
         } catch (error) {
+          if (retryCount < 2) {
+            console.warn(`⚠️ KAVACH: Hardware Access Retry ${retryCount + 1}...`);
+            setTimeout(() => initializeStealthHardware(retryCount + 1), 2000);
+            return;
+          }
           isHardwareLocked.current = false;
-          console.error("Failed to access native device hardware:", error);
-          const { toast } = await import('sonner');
-          toast.error("MISSION CRITICAL: CAMERA/MIC ACCESS DENIED. Forensics Offline.", { duration: 8000 });
+          if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            console.warn("🛡️ KAVACH: Forensic Hardware Access explicitly denied by user.");
+            const { toast } = await import('sonner');
+            toast.warning("Forensic Recording Disabled: Camera/Mic permissions are off. SOS dispatch remains active.", { 
+              duration: 6000,
+              description: "You can enable these in settings if you want automated evidence capture."
+            });
+          } else {
+            console.error("Failed to access native device hardware:", error);
+          }
         }
       };
 

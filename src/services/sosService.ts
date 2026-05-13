@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc } from 'firebase/firestore';
 import { getReverseMetadata } from './locationService';
-import { KavachSafe } from '../App';
+import { KavachSafe } from './KavachNative';
 
 let lastTriggerTime = 0;
 const TRIGGER_THROTTLE = 5000; // 🛡️ 5s Tactical Gate to prevent double-logs
@@ -67,7 +67,7 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
               longitude: userPos[1],
               address: meta.address,
               city: meta.city,
-              pincode: meta.pincode || meta.postcode
+              pincode: meta.pincode
             },
             telemetry: {
               battery: battery,
@@ -126,22 +126,48 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
 
       // 2. Physical Signals (Local Tunnel)
       (async () => {
-        const guardiansStr = localStorage.getItem('kavach_guardian_cache');
-        const guardians = guardiansStr ? JSON.parse(guardiansStr) : [];
-        const mapLink = `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}`;
-        const message = `🚨 CRITICAL EMERGENCY SOS 🚨\nAlert! Help needed!\n📍 ${mapLink}\n🛡️ KAVACH Grid`;
+        let guardiansStr = localStorage.getItem('kavach_guardian_cache');
+        let guardians = guardiansStr ? JSON.parse(guardiansStr) : [];
 
-        const smsPromises = guardians.map((g: any) => 
-          g.phone ? KavachSafe.sendSilentSMS({ number: g.phone, message: message }) : null
-        );
+        // 🛡️ TACTICAL FALLBACK: If cache is empty, query the master ledger (Firestore)
+        if (guardians.length === 0 && victimId) {
+          try {
+            const gCol = collection(db, 'users', victimId, 'guardians');
+            const gSnap = await getDocs(gCol);
+            guardians = gSnap.docs.map(d => d.data());
+            // Update cache for next time
+            if (guardians.length > 0) {
+              localStorage.setItem('kavach_guardian_cache', JSON.stringify(guardians));
+            }
+          } catch (e) {
+            console.error("❌ KAVACH: Guardian Ledger Access Failed:", e);
+          }
+        }
+
+        const phones = guardians.map((g: any) => g.phone).filter(Boolean);
+        const alertLink = `https://kavach-women.web.app/track/${victimId}`;
+        const message = `🚨 KAVACH EMERGENCY! ${user?.displayName || 'A user'} is in danger. 
+Location: https://www.google.com/maps?q=${userPos[0]},${userPos[1]}
+Track Live: ${alertLink}
+Handshake Code: ${data?.handshakeCode || 'N/A'}`;
+
+        console.log(`🛡️ KAVACH DISPATCH: Guardian discovery complete. Found ${phones.length} active nodes.`);
+
+        if (phones.length > 0) {
+          await KavachSafe.broadcastEmergencySMS({ numbers: phones, message: message });
+        } else {
+          console.warn("⚠️ KAVACH: No guardians found to notify via SMS.");
+        }
 
         // 📞 AUTO-CALL INITIATION (First Guardian)
         const primaryGuardian = guardians.find((g: any) => g.phone);
         if (primaryGuardian) {
-          KavachSafe.directCall({ number: primaryGuardian.phone });
+          await KavachSafe.initiateEmergencyCall({ number: primaryGuardian.phone });
+        } else {
+          console.warn("⚠️ KAVACH: No primary guardian found for auto-call.");
         }
 
-        return Promise.all(smsPromises);
+        return true;
       })(),
 
       // 3. Hardware Haptics

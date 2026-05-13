@@ -9,8 +9,11 @@ import {
   updateProfile, 
   signInWithPopup, 
   GoogleAuthProvider, 
-  sendEmailVerification
+  sendEmailVerification,
+  signInWithCredential
 } from 'firebase/auth';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { Capacitor } from '@capacitor/core';
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
@@ -29,6 +32,31 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   const { t } = useLanguage();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
+
+  // ── Handle Mobile Redirect Result ──
+  React.useEffect(() => {
+    const checkRedirect = async () => {
+      const { getRedirectResult } = await import('firebase/auth');
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", result.user.uid)));
+          if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
+            await auth.signOut();
+            toast.error("TERMINAL LOCKOUT: This identity is blacklisted.");
+            return;
+          }
+          sessionStorage.setItem('kavach_just_logged_in', 'true');
+          toast.success("Welcome back to the Grid.");
+        }
+      } catch (error: any) {
+        if (error.code !== 'auth/popup-closed-by-user') {
+          console.error("Redirect Auth Error:", error);
+        }
+      }
+    };
+    checkRedirect();
+  }, []);
   
   // ── Form States ──
   const [email, setEmail] = useState('');
@@ -137,22 +165,35 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      // 🛡️ Google Auth requires post-auth check since we don't know the email/uid yet
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      
-      const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", result.user.uid)));
-      if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
-        await auth.signOut();
-        toast.error("TERMINAL LOCKOUT: This identity is blacklisted.", {
-          className: "bg-rose-950 border-rose-500 text-white font-black"
-        });
-        return;
+      if (Capacitor.isNativePlatform()) {
+        // 📱 Native APK / Mobile: Use Native Google Auth (Popup style)
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        if (result.credential?.idToken) {
+          const credential = GoogleAuthProvider.credential(result.credential.idToken);
+          const userCred = await signInWithCredential(auth, credential);
+          
+          const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", userCred.user.uid)));
+          if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
+            await auth.signOut();
+            toast.error("TERMINAL LOCKOUT: This identity is blacklisted.");
+            return;
+          }
+          sessionStorage.setItem('kavach_just_logged_in', 'true');
+          toast.success("Login successful.");
+        }
+      } else {
+        // 🌐 Web: Use Popup
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", result.user.uid)));
+        if (!userDoc.empty && userDoc.docs[0].data().isPermanentlyBlocked) {
+          await auth.signOut();
+          toast.error("TERMINAL LOCKOUT: This identity is blacklisted.");
+          return;
+        }
+        sessionStorage.setItem('kavach_just_logged_in', 'true');
+        toast.success("Login successful.");
       }
-
-      sessionStorage.setItem('kavach_just_logged_in', 'true');
-      toast.success("Login successful.");
     } catch (error: any) {
       toast.error(error.message || "Google Auth Error");
     } finally {

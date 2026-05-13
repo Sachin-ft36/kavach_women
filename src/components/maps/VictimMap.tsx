@@ -151,16 +151,24 @@ const VictimMap = React.memo(({
     if (!map.current || !userPos || !isMapLoaded) return;
     const coords: [number, number] = [userPos[1], userPos[0]];
 
-    // 🛡️ UPDATE SAFETY RADIUS VISUAL
+    // 🛡️ UPDATE SAFETY RADIUS VISUAL (Hide if in Intercept Mode)
     if (map.current.getSource('safety-radius')) {
-      (map.current.getSource('safety-radius') as mapboxgl.GeoJSONSource).setData({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: getCirclePoints(coords, 1.0)
-        },
-        properties: {}
-      });
+      if (isInterceptMode) {
+        if (map.current.getLayer('safety-radius-fill')) map.current.setLayoutProperty('safety-radius-fill', 'visibility', 'none');
+        if (map.current.getLayer('safety-radius-outline')) map.current.setLayoutProperty('safety-radius-outline', 'visibility', 'none');
+      } else {
+        if (map.current.getLayer('safety-radius-fill')) map.current.setLayoutProperty('safety-radius-fill', 'visibility', 'visible');
+        if (map.current.getLayer('safety-radius-outline')) map.current.setLayoutProperty('safety-radius-outline', 'visibility', 'visible');
+        
+        (map.current.getSource('safety-radius') as mapboxgl.GeoJSONSource).setData({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: getCirclePoints(coords, 1.0)
+          },
+          properties: {}
+        });
+      }
     }
 
     if (!markersRef.current.user) {
@@ -177,7 +185,7 @@ const VictimMap = React.memo(({
 
     if (isNavigating) {
       map.current.setCenter(coords);
-      map.current.setZoom(18);
+      map.current.setZoom(19);
     }
   }, [userPos, isNavigating, isMapLoaded]);
 
@@ -250,14 +258,14 @@ const VictimMap = React.memo(({
         const bounds = new mapboxgl.LngLatBounds();
         bounds.extend(uCoords);
         bounds.extend(vCoords);
-        m.fitBounds(bounds, { padding: 100 });
+        m.fitBounds(bounds, { padding: 40, maxZoom: 19 });
       }
     } else {
       if (markersRef.current.victim) { markersRef.current.victim.remove(); delete markersRef.current.victim; }
       if (m.getLayer('route')) m.removeLayer('route');
       if (m.getSource('route')) m.removeSource('route');
       m.setCenter([userPos[1], userPos[0]]);
-      m.setZoom(16);
+      m.setZoom(19);
     }
   }, [userPos, activeAlerts]);
 
