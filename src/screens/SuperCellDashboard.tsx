@@ -4,7 +4,7 @@ import { db, auth } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, collectionGroup } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import ProtectorTrack from '../components/supercell/ProtectorTrack';
+import { ProtectorTrack } from '../components/supercell/ProtectorTrack';
 import { LayoutDashboard, Users, Map as MapIcon, ShieldCheck, Database, MessageCircle } from 'lucide-react';
 
 interface ChatSession {
@@ -261,6 +261,7 @@ function NavIcon({ icon, active, onClick, label }: { icon: any, active: boolean,
             {label}
          </span>
       </div>
-   )
+   );
 }
-}
+
+

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, Users, Navigation, ShieldAlert, User } from 'lucide-react';
+import { AlertTriangle, Users, Navigation, ShieldAlert, User, Layers } from 'lucide-react';
 
 interface CommandMapProps {
   activeAlerts: any[];
@@ -26,6 +26,13 @@ interface CommandMapProps {
 
 const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA';
 
+const STYLES_LIST = [
+  { id: 'light', name: 'Strategic Light', url: 'mapbox://styles/mapbox/light-v11' },
+  { id: 'dark', name: 'Tactical Dark', url: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'satellite', name: 'Satellite Intel', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+  { id: 'streets', name: 'Standard Streets', url: 'mapbox://styles/mapbox/streets-v12' }
+];
+
 export default function CommandMap({
   activeAlerts,
   activeProtectors,
@@ -49,6 +56,8 @@ export default function CommandMap({
   const map = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
+  const [currentStyle, setCurrentStyle] = React.useState('mapbox://styles/mapbox/light-v11');
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = React.useState(false);
 
   // 🛡️ TACTICAL MARKER STYLES
   const injectStyles = () => {
@@ -81,15 +90,84 @@ export default function CommandMap({
     mb.accessToken = MAPBOX_TOKEN;
     map.current = new mb.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: [78.9629, 23.5937],
-      zoom: 4.5,
-      pitch: 45,
+      style: currentStyle, /* Dynamic map style state */
+      center: [78.9629, 21.0], /* Center India perfectly */
+      zoom: 4.2, /* Fit whole India */
+      pitch: 0, /* Straight flat 2D look */
+      bearing: 0, /* North aligned */
+      projection: { name: 'mercator' }, /* Flat Mercator projection instead of curved globe */
       antialias: true
     });
 
     map.current.on('style.load', () => {
       setIsMapLoaded(true);
+      map.current.resize();
+      setTimeout(() => map.current?.resize(), 200);
+      setTimeout(() => map.current?.resize(), 800);
+
+      // 🛰️ TACTICAL GEO-FILTER: HIDE FOREIGN COUNTRIES, BORDERS & LABELS WITH DYNAMIC COLORING
+      const applyGeoFilters = () => {
+        try {
+          const isDarkTheme = currentStyle.includes('dark') || currentStyle.includes('satellite');
+          const borderPrimaryColor = isDarkTheme ? '#FFFFFF' : '#1F2937';
+          const borderBgColor = isDarkTheme ? 'rgba(255, 255, 255, 0.15)' : 'rgba(31, 41, 55, 0.15)';
+
+          // 1. Hide country names except India
+          if (map.current.getLayer('country-label')) {
+            map.current.setFilter('country-label', ['==', ['get', 'name_en'], 'India']);
+          }
+
+          // 2. Hide state names outside India
+          if (map.current.getLayer('state-label')) {
+            map.current.setFilter('state-label', ['==', ['get', 'iso_3166_1'], 'IN']);
+          }
+
+          // 3. Hide city/settlement names outside India
+          const settlementLayers = ['settlement-label', 'settlement-major-label', 'settlement-minor-label', 'settlement-subdivision-label'];
+          settlementLayers.forEach(layer => {
+            if (map.current.getLayer(layer)) {
+              map.current.setFilter(layer, ['==', ['get', 'iso_3166_1'], 'IN']);
+            }
+          });
+
+          // 4. Hide foreign state outlines
+          if (map.current.getLayer('admin-1-boundary')) {
+            map.current.setFilter('admin-1-boundary', ['==', ['get', 'iso_3166_1'], 'IN']);
+          }
+
+          // 5. Hide foreign international boundary lines & highlight India's border clearly
+          const boundaryLayers = ['admin-0-boundary', 'admin-0-boundary-disputed', 'admin-0-boundary-bg'];
+          boundaryLayers.forEach(layer => {
+            if (map.current.getLayer(layer)) {
+              // Keep only international boundaries that touch India (left or right country code is IN) or are disputed in India
+              map.current.setFilter(layer, [
+                'any',
+                ['==', ['get', 'left_iso'], 'IN'],
+                ['==', ['get', 'right_iso'], 'IN'],
+                ['==', ['get', 'disputed'], 1],
+                ['==', ['get', 'disputed'], true]
+              ]);
+
+              // Style India's actual international outer border dynamically based on theme
+              if (layer === 'admin-0-boundary' || layer === 'admin-0-boundary-disputed') {
+                map.current.setPaintProperty(layer, 'line-color', borderPrimaryColor);
+                map.current.setPaintProperty(layer, 'line-width', 2.2); // Perfect visibility
+                map.current.setPaintProperty(layer, 'line-opacity', 0.95);
+              }
+              if (layer === 'admin-0-boundary-bg') {
+                map.current.setPaintProperty(layer, 'line-color', borderBgColor);
+                map.current.setPaintProperty(layer, 'line-width', 5.0);
+                map.current.setPaintProperty(layer, 'line-opacity', 0.8);
+              }
+            }
+          });
+        } catch (e) {
+          console.warn("⚠️ Mapbox Geo-Filter Error:", e);
+        }
+      };
+
+      applyGeoFilters();
+
       // Radius Sources
       map.current.addSource('selected-radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: 'radius-circle', type: 'fill', source: 'selected-radius', paint: { 'fill-color': '#3B82F6', 'fill-opacity': 0.1 } });
@@ -102,8 +180,35 @@ export default function CommandMap({
       map.current.addLayer({ id: 'f-projected', type: 'line', source: 'forensic-source', filter: ['==', ['get', 'type'], 'projected'], paint: { 'line-color': '#22D3EE', 'line-width': 3, 'line-dasharray': [2, 1] } });
     });
 
-    return () => map.current?.remove();
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
   }, []);
+
+  // 🛰️ DYNAMIC STYLE UPDATE LISTENER
+  useEffect(() => {
+    if (!map.current) return;
+    setIsMapLoaded(false);
+    map.current.setStyle(currentStyle);
+  }, [currentStyle]);
+
+
+
+  // 🛰️ DYNAMIC RESIZE PROPAGATION FOR TACTICAL GRID
+  useEffect(() => {
+    if (!map.current || !isMapLoaded) return;
+    const interval = setInterval(() => {
+      map.current?.resize();
+    }, 1000); // Poll resize for first 5 seconds to guarantee full-bleed rendering
+    const timeout = setTimeout(() => clearInterval(interval), 5000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [isMapLoaded]);
 
   // 🌍 FORENSIC PATH SYNC
   useEffect(() => {
@@ -369,6 +474,55 @@ export default function CommandMap({
                 </motion.div>
              )}
           </AnimatePresence>
+       </div>
+
+       {/* 🛰️ LAYER SELECTOR CONTROL BUTTON (TOP-RIGHT GLASSMORPHISM CONTROL) */}
+       <div className="absolute right-8 top-8 z-[120]">
+          <div className="relative">
+             <button 
+               onClick={() => setIsStyleMenuOpen(!isStyleMenuOpen)}
+               className="w-12 h-12 bg-white/95 backdrop-blur-md hover:bg-white text-gray-800 border border-gray-200/50 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-300 pointer-events-auto transform hover:scale-105 active:scale-95"
+               title="Switch Map Layers"
+             >
+                <Layers size={20} strokeWidth={2.2} />
+             </button>
+
+             <AnimatePresence>
+                {isStyleMenuOpen && (
+                   <motion.div 
+                     initial={{ opacity: 0, y: -15, scale: 0.95 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                     className="absolute top-14 right-0 w-52 bg-white/95 backdrop-blur-2xl border border-gray-200/50 p-2 rounded-3xl shadow-2xl pointer-events-auto flex flex-col gap-1 overflow-hidden"
+                   >
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest px-3 py-1.5 leading-none">Map Viewport Layers</p>
+                      
+                      {STYLES_LIST.map((style) => {
+                         const isActive = currentStyle === style.url;
+                         return (
+                            <button
+                              key={style.id}
+                              onClick={() => {
+                                 setCurrentStyle(style.url);
+                                 setIsStyleMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 ${
+                                 isActive 
+                                    ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/10" 
+                                    : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 font-medium"
+                              }`}
+                            >
+                               <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                                  isActive ? "bg-white scale-125" : "bg-gray-400"
+                                }`} />
+                               <span className="text-[10px] uppercase tracking-wide leading-none">{style.name}</span>
+                            </button>
+                         );
+                      })}
+                   </motion.div>
+                )}
+             </AnimatePresence>
+          </div>
        </div>
 
        {/* 🛰️ SYSTEM COMPASS / COORDINATES */}

@@ -5,7 +5,7 @@ import {
   Activity, Zap, ShieldAlert, Ban, 
   CheckCircle2, Users, Search, Target, Clock,
   ChevronRight, Filter, Fingerprint, Car, X,
-  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe
+  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe, Battery
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, getDocs, serverTimestamp } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 // 🏛️ UHD Strategic Map
 import CommandMap from '../maps/CommandMap';
+import { MissionAuditModal } from './MissionAuditModal';
 
 const WARNING_REASONS = [
   "Accidental SOS trigger without emergency.",
@@ -48,9 +49,13 @@ export function SOSManagement({
   const [guardians, setGuardians] = useState<any[]>([]);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
+  const [nearbyPolice, setNearbyPolice] = useState<any[]>([]);
+  const [nearbyHospitals, setNearbyHospitals] = useState<any[]>([]);
+  const [loadingNodes, setLoadingNodes] = useState(false);
 
   // 🛡️ Modals State
   const [isWarnModalOpen, setIsWarnModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [selectedReason, setSelectedReason] = useState(WARNING_REASONS[0]);
   const [customMsg, setCustomMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,25 +89,101 @@ export function SOSManagement({
         finally { setLoadingAddress(false); }
       };
       resolveAddr();
-    } else { setResolvedAddress(null); }
+
+      // 🛰️ FETCH NEARBY EMERGENCY NODES (Mappls Direct Proxy with Mapbox API backup fallback)
+      const fetchNodes = async () => {
+        setLoadingNodes(true);
+        try {
+          const { fetchNearbyPoliceMappls, fetchNearbyHospitalsMappls } = await import('../../services/MapplsService');
+          
+          let police = await fetchNearbyPoliceMappls(lat, lng);
+          let hospitals = await fetchNearbyHospitalsMappls(lat, lng);
+
+          const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+          const offset = 0.1;
+          const bbox = `${lng-offset},${lat-offset},${lng+offset},${lat+offset}`;
+
+          if (!police || police.length === 0) {
+            try {
+              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/police%20station.json?proximity=${lng},${lat}&bbox=${bbox}&access_token=${MAPBOX_TOKEN}&limit=3&types=poi&country=in`;
+              const response = await fetch(url);
+              const data = await response.json();
+              police = data.features.map((f: any) => {
+                const [fLng, fLat] = f.geometry.coordinates;
+                return {
+                  id: f.id,
+                  name: f.text || "Police Post",
+                  address: f.properties?.address || f.place_name || "Nearby",
+                  phone: f.properties?.tel || f.properties?.phone || "112",
+                  lat: fLat,
+                  lng: fLng
+                };
+              });
+            } catch (err) {
+              console.error("Mapbox Police Fallback Failed:", err);
+            }
+          }
+
+          if (!hospitals || hospitals.length === 0) {
+            try {
+              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/hospital.json?proximity=${lng},${lat}&bbox=${bbox}&access_token=${MAPBOX_TOKEN}&limit=3&types=poi&country=in`;
+              const response = await fetch(url);
+              const data = await response.json();
+              hospitals = data.features.map((f: any) => {
+                const [fLng, fLat] = f.geometry.coordinates;
+                return {
+                  id: f.id,
+                  name: f.text || "Hospital Node",
+                  address: f.properties?.address || f.place_name || "Nearby",
+                  phone: f.properties?.tel || f.properties?.phone || "108",
+                  lat: fLat,
+                  lng: fLng
+                };
+              });
+            } catch (err) {
+              console.error("Mapbox Hospital Fallback Failed:", err);
+            }
+          }
+
+          setNearbyPolice((police || []).slice(0, 2));
+          setNearbyHospitals((hospitals || []).slice(0, 2));
+        } catch (error) {
+          console.error("Failed to fetch nearby emergency nodes in SOSManagement:", error);
+        } finally {
+          setLoadingNodes(false);
+        }
+      };
+      fetchNodes();
+    } else { 
+      setResolvedAddress(null);
+      setNearbyPolice([]);
+      setNearbyHospitals([]);
+    }
 
     // 🛰️ TACTICAL ID RESOLUTION
-    const currentVictimId = selectedAlert?.victimUid || selectedAlert?.uid || selectedAlert?.userId;
+    const currentVictimId = sidebarTab === 'LIVE'
+      ? (selectedAlert?.victimUid || selectedAlert?.uid || selectedAlert?.userId)
+      : selectedVictimId;
     
     // 🛰️ TACTICAL GUARDIAN FETCH
+    let unsub1 = () => {};
+    let unsub2 = () => {};
     if (currentVictimId) {
       const gRef1 = collection(db, 'users', currentVictimId, 'guardians');
       const gRef2 = collection(db, 'women_users', currentVictimId, 'safety_data');
       
-      const unsub1 = onSnapshot(gRef1, (snap) => {
+      unsub1 = onSnapshot(gRef1, (snap) => {
+        if (!snap.empty) setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        else setGuardians([]);
+      });
+      unsub2 = onSnapshot(gRef2, (snap) => {
         if (!snap.empty) setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       });
-      const unsub2 = onSnapshot(gRef2, (snap) => {
-        if (!snap.empty) setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      });
-      return () => { unsub1(); unsub2(); };
+    } else {
+      setGuardians([]);
     }
-  }, [selectedAlertId, sidebarTab, activeAlerts, historicalAlerts]);
+    return () => { unsub1(); unsub2(); };
+  }, [selectedAlertId, selectedVictimId, sidebarTab, activeAlerts, historicalAlerts]);
 
   const groupedHistory = React.useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -294,8 +375,311 @@ export function SOSManagement({
     } catch (e) { toast.error("Ban Failed."); }
   };
 
+  const renderHistoryContent = () => {
+    if (!victimData) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center opacity-20">
+          <ShieldAlert size={120} strokeWidth={0.5} className="mb-8" />
+          <p className="text-xl font-black uppercase tracking-[10px]">Select Incident Record</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-grow flex flex-row h-full w-full overflow-hidden">
+        {/* LEFT COLUMN: PAST LOGS */}
+        <div className="w-[50%] lg:w-[55%] h-full overflow-y-auto custom-scrollbar p-6 lg:p-8 space-y-6 border-r border-white/5 bg-[#0F172A]">
+          <div className="space-y-1 mb-6">
+            <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[7px] font-black rounded-full border border-blue-500/20 uppercase tracking-widest leading-none">Archived Records</span>
+            <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">Incident Ledger History</h1>
+            <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">Double scrollable forensic archive for {victimData.name}</p>
+          </div>
+
+          <div className="space-y-6">
+            {victimHistory.length === 0 ? (
+              <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/5 rounded-[2rem]">
+                <ShieldAlert size={60} className="mx-auto mb-4" />
+                <p className="text-sm font-black uppercase tracking-[8px]">No Records in Ledger</p>
+              </div>
+            ) : (
+              victimHistory.map((alert, idx) => (
+                <motion.div 
+                  key={alert.id}
+                  initial={{ opacity: 0, y: 25 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="bg-[#1E293B]/40 rounded-[2rem] border border-white/5 p-6 shadow-xl relative overflow-hidden group"
+                >
+                  {/* HEADER */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-blue-600/10 rounded-[14px] flex items-center justify-center text-blue-500 border border-blue-500/20">
+                        <Calendar size={18} />
+                      </div>
+                      <div>
+                        <h5 className="text-[14px] font-black text-white uppercase italic tracking-tighter leading-none">
+                          {alert.timestamp?.toDate ? alert.timestamp.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase() : 'UNKNOWN DATE'}
+                        </h5>
+                        <p className="text-[7px] font-black text-rose-500 uppercase tracking-[1.5px] mt-1.5">
+                          TRIGGERED AT: {alert.timestamp?.toDate ? alert.timestamp.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[8px] font-black text-emerald-500 uppercase tracking-[2px]">
+                      Resolved
+                    </div>
+                  </div>
+
+                  {/* DATA GRID */}
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                    {[
+                      { label: 'Gender', value: victimData.gender || 'FEMALE', icon: User },
+                      { label: 'Aadhaar UID', value: victimData.aadhar || victimData.aadhaar || 'UNLINKED', icon: Fingerprint },
+                      { label: 'Role', value: victimData.role || 'CITIZEN', icon: Shield },
+                      { label: 'Phone', value: victimData.phoneNumber || victimData.phone || 'NO RECORD', icon: Phone },
+                      { label: 'Email Address', value: victimData.email || 'NO EMAIL', icon: Mail },
+                      { label: 'Battery Level', value: alert.batteryLevel || alert.battery || (alert.deviceStatus && alert.deviceStatus.battery) || alert.deviceBattery || '89%', icon: Battery }
+                    ].map((item, i) => (
+                      <div key={i} className="bg-black/25 p-3.5 rounded-xl border border-white/5 flex flex-col justify-between">
+                        <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest mb-1 leading-none">{item.label}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <item.icon size={9} className="text-blue-400 shrink-0" />
+                          <span className="text-[8px] font-bold text-gray-200 uppercase tracking-tight truncate w-full">{item.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* GUARDIAN NETWORK */}
+                  <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mb-6">
+                    <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <Users size={10} className="text-rose-500" /> Connected Guardian Network
+                    </p>
+                    {guardians.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {guardians.map((g, idx) => (
+                          <div key={idx} className="bg-black/20 px-3 py-2 rounded-xl border border-white/5 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-white uppercase italic leading-none">{g.name}</span>
+                              <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[5px] font-black rounded-full uppercase tracking-widest leading-none">{g.relation || 'Guardian'}</span>
+                            </div>
+                            <span className="text-[8px] font-black text-gray-400 tabular-nums leading-none">{g.phone || g.phoneNumber}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[8px] text-gray-500 font-bold uppercase tracking-widest italic">No guardians registered.</div>
+                    )}
+                  </div>
+
+                  {/* DETAILS SECTION */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/20 p-5 rounded-[1.5rem] border border-white/5 flex flex-col justify-between">
+                      <div>
+                        <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Resolution Log</p>
+                        <p className="text-[9px] font-black text-emerald-500 uppercase italic tracking-widest">Verified Rescue Completed</p>
+                        <p className="text-[8px] font-bold text-gray-400 uppercase italic mt-1.5">"{alert.closureReason || 'Mission Accomplished'}"</p>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-white/5">
+                        <button 
+                          onClick={() => setIsAuditModalOpen(true)}
+                          className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          Forensic Audit Detail <ChevronRight size={10} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-black/20 p-5 rounded-[1.5rem] border border-white/5 flex flex-col justify-between">
+                      <div>
+                        <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-2">Savior & Responders</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(alert.activeResponders || []).map((r: any) => (
+                            <div 
+                              key={r.uid} 
+                              onClick={() => {
+                                onViewReplay?.(alert.id);
+                                toast.success(`⚡ INITIATING 3D REPLAY: ${r.name}`);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-500 text-white rounded-lg text-[7px] font-black uppercase tracking-widest flex items-center gap-1 cursor-pointer hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                            >
+                              <ShieldCheck size={8} />
+                              {r.name}
+                            </div>
+                          ))}
+                          {(!alert.activeResponders || alert.activeResponders.length === 0) && (
+                            <div className="text-[8px] font-bold text-gray-600 italic">No Responder Logged</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: VICTIM DOSSIER DETAILS */}
+        <div className="w-[50%] lg:w-[45%] h-full overflow-y-auto custom-scrollbar p-6 lg:p-8 space-y-6 bg-[#0B0F19] relative">
+          {/* 🛡️ HEADER AREA */}
+          <div className="bg-[#1E293B]/40 p-6 rounded-[2rem] border border-white/5 space-y-4 relative">
+            {/* 🛡️ DISCIPLINARY OVERLAY */}
+            <AnimatePresence>
+              {victimData.isSOSBlocked && (
+                <motion.div 
+                  initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                  animate={{ opacity: 1, backdropFilter: "blur(6px)" }}
+                  className="absolute inset-0 z-50 bg-rose-950/85 flex flex-col items-center justify-center p-6 text-center rounded-[2rem]"
+                >
+                  <div className="bg-[#1E293B] border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4 max-w-sm">
+                    <div className="w-12 h-12 bg-rose-500/10 rounded-xl flex items-center justify-center mx-auto border border-rose-500/20">
+                      <Lock size={24} className="text-rose-500" />
+                    </div>
+                    <h2 className="text-base font-black text-white uppercase italic leading-none">Account Blocked</h2>
+                    <p className="text-[8px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from Grid</p>
+                    
+                    <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[9px] text-gray-300 italic">
+                      {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL."}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg">Restore</button>
+                      <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[8px] font-black uppercase tracking-widest">Ban</button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <span className="px-2 py-0.5 bg-[#1E293B] text-blue-400 text-[7px] font-black rounded-full border border-white/5 uppercase tracking-widest leading-none">Archived Incident Ledger</span>
+                <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">{victimData.name}</h1>
+              </div>
+              
+              {/* COMPACT ACTION BUTTONS */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
+                  <AlertTriangle size={10} /> Warn
+                </button>
+                <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
+                  <Ban size={10} /> Ban
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                <Phone size={10} className="text-gray-500" />
+                <span className="text-[9px] font-black text-white tabular-nums">{victimData.phoneNumber || victimData.phone || 'NO RECORD'}</span>
+              </div>
+              <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                <Fingerprint size={10} className="text-gray-500" />
+                <span className="text-[9px] font-black text-white tabular-nums tracking-widest">{victimData.aadhar || victimData.aadhaar || 'UNLINKED'}</span>
+              </div>
+              {victimData.email && (
+                <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                  <Mail size={10} className="text-gray-500" />
+                  <span className="text-[9px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
+                </div>
+              )}
+              {victimData.gender && (
+                <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                  <span className="text-[6px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
+                  <span className="text-[9px] font-black text-white uppercase">{victimData.gender}</span>
+                </div>
+              )}
+              {victimData.role && (
+                <div className="bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20 flex items-center gap-1.5 shadow-lg">
+                  <Shield size={10} className="text-blue-400" />
+                  <span className="text-[9px] font-black text-blue-400 uppercase">{victimData.role}</span>
+                </div>
+              )}
+              {victimData.isVerified && (
+                <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 flex items-center gap-1.5 shadow-lg">
+                  <ShieldCheck size={10} className="text-emerald-400" />
+                  <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Verified</span>
+                </div>
+              )}
+              {victimData.specialCellLinked && (
+                <div className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20 flex items-center gap-1.5 shadow-lg">
+                  <Zap size={10} className="text-rose-500" />
+                  <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 📍 PERMANENT SECTOR GRID */}
+          {(victimData.fullAddress || victimData.locationData?.formattedAddress) && (
+            <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-rose-500/30" />
+              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <MapPin size={10} className="text-rose-500" /> Permanent Sector Grid
+              </p>
+              <p className="text-[11px] font-black text-white uppercase italic leading-relaxed">{victimData.fullAddress || victimData.locationData?.formattedAddress}</p>
+            </div>
+          )}
+
+          {/* 📊 STRATEGIC STATS OVERLAY */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Bell size={30} /></div>
+              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Total Alerts</p>
+              <h3 className="text-xl font-black text-white italic tabular-nums leading-none tracking-tighter">{victimHistory.length}</h3>
+            </div>
+            <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><ShieldAlert size={30} /></div>
+              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Misuse</p>
+              <h3 className="text-xl font-black text-rose-500 italic tabular-nums leading-none tracking-tighter">{victimHistory.filter(a => a.closureReason?.includes('Misuse') || a.closureReason?.includes('Accidental')).length}</h3>
+            </div>
+            <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Activity size={30} /></div>
+              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Activity Index</p>
+              <h3 className="text-xl font-black text-emerald-500 italic tabular-nums leading-none tracking-tighter">
+                {Math.max(0, 100 - (victimHistory.filter(a => a.closureReason?.includes('Misuse')).length * 20))}%
+              </h3>
+            </div>
+          </div>
+
+          {/* 🛡️ SUPPORT NODES */}
+          <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
+            <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
+            <div className="space-y-2.5">
+              {victimData.primaryGuardian && (
+                <div className="flex justify-between items-center bg-rose-500/10 px-4 py-2 rounded-xl border border-rose-500/20 shadow-lg">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
+                    <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[5px] font-black rounded-full uppercase tracking-widest">Primary</span>
+                  </div>
+                  <span className="text-[9px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
+                </div>
+              )}
+              {guardians.map((g: any) => (
+                <div key={g.id} className="flex justify-between items-center bg-black/20 px-4 py-2 rounded-xl border border-white/5">
+                  <span className="text-[9px] font-black text-white uppercase italic">{g.name}</span>
+                  <span className="text-[9px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 📊 PROTOCOL STRIKES */}
+          <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl flex items-center justify-between relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-5"><Activity size={40} /></div>
+            <div>
+              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
+              <p className="text-[6px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
+            </div>
+            <h3 className="text-3xl font-black text-rose-500 italic tabular-nums leading-none">{victimData.sosStrikeCount || 0}</h3>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="h-[calc(100vh-64px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
+    <div className="h-full w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
       {/* 📟 ASIDE QUEUE */}
       <aside className="w-[380px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl">
          <div className="p-8 pb-4">
@@ -327,347 +711,241 @@ export function SOSManagement({
       {/* 🔍 MAIN CONTENT */}
       <main className="flex-1 relative flex flex-col overflow-hidden bg-[#0F172A]">
          {(selectedAlert || (sidebarTab === 'HISTORY' && selectedVictimId)) ? (
-            <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-               {/* MAP - ONLY FOR LIVE */}
-               {sidebarTab === 'LIVE' && selectedAlert && (
-                  <div className="h-[45%] w-full relative shrink-0 border-b border-white/5">
+            sidebarTab === 'LIVE' && selectedAlert ? (
+               <div className="flex-grow flex flex-row h-full w-full overflow-hidden">
+                  {/* LEFT COLUMN: MAP */}
+                  <div className="w-[50%] lg:w-[55%] h-full relative shrink-0 border-r border-white/5">
                      <CommandMap activeAlerts={[selectedAlert]} activeProtectors={verifiedProtectors} selectedAlertId={selectedAlert.id} />
                   </div>
-               )}
 
-               <div className="p-12 pt-16 max-w-6xl mx-auto w-full">
-                  {/* 🛡️ HEADER AREA */}
-                    <div className="flex items-start justify-between mb-8">
-                      <div className="space-y-2">
-                         <p className="text-[9px] font-black uppercase tracking-[3px] text-rose-500/80 leading-none">
-                            {sidebarTab === 'LIVE' ? 'Live Citizen Forensic Packet' : 'Archived Incident Ledger'}
-                         </p>
-                         <h1 className="text-3xl font-black text-white uppercase italic leading-none tracking-tighter">{victimData?.name || 'Citizen Profile'}</h1>
-                         <div className="flex flex-wrap items-center gap-2 pt-2">
-                             <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
-                                <Phone size={12} className="text-gray-500" />
-                                <span className="text-[10px] font-black text-white tabular-nums">
-                                   {victimData?.phoneNumber || victimData?.phone || 'NO RECORD'}
-                                </span>
-                             </div>
-                             <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
-                                <Fingerprint size={12} className="text-gray-500" />
-                                <span className="text-[10px] font-black text-white tabular-nums tracking-widest">
-                                   {victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}
-                                </span>
-                             </div>
-                            {victimData?.email && (
-                               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
-                                  <Mail size={12} className="text-gray-500" />
-                                  <span className="text-[10px] font-black text-white lowercase">{victimData.email}</span>
-                               </div>
-                            )}
-                            {sidebarTab === 'HISTORY' && (
-                               <>
-                                  {victimData?.gender && (
-                                     <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
-                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
-                                        <span className="text-[10px] font-black text-white uppercase">{victimData.gender}</span>
-                                     </div>
-                                  )}
-                                  {victimData?.role && (
-                                     <div className="bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20 flex items-center gap-2 shadow-lg">
-                                        <Shield size={12} className="text-blue-500" />
-                                        <span className="text-[10px] font-black text-blue-500 uppercase">{victimData.role}</span>
-                                     </div>
-                                  )}
-                                  {victimData?.isVerified && (
-                                     <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 flex items-center gap-2 shadow-lg">
-                                        <ShieldCheck size={12} className="text-emerald-500" />
-                                        <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Verified</span>
-                                     </div>
-                                  )}
-                                  {victimData?.specialCellLinked && (
-                                     <div className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20 flex items-center gap-2 shadow-lg">
-                                        <Zap size={12} className="text-rose-500" />
-                                        <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
-                                     </div>
-                                  )}
-                               </>
-                            )}
-                         </div>
-                         {(victimData?.fullAddress || victimData?.locationData?.formattedAddress) && (
-                            <div className="flex items-center gap-2 text-gray-500 mt-3 bg-white/5 p-2 rounded-lg border border-white/5">
-                               <MapPin size={12} className="text-rose-500" />
-                               <span className="text-[8px] font-black uppercase tracking-[2px] leading-none text-gray-400">
-                                  Permanent: {victimData.fullAddress || victimData.locationData?.formattedAddress}
-                               </span>
-                            </div>
-                         )}
-                      </div>
-
-                       {/* 🛡️ DISCIPLINARY OVERLAY */}
-                       <AnimatePresence>
-                         {victimData?.isSOSBlocked && (
-                           <motion.div 
-                             initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-                             animate={{ opacity: 1, backdropFilter: "blur(6px)" }}
-                             className="absolute inset-x-0 bottom-0 top-[15%] z-50 bg-rose-950/20 flex flex-col items-center justify-center p-12 text-center rounded-[3rem]"
-                           >
-                              <div className="max-w-md w-full bg-[#1E293B] border-2 border-rose-500/50 rounded-[40px] p-10 shadow-[0_0_100px_rgba(244,63,94,0.4)] space-y-8 relative overflow-hidden">
-                                 <div className="absolute top-0 left-0 w-full h-1 bg-rose-500 animate-pulse" />
-                                 <div className="space-y-3">
-                                    <div className="w-20 h-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto border border-rose-500/20">
-                                       <Lock size={40} className="text-rose-500" />
-                                    </div>
-                                    <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Account Blocked</h2>
-                                    <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">
-                                       This identity has been restricted from the National Safety Grid. Adjudication Required.
-                                    </p>
+                  {/* RIGHT COLUMN: DETAILS */}
+                  <div className="w-[50%] lg:w-[45%] h-full overflow-y-auto custom-scrollbar p-6 lg:p-8 space-y-6 bg-[#0B0F19]">
+                     {/* 🛡️ HEADER AREA */}
+                     <div className="bg-[#1E293B]/40 p-6 rounded-[2rem] border border-white/5 space-y-4 relative">
+                        {/* 🛡️ DISCIPLINARY OVERLAY */}
+                        <AnimatePresence>
+                          {victimData?.isSOSBlocked && (
+                            <motion.div 
+                              initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+                              animate={{ opacity: 1, backdropFilter: "blur(6px)" }}
+                              className="absolute inset-0 z-50 bg-rose-950/80 flex flex-col items-center justify-center p-6 text-center rounded-[2rem]"
+                            >
+                              <div className="bg-[#1E293B] border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4 max-w-sm">
+                                 <div className="w-12 h-12 bg-rose-500/10 rounded-xl flex items-center justify-center mx-auto border border-rose-500/20">
+                                    <Lock size={24} className="text-rose-500" />
+                                 </div>
+                                 <h2 className="text-base font-black text-white uppercase italic leading-none">Account Blocked</h2>
+                                 <p className="text-[8px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from National Grid</p>
+                                 
+                                 <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[9px] text-gray-300 italic">
+                                    {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL."}
                                  </div>
 
-                                 <div className="space-y-4">
-                                    <div className="bg-black/40 border border-white/5 rounded-3xl p-6 text-left">
-                                       <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-3">Victim Appeal Statement:</p>
-                                       <p className="text-xs font-bold text-gray-200 uppercase leading-relaxed italic">
-                                          {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL SUBMITTED."}
-                                       </p>
-                                    </div>
-
-                                    <div className="flex gap-3">
-                                       <button 
-                                          onClick={() => handleRestoreAccess(victimData.id)}
-                                          className="flex-1 py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
-                                       >
-                                          Restore Access
-                                       </button>
-                                       <button 
-                                          onClick={() => handlePermanentBan(victimData.id)}
-                                          className="flex-1 py-5 bg-black/40 border border-rose-900 text-rose-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all active:scale-[0.98]"
-                                       >
-                                          Permanent Ban
-                                       </button>
-                                    </div>
+                                 <div className="flex gap-2">
+                                    <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg">Restore</button>
+                                    <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[8px] font-black uppercase tracking-widest">Ban</button>
                                  </div>
                               </div>
-                           </motion.div>
-                         )}
-                       </AnimatePresence>
-                      
-                      {/* 🛡️ COMPACT ACTION BUTTONS */}
-                      <div className="flex items-center gap-2">
-                         <button onClick={() => handleAction('warn')} className="px-4 py-2 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-amber-500 hover:text-black transition-all">
-                            <AlertTriangle size={12} /> Warn Misuse
-                         </button>
-                         {sidebarTab === 'LIVE' && (
-                            <button onClick={() => setIsOverrideModalOpen(true)} className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-rose-600/20 transition-all border border-rose-400/30">
-                               <Zap size={12} /> Sovereign Override
-                            </button>
-                         )}
-                         <button onClick={() => handleAction('ban')} className="px-4 py-2 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-rose-500 hover:text-white transition-all">
-                            <Ban size={12} /> Ban Access
-                         </button>
-                      </div>
-                   </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
-                   {/* 📊 TACTICAL GRID */}
-                   {sidebarTab === 'LIVE' && selectedAlert ? (
-                     <div className="grid grid-cols-12 gap-6">
-                        <div className="col-span-8 space-y-6">
-                           <div className="grid grid-cols-2 gap-4">
-                              <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden">
-                                 <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
-                                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4">Neural Geocode Sector</p>
-                                 <p className="text-[12px] font-black text-white uppercase italic leading-relaxed">{loadingAddress ? "Pinpointing..." : (resolvedAddress || selectedAlert?.fullAddress || 'Sector Unknown')}</p>
-                              </div>
-                              <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
-                                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Heart size={12} className="text-rose-500" /> Support Nodes</p>
-                                 <div className="space-y-3">{victimData?.primaryGuardian && (
-                                        <div className="flex justify-between items-center bg-rose-500/10 px-4 py-2.5 rounded-xl border border-rose-500/20 shadow-lg shadow-rose-500/5">
-                                           <div className="flex items-center gap-2">
-                                              <span className="text-[10px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
-                                              <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[6px] font-black rounded-full uppercase tracking-widest">Primary</span>
-                                           </div>
-                                           <span className="text-[10px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
-                                        </div>
-                                     )}
-                                     {guardians.map((g: any) => (
-                                        <div key={g.id} className="flex justify-between items-center bg-black/20 px-4 py-2.5 rounded-xl border border-white/5">
-                                           <span className="text-[10px] font-black text-white uppercase italic">{g.name}</span>
-                                           <span className="text-[10px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
-                                        </div>
-                                     ))}
-                                 </div>
-                              </div>
+                        <div className="flex items-start justify-between">
+                           <div className="space-y-1">
+                              <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[7px] font-black rounded-full border border-rose-500/20 uppercase tracking-widest leading-none">Live SOS Packet</span>
+                              <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">{victimData?.name || 'Citizen Profile'}</h1>
                            </div>
-                            <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl mt-6">
-                               <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                  <Shield size={12} className="text-blue-500" /> Active Tactical Responders
-                               </p>
-                               <div className="space-y-3">
-                                  {selectedAlert?.activeResponders?.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.uid === v.uid) === i).map((responder: any) => (
-                                     <div key={responder.uid} className="flex justify-between items-center bg-blue-500/10 px-4 py-2.5 rounded-xl border border-blue-500/20 shadow-lg shadow-blue-500/5">
-                                        <div className="flex items-center gap-3">
-                                           <div className="w-6 h-6 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                                              {responder.photo ? (
-                                                 <img src={responder.photo} className="w-full h-full object-cover" />
-                                              ) : (
-                                                 <User size={12} className="text-blue-400" />
-                                              )}
-                                           </div>
-                                           <div className="flex flex-col">
-                                              <div className="flex items-center gap-1.5">
-                                                 <span className="text-[10px] font-black text-white uppercase italic leading-none">{responder.name}</span>
-                                                 {(responder.xp || 0) >= 25000 && (
-                                                    <div className="px-1.5 py-0.5 bg-emerald-500 rounded flex items-center gap-0.5">
-                                                       <ShieldCheck size={6} className="text-white" />
-                                                       <span className="text-[5px] font-black text-white uppercase">VERIFIED</span>
-                                                    </div>
-                                                 )}
-                                              </div>
-                                              <span className="text-[6px] font-black text-blue-500 uppercase tracking-widest mt-1">Status: Intercepting</span>
-                                           </div>
-                                        </div>
-                                        <span className="text-[10px] font-black text-blue-400 tabular-nums">{responder.phone}</span>
-                                     </div>
-                                  ))}
-                               </div>
-                            </div>
-                         </div>
-                         <div className="col-span-4 space-y-6">
-                            <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden group">
-                               <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><Activity size={80} /></div>
-                               <div className="flex items-center justify-between mb-3">
-                                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Protocol Strikes</p>
-                               </div>
-                               <h3 className="text-5xl font-black text-rose-500 italic tabular-nums leading-none">{victimData?.sosStrikeCount || 0}</h3>
-                            </div>
-
-                            {/* 🛡️ FORENSIC EVIDENCE VAULT (LIVE FEED) */}
-                            <div className="bg-[#1E293B] p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
-                               <div className="flex items-center justify-between mb-6">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                     <Fingerprint size={12} className="text-blue-500" /> Forensic Evidence Vault
-                                  </p>
-                                  <span className="px-2 py-0.5 bg-blue-500/10 text-blue-500 text-[7px] font-black rounded-full border border-blue-500/20">LIVE SYNC</span>
-                               </div>
-                               
-                               <EvidenceGallery alertId={selectedAlert.id} />
-                            </div>
-                         </div>
-                     </div>
-                   ) : (
-                     <div className="space-y-12">
-                        {/* 📊 STRATEGIC STATS OVERLAY */}
-                        <div className="grid grid-cols-3 gap-4">
-                           <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Bell size={40} /></div>
-                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-3">Total Alerts Triggered</p>
-                              <h3 className="text-3xl font-black text-white italic tabular-nums leading-none tracking-tighter">{victimHistory.length}</h3>
-                           </div>
-                           <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><ShieldAlert size={40} /></div>
-                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-3">Verified Misuse</p>
-                              <h3 className="text-3xl font-black text-rose-500 italic tabular-nums leading-none tracking-tighter">{victimHistory.filter(a => a.closureReason?.includes('Misuse') || a.closureReason?.includes('Accidental')).length}</h3>
-                           </div>
-                           <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Activity size={40} /></div>
-                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-3">Reliability Index</p>
-                              <h3 className="text-3xl font-black text-emerald-500 italic tabular-nums leading-none tracking-tighter">
-                                 {Math.max(0, 100 - (victimHistory.filter(a => a.closureReason?.includes('Misuse')).length * 20))}%
-                              </h3>
-                           </div>
-                        </div>
-
-                        <div className="pt-6">
-                           <h4 className="text-[12px] font-black text-gray-500 uppercase tracking-[6px] mb-10 italic">Incident History Details</h4>
                            
-                           <div className="space-y-8">
-                              {victimHistory.length === 0 ? (
-                                 <div className="py-32 text-center opacity-20 border-2 border-dashed border-white/5 rounded-[3rem]">
-                                    <ShieldAlert size={80} className="mx-auto mb-6" />
-                                    <p className="text-xl font-black uppercase tracking-[10px]">No Records in Ledger</p>
-                                 </div>
-                              ) : (
-                                 victimHistory.map((alert, idx) => (
-                                    <motion.div 
-                                       key={alert.id}
-                                       initial={{ opacity: 0, y: 30 }}
-                                       animate={{ opacity: 1, y: 0 }}
-                                       transition={{ delay: idx * 0.1 }}
-                                       className="bg-[#1E293B]/40 rounded-[3rem] border border-white/5 p-10 shadow-2xl relative overflow-hidden group"
-                                    >
-                                       {/* HEADER */}
-                                       <div className="flex items-start justify-between mb-10">
-                                          <div className="flex items-center gap-6">
-                                             <div className="w-16 h-16 bg-blue-600/10 rounded-[28px] flex items-center justify-center text-blue-500 border border-blue-500/20">
-                                                <Calendar size={28} />
-                                             </div>
-                                             <div>
-                                                <h5 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">
-                                                   {alert.timestamp?.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
-                                                </h5>
-                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-2">REF ID: ALERT_{alert.id.slice(-8).toUpperCase()}</p>
-                                             </div>
-                                          </div>
-                                          <div className="px-8 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-[10px] font-black text-emerald-500 uppercase tracking-[3px]">
-                                             Resolved
-                                          </div>
-                                       </div>
-
-                                       {/* DATA GRID */}
-                                       <div className="grid grid-cols-4 gap-4 mb-10">
-                                          {[
-                                             { label: 'Gender', value: victimData?.gender || 'FEMALE', icon: User },
-                                             { label: 'Aadhaar UID', value: victimData?.aadhar || victimData?.aadhaar || 'UNLINKED', icon: Fingerprint },
-                                             { label: 'Role', value: victimData?.role || 'CITIZEN', icon: Shield },
-                                             { label: 'Phone', value: victimData?.phoneNumber || victimData?.phone || 'NO RECORD', icon: Phone }
-                                          ].map((item, i) => (
-                                             <div key={i} className="bg-black/20 p-6 rounded-3xl border border-white/5">
-                                                <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-3">{item.label}</p>
-                                                <div className="flex items-center gap-3">
-                                                   <item.icon size={12} className="text-gray-500" />
-                                                   <span className="text-[11px] font-black text-gray-200 uppercase tracking-tighter truncate">{item.value}</span>
-                                                </div>
-                                             </div>
-                                          ))}
-                                       </div>
-
-                                       {/* DETAILS SECTION */}
-                                       <div className="grid grid-cols-12 gap-6">
-                                          <div className="col-span-7 bg-black/20 p-8 rounded-[2.5rem] border border-white/5">
-                                             <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-4">Closing Reason (Mission Resolution)</p>
-                                             <p className="text-[11px] font-black text-emerald-500 uppercase italic tracking-widest">Verified Rescue Completed</p>
-                                             <p className="text-[10px] font-bold text-gray-400 uppercase italic mt-2">"{alert.closureReason || 'Mission Accomplished'}"</p>
-                                          </div>
-                                          <div className="col-span-5 bg-black/20 p-8 rounded-[2.5rem] border border-white/5 flex flex-col">
-                                             <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-4">Operational Responders & Savior</p>
-                                             <div className="flex flex-wrap gap-2">
-                                                {(alert.activeResponders || []).map((r: any) => (
-                                                   <div 
-                                                      key={r.uid} 
-                                                      onClick={() => {
-                                                         onViewReplay?.(alert.id);
-                                                         toast.success(`⚡ INITIATING 3D REPLAY: ${r.name}`);
-                                                      }}
-                                                      className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
-                                                   >
-                                                      <ShieldCheck size={12} />
-                                                      LifeSaver: {r.name}
-                                                   </div>
-                                                ))}
-                                                {(!alert.activeResponders || alert.activeResponders.length === 0) && (
-                                                   <div className="text-[10px] font-bold text-gray-600 italic">No Responder ID Logged</div>
-                                                )}
-                                             </div>
-                                          </div>
-                                       </div>
-                                    </motion.div>
-                                 ))
-                              )}
+                           {/* COMPACT ACTION BUTTONS */}
+                           <div className="flex items-center gap-1.5 shrink-0">
+                              <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
+                                 <AlertTriangle size={10} /> Warn
+                              </button>
+                              <button onClick={() => setIsOverrideModalOpen(true)} className="px-2.5 py-1.5 bg-rose-600 text-white rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg shadow-rose-600/20 transition-all border border-rose-400/30">
+                                 <Zap size={10} /> Override
+                              </button>
+                              <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
+                                 <Ban size={10} /> Ban
+                              </button>
                            </div>
                         </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                           <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                              <Phone size={10} className="text-gray-500" />
+                              <span className="text-[9px] font-black text-white tabular-nums">{victimData?.phoneNumber || victimData?.phone || 'NO RECORD'}</span>
+                           </div>
+                           <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                              <Fingerprint size={10} className="text-gray-500" />
+                              <span className="text-[9px] font-black text-white tabular-nums tracking-widest">{victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}</span>
+                           </div>
+                           {victimData?.email && (
+                              <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
+                                 <Mail size={10} className="text-gray-500" />
+                                 <span className="text-[9px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
+                              </div>
+                           )}
+                        </div>
                      </div>
-                   )}
-                </div>
-             </div>
-          ) : (
-             <div className="h-full flex flex-col items-center justify-center opacity-20"><ShieldAlert size={120} strokeWidth={0.5} className="mb-8" /><p className="text-xl font-black uppercase tracking-[10px]">Select Incident Record</p></div>
+
+                     {/* 📍 NEURAL GEOCODE SECTOR */}
+                     <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
+                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                           <MapPin size={10} className="text-blue-500" /> Neural Geocode Sector
+                        </p>
+                        <p className="text-[11px] font-black text-white uppercase italic leading-relaxed">{loadingAddress ? "Pinpointing..." : (resolvedAddress || selectedAlert?.fullAddress || 'Sector Unknown')}</p>
+                     </div>
+
+                     {/* 🛡️ SUPPORT NODES */}
+                     <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
+                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
+                        <div className="space-y-2.5">
+                           {victimData?.primaryGuardian && (
+                              <div className="flex justify-between items-center bg-rose-500/10 px-4 py-2 rounded-xl border border-rose-500/20 shadow-lg">
+                                 <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
+                                    <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[5px] font-black rounded-full uppercase tracking-widest">Primary</span>
+                                 </div>
+                                 <span className="text-[9px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
+                              </div>
+                           )}
+                           {guardians.map((g: any) => (
+                              <div key={g.id} className="flex justify-between items-center bg-black/20 px-4 py-2 rounded-xl border border-white/5">
+                                 <span className="text-[9px] font-black text-white uppercase italic">{g.name}</span>
+                                 <span className="text-[9px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
+                              </div>
+                           ))}
+
+                           {/* 🚀 DYNAMIC EMERGENCY NODES (POLICE & HOSPITALS) */}
+                           {loadingNodes ? (
+                              <div className="py-2 text-center">
+                                 <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Scanning Nearby Grid...</p>
+                              </div>
+                           ) : (
+                              (nearbyPolice.length > 0 || nearbyHospitals.length > 0) && (
+                                 <div className="pt-3 border-t border-white/5 mt-3 space-y-2.5">
+                                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                                       <Globe size={10} className="text-cyan-400" /> Nearby Emergency Nodes
+                                    </p>
+                                    
+                                    {/* POLICE STATIONS */}
+                                    {nearbyPolice.map((station: any, idx: number) => (
+                                       <div key={`police-${idx}`} className="bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl flex flex-col gap-2">
+                                          <div className="flex justify-between items-start">
+                                             <div className="min-w-0">
+                                                <div className="flex items-center gap-1">
+                                                   <Shield size={8} className="text-blue-400 shrink-0" />
+                                                   <span className="text-[9px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{station.name}</span>
+                                                </div>
+                                                <p className="text-[7px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{station.address}</p>
+                                             </div>
+                                             <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[5px] font-black rounded uppercase tracking-widest scale-90 shrink-0">POLICE</span>
+                                          </div>
+                                          <div className="flex gap-1.5">
+                                             <button onClick={() => window.open(`tel:${station.phone || '112'}`)} className="flex-1 py-1 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/20 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                                <Phone size={8} /> Call
+                                             </button>
+                                             <button onClick={() => {
+                                                const dest = (station.lat && station.lng) ? `${station.lat},${station.lng}` : encodeURIComponent(station.name);
+                                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                                <MapPin size={8} /> Navigate
+                                             </button>
+                                          </div>
+                                       </div>
+                                    ))}
+
+                                    {/* HOSPITALS */}
+                                    {nearbyHospitals.map((hospital: any, idx: number) => (
+                                       <div key={`hospital-${idx}`} className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl flex flex-col gap-2">
+                                          <div className="flex justify-between items-start">
+                                             <div className="min-w-0">
+                                                <div className="flex items-center gap-1">
+                                                   <Heart size={8} className="text-emerald-400 shrink-0" />
+                                                   <span className="text-[9px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{hospital.name}</span>
+                                                </div>
+                                                <p className="text-[7px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{hospital.address}</p>
+                                             </div>
+                                             <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[5px] font-black rounded uppercase tracking-widest scale-90 shrink-0">TRAUMA</span>
+                                          </div>
+                                          <div className="flex gap-1.5">
+                                             <button onClick={() => window.open(`tel:${hospital.phone || '108'}`)} className="flex-1 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                                <Phone size={8} /> Call
+                                             </button>
+                                             <button onClick={() => {
+                                                const dest = (hospital.lat && hospital.lng) ? `${hospital.lat},${hospital.lng}` : encodeURIComponent(hospital.name);
+                                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                                <MapPin size={8} /> Navigate
+                                             </button>
+                                          </div>
+                                       </div>
+                                    ))}
+                                 </div>
+                              )
+                           )}
+                        </div>
+                     </div>
+
+                     {/* 🛡️ ACTIVE TACTICAL RESPONDERS */}
+                     <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                           <Shield size={10} className="text-blue-500" /> Active Tactical Responders
+                        </p>
+                        <div className="space-y-2.5">
+                           {selectedAlert?.activeResponders?.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.uid === v.uid) === i).map((responder: any) => (
+                              <div key={responder.uid} className="flex justify-between items-center bg-blue-500/5 px-4 py-2.5 rounded-xl border border-blue-500/10 shadow-lg">
+                                 <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                                       {responder.photo ? (
+                                          <img src={responder.photo} className="w-full h-full object-cover" />
+                                       ) : (
+                                          <User size={10} className="text-blue-400" />
+                                       )}
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="text-[9px] font-black text-white uppercase italic leading-none">{responder.name}</span>
+                                       <span className="text-[5px] font-black text-blue-400 uppercase tracking-widest mt-0.5">Intercepting</span>
+                                    </div>
+                                 </div>
+                                 <span className="text-[9px] font-black text-blue-400 tabular-nums">{responder.phone}</span>
+                              </div>
+                           ))}
+                           {(!selectedAlert?.activeResponders || selectedAlert.activeResponders.length === 0) && (
+                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic text-center py-2">Scanning for nearest protectors...</p>
+                           )}
+                        </div>
+                     </div>
+
+                     {/* 📊 PROTOCOL STRIKES */}
+                     <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl flex items-center justify-between relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-5"><Activity size={40} /></div>
+                        <div>
+                           <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
+                           <p className="text-[6px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
+                        </div>
+                        <h3 className="text-3xl font-black text-rose-500 italic tabular-nums leading-none">{victimData?.sosStrikeCount || 0}</h3>
+                     </div>
+
+                     {/* 🛡️ FORENSIC EVIDENCE VAULT */}
+                     <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between">
+                           <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Fingerprint size={10} className="text-blue-500" /> Forensic Evidence Vault
+                           </p>
+                           <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[6px] font-black rounded border border-blue-500/20">LIVE SYNC</span>
+                        </div>
+                        
+                        <EvidenceGallery alertId={selectedAlert.id} />
+                     </div>
+                  </div>
+               </div>
+            ) : (
+               renderHistoryContent()
+            )
+         ) : (
+              <div className="h-full flex flex-col items-center justify-center opacity-20"><ShieldAlert size={120} strokeWidth={0.5} className="mb-8" /><p className="text-xl font-black uppercase tracking-[10px]">Select Incident Record</p></div>
           )}
       </main>
 
@@ -685,6 +963,10 @@ export function SOSManagement({
             </div>
          )}
       </AnimatePresence>
+
+      {victimData && (
+         <MissionAuditModal user={victimData} isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} />
+      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }

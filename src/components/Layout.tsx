@@ -52,10 +52,31 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive, isSOSBlocked } = useKavachStore();
   const user = auth.currentUser;
 
+  // 🛰️ DYNAMIC GLOBAL WAR-ROOM VIEWPORT SCALING
+  useEffect(() => {
+    if (role === 'super_cell') {
+      document.documentElement.classList.add('supercell-active');
+      document.body.classList.add('supercell-active');
+      document.body.style.transform = 'scale(0.5)';
+      document.body.style.transformOrigin = 'top left';
+    } else {
+      document.documentElement.classList.remove('supercell-active');
+      document.body.classList.remove('supercell-active');
+      document.body.style.transform = '';
+      document.body.style.transformOrigin = '';
+    }
+    return () => {
+      document.documentElement.classList.remove('supercell-active');
+      document.body.classList.remove('supercell-active');
+      document.body.style.transform = '';
+      document.body.style.transformOrigin = '';
+    };
+  }, [role]);
+
 
   const handleRoleSwitch = async () => {
     if (!user || gender !== 'female') return;
-    
+
     if (role === 'citizen') {
       if (userData?.protectorStatus === 'active') {
         try {
@@ -211,12 +232,17 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       "text-gray-900 font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative",
       role === 'super_cell' ? "h-screen overflow-hidden p-0" : "min-h-screen overflow-x-hidden px-3 sm:px-6 pt-4 sm:pt-10 pb-10"
     )}>
-      
+
       {/* 🏛️ GLOBAL INSTITUTIONAL WATERMARK (OVERLAY) */}
       <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center z-[150] overflow-hidden select-none">
-        <span className="text-[22vw] font-black text-black/[0.03] uppercase tracking-tighter rotate-[-15deg] whitespace-nowrap">KAVACH</span>
-        <div className="mt-4 opacity-10">
-          <span className="text-[8px] sm:text-[9px] font-black text-gray-900 uppercase tracking-[3px] sm:tracking-[4px]">Your Safety, Our Responsibility</span>
+        <span className={cn(
+          "text-[22vw] font-black uppercase tracking-tighter rotate-[-15deg] whitespace-nowrap transition-all duration-500",
+          role === 'super_cell' ? "text-white/[0.008]" : "text-black/[0.03]"
+        )}>
+          KAVACH
+        </span>
+        <div className={cn("mt-4 transition-all duration-500", role === 'super_cell' ? "opacity-[0.05]" : "opacity-10")}>
+          <span className={cn("text-[8px] sm:text-[9px] font-black uppercase tracking-[3px] sm:tracking-[4px]", role === 'super_cell' ? "text-white" : "text-gray-900")}>Your Safety, Our Responsibility</span>
         </div>
       </div>
 
@@ -224,17 +250,17 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       <AnimatePresence>
         {showProtectorOnboarding && (
           <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 sm:p-10">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setShowProtectorOnboarding(false)} 
-              className="absolute inset-0 bg-[#0F172A]/80 backdrop-blur-xl" 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowProtectorOnboarding(false)}
+              className="absolute inset-0 bg-[#0F172A]/80 backdrop-blur-xl"
             />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative w-full max-w-md bg-white rounded-[40px] p-8 sm:p-10 shadow-2xl border border-white"
             >
               <div className="flex flex-col items-center text-center space-y-6">
@@ -251,13 +277,13 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                   </p>
                 </div>
                 <div className="w-full space-y-3 pt-4">
-                  <button 
+                  <button
                     onClick={confirmProtectorEnrollment}
                     className="w-full py-5 bg-blue-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[4px] shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
                   >
                     Confirm Enrollment
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowProtectorOnboarding(false)}
                     className="w-full py-5 bg-gray-50 text-gray-400 rounded-[24px] text-xs font-black uppercase tracking-[4px] hover:bg-gray-100 transition-all"
                   >
@@ -273,13 +299,13 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && !isSOSBlocked && (
         <header className="relative z-[150] flex justify-between items-center mb-4 sm:mb-8 max-w-7xl mx-auto px-1">
           <div className="flex items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-500 overflow-hidden border border-[#F1F5F9]">
-                  <img src="/logo.jpg" alt="KAVACH" className="w-full h-full object-contain" />
-                </div>
-              <div>
-                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-tight">{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
-                 <p className="text-[7px] font-bold text-gray-400 uppercase tracking-[2px] mt-0.5">women safety network</p>
-              </div>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-500 overflow-hidden border border-[#F1F5F9]">
+              <img src="/logo.jpg" alt="KAVACH" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-tight">{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
+              <p className="text-[7px] font-bold text-gray-400 uppercase tracking-[2px] mt-0.5">women safety network</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={onToggleGhost} className="w-8 h-8 sm:w-10 sm:h-10 bg-white border border-[#E5E7EB] text-gray-400 hover:text-gray-900 hover:border-gray-300 rounded-lg sm:rounded-xl flex items-center justify-center transition-all shadow-sm"><Eye size={16} /></button>
@@ -326,7 +352,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         </header>
       )}
 
-      <main className={cn("mx-auto pb-6 relative transition-all z-10", role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0" : "max-w-7xl")}>
+      <main className={cn("mx-auto pb-6 relative transition-all z-10", role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0 h-full w-full" : "max-w-7xl")}>
         {children}
 
         {/* Slogan moved to global watermark overlay for perfect centering */}

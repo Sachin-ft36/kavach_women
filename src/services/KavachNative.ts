@@ -16,6 +16,7 @@ export interface KavachPlugin {
   // 📡 Mission Critical Dispatch
   broadcastEmergencySMS(options: { numbers: string[], message: string }): Promise<void>;
   initiateEmergencyCall(options: { number: string }): Promise<void>;
+  updateGuardianContacts(options: { contacts: string }): Promise<void>;
   
   // 🚨 Hardware Interceptors
   startContinuousSiren(): Promise<void>;

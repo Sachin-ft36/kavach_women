@@ -4,7 +4,7 @@ import {
   History, X, ShieldAlert, CheckCircle2, 
   Clock, MapPin, AlertTriangle, MessageSquare,
   ShieldCheck, ArrowRight, UserMinus, Lock,
-  Database, Fingerprint, Link as LinkIcon, Users
+  Database, Fingerprint, Link as LinkIcon, Users, Shield
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';

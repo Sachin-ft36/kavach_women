@@ -66,7 +66,6 @@ import { NationalEmergencyTicker } from './supercell/NationalEmergencyTicker';
 import { NeuralAnalytics } from './supercell/NeuralAnalytics';
 import { BanAppeals } from './supercell/BanAppeals';
 
-
 const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: string, onTabChange?: (m: any) => void }) => {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [missionHistory, setMissionHistory] = useState<any[]>([]);
@@ -270,10 +269,21 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const NavItem = ({ id, label, icon: Icon }: any) => {
     const isActive = viewMode === id;
     return (
-      <button onClick={() => onTabChange?.(id)} className={cn("w-full flex flex-col items-center py-2 px-1 transition-all duration-200 relative group", isActive ? "bg-blue-600 text-white" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50")}>
-        <Icon size={18} className={cn("mb-1", isActive && "scale-110")} />
-        <span className="text-[5.5px] font-black uppercase tracking-[0.5px] text-center leading-none">{label}</span>
-        {isActive && <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-[2px] bg-white" />}
+      <button 
+        onClick={() => onTabChange?.(id)} 
+        className={cn(
+          "w-full flex flex-col items-center py-3.5 px-1 transition-all duration-200 relative group cursor-pointer", 
+          isActive 
+            ? "bg-blue-50 text-blue-600 border-l-2 border-blue-600" 
+            : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
+        )}
+      >
+        <Icon size={18} className={cn("mb-1.5 transition-transform", isActive ? "scale-110 text-blue-600" : "text-slate-400 group-hover:text-slate-700")} />
+        <span className={cn(
+          "text-[5.5px] font-black uppercase tracking-[0.5px] text-center leading-none transition-colors",
+          isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-700"
+        )}>{label}</span>
+        {isActive && <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-600" />}
       </button>
     );
   };
@@ -440,10 +450,14 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   };
 
   return (
-    <div className="relative w-full h-screen flex bg-white font-['Outfit'] overflow-hidden max-h-screen">
+    <div className="relative w-full h-screen flex bg-[#0F172A] font-['Outfit'] overflow-hidden max-h-screen text-white">
       <TacticalModal config={modalConfig} setModalConfig={setModalConfig} />
-      <nav className="w-[70px] bg-white border-r border-gray-100 flex flex-col h-full z-50 shrink-0">
-        <div className="p-3 flex justify-center border-b border-gray-50"><div className="w-8 h-8 rounded-lg bg-white border border-blue-600 flex items-center justify-center text-blue-600"><Shield size={18} strokeWidth={2.5} /></div></div>
+      <nav className="w-[70px] bg-white border-r border-slate-100 flex flex-col h-full z-50 shrink-0 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+        <div className="p-3 flex justify-center border-b border-slate-100">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-sm shadow-blue-500/5">
+            <Shield size={18} strokeWidth={2.5} />
+          </div>
+        </div>
         <div className="flex-1 py-2 overflow-y-auto scrollbar-hide">
           <NavItem id="COMMAND" label="Dashboard" icon={LayoutDashboard} />
           <NavItem id="SOS" label="SOS Alerts" icon={Bell} />
@@ -457,9 +471,8 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <NavItem id="GUIDES" label="Guides" icon={BookOpen} />
           <NavItem id="APPEALS" label="Appeals" icon={Gavel} />
           <NavItem id="SETTINGS" label="Settings" icon={Settings} />
-
         </div>
-        <div className="py-4 border-t border-gray-50">
+        <div className="py-4 border-t border-slate-100">
           <button 
             onClick={async () => {
               const { auth } = await import('../firebase');
@@ -468,24 +481,24 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
               localStorage.clear(); // 🏛️ SYSTEM WIPE: AUTHORIZED
               window.location.reload();
             }}
-            className="w-full flex flex-col items-center py-4 text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all duration-200 group"
+            className="w-full flex flex-col items-center py-4 text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-200 group cursor-pointer"
           >
-            <LogOut size={20} className="mb-1.5 group-hover:scale-110" />
-            <span className="text-[6px] font-black uppercase tracking-[1px] text-center leading-none">Log Out</span>
+            <LogOut size={20} className="mb-1.5 group-hover:scale-110 text-slate-400 group-hover:text-rose-600" />
+            <span className="text-[6px] font-black uppercase tracking-[1px] text-center leading-none text-slate-400 group-hover:text-rose-600">Log Out</span>
           </button>
         </div>
       </nav>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-gray-100 px-8 flex items-center justify-between z-40 shrink-0">
+        <header className="h-16 bg-[#0B0F19] border-b border-white/5 px-8 flex items-center justify-between z-40 shrink-0">
            {/* 🏛️ SOVEREIGN COMMAND HEADER: AUTHORIZED PERSONNEL ONLY */}
            <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                 <div className="w-8 h-8 rounded-lg bg-blue-950/30 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
                     <Shield size={16} strokeWidth={2.5} />
                  </div>
                  <div>
-                    <h1 className="text-[10px] font-black text-gray-900 uppercase leading-none tracking-tighter italic">Kavach Supercell HQ</h1>
-                    <p className="text-[7px] font-bold text-gray-400 uppercase tracking-[0.1em] mt-1">National Command Grid</p>
+                    <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">Kavach Supercell HQ</h1>
+                    <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">National Command Grid</p>
                  </div>
               </div>
            </div>
@@ -500,7 +513,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                    }}
                    className={cn(
                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative group",
-                     isLedgerOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" : "bg-gray-50 text-gray-400 hover:text-blue-600 border border-gray-100"
+                     isLedgerOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" : "bg-white/5 text-gray-400 hover:text-blue-400 border border-white/5"
                    )}
                  >
                     <Bell size={20} className={cn(unreadCount > 0 && "animate-bounce")} />
@@ -517,21 +530,21 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                          initial={{ opacity: 0, y: 20, scale: 0.95 }}
                          animate={{ opacity: 1, y: 0, scale: 1 }}
                          exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                         className="absolute top-full right-0 mt-4 w-[400px] bg-white border border-gray-100 rounded-[30px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] z-[100] overflow-hidden"
+                         className="absolute top-full right-0 mt-4 w-[400px] bg-[#1E293B] border border-white/10 rounded-[30px] shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden"
                        >
-                          <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
+                          <div className="p-6 border-b border-white/5 bg-black/20 flex items-center justify-between">
                              <div className="flex items-center gap-3">
-                                <BookOpen size={18} className="text-blue-600" />
-                                <h3 className="text-[10px] font-black uppercase tracking-[2px] text-gray-900">Intelligence Ledger</h3>
+                                <BookOpen size={18} className="text-blue-400" />
+                                <h3 className="text-[10px] font-black uppercase tracking-[2px] text-white">Intelligence Ledger</h3>
                              </div>
-                             <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">{notifications.length} Records</span>
+                             <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{notifications.length} Records</span>
                           </div>
                           
                           <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-2">
                              {notifications.length === 0 ? (
                                 <div className="py-20 text-center opacity-20">
                                    <History size={40} className="mx-auto mb-4" />
-                                   <p className="text-[10px] font-black uppercase tracking-widest">No New Intel</p>
+                                   <p className="text-[10px] font-black uppercase tracking-widest text-white">No New Intel</p>
                                 </div>
                              ) : (
                                 <div className="flex flex-col gap-1">
@@ -592,24 +605,23 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                           </div>
                           <button 
                             onClick={() => setNotifications([])}
-                            className="w-full py-4 bg-gray-50 text-[8px] font-black uppercase tracking-[2px] text-gray-400 hover:text-rose-600 transition-colors border-t border-gray-100"
+                            className="w-full py-4 bg-black/20 text-[8px] font-black uppercase tracking-[2px] text-gray-500 hover:text-rose-400 transition-colors border-t border-white/5"
                           >
                              Purge Intelligence Log
                           </button>
                        </motion.div>
                     )}
                  </AnimatePresence>
-              </div>
+               </div>
 
-              <div className="h-8 w-[1px] bg-gray-100 mx-2" />
 
               {/* 🛰️ TACTICAL CONTROL CLUSTER */}
-              <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-[20px] border border-gray-100">
+              <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-[20px] border border-white/5">
                  <button 
                    onClick={() => setShowHeatmap(!showHeatmap)}
                    className={cn(
                      "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                     showHeatmap ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-400 hover:text-gray-600"
+                     showHeatmap ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
                    )}
                  >
                     <Activity size={12} />

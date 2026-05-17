@@ -100,7 +100,7 @@ interface KavachState {
   setSafetyPin: (pin: string | null) => void;
   setUserPos: (pos: [number, number]) => void;
   setBatteryLevel: (level: number) => void;
-  setSOSActive: (active: boolean, alertId?: string | null, method?: KavachState['triggerMethod'], closureReason?: string | null) => Promise<void>;
+  setSOSActive: (active: boolean, alertId?: string | null, method?: KavachState['triggerMethod'], closureReason?: string | null, providedHandshake?: string | null) => Promise<void>;
   setRideMode: (active: boolean, rideData?: KavachState['rideData']) => Promise<void>;
   updateRideData: (updates: Partial<NonNullable<KavachState['rideData']>>) => Promise<void>;
   setLocked: (locked: boolean) => void;
@@ -638,7 +638,6 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         isSOSActive: false, 
         isShadowActive: false,
         activeAlertId: null, 
-        sosMethod: null,
         triggerMethod: null,
         activeRadius: 5.0,
         activeTab: 'dashboard',

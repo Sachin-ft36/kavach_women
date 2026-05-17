@@ -61,7 +61,7 @@ import KavachAIChat from './components/KavachAIChat';
 import StealthOverlay from './components/StealthOverlay';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
-import { KavachNative } from './services/KavachNative';
+import { KavachNative, KavachSafe } from './services/KavachNative';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Geolocation } from '@capacitor/geolocation';
 import { auth, googleProvider, db, resetKavachState } from './firebase';
@@ -69,6 +69,7 @@ import { onAuthStateChanged, signInWithCredential, GoogleAuthProvider, signInWit
 import { doc, getDoc, collection, getDocs, setDoc, onSnapshot, query, where, terminate } from 'firebase/firestore';
 import { App as CapApp } from '@capacitor/app';
 import { cn } from './lib/utils';
+import { toast } from 'sonner';
 
 
 
@@ -100,19 +101,9 @@ export default function App() {
   const [trackId, setTrackId] = useState<string | null>(null);
   const [showFailSafe, setShowFailSafe] = useState(false);
 
-  // 🛡️ TACTICAL ZOOM LOCK: Prevent browser scaling from breaking the war room layout
+  // 🛡️ TACTICAL ZOOM LOCK REMOVED: Allowed browser scaling (Ctrl + and Ctrl -) for responsive flexibility.
   useEffect(() => {
-    const preventZoom = (e: any) => {
-      if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.deltaY)) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('keydown', preventZoom);
-    window.addEventListener('wheel', preventZoom, { passive: false });
-    return () => {
-      window.removeEventListener('keydown', preventZoom);
-      window.removeEventListener('wheel', preventZoom);
-    };
+    // Zoom locking disabled on user request.
   }, []);
   const handleHardReset = () => { localStorage.clear(); window.location.reload(); };
   const isSOSActive = useKavachStore(state => state.isSOSActive);
@@ -289,7 +280,7 @@ export default function App() {
     if (Capacitor.isNativePlatform()) {
       setTimeout(async () => {
         await PushNotifications.requestPermissions();
-        KavachNative.addListener('sosTriggered', (data: { source: string }) => {
+        KavachSafe.addListener('sosTriggered', (data: { source: string }) => {
           const { setShadowActive, setPendingSOS } = useKavachStore.getState();
           if (data.source === 'shadow') {
             setShadowActive(true);

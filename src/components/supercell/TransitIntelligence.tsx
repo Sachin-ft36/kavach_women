@@ -9,6 +9,7 @@ import {
 import { cn } from '../../lib/utils';
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 export function TransitIntelligence({ 
   journeys, 
@@ -24,6 +25,8 @@ export function TransitIntelligence({
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
+  const [nearbyPolice, setNearbyPolice] = useState<any[]>([]);
+  const [loadingPolice, setLoadingPolice] = useState(false);
 
   const resolveIdentity = (item: any) => {
     const uid = item.userId || item.uid || item.victimUid;
@@ -53,7 +56,28 @@ export function TransitIntelligence({
     } else {
       setResolvedAddress(null);
     }
-  }, [selectedJourneyId]);
+  }, [selectedJourneyId, selectedJourney?.latitude, selectedJourney?.longitude]);
+
+  // 📡 REAL-TIME POLICE SCANNER TRIGGERED BY MOVEMENT IN EMERGENCY
+  useEffect(() => {
+    if (selectedJourney?.latitude && selectedJourney?.longitude && selectedJourney?.status === 'emergency') {
+      const loadPolice = async () => {
+        setLoadingPolice(true);
+        try {
+          const { fetchNearbyPoliceMappls } = await import('../../services/MapplsService');
+          const data = await fetchNearbyPoliceMappls(selectedJourney.latitude, selectedJourney.longitude);
+          setNearbyPolice(data.slice(0, 3)); 
+        } catch (e) {
+          console.error("Error loading police in transit intel:", e);
+        } finally {
+          setLoadingPolice(false);
+        }
+      };
+      loadPolice();
+    } else {
+      setNearbyPolice([]);
+    }
+  }, [selectedJourneyId, selectedJourney?.latitude, selectedJourney?.longitude, selectedJourney?.status]);
 
   return (
     <div className="h-full flex flex-col bg-white border border-gray-100 overflow-hidden">
@@ -135,6 +159,57 @@ export function TransitIntelligence({
                               {loadingAddress ? "Verifying GPS Address..." : (resolvedAddress || "Streaming Telemetry...")}
                            </p>
                         </div>
+                     {/* 🚨 MOVEMENT SYNCED POLICE COVERAGE IN EMERGENCY */}
+                     {journey.status === 'emergency' && (
+                        <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 space-y-2">
+                           <div className="flex justify-between items-center">
+                              <p className="text-[8px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                                 <Shield size={10} className="text-red-500" /> Movement Synced Safeguards
+                              </p>
+                              {loadingPolice && (
+                                 <span className="text-[7px] font-black uppercase text-red-400 animate-pulse tracking-wider">
+                                    LOCATING...
+                                 </span>
+                              )}
+                           </div>
+                           
+                           <div className="space-y-1.5">
+                              {nearbyPolice.length === 0 ? (
+                                 <p className="text-[7.5px] text-gray-500 font-bold uppercase italic">Querying nearest safeguards...</p>
+                              ) : (
+                                 nearbyPolice.map((station) => (
+                                    <div key={station.id} className="p-2 bg-black/40 rounded-lg border border-white/5 flex justify-between items-center">
+                                       <div className="flex flex-col min-w-0">
+                                          <span className="text-[8.5px] font-black text-white uppercase italic truncate max-w-[120px]">{station.name}</span>
+                                          <span className="text-[6.5px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-[120px]">{station.address}</span>
+                                       </div>
+                                       <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-[8px] font-black text-red-400 tabular-nums">{station.dist}</span>
+                                          <button 
+                                             onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                   const { updateDoc, doc } = await import('firebase/firestore');
+                                                   await updateDoc(doc(db, 'journeys', journey.userId), {
+                                                      alertDispatchedUnit: station.name,
+                                                      alertDispatchedAt: new Date().toISOString()
+                                                   });
+                                                   toast.success(`Interceptor unit dispatched from ${station.name}!`);
+                                                } catch (err) {
+                                                   console.error("Failed to dispatch to transit:", err);
+                                                }
+                                             }}
+                                             className="px-2 py-0.5 bg-red-600 text-white rounded text-[7px] font-black uppercase hover:bg-red-700 transition-all"
+                                          >
+                                             DISPATCH
+                                          </button>
+                                       </div>
+                                    </div>
+                                 ))
+                              )}
+                           </div>
+                        </div>
+                     )}
                     </div>
 
                     <div className="flex gap-2">
