@@ -24,8 +24,6 @@ export default function SOSConfirmationOverlay() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 🚀 INSTANT DISPATCH
-          setSOSActive(true, null, pendingSOS.method);
           return 0;
         }
         
@@ -39,7 +37,14 @@ export default function SOSConfirmationOverlay() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [pendingSOS, setSOSActive]);
+  }, [pendingSOS]);
+
+  // 🚀 MISSION DISPATCH WATCHER
+  useEffect(() => {
+    if (timeLeft === 0 && pendingSOS) {
+      setSOSActive(true, null, pendingSOS.method);
+    }
+  }, [timeLeft, pendingSOS, setSOSActive]);
 
   if (!pendingSOS) return null;
 

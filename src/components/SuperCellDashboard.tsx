@@ -440,7 +440,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   };
 
   return (
-    <div className="relative w-full h-screen flex bg-white font-['Outfit'] overflow-hidden">
+    <div className="relative w-full h-screen flex bg-white font-['Outfit'] overflow-hidden max-h-screen">
       <TacticalModal config={modalConfig} setModalConfig={setModalConfig} />
       <nav className="w-[70px] bg-white border-r border-gray-100 flex flex-col h-full z-50 shrink-0">
         <div className="p-3 flex justify-center border-b border-gray-50"><div className="w-8 h-8 rounded-lg bg-white border border-blue-600 flex items-center justify-center text-blue-600"><Shield size={18} strokeWidth={2.5} /></div></div>

@@ -22,14 +22,26 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
     let interval: any;
     if (isShadowActive) {
       interval = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime(prev => {
+          // 🛡️ AUTO-STOP PROTOCOL: Max 30 mins to save storage
+          if (prev >= 1800) { 
+            sealEvidence();
+            return prev;
+          }
+          return prev + 1;
+        });
       }, 1000);
       
       // 🎥 START LIVE PREVIEW (In-App Only)
       startCamera();
     } else {
-      stopCamera();
-      setRecordingTime(0);
+      // 🛡️ EMERGENCY SEAL: If recording was active, ensure it gets saved
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        sealEvidence();
+      } else {
+        stopCamera();
+        setRecordingTime(0);
+      }
     }
     return () => {
       clearInterval(interval);
@@ -47,7 +59,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
           width: { ideal: 1280 },
           height: { ideal: 720 }
         }, 
-        audio: true 
+        audio: false 
       };
       
       let mediaStream;
@@ -55,7 +67,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
         mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (e) {
         console.warn("Environmental camera failed, falling back to basic feed...");
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
 
       setStream(mediaStream);
@@ -98,29 +110,92 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
   };
 
   const activateStealth = async () => {
-    const { KavachSafe } = await import('../App');
+    const { KavachSafe } = await import('../services/KavachNative');
+    localStorage.removeItem('kavach_shadow_stealth');
     setShadowActive(true);
     
     // 🚀 TRIGGER NATIVE FORENSIC ENGINE
     await KavachSafe.startForensicCapture();
     
     // 📂 SEAL EVIDENCE IN VAULT (SIMULATED FOR LOGS)
-    const currentUser = useKavachStore.getState().user;
-    const evidenceRef = doc(collection(db, 'users', currentUser?.uid || 'anonymous', 'evidence'));
+    // 📂 SEAL EVIDENCE IN VAULT (LINKED TO NATIONAL GRID)
+    const store = useKavachStore.getState();
+    const currentUser = store.user;
+    const alertId = store.activeAlertId;
+    
+    // If SOS is active, link evidence directly to the alert for SuperCell
+    const targetPath = alertId ? `alerts/${alertId}/evidence` : `users/${currentUser?.uid || 'anonymous'}/evidence`;
+    
+    const evidenceRef = doc(collection(db, targetPath));
     await setDoc(evidenceRef, {
-      type: 'SHADOW_PROTECT_LOG',
+      type: alertId ? 'CCTV_FEED' : 'SHADOW_PROTECT_LOG',
       timestamp: serverTimestamp(),
-      status: 'SEALED_ENCRYPTED',
+      status: 'LIVE_UPLINK_ACTIVE',
       details: 'Silent background forensic capture initiated by ThreatProtect protocol.',
       gps_locked: true,
       audio_stream_active: true,
-      victimUid: currentUser?.uid || 'anonymous'
+      victimUid: currentUser?.uid || 'anonymous',
+      url: 'PENDING_FINAL_SEAL' // This tells SuperCell to wait for the stream
     }).catch(() => {});
 
     toast.success("SHADOW PROTECT: STEALTH MODE ENGAGED", {
       description: "Forensic capture uplinked to National Grid.",
       icon: <Shield className="text-blue-500" />
     });
+  };
+
+  const sealEvidence = async () => {
+    setIsSaving(true);
+    const { KavachSafe } = await import('../services/KavachNative');
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      
+      setTimeout(async () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/mp4' });
+        const fileName = `KAVACH_FORENSIC_${Date.now()}.mp4`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        await KavachSafe.stopForensicCapture();
+        
+        const store = useKavachStore.getState();
+        
+        // 🛡️ UPDATE NATIONAL GRID WITH FINAL SEAL
+        if (store.activeAlertId) {
+          const evidenceRef = doc(collection(db, 'alerts', store.activeAlertId, 'evidence'));
+          await setDoc(evidenceRef, {
+            type: 'CCTV_FEED',
+            timestamp: serverTimestamp(),
+            status: 'SEALED_ENCRYPTED',
+            url: url // Final local/cloud URL
+          }, { merge: true }).catch(() => {});
+        }
+
+        localStorage.removeItem('kavach_shadow_stealth');
+        setShadowActive(false);
+        setIsSaving(false);
+        toast.success("FORENSIC LOG SEALED", {
+          description: "Evidence secured in local vault.",
+          icon: <ShieldCheck className="text-emerald-500" />
+        });
+        onClose();
+      }, 500);
+    } else {
+      await KavachSafe.stopForensicCapture();
+      localStorage.removeItem('kavach_shadow_stealth');
+      setShadowActive(false);
+      setIsSaving(false);
+      onClose();
+    }
+  };
+
+  const handleStop = () => {
+    sealEvidence();
   };
 
   if (!isOpen) return null;
@@ -223,14 +298,17 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
                 muted 
                 className={cn(
                   "w-full h-full object-cover transition-opacity duration-1000",
-                  isCameraReady ? "opacity-80" : "opacity-0"
+                  (isCameraReady && !localStorage.getItem('kavach_shadow_stealth')) ? "opacity-80" : "opacity-0"
                 )}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60 pointer-events-none" />
             </div>
 
             {/* 🛰️ TACTICAL OVERLAYS */}
-            <div className="relative z-10 flex-1 p-6 flex flex-col justify-between">
+            <div className={cn(
+              "relative z-10 flex-1 p-6 flex flex-col justify-between transition-opacity duration-500",
+              localStorage.getItem('kavach_shadow_stealth') === 'true' ? "opacity-0 pointer-events-none" : "opacity-100"
+            )}>
               <div className="flex justify-between items-start">
                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -277,43 +355,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={async () => {
-                    setIsSaving(true);
-                    const { KavachSafe } = await import('../App');
-                    
-                    // 🛑 STOP RECORDER & CAPTURE BLOB
-                    if (mediaRecorderRef.current) {
-                      mediaRecorderRef.current.stop();
-                      
-                      // Wait for final chunks
-                      setTimeout(async () => {
-                        const blob = new Blob(chunksRef.current, { type: 'video/mp4' });
-                        const fileName = `KAVACH_FORENSIC_${Date.now()}.mp4`;
-
-                        // 📂 SAVE TO LOCAL STORAGE (Browser Download / Filesystem)
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = fileName;
-                        a.click();
-                        URL.revokeObjectURL(url);
-
-                        await KavachSafe.stopForensicCapture();
-                        setShadowActive(false);
-                        setIsSaving(false);
-                        toast.success("FORENSIC LOG SAVED LOCALLY", {
-                          description: "Evidence sealed in device storage and encrypted.",
-                          icon: <ShieldCheck className="text-emerald-500" />
-                        });
-                        onClose();
-                      }, 500);
-                    } else {
-                      await KavachSafe.stopForensicCapture();
-                      setShadowActive(false);
-                      setIsSaving(false);
-                      onClose();
-                    }
-                  }}
+                  onClick={handleStop}
                   disabled={isSaving}
                   className={cn(
                     "px-10 py-5 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center gap-4 transition-all shadow-[0_15px_35px_rgba(220,38,38,0.3)] border-2 border-white/20",

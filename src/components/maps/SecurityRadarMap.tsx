@@ -8,8 +8,11 @@ import { ShieldCheck, ShieldAlert, Navigation } from 'lucide-react';
 // MAPBOX ACCESS TOKEN: RESTORED
 mapboxgl.accessToken = 'pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA';
 
+import { useSafetyIntelligence } from '../../hooks/useSafetyIntelligence';
+
 const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protectors?: any[], activeRadius?: number }) => {
   const { userPos, activeAlertId, isSOSActive } = useKavachStore();
+  const metrics = useSafetyIntelligence();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<{user?: mapboxgl.Marker, responders: { [key: string]: mapboxgl.Marker }, radar?: mapboxgl.Marker, route?: mapboxgl.Marker}>({ responders: {} });
@@ -143,13 +146,14 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
           });
 
           const isActive = tier === activeRadius;
+          const color = metrics.level === 'OPTIMAL' ? '#10B981' : metrics.level === 'CAUTION' ? '#F59E0B' : metrics.level === 'CRITICAL' ? '#EF4444' : '#0A84FF';
 
           m.addLayer({
             id: `${sourceId}-fill`,
             type: 'fill',
             source: sourceId,
             paint: {
-              'fill-color': '#0A84FF',
+              'fill-color': color,
               'fill-opacity': isActive ? 0.1 : 0.02
             }
           });
@@ -159,7 +163,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
             type: 'line',
             source: sourceId,
             paint: {
-              'line-color': '#0A84FF',
+              'line-color': color,
               'line-width': isActive ? 3 : 1,
               'line-opacity': isActive ? 0.8 : 0.2,
               'line-dasharray': isActive ? [] : [2, 4]
@@ -168,7 +172,11 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
         } else {
           // 📡 DYNAMIC STYLE UPDATE: Highlight the active tier
           const isActive = tier === activeRadius;
+          const color = metrics.level === 'OPTIMAL' ? '#10B981' : metrics.level === 'CAUTION' ? '#F59E0B' : metrics.level === 'CRITICAL' ? '#EF4444' : '#0A84FF';
+          
+          m.setPaintProperty(`${sourceId}-fill`, 'fill-color', color);
           m.setPaintProperty(`${sourceId}-fill`, 'fill-opacity', isActive ? 0.1 : 0.02);
+          m.setPaintProperty(`${sourceId}-outline`, 'line-color', color);
           m.setPaintProperty(`${sourceId}-outline`, 'line-width', isActive ? 3 : 1);
           m.setPaintProperty(`${sourceId}-outline`, 'line-opacity', isActive ? 0.8 : 0.2);
           m.setPaintProperty(`${sourceId}-outline`, 'line-dasharray', isActive ? [] : [2, 4]);

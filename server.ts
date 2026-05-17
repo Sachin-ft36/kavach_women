@@ -1,4 +1,5 @@
 import express from "express";
+import axios from "axios";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -6,6 +7,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 import fs from "fs";
+import "dotenv/config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +25,51 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // 🛰️ MAPMYINDIA (MAPPLS) TACTICAL PROXY (OAuth Token - Kept for legacy compatibility if needed)
+  app.post("/mappls-token", async (req, res) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('grant_type', 'client_credentials');
+      params.append('client_id', process.env.VITE_MAPMYINDIA_CLIENT_ID || "");
+      params.append('client_secret', process.env.VITE_MAPMYINDIA_CLIENT_SECRET || "");
+
+      console.log("🛰️ SERVER: Requesting Mappls Token for ID:", (process.env.VITE_MAPMYINDIA_CLIENT_ID || "").substring(0, 10) + "...");
+
+      const response = await axios.post('https://outpost.mapmyindia.com/api/security/oauth/token', 
+        params.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      const errorMsg = error.response?.data || error.message;
+      res.status(error.response?.status || 500).json(errorMsg);
+    }
+  });
+
+  // 🛰️ MAPMYINDIA (MAPPLS) STATIC KEY PROXY (To bypass CORS and hide the key)
+  app.get("/mappls-search/*", async (req, res) => {
+    try {
+      const path = req.params[0];
+      const restKey = process.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
+      
+      const url = `https://search.mappls.com/search/${path}`;
+      const response = await axios.get(url, {
+        params: {
+          ...req.query,
+          access_token: restKey // Inject the static key here automatically!
+        },
+        headers: { 'Accept': 'application/json' }
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error("🛰️ SERVER: Mappls Search API Failed (Handled Gracefully)");
+      // Return 200 so the browser console doesn't show a red error, but return an empty response
+      // so the frontend knows to fallback to Mapbox seamlessly.
+      res.status(200).json({ error: "Search API Failed", details: error.message, suggestedLocations: [] });
+    }
+  });
 
   // ── SERVE ROOT RESOURCES ────────────────────────────────────────────────
   app.use('/resources', express.static(path.join(process.cwd(), 'resources')));
@@ -173,6 +220,7 @@ async function startServer() {
       pdfUrl: "https://example.com/mock-fir.pdf" 
     });
   });
+
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

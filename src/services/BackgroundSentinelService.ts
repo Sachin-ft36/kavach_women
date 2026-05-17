@@ -1,6 +1,6 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
-import { KavachNative } from './KavachNative';
+import { KavachNative, KavachSafe } from './KavachNative';
 import { toast } from 'sonner';
 
 /**
@@ -17,6 +17,20 @@ export const initializeBackgroundSentinel = async () => {
   try {
     // 🛡️ INITIATE NATIVE HARDWARE SENTINEL (Background Persistence)
     await KavachSafe.startBackgroundSentinel();
+    await KavachSafe.startVoiceSentinel();
+
+    // 🔋 REQUEST BATTERY EXEMPTION (Mandatory for Background Survival)
+    const batteryStatus = await KavachSafe.isIgnoringBatteryOptimizations();
+    if (!batteryStatus.isExempt) {
+      toast.warning("Background Protection Restricted", {
+        description: "Please allow Kavach to run without battery optimization for 100% safety.",
+        action: {
+          label: "Fix Now",
+          onClick: () => KavachSafe.openBatterySettings()
+        }
+      });
+    }
+
     // 1. Request Permissions
     const status = await PushNotifications.checkPermissions();
     if (status.receive !== 'granted') {
@@ -55,6 +69,38 @@ export const initializeBackgroundSentinel = async () => {
       // If it's a shadow intercept, jump straight to SOS HUD
       window.location.href = data?.type === 'SOS_ALERT' ? '/sos' : '/';
     });
+    
+    // 🛡️ NATIVE HARDWARE PANIC TRIGGER (Power Button Hold)
+    KavachSafe.addListener('onPanicTrigger', async () => {
+      const store = useKavachStore.getState();
+      if (!store.isShadowActive && !store.isSOSActive) {
+        console.warn("🚨 KAVACH HARDWARE PANIC: Initiating Silent ThreatProtect Protocol...");
+        localStorage.setItem('kavach_shadow_stealth', 'true');
+        store.setShadowActive(true);
+        toast.error("THREATPROTECT ENGAGED SILENTLY", {
+          description: "Hardware Panic detected. Forensic capture active.",
+          duration: 2000
+        });
+      }
+    });
+
+    // 🛡️ NATIVE HARDWARE STOP TRIGGER (Volume Down Hold)
+    KavachSafe.addListener('onStopTrigger', async () => {
+      const store = useKavachStore.getState();
+      if (store.isShadowActive) {
+        console.log("🛡️ KAVACH HARDWARE STOP: Sealing Forensic Evidence...");
+        store.setShadowActive(false);
+        localStorage.removeItem('kavach_shadow_stealth');
+        toast.success("FORENSIC LOG SEALED", {
+          description: "Stealth recording ended and secured in vault.",
+        });
+      }
+    });
+
+    // 🛰️ BACKGROUND HEARTBEAT (Debug Sentinel Vitality)
+    setInterval(() => {
+      console.log("🛰️ KAVACH BACKGROUND PULSE: Sentinel is Vigilant. Sensors Active.");
+    }, 15000); // Pulse every 15 seconds
 
   } catch (error) {
     console.error(`Background Sentinel [${platform}] Failed:`, error);

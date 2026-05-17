@@ -25,6 +25,22 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 8085,
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/mappls-token': {
+          target: 'https://outpost.mappls.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/mappls-token/, '/api/security/oauth/token')
+        },
+        '/mappls-api': {
+          target: 'https://atlas.mappls.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/mappls-api/, '/api/places')
+        },
+        '/mappls-search': {
+          target: 'http://localhost:3000',
+          changeOrigin: true
+        }
+      }
     },
   };
 });

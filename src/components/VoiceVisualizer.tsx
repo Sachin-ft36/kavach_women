@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Activity } from 'lucide-react';
 import { useAudioAI } from '../hooks/useAudioAI';
+import { useKavachStore } from '../store/useKavachStore';
 import { cn } from '../lib/utils';
 
 interface VoiceVisualizerProps {
@@ -10,10 +11,11 @@ interface VoiceVisualizerProps {
 
 const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
   const { volume } = useAudioAI();
+  const { isBriefingActive } = useKavachStore();
   
   // 💓 HEARTBEAT GENERATOR: Flat when silent, Spikes when voice detected
   const generateHeartbeatPath = useMemo(() => {
-    const vol = isSOSActive ? 0 : volume;
+    const vol = (isSOSActive || isBriefingActive) ? 0 : volume;
     const isSilent = vol < 10;
     
     // Base line at y=25
@@ -56,7 +58,9 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
         </div>
         <div className="hidden xs:block">
           <span className="text-[10px] font-black text-gray-900 uppercase italic tracking-tight leading-none block">Voice SOS</span>
-          <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 block">Safety Monitoring Active</span>
+          <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 block">
+            {isBriefingActive ? 'Kavach Briefing Active' : 'Safety Monitoring Active'}
+          </span>
         </div>
       </div>
 
@@ -85,7 +89,9 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
 
       {/* 📊 DB LEVEL (COMPACT) */}
       <div className="text-right flex flex-col items-end">
-        <span className="text-[12px] font-black text-gray-900 leading-none">{volume.toFixed(0)}</span>
+        <span className="text-[12px] font-black text-gray-900 leading-none">
+          {isBriefingActive ? '0' : volume.toFixed(0)}
+        </span>
         <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest">dB</span>
       </div>
     </div>

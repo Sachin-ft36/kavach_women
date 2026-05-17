@@ -17,6 +17,8 @@ import TacticalModal from './TacticalModal';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
 import VictimMap from './maps/VictimMap';
+import NearbyHubModal from './NearbyHubModal';
+import MedicalHubModal from './MedicalHubModal';
 
 export default function ProtectorDashboard() {
   const { language } = useLanguage();
@@ -28,6 +30,9 @@ export default function ProtectorDashboard() {
   const [resolutionSummary, setResolutionSummary] = useState('');
   const [respondingToId, setRespondingToId] = useState<string | null>(null);
   const [handshakeInput, setHandshakeInput] = useState('');
+  const [isNearbyHubOpen, setIsNearbyHubOpen] = useState(false);
+  const [isMedicalHubOpen, setIsMedicalHubOpen] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'streets' | 'satellite' | 'dark'>('streets');
 
   const [showTacticalPledge, setShowTacticalPledge] = useState<{ isOpen: boolean, alertId: string | null }>({ isOpen: false, alertId: null });
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
@@ -306,21 +311,21 @@ export default function ProtectorDashboard() {
 
       <div className="px-6 pt-10 flex justify-between items-end mb-6">
         <div>
-          <h1 className="text-3xl font-black text-[#0F172A] tracking-tighter uppercase italic leading-none">Protector</h1>
-          <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[4px] mt-2">Mission Control Dashboard</p>
+          <h1 className="text-[22px] font-black text-[#0F172A] tracking-tighter uppercase italic leading-none">Protector</h1>
+          <p className="text-[8px] font-bold text-blue-600 uppercase tracking-[2px] mt-1.5">Mission Control Dashboard</p>
         </div>
         
         <button 
           disabled={!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying}
           onClick={() => handleVoiceBriefing(true)}
           className={cn(
-            "flex items-center gap-1.5 px-4 py-2.5 bg-white rounded-2xl border border-blue-100 text-[10px] font-black transition-all shadow-sm uppercase tracking-widest active:scale-95",
+            "flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-blue-100 text-[8px] font-black transition-all shadow-sm uppercase tracking-wider active:scale-95",
             (!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying)
               ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75" 
               : "text-[#0F172A] hover:bg-blue-50"
           )}
         >
-          <Volume2 size={14} className={isBriefingPlaying ? "text-gray-400" : "text-blue-600"} />
+          <Volume2 size={11} className={isBriefingPlaying ? "text-gray-400" : "text-blue-600"} />
           {isBriefingPlaying 
             ? "Stop" 
             : "Listen Now"}
@@ -329,25 +334,59 @@ export default function ProtectorDashboard() {
 
       <div className="px-6">
         <div className="relative h-[380px] w-full rounded-[40px] bg-[#0F172A] overflow-hidden shadow-2xl border-4 border-white">
-          <VictimMap activeAlerts={activeAlerts} />
+          <VictimMap activeAlerts={activeAlerts} mapStyle={mapStyle} />
           <div className="absolute inset-x-6 top-6 flex justify-between pointer-events-none">
             <div className="px-4 py-2 bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-xl flex items-center justify-center">
               <span className="text-[9px] font-black text-[#0F172A] uppercase tracking-widest">Network Online</span>
             </div>
-            <div className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 flex items-center justify-center text-white pointer-events-auto">
+            <button 
+              onClick={() => {
+                const nextStyle = mapStyle === 'streets' ? 'satellite' : mapStyle === 'satellite' ? 'dark' : 'streets';
+                setMapStyle(nextStyle);
+                toast.success(`Map Mode: ${nextStyle.toUpperCase()}`);
+              }}
+              className="w-10 h-10 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 flex items-center justify-center text-white pointer-events-auto hover:bg-black/80 active:scale-95 transition-all shadow-lg"
+            >
               <Layers size={18} />
-            </div>
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* 🛠️ TACTICAL RESOURCE HUB TRIGGERS */}
+      <div className="px-6 mt-4 grid grid-cols-2 gap-3">
+        <button 
+          onClick={() => setIsNearbyHubOpen(true)}
+          className="p-3.5 bg-slate-900 border border-slate-800 text-white rounded-[24px] flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all group relative overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+          <div className="w-8 h-8 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 group-hover:scale-105 transition-transform duration-300">
+            <Shield size={16} />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5 italic">Police Station</span>
+          <span className="text-[5px] text-slate-400 font-bold uppercase tracking-[1.5px] mt-0.5">HQ & Local Outposts</span>
+        </button>
+
+        <button 
+          onClick={() => setIsMedicalHubOpen(true)}
+          className="p-3.5 bg-slate-900 border border-slate-800 text-white rounded-[24px] flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all group relative overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+          <div className="w-8 h-8 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center text-rose-400 group-hover:scale-105 transition-transform duration-300">
+            <Activity size={16} />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5 italic">Medical Hub</span>
+          <span className="text-[5px] text-slate-400 font-bold uppercase tracking-[1.5px] mt-0.5">Ambulance & Trauma</span>
+        </button>
       </div>
 
 
 
 
-      <div className="px-6 mt-10">
-        <div className="flex justify-between items-center mb-8 px-2">
-          <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-[4px] flex items-center gap-3"><Activity size={18} className="text-blue-600" /> Urgent Dispatch</h3>
-          <div className="flex items-center gap-2 bg-[#0F172A] text-white px-4 py-2 rounded-full shadow-lg"><span className="text-[9px] font-black uppercase tracking-widest">{activeAlerts.length} Critical Units</span></div>
+      <div className="px-6 mt-6">
+        <div className="flex justify-between items-center mb-4 px-2">
+          <h3 className="text-[10px] font-black text-[#0F172A] uppercase tracking-[2px] flex items-center gap-2"><Activity size={14} className="text-blue-600" /> Urgent Dispatch</h3>
+          <div className="flex items-center gap-1.5 bg-[#0F172A] text-white px-2.5 py-1 rounded-full shadow-md"><span className="text-[7px] font-black uppercase tracking-wider">{activeAlerts.length} Critical Units</span></div>
         </div>
         <div className="space-y-6">
           <AnimatePresence mode="popLayout">
@@ -653,6 +692,8 @@ export default function ProtectorDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+      <NearbyHubModal isOpen={isNearbyHubOpen} onClose={() => setIsNearbyHubOpen(false)} />
+      <MedicalHubModal isOpen={isMedicalHubOpen} onClose={() => setIsMedicalHubOpen(false)} />
     </div>
   );
 }

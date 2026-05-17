@@ -70,7 +70,10 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
   });
 
   useEffect(() => {
-    if (isReturningUser) setStep(7); // Skip Guardians and jump straight to Shields/Permissions
+    if (isReturningUser) {
+      setStep(7); // Skip to Shields/Permissions
+      setTosChecked({ terms: true, permissions: true }); // Auto-check for existing users
+    }
   }, [isReturningUser]);
 
   const checkHardwareStatus = async () => {

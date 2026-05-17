@@ -3,7 +3,7 @@ import RideSafeOverlay from '../components/RideSafeOverlay';
 import SOSButton from '../components/SOSButton';
 import VictimMap from '../components/maps/VictimMap';
 import { Shield, Activity, ShieldCheck, Lock, PhoneCall, Mic, MicOff, FileText, ChevronRight, Radio, MapPin, MessageSquare, EyeOff, User, Clock, Volume2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
@@ -18,6 +18,7 @@ import FakeCallModal from '../components/FakeCallModal';
 import ZeroFIRModal from '../components/ZeroFIRModal';
 import SafeTimerModal from '../components/SafeTimerModal';
 import NearbyHubModal from '../components/NearbyHubModal';
+import MedicalHubModal from '../components/MedicalHubModal';
 import WarningOverlay from '../components/WarningOverlay';
 import BannedOverlay from '../components/BannedOverlay';
 
@@ -28,9 +29,76 @@ import { useVoiceTrigger } from '../hooks/useVoiceTrigger';
 import { useRideProtocol } from '../hooks/useRideProtocol';
 import { useProtectorSentinel } from '../hooks/useProtectorSentinel';
 
+import { useSafetyIntelligence } from '../hooks/useSafetyIntelligence';
+
+const SafetyRadarCard = React.memo(() => {
+  const metrics = useSafetyIntelligence();
+  const [showInfo, setShowInfo] = React.useState(false);
+
+  const getColors = () => {
+    switch (metrics.level) {
+      case 'OPTIMAL': return { text: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' };
+      case 'CAUTION': return { text: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' };
+      case 'CRITICAL': return { text: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' };
+      default: return { text: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' };
+    }
+  };
+
+  const colors = getColors();
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={() => setShowInfo(!showInfo)}
+      className={cn("px-4 py-2.5 rounded-[20px] border shadow-sm transition-all duration-300 relative overflow-hidden cursor-pointer active:scale-95", colors.bg, colors.border)}
+    >
+      <div className="flex justify-between items-center relative z-10 gap-3">
+        <div className="flex items-center gap-2">
+          <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", metrics.level === 'OPTIMAL' ? 'bg-emerald-500' : metrics.level === 'CAUTION' ? 'bg-amber-500' : 'bg-red-500')} />
+          <span className="text-[9px] font-black text-gray-900 tracking-widest uppercase italic">Radar Active</span>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="h-6 w-[1px] bg-black/5" />
+          <div className="flex flex-col items-center">
+            <span className="text-sm font-black text-gray-900 tabular-nums leading-none">{metrics.score}</span>
+            <span className="text-[6px] font-bold text-gray-400 uppercase tracking-widest leading-none mt-0.5">Safety</span>
+          </div>
+          <div className="flex -space-x-1">
+            {[...Array(Math.min(2, metrics.protectorCount || 1))].map((_, i) => (
+              <div key={i} className="w-4 h-4 rounded-full border border-white bg-blue-100 flex items-center justify-center text-[6px] font-black text-blue-600">
+                P
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showInfo && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-2 pt-2 border-t border-black/5"
+          >
+            <div className="flex justify-between text-[6px] font-black uppercase tracking-widest text-gray-400">
+              <span>80+: Optimal</span>
+              <span>60+: Stable</span>
+              <span>40+: Caution</span>
+              <span>-40: Critical</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+});
+
 export default function DashboardScreen() {
-  const { 
-    batteryLevel, gender, userPos, syncLocation, 
+  const {
+    batteryLevel, gender, userPos, syncLocation,
     setFakeCallActive, isBatteryExempt, setBatteryExempt,
     isSOSActive, isRideModeActive, rideData, updateRideData,
     setBriefingActive, verifiedProtectorCount, setOverlayActive,
@@ -49,6 +117,7 @@ export default function DashboardScreen() {
   const [isFakeCallHubOpen, setIsFakeCallHubOpen] = React.useState(false);
   const [isSafeTimerOpen, setIsSafeTimerOpen] = React.useState(false);
   const [isNearbyHubOpen, setIsNearbyHubOpen] = React.useState(false);
+  const [isMedicalHubOpen, setIsMedicalHubOpen] = React.useState(false);
   const [isRideSafeOpen, setIsRideSafeOpen] = React.useState(isRideModeActive);
   const [isRideActive, setIsRideActive] = React.useState(isRideModeActive);
   const [vehicleNo, setVehicleNo] = React.useState(rideData?.vehicleNo || '');
@@ -73,13 +142,14 @@ export default function DashboardScreen() {
       return;
     }
 
-    // 🛡️ PREVENT RE-TRIGGER: If already playing (mandatory or manual), do nothing
-    if (isBriefingPlaying) return;
+    // 🛡️ PREVENT RE-TRIGGER: If already playing or already greeted in this session, do nothing
+    const isAlreadyGreeted = sessionStorage.getItem('kavach_greeted') === 'true';
+    if (isBriefingPlaying || (!isManual && isAlreadyGreeted)) return;
 
     const audioPath = language === 'hi' ? '/voice/hindispeech.mp3' : '/voice/englishspeech.mp3';
     const audio = new Audio(audioPath);
     audioRef.current = audio;
-    
+
     setBriefingActive(true);
     setIsBriefingPlaying(true);
 
@@ -87,7 +157,6 @@ export default function DashboardScreen() {
       setBriefingActive(false);
       setIsBriefingPlaying(false);
       localStorage.setItem('kavach_briefing_completed', 'true');
-      if (!isManual) sessionStorage.setItem('kavach_greeted', 'true');
     };
 
     audio.play().then(() => {
@@ -110,23 +179,21 @@ export default function DashboardScreen() {
   React.useEffect(() => {
     syncLocation();
     const isJustLoggedIn = sessionStorage.getItem('kavach_just_logged_in');
-    
-    if (isJustLoggedIn) {
+
+    if (isJustLoggedIn === 'true') {
       // 🎙️ Auto-play for NEW LOGIN session
+      // Clear the session lock first to allow handleVoiceBriefing to run
+      sessionStorage.removeItem('kavach_greeted');
       handleVoiceBriefing();
-      
-      // Fallback for browser autoplay block
+
+      // Fallback for browser autoplay block (plays on first click)
       const playOnInteract = () => {
-        const stillInSession = sessionStorage.getItem('kavach_just_logged_in');
-        if (stillInSession) {
-          handleVoiceBriefing();
-          sessionStorage.removeItem('kavach_just_logged_in');
-        }
+        handleVoiceBriefing();
         document.removeEventListener('click', playOnInteract);
       };
       document.addEventListener('click', playOnInteract);
-      
-      // Clean up after first successful play attempt
+
+      // Clean up the login marker after 5s
       setTimeout(() => sessionStorage.removeItem('kavach_just_logged_in'), 5000);
     }
     if (Capacitor.isNativePlatform()) {
@@ -146,15 +213,17 @@ export default function DashboardScreen() {
         {/* Header Status */}
         <header className="flex items-center justify-between mb-0 sm:mb-2">
           <div className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2.5 bg-white rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-[#E5E7EB]">
-             <div className="relative flex items-center justify-center">
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#22C55E] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-                <div className="absolute inset-0 bg-[#22C55E] rounded-full animate-ping opacity-25" />
-             </div>
-              <span className="text-[9px] sm:text-[10px] font-bold text-[#1E293B] tracking-wide">Kavach Protection Active</span>
+            <div className="relative flex items-center justify-center">
+              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#22C55E] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+              <div className="absolute inset-0 bg-[#22C55E] rounded-full animate-ping opacity-25" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] font-bold text-[#1E293B] tracking-wide">
+              {isBriefingPlaying ? 'Listening Paused' : 'Kavach Protection Active'}
+            </span>
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={() => {
                 setVoiceTriggerActive(!isVoiceTriggerActive);
                 toast.success(isVoiceTriggerActive ? "Voice Sentinel Offline" : "Voice Sentinel Engaged", {
@@ -164,8 +233,8 @@ export default function DashboardScreen() {
               }}
               className={cn(
                 "p-2 sm:p-2.5 rounded-xl border transition-all shadow-sm active:scale-95",
-                isVoiceTriggerActive 
-                  ? "bg-blue-50 border-blue-200 text-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.1)]" 
+                isVoiceTriggerActive
+                  ? "bg-blue-50 border-blue-200 text-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.1)]"
                   : "bg-white border-[#E5E7EB] text-[#64748B]"
               )}
               title={isVoiceTriggerActive ? "Disable Voice Trigger" : "Enable Voice Trigger"}
@@ -173,19 +242,19 @@ export default function DashboardScreen() {
               {isVoiceTriggerActive ? <Mic size={14} className="sm:size-[16px]" /> : <MicOff size={14} className="sm:size-[16px]" />}
             </button>
 
-            <button 
+            <button
               disabled={!localStorage.getItem('kavach_briefing_completed') && isBriefingPlaying}
               onClick={() => handleVoiceBriefing(true)}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 border rounded-xl text-[9px] sm:text-[10px] font-bold transition-all shadow-sm",
                 (!localStorage.getItem('kavach_briefing_completed') && isBriefingPlaying)
-                  ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75" 
+                  ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75"
                   : "bg-white border-[#E5E7EB] text-[#1E293B] hover:bg-gray-50 active:scale-95"
               )}
             >
               <Volume2 size={12} className={isBriefingPlaying ? "text-gray-400 animate-pulse" : "text-[#DC2626] sm:size-[14px]"} />
-              {isBriefingPlaying 
-                ? (localStorage.getItem('kavach_briefing_completed') ? "Stop" : "Listening...") 
+              {isBriefingPlaying
+                ? (localStorage.getItem('kavach_briefing_completed') ? "Stop" : "Listening...")
                 : "Listen Now"}
             </button>
           </div>
@@ -198,14 +267,14 @@ export default function DashboardScreen() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.1),transparent)] pointer-events-none" />
           <div className="relative z-10 space-y-3 mb-8 text-center">
             <div className="flex items-center gap-2 px-3 py-1 bg-accent-red/10 rounded-full border border-accent-red/20 mx-auto w-fit">
-               <span className="text-[7px] sm:text-[8px] font-bold text-accent-red tracking-[2px]">SOS Emergency Control</span>
+              <span className="text-[7px] sm:text-[8px] font-bold text-accent-red tracking-[2px]">SOS Emergency Control</span>
             </div>
-             <p className={cn(
-               "text-[8px] sm:text-[9px] font-bold tracking-[2px] transition-colors",
-               isVoiceTriggerActive ? "text-blue-500" : "text-gray-500"
-             )}>
-               {isVoiceTriggerActive ? 'Shout "Kavach Help" to Activate' : 'Voice Sentinel Offline'}
-             </p>
+            <p className={cn(
+              "text-[8px] sm:text-[9px] font-bold tracking-[2px] transition-colors",
+              isVoiceTriggerActive ? "text-blue-500" : "text-gray-500"
+            )}>
+              {isVoiceTriggerActive ? 'Shout "Kavach Help" to Activate' : 'Voice Sentinel Offline'}
+            </p>
           </div>
           <div className="relative z-10 scale-[0.9] sm:scale-[1.08]">
             <SOSButton />
@@ -214,33 +283,33 @@ export default function DashboardScreen() {
 
         {/* Priority Helplines */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-           <button 
-             onClick={() => window.open('tel:112')} 
-             className="p-3.5 sm:p-5 bg-accent-red rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_12px_24px_rgba(239,68,68,0.2)] active:scale-95 transition-all group overflow-hidden relative"
-           >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-              <div className="relative">
-                <div className="w-7 h-7 sm:w-10 sm:h-10 bg-white/10 rounded-full flex items-center justify-center text-white mb-0.5 animate-pulse">
-                   <PhoneCall size={14} className="sm:size-[20px]" />
-                </div>
-                <div className="absolute -top-0.5 -right-0.5 w-2 sm:w-2.5 h-2 sm:h-2.5 bg-white rounded-full border-2 border-accent-red animate-ping" />
+          <button
+            onClick={() => window.open('tel:112')}
+            className="p-3.5 sm:p-5 bg-accent-red rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_12px_24px_rgba(239,68,68,0.2)] active:scale-95 transition-all group overflow-hidden relative"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+            <div className="relative">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 bg-white/10 rounded-full flex items-center justify-center text-white mb-0.5 animate-pulse">
+                <PhoneCall size={14} className="sm:size-[20px]" />
               </div>
-              <span className="text-base sm:text-xl font-black text-white tracking-tighter leading-tight">112</span>
-              <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Maddat ke liye</span>
-              <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Emergency</span>
-           </button>
-           <button 
-             onClick={() => window.open(gender === 'female' ? 'tel:1091' : 'tel:100')} 
-             className="p-3.5 sm:p-5 bg-white border border-black/[0.05] rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.03)] active:scale-95 transition-all group overflow-hidden relative"
-           >
-              <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] to-transparent pointer-events-none" />
-              <div className="w-7 h-7 sm:w-10 sm:h-10 bg-[#DC2626]/5 rounded-full flex items-center justify-center text-[#DC2626] mb-0.5">
-                 {gender === 'female' ? <User size={14} className="sm:size-[20px]" /> : <Shield size={14} className="sm:size-[20px]" />}
-              </div>
-              <span className="text-base sm:text-xl font-black text-[#1E293B] tracking-tighter leading-tight">{gender === 'female' ? '1091' : '100'}</span>
-              <span className="text-[6px] sm:text-[8px] font-bold text-gray-500 uppercase tracking-wider sm:tracking-widest leading-none">{gender === 'female' ? 'Women Helpline' : 'Police Helpline'}</span>
-              <span className="text-[5px] sm:text-[7px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Dabayein</span>
-           </button>
+              <div className="absolute -top-0.5 -right-0.5 w-2 sm:w-2.5 h-2 sm:h-2.5 bg-white rounded-full border-2 border-accent-red animate-ping" />
+            </div>
+            <span className="text-base sm:text-xl font-black text-white tracking-tighter leading-tight">112</span>
+            <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Maddat ke liye</span>
+            <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Emergency</span>
+          </button>
+          <button
+            onClick={() => window.open(gender === 'female' ? 'tel:1091' : 'tel:100')}
+            className="p-3.5 sm:p-5 bg-white border border-black/[0.05] rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.03)] active:scale-95 transition-all group overflow-hidden relative"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] to-transparent pointer-events-none" />
+            <div className="w-7 h-7 sm:w-10 sm:h-10 bg-[#DC2626]/5 rounded-full flex items-center justify-center text-[#DC2626] mb-0.5">
+              {gender === 'female' ? <User size={14} className="sm:size-[20px]" /> : <Shield size={14} className="sm:size-[20px]" />}
+            </div>
+            <span className="text-base sm:text-xl font-black text-[#1E293B] tracking-tighter leading-tight">{gender === 'female' ? '1091' : '100'}</span>
+            <span className="text-[6px] sm:text-[8px] font-bold text-gray-500 uppercase tracking-wider sm:tracking-widest leading-none">{gender === 'female' ? 'Women Helpline' : 'Police Helpline'}</span>
+            <span className="text-[5px] sm:text-[7px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Dabayein</span>
+          </button>
         </div>
 
         {/* Tactical Grid */}
@@ -248,19 +317,20 @@ export default function DashboardScreen() {
           <ActionCard icon={<Shield />} title="Nearby Help" desc={`${verifiedProtectorCount > 0 ? verifiedProtectorCount : 'Multiple'} protectors standing by`} tint="#ECFDF3" iconColor="#22C55E" onClick={() => toggleOverlay(setIsNearbyHubOpen, true)} />
           <ActionCard icon={<EyeOff />} title="ThreatProtect" desc="Silent safety recording" tint="#EEF2FF" iconColor="#3B82F6" onClick={() => toggleOverlay(setIsShadowOpen, true)} />
           <ActionCard icon={<MapPin />} title="Safe Journey" desc="Live travel protection" tint="#EFF6FF" iconColor="#0EA5E9" onClick={() => toggleOverlay(setIsRideSafeOpen, true)} />
-          <ActionCard 
-            icon={<FileText />} 
-            title="Digital Complaint" 
-            desc="Online FIR support" 
-            tint="#F8FAFC" 
-            iconColor="#64748B" 
+          <ActionCard
+            icon={<FileText />}
+            title="Digital Complaint"
+            desc="Online FIR support"
+            tint="#F8FAFC"
+            iconColor="#64748B"
             onClick={() => {
               setActiveTab('vault');
               setIsFirFlowActive(true);
-            }} 
+            }}
           />
           <ActionCard icon={<PhoneCall />} title="FakeCall" desc="Quick exit assistance" tint="#FFF7ED" iconColor="#F59E0B" onClick={() => toggleOverlay(setIsFakeCallHubOpen, true)} />
           <ActionCard icon={<Clock />} title="Safe Timer" desc="Reach home safely" tint="#FFF4EE" iconColor="#F97316" onClick={() => toggleOverlay(setIsSafeTimerOpen, true)} />
+          <ActionCard className="col-span-2 border border-rose-100/50 hover:border-rose-200/50 transition-all duration-300" icon={<Activity />} title="Medical Hub" desc="Ambulance & Emergency Trauma Center triangulation" tint="#FEF2F2" iconColor="#EF4444" onClick={() => toggleOverlay(setIsMedicalHubOpen, true)} />
         </div>
 
       </main>
@@ -268,20 +338,21 @@ export default function DashboardScreen() {
       <RideSafeOverlay isOpen={isRideSafeOpen} onClose={() => toggleOverlay(setIsRideSafeOpen, false)} isRideActive={isRideActive} setIsRideActive={setIsRideActive} vehicleNo={vehicleNo} setVehicleNo={setVehicleNo} />
       <SafeTimerModal isOpen={isSafeTimerOpen} onClose={() => toggleOverlay(setIsSafeTimerOpen, false)} />
       <NearbyHubModal isOpen={isNearbyHubOpen} onClose={() => toggleOverlay(setIsNearbyHubOpen, false)} />
+      <MedicalHubModal isOpen={isMedicalHubOpen} onClose={() => toggleOverlay(setIsMedicalHubOpen, false)} />
       <ShadowProtectMode isOpen={isShadowOpen} onClose={() => toggleOverlay(setIsShadowOpen, false)} />
       <FakeCallModal isOpen={isFakeCallHubOpen} onClose={() => toggleOverlay(setIsFakeCallHubOpen, false)} />
       <KavachAIChat isOpen={isAIChatOpen} onClose={() => toggleOverlay(setIsAIChatOpen, false)} />
-      
+
       <WarningOverlay />
       <BannedOverlay />
     </div>
   );
 }
 
-const ActionCard = React.memo(({ icon, title, desc, iconColor, tint, onClick }: any) => (
-  <button 
-    onClick={onClick} 
-    className="bento-card h-full flex flex-col gap-3 sm:gap-4 group"
+const ActionCard = React.memo(({ icon, title, desc, iconColor, tint, onClick, className }: any) => (
+  <button
+    onClick={onClick}
+    className={cn("bento-card h-full flex flex-col gap-3 sm:gap-4 group", className)}
   >
     <div className="flex items-center gap-2 sm:gap-3 relative z-10">
       <div style={{ color: iconColor, backgroundColor: tint }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 border border-black/[0.02]">

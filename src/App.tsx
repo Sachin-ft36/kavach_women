@@ -136,7 +136,8 @@ export default function App() {
     setLoading,
     handleManualUnlock, isFakeCallActive, setFakeCallActive, setGuardianCache,
     isHubReady, setHubReady, setSafetyPin, performanceMode, setProfile,
-    isOverlayActive, isSOSBlocked
+    isOverlayActive, isSOSBlocked, isVoiceTriggerActive,
+    isHardwareSynced, setIsHardwareSynced
   } = useKavachStore();
 
   // ... (some code)
@@ -175,10 +176,8 @@ export default function App() {
   useProtectorSentinel();
   useVoiceTrigger();
   useShakeTrigger();
-  useAudioAI();
   useRideProtocol();
 
-  const [isHardwareSynced, setIsHardwareSynced] = useState<boolean>(() => localStorage.getItem('kavach_hardware_synced') === 'true');
   const [isLanguageSelected, setIsLanguageSelected] = useState<boolean>(() => localStorage.getItem('kavach_language_selected') === 'true');
 
   useEffect(() => {
@@ -225,6 +224,14 @@ export default function App() {
       }
     }
   }, [isSOSActive, role, activeTab, setActiveTab, user]);
+
+  // 🛡️ PROACTIVE SAFETY SENTINEL: Auto-enable Voice Protection for Citizens
+  useEffect(() => {
+    if (role === 'citizen' && !isVoiceTriggerActive) {
+      console.log("🛡️ KAVACH SENTINEL: Proactive Voice Protection Engaged.");
+      useKavachStore.getState().setVoiceTriggerActive(true);
+    }
+  }, [role, isVoiceTriggerActive]);
 
   // 🛡️ SOS RECOVERY ENGINE: Sync local state with Cloud Hub on mount/refresh
   useEffect(() => {
@@ -532,7 +539,11 @@ export default function App() {
               </Layout>
             ) : (!isRegistered || !isHardwareSynced) ? (
               <div className="w-full h-full">
-                <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
+                <Onboarding 
+                  user={user} 
+                  onComplete={handleOnboardingComplete} 
+                  isReturningUser={isRegistered && !isHardwareSynced} 
+                />
               </div>
             ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />

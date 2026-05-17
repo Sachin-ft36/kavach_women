@@ -9,6 +9,8 @@ import { useCall } from '../../contexts/CallContext';
 const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
+import { useSafetyIntelligence } from '../../hooks/useSafetyIntelligence';
+
 const VictimMap = React.memo(({ 
   activeAlerts = [], 
   onClose, 
@@ -16,7 +18,8 @@ const VictimMap = React.memo(({
   isNavigating = false,
   onToggleNav,
   onResolve,
-  distance = '---'
+  distance = '---',
+  mapStyle = 'streets'
 }: { 
   activeAlerts?: any[], 
   onClose?: () => void, 
@@ -24,9 +27,11 @@ const VictimMap = React.memo(({
   isNavigating?: boolean,
   onToggleNav?: () => void,
   onResolve?: () => void,
-  distance?: string
+  distance?: string,
+  mapStyle?: 'streets' | 'satellite' | 'dark'
 }) => {
   const { userPos } = useKavachStore();
+  const metrics = useSafetyIntelligence();
   const { initiateCall } = useCall();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -36,22 +41,32 @@ const VictimMap = React.memo(({
   useEffect(() => {
     if (!mapContainer.current) return;
 
+    // Check if WebGL is supported to prevent crashes
+    if (!mapboxgl.supported()) {
+      console.warn("⚠️ KAVACH: WebGL is not supported on this browser. Map disabled.");
+      return;
+    }
+
+    // Ensure container is empty before initializing (fixes strict mode duplicate render)
+    mapContainer.current.innerHTML = '';
+
     // Mapbox expects [lng, lat]
     const initialCoords: [number, number] = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: initialCoords,
-      zoom: 18,
-      pitch: 60,
-      bearing: 0,
-      antialias: true
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: initialCoords,
+        zoom: 18,
+        pitch: 60,
+        bearing: 0,
+        antialias: true
+      });
 
-    map.current.on('style.load', () => {
-      console.log("🛰️ KAVACH: Mapbox Tactical Grid Online.");
-      setIsMapLoaded(true);
+      map.current.on('style.load', () => {
+        console.log("🛰️ KAVACH: Mapbox Tactical Grid Online.");
+        setIsMapLoaded(true);
       
       // Add 3D building layer
       if (map.current) {
@@ -124,8 +139,15 @@ const VictimMap = React.memo(({
       }
     });
 
+    } catch (error) {
+      console.error("⚠️ KAVACH: Mapbox GL initialization failed:", error);
+    }
+
     return () => {
-      if (map.current) map.current.remove();
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
   }, []);
 
@@ -146,6 +168,25 @@ const VictimMap = React.memo(({
     return [coords];
   };
 
+  // 🛰️ DYNAMIC MAP STYLE LAYER SYNC
+  useEffect(() => {
+    if (!map.current) return;
+    
+    let styleUrl = 'mapbox://styles/mapbox/streets-v12';
+    if (mapStyle === 'satellite') {
+      styleUrl = 'mapbox://styles/mapbox/satellite-streets-v12';
+    } else if (mapStyle === 'dark') {
+      styleUrl = 'mapbox://styles/mapbox/dark-v11';
+    }
+    
+    // Clear old layers/markers before changing style to prevent duplicate ID crashes
+    if (markersRef.current.user) { markersRef.current.user.remove(); delete markersRef.current.user; }
+    if (markersRef.current.victim) { markersRef.current.victim.remove(); delete markersRef.current.victim; }
+    
+    setIsMapLoaded(false);
+    map.current.setStyle(styleUrl);
+  }, [mapStyle]);
+
   // 🛰️ USER LOCATION SYNC
   useEffect(() => {
     if (!map.current || !userPos || !isMapLoaded) return;
@@ -157,14 +198,22 @@ const VictimMap = React.memo(({
         if (map.current.getLayer('safety-radius-fill')) map.current.setLayoutProperty('safety-radius-fill', 'visibility', 'none');
         if (map.current.getLayer('safety-radius-outline')) map.current.setLayoutProperty('safety-radius-outline', 'visibility', 'none');
       } else {
-        if (map.current.getLayer('safety-radius-fill')) map.current.setLayoutProperty('safety-radius-fill', 'visibility', 'visible');
-        if (map.current.getLayer('safety-radius-outline')) map.current.setLayoutProperty('safety-radius-outline', 'visibility', 'visible');
+        if (map.current.getLayer('safety-radius-fill')) {
+          map.current.setLayoutProperty('safety-radius-fill', 'visibility', 'visible');
+          const color = metrics.level === 'OPTIMAL' ? '#10B981' : metrics.level === 'CAUTION' ? '#F59E0B' : '#EF4444';
+          map.current.setPaintProperty('safety-radius-fill', 'fill-color', color);
+        }
+        if (map.current.getLayer('safety-radius-outline')) {
+          map.current.setLayoutProperty('safety-radius-outline', 'visibility', 'visible');
+          const color = metrics.level === 'OPTIMAL' ? '#10B981' : metrics.level === 'CAUTION' ? '#F59E0B' : '#EF4444';
+          map.current.setPaintProperty('safety-radius-outline', 'line-color', color);
+        }
         
         (map.current.getSource('safety-radius') as mapboxgl.GeoJSONSource).setData({
           type: 'Feature',
           geometry: {
             type: 'Polygon',
-            coordinates: getCirclePoints(coords, 1.0)
+            coordinates: getCirclePoints(coords, 0.5) // 🛡️ Focus on 500m immediate safety
           },
           properties: {}
         });

@@ -117,5 +117,37 @@ export const KavachSafe = {
     if (Capacitor.isNativePlatform()) {
       try { await KavachNative.stopForensicCapture(); } catch (e) { console.error("Native Capture Stop Error:", e); }
     }
+  },
+
+  startVoiceSentinel: async () => {
+    if (Capacitor.isNativePlatform()) {
+      return await KavachNative.startVoiceSentinel();
+    }
+  },
+
+  stopVoiceSentinel: async () => {
+    if (Capacitor.isNativePlatform()) {
+      return await KavachNative.stopVoiceSentinel();
+    }
+  },
+
+  isIgnoringBatteryOptimizations: async () => {
+    if (Capacitor.isNativePlatform()) {
+      return await KavachNative.isIgnoringBatteryOptimizations();
+    }
+    return { isExempt: true }; // Default for Web
+  },
+
+  openBatterySettings: async () => {
+    if (Capacitor.isNativePlatform()) {
+      return await KavachNative.openBatterySettings();
+    }
+  },
+
+  addListener: (eventName: string, listenerFunc: (data: any) => void) => {
+    if (Capacitor.isNativePlatform()) {
+      return (KavachNative as any).addListener(eventName, listenerFunc);
+    }
+    return { remove: () => {} };
   }
 };

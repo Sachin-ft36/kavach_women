@@ -295,7 +295,7 @@ export function SOSManagement({
   };
 
   return (
-    <div className="h-[calc(100vh-48px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
+    <div className="h-[calc(100vh-64px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
       {/* 📟 ASIDE QUEUE */}
       <aside className="w-[380px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl">
          <div className="p-8 pb-4">

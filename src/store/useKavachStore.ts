@@ -83,6 +83,8 @@ interface KavachState {
   isBatteryExempt: boolean;
   respondingToAlertId: string | null;
   setBatteryExempt: (exempt: boolean) => void;
+  isHardwareSynced: boolean;
+  setIsHardwareSynced: (synced: boolean) => void;
   guardianCache: any[];
   isSentinelActive: boolean;
   lastSentinelPulse: number | null;
@@ -180,8 +182,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   biometricAvailable: false,
   verifiedProtectorCount: 0,
   isFakeCallActive: false,
-  isVoiceTriggerActive: localStorage.getItem('kavach_voice_trigger') === 'true',
+  isVoiceTriggerActive: localStorage.getItem('kavach_voice_trigger') !== 'false', // Default to TRUE for proactive safety
   isBatteryExempt: true,
+  isHardwareSynced: savedIsHardwareSynced,
+  setIsHardwareSynced: (isHardwareSynced) => {
+    localStorage.setItem('kavach_hardware_synced', String(isHardwareSynced));
+    set({ isHardwareSynced });
+  },
   respondingToAlertId: null,
   setBatteryExempt: (isBatteryExempt) => set({ isBatteryExempt }),
   guardianCache: cachedGuardians,
@@ -190,7 +197,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   isHubReady: false,
   blackBox: JSON.parse(localStorage.getItem('kavach_blackbox') || '[]'),
   performanceMode: (localStorage.getItem('kavach_perf_mode') as any) || 'auto',
-  isShadowActive: localStorage.getItem('kavach_shadow_mode') === 'true',
+  isShadowActive: (localStorage.getItem('kavach_shadow_mode') === 'true' && savedSOS),
   pendingSOS: null,
   isOverlayActive: false,
   setOverlayActive: (isOverlayActive) => set({ isOverlayActive }),
@@ -593,8 +600,11 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         transitStatus: 'INTERCEPTION_REQUIRED'
       } : {};
 
-      // 🛡️ TACTICAL GATE: Only trigger mission blast if this is a NEW activation
       if (!wasAlreadyActive) {
+        // 🚀 AUTO-INITIATE FORENSIC SENTINEL
+        set({ isShadowActive: true });
+        localStorage.setItem('kavach_shadow_mode', 'true');
+        
         executeEmergencyBlast(get().profile || get().user, get().userPos, {
           type: method,
           alertId,
@@ -623,14 +633,20 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         });
     } else {
       // ⚡ INSTANT UI SNAPBACK: Clear local state immediately for zero-latency response
-      set({
-        isSOSActive: false,
+      // 🛡️ TERMINATE ALL SENTINELS
+      set({ 
+        isSOSActive: false, 
+        isShadowActive: false,
+        activeAlertId: null, 
+        sosMethod: null,
+        triggerMethod: null,
         activeRadius: 5.0,
         activeTab: 'dashboard',
         handshakeCode: null,
         isHandshakeVerified: false
       });
       localStorage.removeItem('kavach_sos_active');
+      localStorage.removeItem('kavach_shadow_mode');
       localStorage.removeItem('kavach_active_alert_id');
       localStorage.removeItem('kavach_trigger_method');
       localStorage.removeItem('kavach_handshake_code');
