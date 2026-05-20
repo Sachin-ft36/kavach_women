@@ -53,7 +53,10 @@ export function KavachDirectory({
     });
   }, [womenUsers, protectors]);
 
-  const filteredData = (activeTab === 'ALL' ? allUsers : activeTab === 'WOMEN' ? womenUsers : protectors)
+  const mergedWomenUsers = React.useMemo(() => allUsers.filter(u => u.gender?.toUpperCase() === 'FEMALE' || u.role?.toLowerCase() === 'citizen'), [allUsers]);
+  const mergedProtectors = React.useMemo(() => allUsers.filter(u => u.role?.toLowerCase() === 'protector'), [allUsers]);
+
+  const filteredData = (activeTab === 'ALL' ? allUsers : activeTab === 'WOMEN' ? mergedWomenUsers : mergedProtectors)
     .filter(u => {
       const query = searchQuery.toLowerCase();
       return (
@@ -229,14 +232,14 @@ export function KavachDirectory({
                <div className="card-icon"><Heart size={18} className="text-rose-500" /></div>
                <div className="card-content">
                   <span className="card-label">Women Safety Users</span>
-                  <span className="card-value">{womenUsers.length}</span>
+                  <span className="card-value">{mergedWomenUsers.length}</span>
                </div>
             </div>
             <div className="summary-card">
                <div className="card-icon"><ShieldCheck size={18} className="text-blue-600" /></div>
                <div className="card-content">
                   <span className="card-label">Verified Protectors</span>
-                  <span className="card-value">{protectors.length}</span>
+                  <span className="card-value">{mergedProtectors.length}</span>
                </div>
             </div>
             <div className="summary-card">
@@ -427,7 +430,7 @@ export function KavachDirectory({
                    <tab.icon size={14} />
                    {tab.label}
                    <span className="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[8px] font-bold">
-                      {tab.id === 'ALL' ? allUsers.length : tab.id === 'WOMEN' ? womenUsers.length : protectors.length}
+                      {tab.id === 'ALL' ? allUsers.length : tab.id === 'WOMEN' ? mergedWomenUsers.length : mergedProtectors.length}
                    </span>
                 </button>
               ))}

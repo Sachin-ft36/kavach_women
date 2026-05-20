@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Car, X, Navigation, MapPin, Search, AlertTriangle, Activity, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Car, X, Navigation, MapPin, Search, AlertTriangle, Activity, ShieldCheck, ChevronRight, Shield } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useRideProtocol } from '../hooks/useRideProtocol';

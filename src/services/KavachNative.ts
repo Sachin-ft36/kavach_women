@@ -33,6 +33,8 @@ export interface KavachPlugin {
   requestSensitivePermissions(): Promise<void>;
   openAppSettings(): Promise<void>;
   checkSafetyPermissions(): Promise<{ sms: string; call: string; microphone: string }>;
+  showUrgentNotification(options: { title: string; body: string; id: string; sound: string }): Promise<void>;
+  getPhoneHint(): Promise<{ number?: string }>;
 }
 
 // 🛡️ Master Plugin Registration

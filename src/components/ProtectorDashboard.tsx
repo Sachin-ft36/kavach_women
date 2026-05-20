@@ -141,6 +141,14 @@ export default function ProtectorDashboard() {
           const dist = 6371 * c;
           const isResponding = alert.responderUid === user.uid;
           if (isResponding && dist <= 20) return true;
+          
+          // 🛡️ TACTICAL Interception/Safe Ride fallback or debug mode: Allow up to 1000km for Transit alerts or testing
+          const isTransit = !!alert.isTransitSOS;
+          const isDebug = localStorage.getItem('kavach_debug_mode') === 'true' || alert.type === 'TEST_ALERT' || alert.type?.includes('TEST');
+          if (isTransit || isDebug) {
+            return dist <= 1000;
+          }
+          
           return dist <= 10;
         });
         setActiveAlerts(filtered);

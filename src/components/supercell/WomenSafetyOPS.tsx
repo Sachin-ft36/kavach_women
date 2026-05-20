@@ -1,7 +1,7 @@
 import React from 'react';
 import { Shield, Zap, Sparkles } from 'lucide-react';
 
-export function WomenSafetyOPS({ activeAlerts = [], onAlertClick }: { activeAlerts?: any[], onAlertClick?: (id: string) => void }) {
+export function WomenSafetyOPS({ activeAlerts = [], onAlertClick }: { activeAlerts?: any[], onAlertClick?: (id: string) => void, viewMode?: string }) {
   return (
     <div className="h-full flex flex-col items-center justify-center bg-[#0F172A] border border-white/5 rounded-[3rem] shadow-2xl relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-600/5 to-transparent pointer-events-none" />

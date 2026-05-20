@@ -21,9 +21,10 @@ interface ProtectorTrackProps {
   onClearMission?: () => void;
   isSovereignActive?: boolean;
   userStatusMap?: Record<string, any>;
+  selectedState?: string;
 }
 
-export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignActive, userStatusMap = {} }: ProtectorTrackProps) {
+export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignActive, userStatusMap = {}, selectedState = 'ALL' }: ProtectorTrackProps) {
   const [activeMissions, setActiveMissions] = useState<any[]>([]);
   const [resolvedMissions, setResolvedMissions] = useState<any[]>([]);
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(activeMissionId || null);
@@ -81,11 +82,84 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
     return () => { unsubActive(); unsubResolved(); unsubProts(); unsubFirs(); unsubJourneyHistory(); };
   }, []);
 
+  // 📡 STATE SHARD FILTERING FOR PROTECTOR TRACK
+  const filterByState = React.useCallback((item: any) => {
+    if (!item) return false;
+    if (!selectedState || selectedState === 'ALL') return true;
+
+    const getStateVariations = (stateName: string): string[] => {
+      const name = stateName.toLowerCase().trim();
+      const variations = [name];
+      
+      if (name === 'uttar pradesh') variations.push('up', 'u.p.', 'uttarpradesh');
+      else if (name === 'maharashtra') variations.push('mh', 'm.h.');
+      else if (name === 'delhi') variations.push('dl', 'd.l.');
+      else if (name === 'karnataka') variations.push('ka', 'k.a.');
+      else if (name === 'rajasthan') variations.push('rj', 'r.j.');
+      else if (name === 'west bengal') variations.push('wb', 'w.b.');
+      else if (name === 'madhya pradesh') variations.push('mp', 'm.p.');
+      else if (name === 'andhra pradesh') variations.push('ap', 'a.p.');
+      else if (name === 'jammu and kashmir') variations.push('jk', 'j&k', 'j & k', 'jammu & kashmir');
+      else if (name === 'punjab') variations.push('pb', 'p.b.');
+      else if (name === 'haryana') variations.push('hr', 'h.r.');
+      else if (name === 'gujarat') variations.push('gj', 'g.j.');
+      else if (name === 'bihar') variations.push('br', 'b.r.');
+      else if (name === 'tamil nadu') variations.push('tn', 't.n.');
+      else if (name === 'telangana') variations.push('ts', 't.s.');
+      
+      return variations;
+    };
+
+    const matchesState = (selState: string, text: string) => {
+      if (!text) return false;
+      const lowerText = text.toLowerCase().trim();
+      const selectedVariations = getStateVariations(selState);
+      
+      if (selectedVariations.includes(lowerText)) return true;
+      
+      return selectedVariations.some(variation => {
+        if (variation.length <= 4) {
+          const regex = new RegExp(`\\b${variation.replace('.', '\\.')}\\b`, 'i');
+          return regex.test(lowerText);
+        }
+        return lowerText.includes(variation);
+      });
+    };
+
+    // 1. Direct State Matches
+    if (item.state && matchesState(selectedState, item.state)) return true;
+    
+    // 2. Substring Matches inside address/location fields
+    if (item.address && matchesState(selectedState, item.address)) return true;
+    if (item.locationName && matchesState(selectedState, item.locationName)) return true;
+    if (item.incidentAddress && matchesState(selectedState, item.incidentAddress)) return true;
+    if (item.city && matchesState(selectedState, item.city)) return true;
+    if (item.fullAddress && matchesState(selectedState, item.fullAddress)) return true;
+    
+    // 3. Resolve user profile for alerts / journeys
+    const uUid = item.victimUid || item.userId || item.uid;
+    if (uUid && userStatusMap[uUid]) {
+      const profile = userStatusMap[uUid];
+      if (profile.state && matchesState(selectedState, profile.state)) return true;
+      if (profile.address && matchesState(selectedState, profile.address)) return true;
+      if (profile.city && matchesState(selectedState, profile.city)) return true;
+      if (profile.fullAddress && matchesState(selectedState, profile.fullAddress)) return true;
+    }
+
+    return false;
+  }, [selectedState, userStatusMap]);
+
+  const filteredActiveMissions = useMemo(() => activeMissions.filter(filterByState), [activeMissions, filterByState]);
+  const filteredResolvedMissions = useMemo(() => resolvedMissions.filter(filterByState), [resolvedMissions, filterByState]);
+  const filteredActiveProtectors = useMemo(() => activeProtectors.filter(filterByState), [activeProtectors, filterByState]);
+  const filteredActiveFirs = useMemo(() => activeFirs.filter(filterByState), [activeFirs, filterByState]);
+  const filteredHistoricalJourneys = useMemo(() => historicalJourneys.filter(filterByState), [historicalJourneys, filterByState]);
+
   // 🧬 CLOUD ML MISSION ANALYSIS
   const selectedMission = (
-    activeMissions.find(m => m.id === selectedMissionId) || 
-    resolvedMissions.find(m => m.id === selectedMissionId) ||
-    historicalJourneys.find(m => m.id === selectedMissionId)
+    filteredActiveMissions.find(m => m.id === selectedMissionId) || 
+    filteredResolvedMissions.find(m => m.id === selectedMissionId) ||
+    filteredHistoricalJourneys.find(m => m.id === selectedMissionId)
   );
 
   useEffect(() => {
@@ -151,8 +225,8 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
   const groupedResolved = useMemo(() => {
     const groups: Record<string, any[]> = {};
     const allHistorical = [
-      ...resolvedMissions.map(m => ({ ...m, type: 'ALERT' })),
-      ...historicalJourneys.map(j => ({ ...j, type: 'JOURNEY' }))
+      ...filteredResolvedMissions.map(m => ({ ...m, type: 'ALERT' })),
+      ...filteredHistoricalJourneys.map(j => ({ ...j, type: 'JOURNEY' }))
     ].sort((a: any, b: any) => {
       const timeA = a.timestamp?.toMillis() || a.endTime?.toMillis() || 0;
       const timeB = b.timestamp?.toMillis() || b.endTime?.toMillis() || 0;
@@ -165,7 +239,7 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
       groups[uid].push(item);
     });
     return groups;
-  }, [resolvedMissions, historicalJourneys]);
+  }, [filteredResolvedMissions, filteredHistoricalJourneys]);
 
   const uniqueResolvedVictims = useMemo(() => {
     return Object.keys(groupedResolved).map(uid => {
@@ -256,11 +330,11 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Active Pursuits</span>
                <div className="flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-3 py-1 rounded-full border border-rose-500/20">
                   <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
-                  <span className="text-[8px] font-black uppercase tracking-widest">{activeMissions.length} LIVE</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest">{filteredActiveMissions.length} LIVE</span>
                </div>
             </div>
 
-            {activeMissions.map((mission) => (
+            {filteredActiveMissions.map((mission) => (
               <div key={mission.id} onClick={() => { setSelectedMissionId(mission.id); setSelectedVictimId(null); setReplayProgress(1); }} className={cn("p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group relative overflow-hidden bg-[#0F172A]/50", selectedMissionId === mission.id && "bg-blue-600/10 border-blue-500/30")}>
                 <div className="flex justify-between items-start mb-4">
                    <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-white border border-white/5"><User size={18} /></div><div><h4 className="text-[12px] font-black text-white uppercase leading-none">{resolveIdentity(mission)}</h4><p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">ID: {mission.id.slice(-8).toUpperCase()}</p></div></div>
@@ -295,9 +369,9 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
       <main className="flex-1 relative h-full overflow-hidden flex flex-col">
          <div className="flex-1 relative">
             <CommandMap 
-               activeAlerts={activeMissions} 
-               activeProtectors={activeProtectors} 
-               activeFirs={activeFirs} 
+               activeAlerts={filteredActiveMissions} 
+               activeProtectors={filteredActiveProtectors} 
+               activeFirs={filteredActiveFirs} 
                pendingProtectors={[]}
                selectedAlertId={selectedMissionId}
                victimPath={selectedMission?.path || []}
@@ -408,18 +482,18 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
 
          {/* Operative Case List */}
          <AnimatePresence>
-            {selectedVictimId && !selectedMissionId && (
+            {selectedVictimId && groupedResolved[selectedVictimId] && groupedResolved[selectedVictimId].length > 0 && !selectedMissionId && (
                <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }} className="absolute top-10 right-10 w-[420px] z-30">
                   <div className="bg-[#1E293B]/95 backdrop-blur-2xl rounded-[40px] p-10 border border-white/10 shadow-2xl">
                      <div className="flex items-center justify-between mb-8">
                         <div>
                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[4px] mb-2">Evidence Chain</p>
-                           <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">{resolveIdentity(groupedResolved[selectedVictimId][0])}</h3>
+                           <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">{resolveIdentity(groupedResolved[selectedVictimId]?.[0] || {})}</h3>
                         </div>
                         <button onClick={() => setSelectedVictimId(null)} className="p-3 bg-white/5 rounded-2xl text-white"><ShieldAlert size={20} /></button>
                      </div>
                      <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
-                        {groupedResolved[selectedVictimId].map((mission) => (
+                        {(groupedResolved[selectedVictimId] || []).map((mission) => (
                            <div 
                              key={mission.id} 
                              onClick={() => { setSelectedMissionId(mission.id); setReplayProgress(0); }}

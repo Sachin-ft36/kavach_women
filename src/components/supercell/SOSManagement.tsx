@@ -59,6 +59,7 @@ export function SOSManagement({
   const [selectedReason, setSelectedReason] = useState(WARNING_REASONS[0]);
   const [customMsg, setCustomMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const lastQueriedCoords = React.useRef<{ id: string | null; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     // 🛡️ NO-OP: DATA INJECTED VIA PROPS FROM SUPERCELL_DASHBOARD
@@ -79,85 +80,107 @@ export function SOSManagement({
     const lng = selectedAlert?.longitude || selectedAlert?.lng || selectedAlert?.location?.longitude || selectedAlert?.location?.lng;
     
     if (lat && lng) {
-      const resolveAddr = async () => {
-        setLoadingAddress(true);
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
-          const data = await res.json();
-          setResolvedAddress(data.display_name || "Verified GPS Signal");
-        } catch (e) { setResolvedAddress("Tactical Resolution Failed"); }
-        finally { setLoadingAddress(false); }
-      };
-      resolveAddr();
+      // 🛡️ PREVENT FREQUENT RE-RUNS AND FLICKERING:
+      // Only execute geocoding and Mappls nodes search if the alert ID has changed
+      // OR if the target has moved by more than ~30 meters (0.0003 degrees)
+      const didIdChange = lastQueriedCoords.current === null || lastQueriedCoords.current.id !== selectedAlertId;
+      const distShift = lastQueriedCoords.current 
+        ? Math.abs(lat - lastQueriedCoords.current.lat) > 0.0003 || Math.abs(lng - lastQueriedCoords.current.lng) > 0.0003 
+        : true;
 
-      // 🛰️ FETCH NEARBY EMERGENCY NODES (Mappls Direct Proxy with Mapbox API backup fallback)
-      const fetchNodes = async () => {
-        setLoadingNodes(true);
-        try {
-          const { fetchNearbyPoliceMappls, fetchNearbyHospitalsMappls } = await import('../../services/MapplsService');
-          
-          let police = await fetchNearbyPoliceMappls(lat, lng);
-          let hospitals = await fetchNearbyHospitalsMappls(lat, lng);
+      if (didIdChange || distShift) {
+        lastQueriedCoords.current = { id: selectedAlertId, lat, lng };
 
-          const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-          const offset = 0.1;
-          const bbox = `${lng-offset},${lat-offset},${lng+offset},${lat+offset}`;
+        const resolveAddr = async () => {
+          setLoadingAddress(true);
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+            const data = await res.json();
+            setResolvedAddress(data.display_name || "Verified GPS Signal");
+          } catch (e) { setResolvedAddress("Tactical Resolution Failed"); }
+          finally { setLoadingAddress(false); }
+        };
+        resolveAddr();
 
-          if (!police || police.length === 0) {
-            try {
-              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/police%20station.json?proximity=${lng},${lat}&bbox=${bbox}&access_token=${MAPBOX_TOKEN}&limit=3&types=poi&country=in`;
-              const response = await fetch(url);
-              const data = await response.json();
-              police = data.features.map((f: any) => {
-                const [fLng, fLat] = f.geometry.coordinates;
-                return {
-                  id: f.id,
-                  name: f.text || "Police Post",
-                  address: f.properties?.address || f.place_name || "Nearby",
-                  phone: f.properties?.tel || f.properties?.phone || "112",
-                  lat: fLat,
-                  lng: fLng
-                };
-              });
-            } catch (err) {
-              console.error("Mapbox Police Fallback Failed:", err);
+        // 🛰️ FETCH NEARBY EMERGENCY NODES (Mappls Direct Proxy with Mapbox API backup fallback)
+        const fetchNodes = async () => {
+          setLoadingNodes(true);
+          try {
+            const { fetchNearbyPoliceMappls, fetchNearbyHospitalsMappls, isOfficialPoliceStation } = await import('../../services/MapplsService');
+            
+            let police = await fetchNearbyPoliceMappls(lat, lng);
+            let hospitals = await fetchNearbyHospitalsMappls(lat, lng);
+
+            const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+
+            if (!police || police.length === 0) {
+              try {
+                const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=5&access_token=${MAPBOX_TOKEN}`;
+                const response = await fetch(url);
+                const resData = await response.json();
+                
+                if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
+                  police = resData.features.map((f: any) => {
+                    const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
+                    const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
+                    const distMeters = f.properties?.distance || 0;
+                    
+                    return {
+                      id: f.properties?.mapbox_id || f.id || Math.random().toString(),
+                      name: f.properties?.name || f.properties?.full_address || "Local Police Station",
+                      address: f.properties?.full_address || "Nearby",
+                      phone: "112",
+                      lat: fLat,
+                      lng: fLng
+                    };
+                  }).filter((s: any) => isOfficialPoliceStation(s.name));
+                }
+              } catch (err) {
+                console.error("Mapbox Police Fallback Failed:", err);
+              }
             }
-          }
 
-          if (!hospitals || hospitals.length === 0) {
-            try {
-              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/hospital.json?proximity=${lng},${lat}&bbox=${bbox}&access_token=${MAPBOX_TOKEN}&limit=3&types=poi&country=in`;
-              const response = await fetch(url);
-              const data = await response.json();
-              hospitals = data.features.map((f: any) => {
-                const [fLng, fLat] = f.geometry.coordinates;
-                return {
-                  id: f.id,
-                  name: f.text || "Hospital Node",
-                  address: f.properties?.address || f.place_name || "Nearby",
-                  phone: f.properties?.tel || f.properties?.phone || "108",
-                  lat: fLat,
-                  lng: fLng
-                };
-              });
-            } catch (err) {
-              console.error("Mapbox Hospital Fallback Failed:", err);
+            if (!hospitals || hospitals.length === 0) {
+              try {
+                const url = `https://api.mapbox.com/search/searchbox/v1/category/hospital?proximity=${lng},${lat}&limit=5&access_token=${MAPBOX_TOKEN}`;
+                const response = await fetch(url);
+                const resData = await response.json();
+                
+                if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
+                  hospitals = resData.features.map((f: any) => {
+                    const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
+                    const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
+                    
+                    return {
+                      id: f.properties?.mapbox_id || f.id || Math.random().toString(),
+                      name: f.properties?.name || f.properties?.full_address || "Local Hospital",
+                      address: f.properties?.full_address || "Nearby",
+                      phone: "108",
+                      lat: fLat,
+                      lng: fLng
+                    };
+                  });
+                }
+              } catch (err) {
+                console.error("Mapbox Hospital Fallback Failed:", err);
+              }
             }
-          }
 
-          setNearbyPolice((police || []).slice(0, 2));
-          setNearbyHospitals((hospitals || []).slice(0, 2));
-        } catch (error) {
-          console.error("Failed to fetch nearby emergency nodes in SOSManagement:", error);
-        } finally {
-          setLoadingNodes(false);
-        }
-      };
-      fetchNodes();
+            setNearbyPolice((police || []).slice(0, 2));
+            setNearbyHospitals((hospitals || []).slice(0, 2));
+          } catch (error) {
+            console.error("Failed to fetch nearby emergency nodes in SOSManagement:", error);
+          } finally {
+            setLoadingNodes(false);
+          }
+        };
+        fetchNodes();
+      }
     } else { 
       setResolvedAddress(null);
       setNearbyPolice([]);
       setNearbyHospitals([]);
+      lastQueriedCoords.current = null;
     }
 
     // 🛰️ TACTICAL ID RESOLUTION
@@ -178,6 +201,7 @@ export function SOSManagement({
       });
       unsub2 = onSnapshot(gRef2, (snap) => {
         if (!snap.empty) setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        else setGuardians([]);
       });
     } else {
       setGuardians([]);

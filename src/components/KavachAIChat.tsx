@@ -46,53 +46,7 @@ export default function KavachAIChat({ isOpen, onClose }: { isOpen: boolean; onC
     );
 
     const handlePermissionError = async () => {
-       console.warn("KAVACH: Realtime Listener Blocked. Triggering REST Backup...");
-       try {
-         const idToken = await auth.currentUser?.getIdToken();
-         const PROJECT_ID = "gen-lang-client-0115433512";
-         const API_KEY = "AIzaSyDaGseWN-LbqP3OCmZtfnHio4uTjCb7rY0";
-         
-         const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery?key=${API_KEY}`;
-         const queryBody = {
-           structuredQuery: {
-             from: [{ collectionId: 'messages' }],
-             where: {
-               fieldFilter: {
-                 field: { fieldPath: 'userId' },
-                 op: 'EQUAL',
-                 value: { stringValue: user.uid }
-               }
-             },
-             limit: 200
-           }
-         };
-
-         const res = await fetch(url, {
-           method: 'POST',
-           headers: { 'Authorization': `Bearer ${idToken}` },
-           body: JSON.stringify(queryBody)
-         });
-
-         if (res.ok) {
-           const data = await res.json();
-           const msgs = (Array.isArray(data) ? data : [])
-             .filter((item: any) => item.document)
-             .map((item: any) => {
-               const doc = item.document;
-               const fields = doc.fields;
-               return {
-                 id: doc.name.split('/').pop(),
-                 text: fields.text?.stringValue || "",
-                 sender: fields.sender?.stringValue || 'user',
-                 userId: fields.userId?.stringValue || user.uid,
-                 timestamp: fields.timestamp?.timestampValue || fields.sentAt?.stringValue
-               };
-             });
-           setMessages(msgs);
-         }
-       } catch (e) {
-         console.error("REST Recovery Failed:", e);
-       }
+       console.warn("KAVACH: Realtime Listener Blocked due to FireStore Permissions.");
     };
 
     const unsubscribe = onSnapshot(q, {
@@ -135,7 +89,7 @@ export default function KavachAIChat({ isOpen, onClose }: { isOpen: boolean; onC
       // Update Session Metadata (Ensures visibility in SuperCell list)
       await setDoc(sessionRef, {
         userId: user.uid,
-        userName: user.displayName || user.name || 'Authorized Citizen',
+        userName: user.displayName || (user as any).name || 'Authorized Citizen',
         lastMsg: currentInput,
         lastTimestamp: serverTimestamp(),
         active: true,
@@ -148,36 +102,14 @@ export default function KavachAIChat({ isOpen, onClose }: { isOpen: boolean; onC
         sender: "user",
         timestamp: serverTimestamp(),
         userId: user.uid,
-        userName: user.displayName || user.name || 'Authorized Citizen',
+        userName: user.displayName || (user as any).name || 'Authorized Citizen',
         sentAt: new Date().toISOString()
       });
 
       if (Capacitor.isNativePlatform()) Haptics.impact({ style: ImpactStyle.Light });
     } catch (error) {
-      console.warn("Tunnel 1 Blocked. Attempting REST Tunnelling...");
-      // REST Fallback for Sending (Bypassing permission issues)
-      try {
-        const PROJECT_ID = "gen-lang-client-0115433512";
-        const API_KEY = "AIzaSyDaGseWN-LbqP3OCmZtfnHio4uTjCb7rY0";
-        const idToken = await auth.currentUser?.getIdToken();
-        const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/commandhub_chats/${user.uid}/messages?key=${API_KEY}`;
-        
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-          body: JSON.stringify({
-            fields: {
-              text: { stringValue: currentInput },
-              sender: { stringValue: "user" },
-              userId: { stringValue: user.uid },
-              sentAt: { stringValue: new Date().toISOString() }
-            }
-          })
-        });
-      } catch (err) {
-        console.error("ALL CHANNELS BLOCKED:", err);
-        toast.error("COMMUNICATION BLACKOUT");
-      }
+      console.error("ALL CHANNELS BLOCKED:", error);
+      toast.error("COMMUNICATION BLACKOUT");
     }
   };
 
@@ -185,7 +117,7 @@ export default function KavachAIChat({ isOpen, onClose }: { isOpen: boolean; onC
     if (!user || !msgId) return;
     try {
       await deleteDoc(doc(db, "commandhub_chats", user.uid, "messages", msgId));
-      if (Capacitor.isNativePlatform()) Haptics.notification({ style: ImpactStyle.Light });
+      if (Capacitor.isNativePlatform()) Haptics.impact({ style: ImpactStyle.Light });
       toast.success("PURGED FROM GRID");
     } catch (e) {
       toast.error("COULD NOT PURGE");

@@ -43,7 +43,7 @@ export function StateNexusCommand({
   userStatusMap
 }: StateNexusCommandProps) {
   
-  const [activeSection, setActiveSection] = useState<'OVERVIEW' | 'WOMEN' | 'PROTECTORS' | 'SOS' | 'FIR' | 'GUIDES'>('OVERVIEW');
+  const [activeSection, setActiveSection] = useState<'OVERVIEW' | 'WOMEN' | 'PROTECTORS' | 'SOS' | 'FIR' | 'REMOTE' | 'GUIDES'>('OVERVIEW');
   const [activeTargetId, setActiveTargetId] = useState<string | null>(null);
 
   const handleHardwareTrigger = async (id: string, label: string) => {

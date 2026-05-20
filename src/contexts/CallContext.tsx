@@ -72,8 +72,21 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
 
-      const unsubAlert = onSnapshot(doc(db, 'alerts', contextId), processSnap);
-      const unsubJourney = onSnapshot(doc(db, 'journeys', contextId), processSnap);
+      let unsubAlert = () => {};
+      let unsubJourney = () => {};
+
+      try {
+        unsubAlert = onSnapshot(doc(db, 'alerts', contextId), processSnap, (err) => {
+          console.warn("⚠️ CallContext: Alerts listener read or permission error.", err.message);
+        });
+      } catch (e) {}
+
+      try {
+        unsubJourney = onSnapshot(doc(db, 'journeys', contextId), processSnap, (err) => {
+          console.warn("⚠️ CallContext: Journeys listener read or permission error.", err.message);
+        });
+      } catch (e) {}
+
       return () => { unsubAlert(); unsubJourney(); };
     };
 

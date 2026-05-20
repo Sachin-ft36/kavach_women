@@ -39,6 +39,10 @@ export default defineConfig(({ mode }) => {
         '/mappls-search': {
           target: 'http://localhost:3000',
           changeOrigin: true
+        },
+        '/mappls-route': {
+          target: 'http://localhost:3000',
+          changeOrigin: true
         }
       }
     },

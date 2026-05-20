@@ -16,7 +16,7 @@ export default function SOSButton() {
   } = useKavachStore();
 
   const [countdown, setCountdown] = useState(3);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any | null>(null);
 
   // ── Shake Detection Sentinel ───────────
   const [shakeProgress, setShakeProgress] = useState(0);

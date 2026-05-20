@@ -5,6 +5,7 @@ import { useKavachStore } from '../../store/useKavachStore';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 import { useCall } from '../../contexts/CallContext';
+import { fetchRouteMappls } from '../../services/MapplsService';
 
 const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -19,7 +20,8 @@ const VictimMap = React.memo(({
   onToggleNav,
   onResolve,
   distance = '---',
-  mapStyle = 'streets'
+  mapStyle = 'streets',
+  customPos
 }: { 
   activeAlerts?: any[], 
   onClose?: () => void, 
@@ -28,9 +30,11 @@ const VictimMap = React.memo(({
   onToggleNav?: () => void,
   onResolve?: () => void,
   distance?: string,
-  mapStyle?: 'streets' | 'satellite' | 'dark'
+  mapStyle?: 'streets' | 'satellite' | 'dark',
+  customPos?: [number, number]
 }) => {
   const { userPos } = useKavachStore();
+  const activePos = customPos || userPos;
   const metrics = useSafetyIntelligence();
   const { initiateCall } = useCall();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -51,7 +55,7 @@ const VictimMap = React.memo(({
     mapContainer.current.innerHTML = '';
 
     // Mapbox expects [lng, lat]
-    const initialCoords: [number, number] = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
+    const initialCoords: [number, number] = activePos ? [activePos[1], activePos[0]] : [78.9629, 20.5937];
 
     try {
       map.current = new mapboxgl.Map({
@@ -189,8 +193,8 @@ const VictimMap = React.memo(({
 
   // 🛰️ USER LOCATION SYNC
   useEffect(() => {
-    if (!map.current || !userPos || !isMapLoaded) return;
-    const coords: [number, number] = [userPos[1], userPos[0]];
+    if (!map.current || !activePos || !isMapLoaded) return;
+    const coords: [number, number] = [activePos[1], activePos[0]];
 
     // 🛡️ UPDATE SAFETY RADIUS VISUAL (Hide if in Intercept Mode)
     if (map.current.getSource('safety-radius')) {
@@ -236,12 +240,12 @@ const VictimMap = React.memo(({
       map.current.setCenter(coords);
       map.current.setZoom(19);
     }
-  }, [userPos, isNavigating, isMapLoaded]);
+  }, [activePos, isNavigating, isMapLoaded]);
 
   // 🚨 VICTIM & ROUTE SYNC
   useEffect(() => {
     const m = map.current;
-    if (!m || !userPos || !isMapLoaded) return;
+    if (!m || !activePos || !isMapLoaded) return;
 
     const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
     if (activeAlert) {
@@ -250,7 +254,7 @@ const VictimMap = React.memo(({
       
       if (vLat && vLng) {
         const vCoords: [number, number] = [vLng, vLat];
-        const uCoords: [number, number] = [userPos[1], userPos[0]];
+        const uCoords: [number, number] = [activePos[1], activePos[0]];
 
         // Update Victim Marker
         if (!markersRef.current.victim) {
@@ -264,59 +268,117 @@ const VictimMap = React.memo(({
           markersRef.current.victim.setLngLat(vCoords);
         }
 
-        // Update Route Source
-        if (m.getSource('route')) {
-          (m.getSource('route') as mapboxgl.GeoJSONSource).setData({
-            'type': 'Feature',
-            'properties': {},
-            'geometry': {
-              'type': 'LineString',
-              'coordinates': [uCoords, vCoords]
-            }
-          });
-        } else {
-          m.addSource('route', {
-            'type': 'geojson',
-            'data': {
+        // Update Route Source (Mappls Advanced Navigation Integration)
+        const updateMapboxRoute = (coordinates: any[]) => {
+          if (!m.getSource('route')) {
+            m.addSource('route', {
+              'type': 'geojson',
+              'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                  'type': 'LineString',
+                  'coordinates': coordinates
+                }
+              }
+            });
+
+            m.addLayer({
+              'id': 'route',
+              'type': 'line',
+              'source': 'route',
+              'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+              },
+              'paint': {
+                'line-color': '#3B82F6', // Tactical Blue
+                'line-width': 6,
+                'line-opacity': 0.8
+              }
+            });
+          } else {
+            (m.getSource('route') as mapboxgl.GeoJSONSource).setData({
               'type': 'Feature',
               'properties': {},
               'geometry': {
                 'type': 'LineString',
-                'coordinates': [uCoords, vCoords]
+                'coordinates': coordinates
               }
-            }
-          });
+            });
+          }
+        };
 
-          m.addLayer({
-            'id': 'route',
-            'type': 'line',
-            'source': 'route',
-            'layout': {
-              'line-join': 'round',
-              'line-cap': 'round'
-            },
-            'paint': {
-              'line-color': '#3B82F6',
-              'line-width': 6,
-              'line-opacity': 0.8
-            }
-          });
+        // Smart Re-fetching logic to avoid API spamming (only fetch if moved > ~10-20 meters)
+        const prev = (window as any)._last_mappls_route_coords;
+        const uLng = uCoords[0], uLat = uCoords[1];
+        
+        let shouldFetch = false;
+        if (!prev) {
+          shouldFetch = true;
+        } else {
+          const distSq = Math.pow(uLng - prev.uLng, 2) + Math.pow(uLat - prev.uLat, 2) + 
+                         Math.pow(vLng - prev.vLng, 2) + Math.pow(vLat - prev.vLat, 2);
+          if (distSq > 0.0000005) shouldFetch = true; // Roughly 15 meters
         }
 
-        // Fit Bounds
-        const bounds = new mapboxgl.LngLatBounds();
-        bounds.extend(uCoords);
-        bounds.extend(vCoords);
-        m.fitBounds(bounds, { padding: 40, maxZoom: 19 });
+        if (shouldFetch) {
+          (window as any)._last_mappls_route_coords = { uLng, uLat, vLng, vLat };
+          fetchRouteMappls(uLng, uLat, vLng, vLat).then(routePath => {
+             let finalPath;
+             if (routePath && routePath.length > 0) {
+                 // 🚨 OFF-ROAD LAST-MILE VECTOR FIX:
+                 // Mappls routes to the nearest drivable road. If the victim is deep in a forest, 
+                 // inside a building compound, or down a cliff, we MUST draw a line from the 
+                 // road's drop-off point directly to their raw GPS coordinates.
+                 finalPath = [...routePath, vCoords];
+             } else {
+                 finalPath = [uCoords, vCoords];
+             }
+             updateMapboxRoute(finalPath);
+          });
+        } else {
+          // If not fetching, ensure straight line is drawn if nothing else exists
+          if (!m.getSource('route')) updateMapboxRoute([uCoords, vCoords]);
+        }
+
+        // Smart Camera Tracking
+        if (!isNavigating) {
+          const bounds = new mapboxgl.LngLatBounds();
+          bounds.extend(uCoords);
+          bounds.extend(vCoords);
+          m.fitBounds(bounds, { padding: 60, maxZoom: 18, pitch: 45 });
+        } else {
+          // Calculate heading/bearing so camera faces the victim from the protector's perspective
+          const calculateBearing = (start: [number, number], end: [number, number]) => {
+             const toRad = (deg: number) => deg * Math.PI / 180;
+             const toDeg = (rad: number) => rad * 180 / Math.PI;
+             const lon1 = toRad(start[0]), lat1 = toRad(start[1]);
+             const lon2 = toRad(end[0]), lat2 = toRad(end[1]);
+             const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+             const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+             return (toDeg(Math.atan2(y, x)) + 360) % 360;
+          };
+
+          // When navigating, camera locks behind the protector facing the victim
+          const bearing = calculateBearing(uCoords, vCoords);
+          m.easeTo({ 
+            center: uCoords, 
+            zoom: 18.5, 
+            pitch: 65, // Tactical 3D Angle
+            bearing: bearing, // Auto-rotate map to face victim
+            duration: 1000 
+          });
+        }
       }
     } else {
       if (markersRef.current.victim) { markersRef.current.victim.remove(); delete markersRef.current.victim; }
       if (m.getLayer('route')) m.removeLayer('route');
       if (m.getSource('route')) m.removeSource('route');
-      m.setCenter([userPos[1], userPos[0]]);
+      m.setCenter([activePos[1], activePos[0]]);
       m.setZoom(19);
     }
-  }, [userPos, activeAlerts]);
+  }, [activePos, activeAlerts]);
 
   const handleSecureCall = () => {
     const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');

@@ -24,7 +24,7 @@ export default function RideSafeOverlay({
   vehicleNo, 
   setVehicleNo 
 }: RideSafeOverlayProps) {
-  const { userPos, batteryLevel, updateRideData, setRideMode, setVoiceTriggerActive, setSOSActive } = useKavachStore();
+  const { userPos, batteryLevel, updateRideData, setRideMode, setVoiceTriggerActive, setSOSActive, rideData } = useKavachStore();
 
   if (!isOpen) return null;
 
@@ -174,11 +174,15 @@ export default function RideSafeOverlay({
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[32px] border border-[#E5E7EB] shadow-sm">
                    <div className="flex items-center justify-between mb-2 sm:mb-3">
-                      <Activity size={18} className="text-emerald-500 sm:size-[20px]" />
-                      <span className="text-[7px] sm:text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full uppercase tracking-widest">Normal</span>
+                      <Activity size={18} className={cn(rideData?.status === 'emergency' ? "text-rose-500 animate-pulse animate-duration-1000" : "text-emerald-500")} />
+                      <span className={cn("text-[7px] sm:text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest", rideData?.status === 'emergency' ? "text-rose-500 bg-rose-500/10" : "text-emerald-500 bg-emerald-500/10")}>
+                        {rideData?.status === 'emergency' ? 'EMERGENCY' : 'Normal'}
+                      </span>
                    </div>
                    <h5 className="text-[8px] sm:text-[9px] font-black uppercase text-gray-400 mb-0.5 tracking-widest">Route Status</h5>
-                   <p className="text-[10px] sm:text-xs font-black text-gray-900 uppercase">Stable Movement</p>
+                   <p className="text-[10px] sm:text-xs font-black text-gray-900 uppercase">
+                     {rideData?.status === 'emergency' ? 'INTERCEPTION PROTOCOL' : 'Stable Movement'}
+                   </p>
                 </div>
                 <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[32px] border border-[#E5E7EB] shadow-sm">
                    <div className="flex items-center justify-between mb-2 sm:mb-3">

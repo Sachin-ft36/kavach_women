@@ -79,6 +79,13 @@ const ProtectorMap = memo(({ nearbyAlerts = [], nearbyRides = [], activeProtecto
     activeProtectors.forEach(p => {
       const pid = p.id || p.uid;
       if (pid === user?.uid) return;
+
+      // 🛰️ Skip rendering if this colleague is currently a victim in an active alert to avoid double markers
+      const isVictimColleague = [...nearbyAlerts, ...nearbyRides].some(a => 
+        (a.userId === pid || a.id === pid || a.phone === p.phone || a.phoneNumber === p.phoneNumber)
+      );
+      if (isVictimColleague) return;
+
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.coords?.[0];
       const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.coords?.[1];
       

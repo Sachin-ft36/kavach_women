@@ -194,7 +194,7 @@ export function JusticeBlockModal({ fir, isOpen, onClose }: JusticeBlockModalPro
                       <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Judicial Admissibility</h4>
                     </div>
                     <p className="text-[10px] font-bold text-gray-400 leading-relaxed uppercase tracking-wider">
-                      This block is cryptographically sealed and admitted as primary evidence under Section 65B of the Indian Evidence Act.
+                      This block is cryptographically sealed and admitted as primary evidence under Section 63 of the Bharatiya Sakshya Adhiniyam, 2023 (BSA).
                     </p>
                   </div>
                 </div>

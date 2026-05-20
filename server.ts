@@ -39,7 +39,8 @@ async function startServer() {
 
       const response = await axios.post('https://outpost.mapmyindia.com/api/security/oauth/token', 
         params.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        family: 4
       });
       res.json(response.data);
     } catch (error: any) {
@@ -60,14 +61,34 @@ async function startServer() {
           ...req.query,
           access_token: restKey // Inject the static key here automatically!
         },
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        family: 4
       });
       res.json(response.data);
     } catch (error: any) {
-      console.error("🛰️ SERVER: Mappls Search API Failed (Handled Gracefully)");
+      console.error("🛰️ SERVER: Mappls Search API Failed:", error.response?.data || error.message);
       // Return 200 so the browser console doesn't show a red error, but return an empty response
       // so the frontend knows to fallback to Mapbox seamlessly.
       res.status(200).json({ error: "Search API Failed", details: error.message, suggestedLocations: [] });
+    }
+  });
+
+  // 🛰️ MAPMYINDIA (MAPPLS) ROUTING PROXY (To bypass CORS and hide the key for driving routes)
+  app.get("/mappls-route/:start/:end", async (req, res) => {
+    try {
+      const { start, end } = req.params;
+      const restKey = process.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
+      const url = `https://apis.mappls.com/advancedmaps/v1/${restKey}/route_adv/driving/${start};${end}`;
+      
+      const response = await axios.get(url, {
+        params: req.query,
+        headers: { 'Accept': 'application/json' },
+        family: 4
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error("🛰️ SERVER: Mappls Routing API Proxy Failed:", error.response?.data || error.message);
+      res.status(200).json({ error: "Routing API Proxy Failed", details: error.message, routes: [] });
     }
   });
 

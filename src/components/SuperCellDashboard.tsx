@@ -43,7 +43,7 @@ import {
   orderBy,
   where
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -66,6 +66,84 @@ import { NationalEmergencyTicker } from './supercell/NationalEmergencyTicker';
 import { NeuralAnalytics } from './supercell/NeuralAnalytics';
 import { BanAppeals } from './supercell/BanAppeals';
 
+const INDIAN_STATES_AND_UTS = [
+  'Andaman and Nicobar Islands',
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu and Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal'
+];
+
+const getStateVariations = (stateName: string): string[] => {
+  const name = stateName.toLowerCase().trim();
+  const variations = [name];
+  
+  if (name === 'uttar pradesh') variations.push('up', 'u.p.', 'uttarpradesh');
+  else if (name === 'maharashtra') variations.push('mh', 'm.h.');
+  else if (name === 'delhi') variations.push('dl', 'd.l.');
+  else if (name === 'karnataka') variations.push('ka', 'k.a.');
+  else if (name === 'rajasthan') variations.push('rj', 'r.j.');
+  else if (name === 'west bengal') variations.push('wb', 'w.b.');
+  else if (name === 'madhya pradesh') variations.push('mp', 'm.p.');
+  else if (name === 'andhra pradesh') variations.push('ap', 'a.p.');
+  else if (name === 'jammu and kashmir') variations.push('jk', 'j&k', 'j & k', 'jammu & kashmir');
+  else if (name === 'punjab') variations.push('pb', 'p.b.');
+  else if (name === 'haryana') variations.push('hr', 'h.r.');
+  else if (name === 'gujarat') variations.push('gj', 'g.j.');
+  else if (name === 'bihar') variations.push('br', 'b.r.');
+  else if (name === 'tamil nadu') variations.push('tn', 't.n.');
+  else if (name === 'telangana') variations.push('ts', 't.s.');
+  
+  return variations;
+};
+
+const matchesState = (selectedState: string, text: string) => {
+  if (!text) return false;
+  const lowerText = text.toLowerCase().trim();
+  const selectedVariations = getStateVariations(selectedState);
+  
+  if (selectedVariations.includes(lowerText)) return true;
+  
+  return selectedVariations.some(variation => {
+    if (variation.length <= 4) {
+      const regex = new RegExp(`\\b${variation.replace('.', '\\.')}\\b`, 'i');
+      return regex.test(lowerText);
+    }
+    return lowerText.includes(variation);
+  });
+};
+
 const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: string, onTabChange?: (m: any) => void }) => {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [missionHistory, setMissionHistory] = useState<any[]>([]);
@@ -84,6 +162,160 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [selectedFir, setSelectedFir] = useState<any>(null);
   const [isFirModalOpen, setIsFirModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => {} });
+  
+  // 🗺️ STATE SHARD FILTERING ENGINE
+  const [selectedState, setSelectedState] = useState<string>(() => localStorage.getItem('kavach_selected_state') || 'ALL');
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUserEmail(user.email || '');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const detectedAdminState = React.useMemo(() => {
+    if (!currentUserEmail) return null;
+    
+    const email = currentUserEmail.toLowerCase().trim();
+    
+    // 1. Home Ministry Check (ONLY singh.sachin16559@gmail.com can view ALL)
+    if (email === 'singh.sachin16559@gmail.com') {
+      return 'ALL';
+    }
+    
+    // 2. State Admin Check - STRICT FORMAT: [statename].adminsachin@kavach.gov.in
+    if (email.endsWith('.adminsachin@kavach.gov.in')) {
+      const statePart = email.split('.adminsachin@kavach.gov.in')[0];
+      
+      for (const state of INDIAN_STATES_AND_UTS) {
+        const variations = getStateVariations(state);
+        // Match with variations without spaces (e.g. 'uttarpradesh' or 'delhi' or 'up')
+        if (variations.some(v => statePart === v.replace(/\s+/g, '') || statePart === v.replace(/\s+/g, '_'))) {
+          return state;
+        }
+      }
+    }
+    return null;
+  }, [currentUserEmail]);
+
+  useEffect(() => {
+    if (detectedAdminState) {
+      setSelectedState(detectedAdminState);
+    } else if (currentUserEmail && currentUserEmail !== 'singh.sachin16559@gmail.com') {
+      // If NOT sachin, they must never see 'ALL'. So if selectedState is 'ALL', fallback immediately.
+      setSelectedState(prev => prev === 'ALL' ? 'Uttar Pradesh' : prev);
+    }
+  }, [detectedAdminState, currentUserEmail]);
+
+  useEffect(() => {
+    localStorage.setItem('kavach_selected_state', selectedState);
+  }, [selectedState]);
+
+  const filterByState = (item: any) => {
+    if (!item) return false;
+    if (selectedState === 'ALL') return true;
+    
+    // 🛰️ FAIL-SAFE: If alert/journey lacks specific state or matches fallback, show on all dashboards to avoid lost alerts
+    const st = (item.state || '').toLowerCase();
+    if (!st || st === 'national' || st === 'bharat sector' || st === 'neutral zone') return true;
+    
+    // 1. Direct State Matches
+    if (item.state && matchesState(selectedState, item.state)) return true;
+    
+    // 2. Substring Matches inside address/location fields
+    if (item.address && matchesState(selectedState, item.address)) return true;
+    if (item.locationName && matchesState(selectedState, item.locationName)) return true;
+    if (item.incidentAddress && matchesState(selectedState, item.incidentAddress)) return true;
+    if (item.city && matchesState(selectedState, item.city)) return true;
+    if (item.fullAddress && matchesState(selectedState, item.fullAddress)) return true;
+    
+    // 3. Resolve user profile for alerts / FIRs / journeys
+    const uUid = item.victimUid || item.userId || item.uid;
+    if (uUid && userStatusMap[uUid]) {
+      const profile = userStatusMap[uUid];
+      if (profile.state && matchesState(selectedState, profile.state)) return true;
+      if (profile.address && matchesState(selectedState, profile.address)) return true;
+      if (profile.city && matchesState(selectedState, profile.city)) return true;
+      if (profile.fullAddress && matchesState(selectedState, profile.fullAddress)) return true;
+    }
+
+    return false;
+  };
+
+  const filteredUserStatusMap = React.useMemo(() => {
+    const filtered: Record<string, any> = {};
+
+    // 1. Find all user IDs who have matched alerts/FIRs in selectedState
+    const userIdsWithAlertsInSelectedState = new Set<string>();
+    activeAlerts.forEach(alert => {
+      if (filterByState(alert)) {
+        const uUid = alert.victimUid || alert.userId || alert.uid;
+        if (uUid) userIdsWithAlertsInSelectedState.add(uUid);
+      }
+    });
+    missionHistory.forEach(mission => {
+      if (filterByState(mission)) {
+        const uUid = mission.victimUid || mission.userId || mission.uid;
+        if (uUid) userIdsWithAlertsInSelectedState.add(uUid);
+      }
+    });
+    activeFirs.forEach(fir => {
+      if (filterByState(fir)) {
+        const uUid = fir.victimUid || fir.userId || fir.uid;
+        if (uUid) userIdsWithAlertsInSelectedState.add(uUid);
+      }
+    });
+
+    // 2. Include existing users if they match directly or via alerts
+    Object.entries(userStatusMap).forEach(([uid, user]) => {
+      if (selectedState === 'ALL') {
+        filtered[uid] = user;
+      } else if (filterByState(user) || userIdsWithAlertsInSelectedState.has(uid) || userIdsWithAlertsInSelectedState.has(user.id)) {
+        filtered[uid] = user;
+      }
+    });
+
+    // 3. Inject high-fidelity fallback profiles for active/resolved alerts or FIRs if they don't exist in userStatusMap
+    if (selectedState !== 'ALL') {
+      const injectFromList = (list: any[], role: string) => {
+        list.forEach(item => {
+          if (!filterByState(item)) return;
+          const uid = item.victimUid || item.userId || item.uid;
+          if (uid && !filtered[uid] && !userStatusMap[uid]) {
+            filtered[uid] = {
+              id: uid,
+              name: item.victimName || item.userName || 'Anonymous citizen',
+              role: role,
+              gender: item.gender || 'FEMALE',
+              phoneNumber: item.phoneNumber || item.phone || 'DATA_NOT_SYNCED',
+              email: item.email || 'N/A',
+              aadhaar: item.aadhaar || item.aadhar || 'DATA_NOT_SYNCED',
+              state: selectedState,
+              city: item.city || item.address || 'Sector Unknown',
+              address: item.address || item.city || 'Sector Unknown',
+              isVerified: true
+            };
+          }
+        });
+      };
+      
+      injectFromList(activeAlerts, 'citizen');
+      injectFromList(missionHistory, 'citizen');
+      injectFromList(activeFirs, 'citizen');
+    }
+
+    return filtered;
+  }, [userStatusMap, selectedState, activeAlerts, missionHistory, activeFirs]);
+
+  const filteredActiveAlerts = activeAlerts.filter(filterByState);
+  const filteredMissionHistory = missionHistory.filter(filterByState);
+  const filteredVerifiedProtectors = verifiedProtectors.filter(filterByState);
+  const filteredPendingProtectors = pendingProtectors.filter(filterByState);
+  const filteredActiveFirs = activeFirs.filter(filterByState);
+  const filteredActiveJourneys = activeJourneys.filter(filterByState);
   
   // 🛰️ STRATEGIC INTELLIGENCE LEDGER (Notifications)
   const [notifications, setNotifications] = useState<any[]>(() => {
@@ -296,11 +528,11 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <div className="flex-1 flex flex-col overflow-hidden relative">
             {activeTab === 'DASHBOARD' && (
               <NationalOverview 
-                activeAlerts={activeAlerts} // Show all, no shard
-                verifiedProtectors={verifiedProtectors} // Show all, no shard
-                pendingProtectors={pendingProtectors} // Show all, no shard
-                zeroFirs={activeFirs}
-                selectedState="NATIONAL"
+                activeAlerts={filteredActiveAlerts} // Show filtered shard
+                verifiedProtectors={filteredVerifiedProtectors} // Show filtered shard
+                pendingProtectors={filteredPendingProtectors} // Show filtered shard
+                zeroFirs={filteredActiveFirs}
+                selectedState={selectedState}
                 isSovereignActive={isSovereignActive}
                 onNavigate={(tab, alertId) => {
                   if (alertId) setSelectedAlertId(alertId);
@@ -344,10 +576,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         return (
           <SOSManagement 
             externalSelectedId={selectedAlertId} 
-            verifiedProtectors={verifiedProtectors} 
-            activeAlerts={activeAlerts}
-            historicalAlerts={missionHistory}
-            userStatusMap={userStatusMap}
+            verifiedProtectors={filteredVerifiedProtectors} 
+            activeAlerts={filteredActiveAlerts}
+            historicalAlerts={filteredMissionHistory}
+            userStatusMap={filteredUserStatusMap}
             onViewReplay={(alertId) => {
                setActiveMissionId(alertId);
                onTabChange?.('TRACK');
@@ -357,13 +589,13 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       case 'FIR':
         return (
           <JusticeLedger 
-            zeroFirs={activeFirs} 
+            zeroFirs={filteredActiveFirs} 
             viewMode="JUSTICE" 
             onViewFir={(fir) => {
               setSelectedFir(fir);
               setIsFirModalOpen(true);
             }} 
-            userStatusMap={userStatusMap} 
+            userStatusMap={filteredUserStatusMap} 
           />
         );
       case 'PROTECTORS':
@@ -371,9 +603,9 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <ProtectorManagement 
             externalSelectedId={selectedProtectorId} 
             onViewReplay={(id) => { setActiveMissionId(id); onTabChange?.('TRACK'); }} 
-            verifiedProtectors={verifiedProtectors} 
-            pendingProtectors={pendingProtectors} 
-            userStatusMap={userStatusMap}
+            verifiedProtectors={filteredVerifiedProtectors} 
+            pendingProtectors={filteredPendingProtectors} 
+            userStatusMap={filteredUserStatusMap}
           />
         );
       case 'TRACK':
@@ -382,45 +614,46 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             activeMissionId={activeMissionId} 
             onClearMission={() => setActiveMissionId(null)} 
             isSovereignActive={isSovereignActive} 
-            userStatusMap={userStatusMap}
+            userStatusMap={filteredUserStatusMap}
+            selectedState={selectedState}
           />
         );
       case 'DATA':
-        return <KavachDirectory womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={verifiedProtectors} selectedState="NATIONAL" isSovereignActive={isSovereignActive} />;
+        return <KavachDirectory womenUsers={Object.values(filteredUserStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={filteredVerifiedProtectors} selectedState={selectedState} isSovereignActive={isSovereignActive} />;
       case 'ANALYTICS':
         return (
           <NeuralAnalytics 
-            activeAlerts={activeAlerts}
-            activeJourneys={activeJourneys}
-            verifiedProtectors={verifiedProtectors}
-            justiceLedger={activeFirs}
+            activeAlerts={filteredActiveAlerts}
+            activeJourneys={filteredActiveJourneys}
+            verifiedProtectors={filteredVerifiedProtectors}
+            justiceLedger={filteredActiveFirs}
           />
         );
       case 'CHAT':
         return <TacticalComms />;
       case 'TRANSIT':
         return (
-          <TransitIntelligence 
-            journeys={activeJourneys} 
-            onJourneyClick={(id) => setSelectedAlertId(id)} 
-            onNavigate={(tab) => onTabChange?.(tab)}
-            userStatusMap={userStatusMap}
+          <TransitTrack 
+            isSovereignActive={isSovereignActive}
+            userStatusMap={filteredUserStatusMap}
+            externalSelectedId={selectedAlertId}
           />
         );
       case 'GUIDES':
-        return <WomenSafetyOPS activeAlerts={activeAlerts} onAlertClick={(id) => setSelectedAlertId(id)} />;
+        return <WomenSafetyOPS activeAlerts={filteredActiveAlerts} onAlertClick={(id) => setSelectedAlertId(id)} />;
       case 'MAP':
         return (
           <div className="flex-1 bg-[#0F172A] rounded-[40px] overflow-hidden m-8">
             <CommandMap 
-              activeAlerts={activeAlerts} 
-              activeProtectors={verifiedProtectors} 
-              activeJourneys={activeJourneys} 
-              activeFirs={activeFirs} 
+              activeAlerts={filteredActiveAlerts} 
+              activeProtectors={filteredVerifiedProtectors} 
+              activeJourneys={filteredActiveJourneys} 
+              activeFirs={filteredActiveFirs} 
               pendingProtectors={[]} 
               selectedAlertId={selectedAlertId}
               isSovereignActive={isSovereignActive}
               showHeatmap={showHeatmap}
+              selectedState={selectedState}
             />
           </div>
         );
@@ -429,12 +662,12 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       case 'SETTINGS':
         return (
           <StateNexusCommand 
-            selectedState="NATIONAL"
+            selectedState={selectedState}
             womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')}
-            verifiedProtectors={verifiedProtectors}
-            pendingProtectors={pendingProtectors}
-            activeAlerts={activeAlerts}
-            zeroFirs={activeFirs}
+            verifiedProtectors={filteredVerifiedProtectors}
+            pendingProtectors={filteredPendingProtectors}
+            activeAlerts={filteredActiveAlerts}
+            zeroFirs={filteredActiveFirs}
             onAlertClick={(id) => setSelectedAlertId(id)}
             onViewFir={(fir) => {
               setSelectedAlertId(fir.id);
@@ -491,15 +724,31 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-[#0B0F19] border-b border-white/5 px-8 flex items-center justify-between z-40 shrink-0">
            {/* 🏛️ SOVEREIGN COMMAND HEADER: AUTHORIZED PERSONNEL ONLY */}
-           <div className="flex items-center gap-4">
+           <div className="flex items-center gap-6">
               <div className="flex items-center gap-3">
                  <div className="w-8 h-8 rounded-lg bg-blue-950/30 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
                     <Shield size={16} strokeWidth={2.5} />
                  </div>
                  <div>
-                    <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">Kavach Supercell HQ</h1>
-                    <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">National Command Grid</p>
+                    <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">
+                      {selectedState === 'ALL' ? 'Kavach Supercell HQ' : `${selectedState} Grid HQ`}
+                    </h1>
+                    <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">
+                      {selectedState === 'ALL' ? 'National Command Grid' : 'State Jurisdiction Grid'}
+                    </p>
                  </div>
+              </div>
+
+              <div className="h-6 w-[1px] bg-white/10" />
+
+              <div className="flex items-center gap-2.5 animate-in fade-in duration-300">
+                <span className="flex h-2 w-2 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[8px] font-black uppercase tracking-[2.5px] text-emerald-400 leading-none">
+                  {selectedState === 'ALL' ? 'SECURED NATIONAL COMMAND HQ' : `SECURED ${selectedState} STATE COMMAND`}
+                </span>
               </div>
            </div>
 

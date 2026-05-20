@@ -36,7 +36,8 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
     const hooks = [
       // 1. Digital Flare (Cloud Anchor with Deduplication)
       (async () => {
-        if (!user || data?.skipCloud) return null;
+        const finalUser = user || auth.currentUser;
+        if (!finalUser || data?.skipCloud) return null;
         
         try {
           const alertsRef = collection(db, 'alerts');
@@ -55,10 +56,10 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
           
           const alertData: any = {
             victimUid: victimId,
-            victimName: user.displayName || user.name || 'Kavach Citizen',
-            victimPhone: user.phoneNumber || user.phone || localStorage.getItem('kavach_user_phone') || 'UNREGISTERED',
-            victimAadhaar: user.aadhar || user.aadhaar || user.victimAadhaar || localStorage.getItem('kavach_user_aadhar') || 'NOT_VERIFIED',
-            victimEmail: user.email || 'N/A',
+            victimName: finalUser.displayName || finalUser.name || 'Kavach Citizen',
+            victimPhone: finalUser.phoneNumber || finalUser.phone || localStorage.getItem('kavach_user_phone') || 'UNREGISTERED',
+            victimAadhaar: finalUser.aadhar || finalUser.aadhaar || finalUser.victimAadhaar || localStorage.getItem('kavach_user_aadhar') || 'NOT_VERIFIED',
+            victimEmail: finalUser.email || 'N/A',
             status: 'active',
             timestamp: serverTimestamp(),
             lastUpdateAt: serverTimestamp(),

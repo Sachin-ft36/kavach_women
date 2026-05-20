@@ -8,8 +8,14 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // --- FORENSIC INTEGRITY UTILITY ---
-async function generateForensicHash(data: string) {
-  const msgUint8 = new TextEncoder().encode(data);
+async function generateForensicHash(data: Blob | string) {
+  let msgUint8: Uint8Array;
+  if (data instanceof Blob) {
+    const arrayBuffer = await data.arrayBuffer();
+    msgUint8 = new Uint8Array(arrayBuffer);
+  } else {
+    msgUint8 = new TextEncoder().encode(data);
+  }
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -39,14 +45,14 @@ async function saveToLocalBlackbox(fileName: string, blob: Blob, type: string) {
 
 export const useEvidenceEngine = () => {
   const { isSOSActive, activeAlertId, user, userPos, isSOSBlocked, triggerMethod } = useKavachStore();
-  const snapshotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const snapshotIntervalRef = useRef<any | null>(null);
 
   // Hardware Media Refs
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
-  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioIntervalRef = useRef<any | null>(null);
   const userPosRef = useRef(userPos);
 
   const isHardwareLocked = useRef(false);
@@ -101,7 +107,7 @@ export const useEvidenceEngine = () => {
               audioChunksRef.current = [];
               const timestamp = Date.now();
               try {
-                const forensicHash = await generateForensicHash(`AUDIO-${timestamp}-${user.uid}`);
+                const forensicHash = await generateForensicHash(audioBlob);
                 const audioRef = ref(storage, `alerts/${activeAlertId}/evidence/audio_${timestamp}.webm`);
                 await uploadBytes(audioRef, audioBlob);
                 const downloadUrl = await getDownloadURL(audioRef);
@@ -142,7 +148,7 @@ export const useEvidenceEngine = () => {
             videoChunks.length = 0;
             try {
               const timestamp = Date.now();
-              const forensicHash = await generateForensicHash(`CCTV-LIVE-${timestamp}-${user.uid}`);
+              const forensicHash = await generateForensicHash(videoBlob);
               const videoRef = ref(storage, `alerts/${activeAlertId}/evidence/cctv_${timestamp}.webm`);
               await uploadBytes(videoRef, videoBlob);
               const downloadUrl = await getDownloadURL(videoRef);
@@ -181,7 +187,7 @@ export const useEvidenceEngine = () => {
               if (!blob) return;
               const timestamp = Date.now();
               try {
-                const forensicHash = await generateForensicHash(`SNAP-${timestamp}-${user.uid}`);
+                const forensicHash = await generateForensicHash(blob);
                 const snapRef = ref(storage, `alerts/${activeAlertId}/evidence/snap_${timestamp}.jpg`);
                 await uploadBytes(snapRef, blob);
                 const downloadUrl = await getDownloadURL(snapRef);
@@ -232,7 +238,7 @@ export const useEvidenceEngine = () => {
                   const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                   audioChunksRef.current = [];
                   const timestamp = Date.now();
-                  const forensicHash = await generateForensicHash(`AUDIO-ONLY-${timestamp}-${user?.uid}`);
+                  const forensicHash = await generateForensicHash(audioBlob);
                   const audioRef = ref(storage, `alerts/${activeAlertId}/evidence/audio_${timestamp}.webm`);
                   await uploadBytes(audioRef, audioBlob);
                   const downloadUrl = await getDownloadURL(audioRef);

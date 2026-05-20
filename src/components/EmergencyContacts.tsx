@@ -218,7 +218,7 @@ export default function EmergencyContacts() {
           >
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-2xl flex items-center justify-center text-[#2563EB] shrink-0 shadow-sm">
-                <ShieldCheck size={24} sm:size={28} />
+                <ShieldCheck size={24} />
               </div>
               <div className="min-w-0">
                 <p className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">{contact.name}</p>
@@ -234,13 +234,13 @@ export default function EmergencyContacts() {
                 href={`tel:${contact.phone}`}
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-[#2563EB]/5 border border-[#2563EB]/10 text-[#2563EB] flex items-center justify-center hover:bg-[#2563EB] hover:text-white active:scale-90 transition-all shadow-sm"
               >
-                <Phone size={18} sm:size={20} />
+                <Phone size={18} />
               </a>
               <button 
                 onClick={() => removeContact(contact.id)}
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-red-50/50 border border-red-100 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white active:scale-90 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
               >
-                <Trash2 size={18} sm:size={20} />
+                <Trash2 size={18} />
               </button>
             </div>
           </motion.div>

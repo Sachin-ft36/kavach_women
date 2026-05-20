@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Users, Navigation, ShieldAlert, User, Layers } from 'lucide-react';
+import { fetchRouteMappls } from '../../services/MapplsService';
 
 interface CommandMapProps {
   activeAlerts: any[];
@@ -77,7 +78,42 @@ export default function CommandMap({
         70% { box-shadow: 0 0 0 15px rgba(37, 99, 235, 0); }
         100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
       }
-      .marker-transit { width: 24px; height: 24px; background: #3B82F6; border: 2px solid white; border-radius: 6px; transform: rotate(45deg); box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
+      .marker-transit { 
+        width: 18px; 
+        height: 18px; 
+        background: #3B82F6; 
+        border: 2px solid white; 
+        border-radius: 50%; 
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 150;
+        position: relative;
+      }
+      .marker-transit::after {
+        content: '🚗';
+        font-size: 8px;
+      }
+      .marker-transit-active { 
+        width: 24px;
+        height: 24px;
+        background: #06B6D4; 
+        border: 3px solid #FFF; 
+        box-shadow: 0 0 25px rgba(6, 182, 212, 0.9); 
+        animation: pulse-cyan 1.5s infinite;
+        z-index: 800;
+      }
+      .marker-transit-active::after {
+        content: '🚗';
+        font-size: 11px;
+      }
+      @keyframes pulse-cyan {
+        0% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7); }
+        70% { box-shadow: 0 0 0 15px rgba(6, 182, 212, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+      }
     `;
     document.head.appendChild(style);
   };
@@ -178,6 +214,23 @@ export default function CommandMap({
       map.current.addLayer({ id: 'f-safe', type: 'line', source: 'forensic-source', filter: ['==', ['get', 'type'], 'safe'], paint: { 'line-color': '#10B981', 'line-width': 4, 'line-dasharray': [2, 2], 'line-opacity': 0.4 } });
       map.current.addLayer({ id: 'f-victim', type: 'line', source: 'forensic-source', filter: ['==', ['get', 'type'], 'victim'], paint: { 'line-color': '#F43F5E', 'line-width': 5 } });
       map.current.addLayer({ id: 'f-projected', type: 'line', source: 'forensic-source', filter: ['==', ['get', 'type'], 'projected'], paint: { 'line-color': '#22D3EE', 'line-width': 3, 'line-dasharray': [2, 1] } });
+
+      // Live Mappls Route Sources (Glowing Tactical Intercept & Safe Ride)
+      map.current.addSource('intercept-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({
+        id: 'intercept-route-glow',
+        type: 'line',
+        source: 'intercept-route',
+        paint: { 'line-color': '#60A5FA', 'line-width': 12, 'line-opacity': 0.35 },
+        layout: { 'line-join': 'round', 'line-cap': 'round' }
+      });
+      map.current.addLayer({
+        id: 'intercept-route-line',
+        type: 'line',
+        source: 'intercept-route',
+        paint: { 'line-color': '#3B82F6', 'line-width': 5, 'line-opacity': 0.9 },
+        layout: { 'line-join': 'round', 'line-cap': 'round' }
+      });
     });
 
     return () => {
@@ -209,6 +262,102 @@ export default function CommandMap({
       clearTimeout(timeout);
     };
   }, [isMapLoaded]);
+
+  // 🛰️ LIVE MAPPLS NAVIGATION TRACING (Victims & Safe Rides)
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !map.current.getSource('intercept-route')) return;
+
+    let routeFetched = false;
+    let startCoords: [number, number] | null = null;
+    let endCoords: [number, number] | null = null;
+
+    if (selectedAlertId) {
+      // 🕵️‍♂️ Check if it's an SOS Active Alert
+      const alert = activeAlerts.find(a => a.id === selectedAlertId);
+      if (alert && (alert.status === 'active' || alert.status === 'responding' || alert.status === 'Responding' || alert.status === 'ACTIVE')) {
+        const vLat = alert.latitude || alert.lat || alert.location?.latitude || alert.location?.lat;
+        const vLng = alert.longitude || alert.lng || alert.location?.longitude || alert.location?.lng;
+
+        if (vLat && vLng) {
+          const responders = alert.activeResponders || [];
+          if (responders.length > 0) {
+            const responderId = responders[0].id || responders[0].uid;
+            const p = activeProtectors.find(p => p.id === responderId);
+            if (p) {
+              const pLat = p.latitude || p.lat || p.lastLat || p.currentLat || p.lastLocation?.latitude || p.lastLocation?.lat || p.location?.latitude || p.location?.lat;
+              const pLng = p.longitude || p.lng || p.lastLng || p.currentLng || p.long || p.lastLocation?.longitude || p.lastLocation?.lng || p.location?.longitude || p.location?.lng;
+
+              if (pLat && pLng) {
+                startCoords = [pLng, pLat];
+                endCoords = [vLng, vLat];
+                routeFetched = true;
+              }
+            }
+          }
+        }
+      }
+
+      // 🚗 If not an SOS Alert, check if it's an Active Safe Ride (Journey)
+      if (!routeFetched) {
+        const journey = activeJourneys.find(j => j.id === selectedAlertId);
+        if (journey && journey.status !== 'completed' && journey.status !== 'resolved') {
+          const uLat = journey.latitude || journey.lat || journey.lastLat || journey.currentLat || journey.location?.latitude || journey.location?.lat;
+          const uLng = journey.longitude || journey.lng || journey.lastLng || journey.currentLng || journey.location?.longitude || journey.location?.lng;
+          
+          const destLat = journey.targetCoords?.[0] || journey.destLat || journey.destinationLatitude;
+          const destLng = journey.targetCoords?.[1] || journey.destLng || journey.destinationLongitude;
+
+          if (uLat && uLng && destLat && destLng) {
+            startCoords = [uLng, uLat];
+            endCoords = [destLng, destLat];
+            routeFetched = true;
+          }
+        }
+      }
+    }
+
+    if (routeFetched && startCoords && endCoords) {
+      fetchRouteMappls(startCoords[0], startCoords[1], endCoords[0], endCoords[1]).then(routePath => {
+        if (!map.current || !map.current.getSource('intercept-route')) return;
+        
+        let finalCoordinates: [number, number][] = [];
+        if (routePath && routePath.length > 0) {
+          finalCoordinates = routePath;
+        } else {
+          // Fallback to straight line if API fails or has error
+          finalCoordinates = [startCoords!, endCoords!];
+        }
+
+        map.current.getSource('intercept-route').setData({
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: finalCoordinates
+            }
+          }]
+        });
+
+        // Auto-center bounds to fit route nicely in tactical room view
+        if (finalCoordinates.length > 1 && map.current) {
+          const mb = (window as any).mapboxgl;
+          if (mb) {
+            const bounds = new mb.LngLatBounds();
+            finalCoordinates.forEach(coord => bounds.extend(coord));
+            map.current.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1500 });
+          }
+        }
+      });
+    } else {
+      // Clear route if nothing selected or no active tracking
+      map.current.getSource('intercept-route').setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+  }, [selectedAlertId, activeAlerts, activeProtectors, activeJourneys, isMapLoaded]);
 
   // 🌍 FORENSIC PATH SYNC
   useEffect(() => {
@@ -255,6 +404,8 @@ export default function CommandMap({
     // 🔴 TACTICAL RADIUS SYNC (Separate for Stability)
     if (selectedAlertId && map.current) {
       const alert = activeAlerts.find(a => a.id === selectedAlertId);
+      const journey = activeJourneys.find(j => j.id === selectedAlertId || j.userId === selectedAlertId);
+
       if (alert) {
         const lat = alert.latitude || alert.lat || alert.location?.latitude || alert.location?.lat;
         const lng = alert.longitude || alert.lng || alert.location?.longitude || alert.location?.lng;
@@ -270,7 +421,29 @@ export default function CommandMap({
               map.current.setPaintProperty('radius-outline', 'line-color', '#EF4444');
               map.current.setPaintProperty('radius-outline', 'line-width', 2);
               
-              // Move to top to ensure visibility
+              if (map.current.getLayer('radius-circle')) map.current.moveLayer('radius-circle');
+              if (map.current.getLayer('radius-outline')) map.current.moveLayer('radius-outline');
+            }
+          };
+
+          if (map.current.isStyleLoaded()) updateRadius();
+          else map.current.once('styledata', updateRadius);
+        }
+      } else if (journey) {
+        const lat = journey.latitude || journey.lat || journey.lastLat || journey.currentLat || journey.location?.latitude || journey.location?.lat;
+        const lng = journey.longitude || journey.lng || journey.lastLng || journey.currentLng || journey.long || journey.location?.longitude || journey.location?.lng;
+        
+        if (lat && lng) {
+          map.current.flyTo({ center: [lng, lat], zoom: 15, pitch: 45, duration: 2000 });
+          const radiusGeoJSON = createGeoJSONCircle([lng, lat], 1.2); // 1.2km safety perimeter for passenger
+          const updateRadius = () => {
+            if (map.current.getSource('selected-radius')) {
+              map.current.getSource('selected-radius').setData({ type: 'FeatureCollection', features: [radiusGeoJSON] });
+              map.current.setPaintProperty('radius-circle', 'fill-color', '#06B6D4');
+              map.current.setPaintProperty('radius-circle', 'fill-opacity', 0.15);
+              map.current.setPaintProperty('radius-outline', 'line-color', '#06B6D4');
+              map.current.setPaintProperty('radius-outline', 'line-width', 1.5);
+              
               if (map.current.getLayer('radius-circle')) map.current.moveLayer('radius-circle');
               if (map.current.getLayer('radius-outline')) map.current.moveLayer('radius-outline');
             }
@@ -285,6 +458,13 @@ export default function CommandMap({
     }
 
     activeProtectors.forEach(p => {
+      // 🛰️ Check if this protector is currently an active victim to avoid double markers
+      const isVictim = activeAlerts.some(a => 
+        (a.userId === p.id || a.id === p.id || a.phone === p.phone || a.phoneNumber === p.phoneNumber) &&
+        (a.status === 'active' || a.status === 'responding' || a.status === 'Responding' || a.status === 'ACTIVE')
+      );
+      if (isVictim) return;
+
       // 🛰️ ROBUST COORDINATE RESOLUTION
       const lat = p.latitude || p.lat || p.lastLat || p.currentLat || p.lastLocation?.latitude || p.lastLocation?.lat || p.location?.latitude || p.location?.lat;
       const lng = p.longitude || p.lng || p.lastLng || p.currentLng || p.long || p.lastLocation?.longitude || p.lastLocation?.lng || p.location?.longitude || p.location?.lng;
@@ -315,8 +495,12 @@ export default function CommandMap({
       const lng = j.longitude || j.lng || j.lastLng || j.currentLng || j.long || j.location?.longitude || j.location?.lng;
       
       if (!lat || !lng) return;
+      const isSelected = selectedAlertId === j.id || selectedAlertId === j.userId;
+
       const el = document.createElement('div');
-      el.className = 'marker-transit';
+      el.className = isSelected ? 'marker-transit marker-transit-active' : 'marker-transit';
+      el.style.zIndex = isSelected ? '800' : '150';
+
       markersRef.current.push(new mb.Marker(el).setLngLat([lng, lat]).addTo(map.current));
     });
 

@@ -139,10 +139,57 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
   const [selectedUserForAudit, setSelectedUserForAudit] = useState<any>(null);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
-  const allIdentities = [...womenUsers, ...protectors];
+  // 🛡️ UNIFIED IDENTITY AGGREGATOR (Merge duplicate citizen/protector records)
+  const aggregateIdentities = (usersList: any[], protectorsList: any[]) => {
+    const registry: Record<string, any> = {};
+
+    const processUser = (user: any, defaultRole: string) => {
+      if (!user) return;
+      
+      // Select best stable identity key (avoid double rows for the same human)
+      const aadharNum = user.aadhaar || user.aadhar;
+      const phoneNum = user.phoneNumber || user.phone;
+      const idKey = user.id || user.uid || aadharNum || phoneNum || user.email || Math.random().toString();
+      
+      const roleStr = user.role || defaultRole;
+      const formattedRole = roleStr.toUpperCase(); // 'CITIZEN' or 'PROTECTOR'
+
+      if (registry[idKey]) {
+        // Person already exists: merge details
+        const existing = registry[idKey];
+        const existingRoles = existing.role ? existing.role.split(' / ') : [];
+        if (!existingRoles.includes(formattedRole)) {
+          existingRoles.push(formattedRole);
+        }
+        existing.role = existingRoles.join(' / ');
+        
+        if (user.isVerified || user.verified) {
+          existing.isVerified = true;
+        }
+        if (user.protectorVetting) {
+          existing.protectorVetting = { ...existing.protectorVetting, ...user.protectorVetting };
+        }
+      } else {
+        // Create new entry
+        registry[idKey] = {
+          ...user,
+          role: formattedRole
+        };
+      }
+    };
+
+    usersList.forEach(u => processUser(u, 'CITIZEN'));
+    protectorsList.forEach(p => processUser(p, 'PROTECTOR'));
+
+    return Object.values(registry);
+  };
+
+  const allMergedIdentities = aggregateIdentities(womenUsers, protectors);
+  const mergedWomenUsers = allMergedIdentities.filter(u => u.gender?.toUpperCase() === 'FEMALE' || u.role.includes('CITIZEN'));
+  const mergedProtectors = allMergedIdentities.filter(u => u.role.includes('PROTECTOR'));
 
   const getFilteredData = () => {
-    const baseData = activeTab === 'UNIVERSAL' ? allIdentities : activeTab === 'WOMEN' ? womenUsers : protectors;
+    const baseData = activeTab === 'UNIVERSAL' ? allMergedIdentities : activeTab === 'WOMEN' ? mergedWomenUsers : mergedProtectors;
     return baseData.filter(u => 
       u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
       u.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -185,9 +232,9 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
       </div>
 
       <div className="px-8 py-5 flex gap-4 bg-gray-50/20 border-b border-gray-50 overflow-x-auto custom-scrollbar no-print">
-         <button onClick={() => setActiveTab('UNIVERSAL')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'UNIVERSAL' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><Globe size={16} /> Universal Master <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{allIdentities.length}</span></button>
-         <button onClick={() => setActiveTab('WOMEN')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'WOMEN' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><Heart size={16} className={activeTab === 'WOMEN' ? "fill-gray-900" : ""} /> Women Safety <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{womenUsers.length}</span></button>
-         <button onClick={() => setActiveTab('PROTECTORS')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'PROTECTORS' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><ShieldCheck size={16} /> Verified Protectors <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{protectors.length}</span></button>
+         <button onClick={() => setActiveTab('UNIVERSAL')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'UNIVERSAL' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><Globe size={16} /> Universal Master <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{allMergedIdentities.length}</span></button>
+         <button onClick={() => setActiveTab('WOMEN')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'WOMEN' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><Heart size={16} className={activeTab === 'WOMEN' ? "fill-gray-900" : ""} /> Women Safety <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{mergedWomenUsers.length}</span></button>
+         <button onClick={() => setActiveTab('PROTECTORS')} className={cn("px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0", activeTab === 'PROTECTORS' ? "bg-white text-gray-900 shadow-xl shadow-black/5 border border-gray-100" : "text-gray-400 hover:bg-gray-50")}><ShieldCheck size={16} /> Verified Protectors <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[8px]">{mergedProtectors.length}</span></button>
       </div>
 
       <div className="flex-1 overflow-x-auto custom-scrollbar bg-white">
@@ -217,7 +264,18 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                         </div>
                      </td>
                      <td className="px-8 py-5 text-center"><span className="text-[9px] font-black text-gray-900 uppercase">{user.gender || 'FEMALE'}</span></td>
-                     <td className="px-8 py-5 text-center"><div className="inline-flex px-4 py-1.5 bg-blue-50 text-blue-600 text-[8px] font-black rounded-full border border-blue-100 uppercase tracking-widest">{user.role === 'protector' ? 'PROTECTOR' : 'CITIZEN'}</div></td>
+                     <td className="px-8 py-5 text-center">
+                        <div className={cn(
+                          "inline-flex px-4 py-1.5 text-[8px] font-black rounded-full border uppercase tracking-widest",
+                          user.role.includes('/') 
+                            ? "bg-purple-50 text-purple-600 border-purple-100" 
+                            : user.role === 'PROTECTOR' 
+                              ? "bg-blue-50 text-blue-600 border-blue-100" 
+                              : "bg-blue-50/50 text-blue-500 border-blue-100/50"
+                        )}>
+                          {user.role}
+                        </div>
+                     </td>
                      <td className="px-8 py-5 text-center"><span className="text-[9px] font-black text-gray-900 uppercase">{user.protectorVetting?.occupation || 'N/A'}</span></td>
                      <td className="px-8 py-5 text-center">
                         {user.isVerified ? (

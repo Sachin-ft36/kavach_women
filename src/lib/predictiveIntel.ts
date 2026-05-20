@@ -40,12 +40,21 @@ export const fetchPredictiveIntel = async (
   const dx = p2.lng - p1.lng;
   const dy = p2.lat - p1.lat;
 
+  // ⚖️ TACTICAL VELOCITY FILTER
+  const speedVal = Math.sqrt(dx * dx + dy * dy) * 10000;
+
   // 🎯 HIGH-FIDELITY VECTOR PROJECTION (60s Horizon)
-  const projection: [number, number][] = [
-    [lng, lat],
-    [lng + dx * 5, lat + dy * 5],
-    [lng + dx * 10, lat + dy * 10]
-  ];
+  // 🛰️ FAIL-SAFE: If the vehicle is stationary or speed is under 5 km/h, the "movement" is just GPS jitter.
+  // We suppress the projection line (set it to the current point only) so it doesn't pierce through buildings or rivers randomly.
+  const projection: [number, number][] = speedVal > 5
+    ? [
+        [lng, lat],
+        [lng + dx * 5, lat + dy * 5],
+        [lng + dx * 10, lat + dy * 10]
+      ]
+    : [
+        [lng, lat]
+      ];
 
   // 🛡️ PROTOCOL DEVIATION ANALYSIS
   let minSafeDist = Infinity;

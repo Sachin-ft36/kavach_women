@@ -575,22 +575,6 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         }
       }
 
-      set({
-        isSOSActive: true,
-        activeAlertId: alertId,
-        triggerMethod: method,
-        pendingSOS: null,
-        isHandshakeVerified: false,
-        handshakeCode: finalHandshake,
-        activeTab: 'sos'
-      });
-
-      localStorage.setItem('kavach_sos_active', 'true');
-      localStorage.setItem('kavach_trigger_method', method);
-      localStorage.setItem('kavach_active_alert_id', alertId);
-      localStorage.setItem('kavach_handshake_code', finalHandshake);
-      localStorage.setItem('kavach_last_trigger_time', Date.now().toString());
-
       const state = get();
       const isTransit = !!state.isRideModeActive;
       const rideContext = isTransit ? {
@@ -599,6 +583,40 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         journeyId: auth.currentUser?.uid,
         transitStatus: 'INTERCEPTION_REQUIRED'
       } : {};
+
+      if (isTransit && state.rideData) {
+        const updatedRide = {
+          ...state.rideData,
+          status: 'emergency' as const
+        };
+        set({
+          isSOSActive: true,
+          activeAlertId: alertId,
+          triggerMethod: method,
+          pendingSOS: null,
+          isHandshakeVerified: false,
+          handshakeCode: finalHandshake,
+          activeTab: 'sos',
+          rideData: updatedRide
+        });
+        localStorage.setItem('kavach_ride_data', JSON.stringify(updatedRide));
+      } else {
+        set({
+          isSOSActive: true,
+          activeAlertId: alertId,
+          triggerMethod: method,
+          pendingSOS: null,
+          isHandshakeVerified: false,
+          handshakeCode: finalHandshake,
+          activeTab: 'sos'
+        });
+      }
+
+      localStorage.setItem('kavach_sos_active', 'true');
+      localStorage.setItem('kavach_trigger_method', method);
+      localStorage.setItem('kavach_active_alert_id', alertId);
+      localStorage.setItem('kavach_handshake_code', finalHandshake);
+      localStorage.setItem('kavach_last_trigger_time', Date.now().toString());
 
       if (!wasAlreadyActive) {
         // 🚀 AUTO-INITIATE FORENSIC SENTINEL
