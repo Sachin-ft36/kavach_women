@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, MapPin, Phone, Navigation, ChevronRight, Users, Building2, Loader2 } from 'lucide-react';
+import { Shield, MapPin, Phone, Navigation, ChevronRight, Users, Building2, Loader2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { useKavachStore } from '../store/useKavachStore';
 import { db, auth } from '../firebase';
@@ -22,13 +22,14 @@ interface Node {
   lng?: number;
 }
 
-import { fetchNearbyPoliceMappls, isOfficialPoliceStation } from '../services/MapplsService';
+import { fetchNearbyPoliceMappls, isOfficialPoliceStation, getOfficialPolicePhone } from '../services/MapplsService';
 
 export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps) {
   const { userPos } = useKavachStore();
   const [loading, setLoading] = useState(true);
   const [policeStations, setPoliceStations] = useState<Node[]>([]);
   const [protectors, setProtectors] = useState<any[]>([]);
+  const [livePcrs, setLivePcrs] = useState<any[]>([]);
 
   const fetchRealData = async () => {
     if (!userPos) return;
@@ -65,7 +66,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
                 dist: distKm < 1 ? `${(distKm * 1000).toFixed(0)}m` : `${distKm.toFixed(1)}km`,
                 distVal: distKm,
                 status: distKm < 1 ? "Immediate Response" : "Patrol Active",
-                phone: "112",
+                phone: getOfficialPolicePhone(rawName, "112"),
                 lat: fLat,
                 lng: fLng
               };
@@ -103,7 +104,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
                 dist: d < 1 ? `${(d * 1000).toFixed(0)}m` : `${d.toFixed(1)}km`,
                 distVal: d,
                 status: d < 1 ? "Immediate Response" : "Patrol Active",
-                phone: item.tags?.phone || item.tags?.contact?.phone || "112",
+                phone: getOfficialPolicePhone(rawName, item.tags?.phone || item.tags?.contact?.phone || "112"),
                 lat: fLat,
                 lng: fLng
               };
@@ -208,20 +209,53 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
       // 🛰️ PROGRESSIVE RANGE DISCOVERY ALGORITHM
       // 1. Sort nodes by distance
       const sortedStations = realStations.sort((a: any, b: any) => (a.distVal || 0) - (b.distVal || 0));
-      
-      // 2. Filter within 5km
-      let filteredStations = sortedStations.filter((s: any) => (s.distVal || 0) <= 5);
-      
-      // 3. Fallback to 10km if 5km is empty
-      if (filteredStations.length === 0) {
-        console.log("🛰️ KAVACH: No police stations within 5km range. Expanding grid sweep to 10km...");
-        filteredStations = sortedStations.filter((s: any) => (s.distVal || 0) <= 10);
+
+      // 2. INTELLIGENT DE-DUPLICATION ENGINE
+      // Filters out duplicate outposts, compounds, and identical locations within 100 meters (0.1km).
+      const dedupedStations: any[] = [];
+      for (const station of sortedStations) {
+        const isDuplicate = dedupedStations.some((existing) => {
+          // Check A: Coordinates overlap almost exactly (within ~200m or 0.002 lat/lng)
+          const isCoordsSame = station.lat && station.lng && existing.lat && existing.lng &&
+            Math.abs(station.lat - existing.lat) < 0.002 &&
+            Math.abs(station.lng - existing.lng) < 0.002;
+
+          // Check B: Distances are almost identical (within 100 meters / 0.1km)
+          const isDistanceSame = Math.abs((station.distVal || 0) - (existing.distVal || 0)) < 0.1;
+
+          return isCoordsSame || isDistanceSame;
+        });
+
+        if (!isDuplicate) {
+          dedupedStations.push(station);
+        } else {
+          // If duplicate found, prefer the cleaner official regional name (e.g. Vishwavidyalaya Police Station)
+          const index = dedupedStations.findIndex((existing) => {
+            return Math.abs((station.distVal || 0) - (existing.distVal || 0)) < 0.1;
+          });
+          if (index !== -1) {
+            const existing = dedupedStations[index];
+            const isNewBetter = !station.name.toLowerCase().includes('auxilliary') && existing.name.toLowerCase().includes('auxilliary');
+            if (isNewBetter) {
+              dedupedStations[index] = station;
+            }
+          }
+        }
       }
       
-      // 4. Critical Fallback: If still empty, grab the absolute nearest station wherever it is!
-      if (filteredStations.length === 0 && sortedStations.length > 0) {
+      // 3. Filter within 5km
+      let filteredStations = dedupedStations.filter((s: any) => (s.distVal || 0) <= 5);
+      
+      // 4. Fallback to 10km if 5km is empty
+      if (filteredStations.length === 0) {
+        console.log("🛰️ KAVACH: No police stations within 5km range. Expanding grid sweep to 10km...");
+        filteredStations = dedupedStations.filter((s: any) => (s.distVal || 0) <= 10);
+      }
+      
+      // 5. Critical Fallback: If still empty, grab the absolute nearest station wherever it is!
+      if (filteredStations.length === 0 && dedupedStations.length > 0) {
         console.log("🛰️ KAVACH: No police stations within 10km range! Critical fallback: displaying closest station...");
-        filteredStations = [sortedStations[0]];
+        filteredStations = [dedupedStations[0]];
       }
 
       setPoliceStations(filteredStations);
@@ -266,6 +300,39 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
       } catch (e) {
         console.error("Protector sync failed:", e);
       }
+
+      // 🚨 PCR PATROL UNITS: Fetch live on-duty police cars from Firestore
+      const pcrList: any[] = [];
+      try {
+        const pcrRef = collection(db, 'users');
+        const qPcr = query(
+          pcrRef,
+          where('role', '==', 'pcr_officer'),
+          where('isOnDuty', '==', true)
+        );
+        const pcrSnap = await getDocs(qPcr);
+        pcrSnap.docs.forEach(doc => {
+          const data = doc.data();
+          const pLat = data.lastLocation?.lat || data.latitude || (data.coords && data.coords[0]);
+          const pLng = data.lastLocation?.lng || data.longitude || (data.coords && data.coords[1]);
+          if (pLat && pLng && userPos) {
+            const d = calculateDistance(userPos[0], userPos[1], pLat, pLng);
+            pcrList.push({
+              id: doc.id,
+              name: data.vehicleNo || `PCR Unit - ${data.name || 'Patrol'}`,
+              dist: d < 1 ? `${(d * 1000).toFixed(0)}m` : `${d.toFixed(1)}km`,
+              distVal: d,
+              status: "🚨 ACTIVE MOBILE PATROL",
+              phone: data.phone || "112",
+              lat: pLat,
+              lng: pLng
+            });
+          }
+        });
+      } catch (e) {
+        console.error("Live PCR fetching failed:", e);
+      }
+      setLivePcrs(pcrList.sort((a, b) => a.distVal - b.distVal).slice(0, 5));
 
     } catch (e) {
       console.error("Police Grid Error:", e);
@@ -333,6 +400,66 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
                 <span className="text-lg font-black text-white italic">1930</span>
              </button>
           </div>
+
+          {/* 🚔 LIVE PCR PATROL CARS */}
+          <section className="space-y-4">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-blue-400">
+                   <Car size={16} className="animate-pulse" />
+                   <span className="text-[10px] font-black uppercase tracking-widest">Live PCR Patrol Units</span>
+                </div>
+                <div className="flex items-center gap-1">
+                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                   <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{livePcrs.length} Active</span>
+                </div>
+             </div>
+
+             <div className="grid gap-3">
+                {livePcrs.length > 0 ? livePcrs.map((pcr, idx) => (
+                   <motion.div 
+                     initial={{ opacity: 0, y: -10 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     transition={{ delay: idx * 0.08 }}
+                     key={idx} 
+                     className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-3xl space-y-4 shadow-lg shadow-blue-950/10"
+                   >
+                      <div className="flex justify-between items-start">
+                         <div className="flex-1">
+                            <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px] flex items-center gap-2">
+                               🚔 {pcr.name}
+                            </h4>
+                            <p className="text-[9px] text-blue-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
+                               <MapPin size={10} /> {pcr.dist} AWAY • {pcr.status}
+                            </p>
+                         </div>
+                         <div className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
+                            <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest animate-pulse">ON-DUTY</span>
+                         </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                            <Phone size={12} /> Emergency Call
+                         </button>
+                         <button 
+                           onClick={() => {
+                             const dest = `${pcr.lat},${pcr.lng}`; 
+                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                           }}
+                           className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                         >
+                            <Navigation size={12} /> Track Route
+                         </button>
+                      </div>
+                   </motion.div>
+                )) : (
+                   <div className="p-10 border border-dashed border-white/5 rounded-3xl text-center">
+                      <p className="text-[10px] text-gray-600 font-bold uppercase italic">
+                         Searching live police networks...
+                      </p>
+                   </div>
+                )}
+             </div>
+          </section>
 
           {/* 🚓 OFFICIAL POLICE NODES */}
           <section className="space-y-4">

@@ -130,7 +130,7 @@ export default function DashboardScreen() {
     setOverlayActive(val);
   };
 
-  const handleVoiceBriefing = (isManual = false) => {
+  const handleVoiceBriefing = async (isManual = false) => {
     const isCompleted = localStorage.getItem('kavach_briefing_completed') === 'true';
 
     // 🛡️ STOP LOGIC: Only allowed for veterans who have completed the mandatory first briefing
@@ -139,6 +139,9 @@ export default function DashboardScreen() {
       audioRef.current.currentTime = 0;
       setIsBriefingPlaying(false);
       setBriefingActive(false);
+      
+      // 🔄 RESUME NATIVE MIC: Briefing interrupted manually
+      KavachSafe.startVoiceSentinel().catch(() => {});
       return;
     }
 
@@ -157,14 +160,24 @@ export default function DashboardScreen() {
       setBriefingActive(false);
       setIsBriefingPlaying(false);
       localStorage.setItem('kavach_briefing_completed', 'true');
+      
+      // 🔄 RESUME NATIVE MIC: Briefing naturally completed
+      KavachSafe.startVoiceSentinel().catch(() => {});
     };
 
+    // 🛑 PAUSE NATIVE MIC: Prevent feedback loop while system speaks
+    await KavachSafe.stopVoiceSentinel().catch(() => {});
+    // Give native layer 200ms to actually drop the hardware lock before speaking
+    await new Promise(r => setTimeout(r, 200));
+    
     audio.play().then(() => {
       if (!isManual) sessionStorage.setItem('kavach_greeted', 'true');
     }).catch(err => {
       setBriefingActive(false);
       setIsBriefingPlaying(false);
       console.log("Voice blocked by browser autoplay policy.");
+      // If blocked, instantly resume mic
+      KavachSafe.startVoiceSentinel().catch(() => {});
     });
   };
 

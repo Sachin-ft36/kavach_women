@@ -25,7 +25,7 @@ import androidx.core.app.NotificationCompat;
 public class KavachService extends Service implements SensorEventListener {
 
     private static final String TAG = "KavachService";
-    private static final String CHANNEL_ID = "KavachServiceChannel";
+    private static final String CHANNEL_ID = "KavachServiceChannel_Silent";
 
     // Action constants required by KavachMessagingService and KavachNative
     public static final String ACTION_START_SIREN = "com.kavach.app.ACTION_START_SIREN";
@@ -48,10 +48,13 @@ public class KavachService extends Service implements SensorEventListener {
     private long lastShakeTime = 0;
     private int shakeCount = 0;
     private long lastPeakTime = 0;
-    private static final float MIN_FORCE_G = 14.5f; // Distress Force Level
+    private static final float MIN_FORCE_G = 3.5f; // Distress Force Level
     private static final int REQUIRED_SHAKES = 3; // 3 clear hits (Up-Down cycles)
     private static final int TIME_WINDOW = 2000; // 2s Window
     private static final int DEBOUNCE_MS = 300; 
+
+    // ── Proximity pocket/bag filter ──────────────────
+    private boolean isPhoneInPocket = false;
 
     // ── Power-Button Counter ─────────────────────────
     private int screenToggleCount = 0;
@@ -59,16 +62,24 @@ public class KavachService extends Service implements SensorEventListener {
     private static final long SCREEN_WINDOW_MS = 5000;
 
     // ── Voice Detection (Native Sentinel) ─────────────
-    private android.speech.SpeechRecognizer speechRecognizer;
-    private android.content.Intent speechIntent;
+    private org.vosk.Model voskModel;
+    private org.vosk.android.SpeechService speechService;
     private boolean isListening = false;
+
+    // ── Voice Sliding Window States ───────────────────
+    private int helpWordCount = 0;
+    private int bachaoWordCount = 0;
+    private int kavachWordCount = 0;
+    private int regionalWordCount = 0;
+    private long lastVoiceEventTime = 0;
+    private static final long VOICE_WINDOW_MS = 6000; // 6s rolling time window
 
     // ── WakeLock ─────────────────────────────────────
     private PowerManager.WakeLock wakeLock;
     private MediaPlayer mediaPlayer;
 
-    // ── Broadcast: screen on/off ──────────────────────────────────────────
-    private final android.content.BroadcastReceiver screenReceiver = new android.content.BroadcastReceiver() {
+    // ── Broadcast: System Status ──────────────────────────────────────────
+    private final android.content.BroadcastReceiver systemReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context ctx, Intent intent) {
             String action = intent.getAction();
@@ -89,6 +100,11 @@ public class KavachService extends Service implements SensorEventListener {
                     screenToggleCount = 0;
                     Log.i(TAG, "MISSION CONTROL: Power-button SOS Detected!");
                     triggerSOS("power");
+                }
+            } else if (Intent.ACTION_SHUTDOWN.equals(action) || Intent.ACTION_BATTERY_LOW.equals(action)) {
+                if (isSOSMissionActive) {
+                    Log.w(TAG, "CRITICAL: Device shutting down during active SOS. Firing final offline SMS...");
+                    dispatchEmergencySMSWithLocation(false, true); 
                 }
             }
         }
@@ -112,21 +128,28 @@ public class KavachService extends Service implements SensorEventListener {
         if (sensorManager != null) {
             Sensor acc = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             if (acc != null) {
-                sensorManager.registerListener(this, acc, SensorManager.SENSOR_DELAY_UI);
+                sensorManager.registerListener(this, acc, SensorManager.SENSOR_DELAY_GAME);
+            }
+            // Register Proximity Sensor to filter out false pocket shakes
+            Sensor prox = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+            if (prox != null) {
+                sensorManager.registerListener(this, prox, SensorManager.SENSOR_DELAY_GAME);
             }
         }
 
         // 3. Native Voice Sentinel initialization
         initVoiceSentinel();
 
-        // 4. Screen on/off receiver
+        // 4. System status receiver (Screen, Shutdown, Battery)
         android.content.IntentFilter filter = new android.content.IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SHUTDOWN);
+        filter.addAction(Intent.ACTION_BATTERY_LOW);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenReceiver, filter, Context.RECEIVER_EXPORTED);
+            registerReceiver(systemReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
-            registerReceiver(screenReceiver, filter);
+            registerReceiver(systemReceiver, filter);
         }
 
         Log.i(TAG, "KAVACH TACTICAL SERVICE: Initialized. Monitoring active.");
@@ -134,52 +157,186 @@ public class KavachService extends Service implements SensorEventListener {
 
     private void initVoiceSentinel() {
         try {
-            if (speechRecognizer != null) return;
-            speechRecognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
-            speechIntent = new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-            speechIntent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-            speechIntent.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-            
-            speechRecognizer.setRecognitionListener(new android.speech.RecognitionListener() {
-                @Override public void onReadyForSpeech(android.os.Bundle params) { isListening = true; }
-                @Override public void onBeginningOfSpeech() {}
-                @Override public void onRmsChanged(float rmsdB) {}
-                @Override public void onBufferReceived(byte[] buffer) {}
-                @Override public void onEndOfSpeech() {}
-                @Override public void onError(int error) { 
-                    // Persistent Retry on Error
-                    if (isListening) startVoiceSentinel(); 
-                }
-                @Override public void onResults(android.os.Bundle results) { processSpeechResults(results); }
-                @Override public void onPartialResults(android.os.Bundle partialResults) { processSpeechResults(partialResults); }
-                @Override public void onEvent(int eventType, android.os.Bundle params) {}
-            });
-            startVoiceSentinel();
+            android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
+            String role = prefs.getString("kavach_user_role", "citizen");
+            if (!"citizen".equals(role)) {
+                Log.i(TAG, "Voice Sentinel disabled for role: " + role);
+                return;
+            }
+
+            if (voskModel == null) {
+                org.vosk.android.StorageService.unpack(this, "sync/vosk-model-small-en-us-0.15", "model",
+                    (model) -> {
+                        voskModel = model;
+                        startVoiceSentinel();
+                    },
+                    (exception) -> Log.e(TAG, "Failed to unpack Vosk model: " + exception.getMessage()));
+            } else {
+                startVoiceSentinel();
+            }
         } catch (Exception e) { Log.e(TAG, "Voice Sentinel Init Failed: " + e.getMessage()); }
     }
 
     private void startVoiceSentinel() {
         try {
-            if (isSOSMissionActive) return; // 🛡️ SOS ACTIVE: Do NOT touch the mic
-            if (speechRecognizer != null) speechRecognizer.startListening(speechIntent);
+            android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
+            String role = prefs.getString("kavach_user_role", "citizen");
+            if (!"citizen".equals(role)) return;
+
+            if (isSOSMissionActive) return;
+            
+            if (speechService != null) {
+                speechService.stop();
+                speechService = null;
+            }
+
+            if (voskModel != null) {
+                org.vosk.Recognizer rec = new org.vosk.Recognizer(voskModel, 16000.0f);
+                speechService = new org.vosk.android.SpeechService(rec, 16000.0f);
+                speechService.startListening(new org.vosk.android.RecognitionListener() {
+                    @Override
+                    public void onPartialResult(String hypothesis) {
+                        processVoskResult(hypothesis, true);
+                    }
+
+                    @Override
+                    public void onResult(String hypothesis) {
+                        processVoskResult(hypothesis, false);
+                    }
+
+                    @Override
+                    public void onFinalResult(String hypothesis) {
+                        processVoskResult(hypothesis, false);
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Vosk Error: " + e.getMessage());
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            if (!isSOSMissionActive) startVoiceSentinel();
+                        }, 2000);
+                    }
+
+                    @Override
+                    public void onTimeout() {
+                        if (!isSOSMissionActive) startVoiceSentinel();
+                    }
+                });
+                isListening = true;
+            }
         } catch (Exception e) { Log.e(TAG, "Voice Start Fail: " + e.getMessage()); }
     }
 
-    private void processSpeechResults(android.os.Bundle results) {
-        if (isSOSMissionActive) return; // 🛡️ SOS ACTIVE: Ignore results
-        java.util.ArrayList<String> matches = results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
-        if (matches != null) {
-            for (String text : matches) {
-                String cmd = text.toLowerCase();
-                if (cmd.contains("help kavach") || cmd.contains("help help")) {
-                    Log.i(TAG, "VOICE COMMAND VERIFIED: SOS Triggered!");
-                    triggerSOS("voice");
-                    break;
+    private int getLevenshteinDistance(String s1, String s2) {
+        int[] costs = new int[s2.length() + 1];
+        for (int i = 0; i <= s1.length(); i++) {
+            int lastValue = i;
+            for (int j = 0; j <= s2.length(); j++) {
+                if (i == 0) {
+                    costs[j] = j;
+                } else {
+                    if (j > 0) {
+                        int newValue = costs[j - 1];
+                        if (s1.charAt(i - 1) != s2.charAt(j - 1)) {
+                            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                        }
+                        costs[j - 1] = lastValue;
+                        lastValue = newValue;
+                    }
                 }
             }
+            if (i > 0) {
+                costs[s2.length()] = lastValue;
+            }
         }
-        // Auto-restart listening loop
-        startVoiceSentinel();
+        return costs[s2.length()];
+    }
+
+    private double getPhoneticSimilarity(String s1, String s2) {
+        if (s1 == null || s2 == null) return 0.0;
+        if (s1.isEmpty() && s2.isEmpty()) return 1.0;
+        if (s1.isEmpty() || s2.isEmpty()) return 0.0;
+        int longerLength = Math.max(s1.length(), s2.length());
+        int distance = getLevenshteinDistance(s1, s2);
+        return (longerLength - distance) / (double) longerLength;
+    }
+
+    private void processVoskResult(String json, boolean isPartial) {
+        if (isSOSMissionActive) return;
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            String text = obj.optString(isPartial ? "partial" : "text", "");
+            if (text.isEmpty()) return;
+            
+            analyzeSpeech(text, !isPartial);
+        } catch (Exception e) {
+            Log.e(TAG, "JSON Parse Error: " + e.getMessage());
+        }
+    }
+
+    private void analyzeSpeech(String phrase, boolean isFinal) {
+        if (phrase == null || phrase.trim().isEmpty()) return;
+        phrase = phrase.toLowerCase().trim();
+        
+        long now = System.currentTimeMillis();
+        if (now - lastVoiceEventTime > VOICE_WINDOW_MS) {
+            helpWordCount = 0;
+            bachaoWordCount = 0;
+            kavachWordCount = 0;
+            regionalWordCount = 0;
+        }
+        lastVoiceEventTime = now;
+
+        // Devnagari/Regional Direct Match
+        if (phrase.contains("बचाओ") || phrase.contains("वाचवा") || phrase.contains("కాపాడు") || phrase.contains("காப்பாற்று") || phrase.contains("ರಕ್ಷಿಸು")) {
+            triggerSOS("voice");
+            return;
+        }
+
+        // Fast immediate trigger for partial results without accumulating counts
+        if (!isFinal) {
+            boolean hasKavach = phrase.contains("kavach") || phrase.contains("coverage") || phrase.contains("cabbage") || phrase.contains("covach") || phrase.contains("kavic") || phrase.contains("cover") || phrase.contains("car wash") || phrase.contains("catch") || phrase.contains("kavos") || phrase.contains("cow watch");
+            boolean hasHelp = phrase.contains("help") || phrase.contains("halp") || phrase.contains("health");
+            if (hasKavach && hasHelp) {
+                triggerSOS("voice");
+                return;
+            }
+            if (phrase.contains("watch out") || phrase.contains("but show") || phrase.contains("but chow") || phrase.contains("help help help") || phrase.contains("bachao")) {
+                triggerSOS("voice");
+                return;
+            }
+            return; 
+        }
+
+        String[] tokens = phrase.split("\\s+");
+        for (String token : tokens) {
+            if (token.length() < 3) continue;
+
+            double similarityKavach = getPhoneticSimilarity(token, "kavach");
+            double similarityHelp = Math.max(getPhoneticSimilarity(token, "help"), getPhoneticSimilarity(token, "halp"));
+            double similarityBachao = Math.max(getPhoneticSimilarity(token, "bachao"), getPhoneticSimilarity(token, "bchaao"));
+            
+            double simVachva = getPhoneticSimilarity(token, "vachva");
+            double simKaapadu = getPhoneticSimilarity(token, "kaapadu");
+            double simKaappattru = getPhoneticSimilarity(token, "kaappattru");
+            double simRakshisu = getPhoneticSimilarity(token, "rakshisu");
+
+            if (similarityKavach >= 0.60 || token.equals("coverage") || token.equals("cabbage") || token.equals("covach") || token.equals("kavic") || token.equals("cover") || token.equals("catch") || token.equals("kavos")) kavachWordCount++;
+            if (similarityHelp >= 0.65 || token.equals("health")) helpWordCount++;
+            if (similarityBachao >= 0.65 || token.equals("chow") || token.equals("show")) bachaoWordCount++;
+            if (simVachva >= 0.65 || simKaapadu >= 0.65 || simKaappattru >= 0.65 || simRakshisu >= 0.65) regionalWordCount++;
+        }
+
+        if (kavachWordCount >= 1 && helpWordCount >= 1) {
+            Log.i(TAG, "VOICE SENTINEL: Triggered via Rule A (Kavach + Help)");
+            triggerSOS("voice");
+        } else if (helpWordCount >= 3) {
+            Log.i(TAG, "VOICE SENTINEL: Triggered via Rule B (Help x3)");
+            triggerSOS("voice");
+        } else if (bachaoWordCount >= 2 || regionalWordCount >= 2) {
+            Log.i(TAG, "VOICE SENTINEL: Triggered via Rule C (Bachao/Regional x2)");
+            triggerSOS("voice");
+        }
     }
 
     @Override
@@ -190,8 +347,17 @@ public class KavachService extends Service implements SensorEventListener {
             startSirenLogic();
         } else if (ACTION_STOP_SIREN.equals(action)) {
             stopSirenLogic();
+            stopOfflineSurvivalMode();
             isSOSMissionActive = false; // 🛡️ MISSION COMPLETE: Reset state for next trigger
             initVoiceSentinel(); // Re-arm the listener
+        } else if ("com.kavach.app.ACTION_START_VOICE".equals(action)) {
+            initVoiceSentinel();
+        } else if ("com.kavach.app.ACTION_STOP_VOICE".equals(action)) {
+            if (speechService != null) {
+                isListening = false;
+                speechService.stop();
+                speechService = null;
+            }
         }
 
         // Build persistent foreground notification
@@ -201,12 +367,7 @@ public class KavachService extends Service implements SensorEventListener {
                 : 0;
         PendingIntent pi = PendingIntent.getActivity(this, 0, notifIntent, piFlags);
 
-        // 🚨 FULL-SCREEN INTENT: Force UI over Lock Screen
-        Intent fullScreenIntent = new Intent(this, MainActivity.class);
-        fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 0, fullScreenIntent, 
-            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-
+        // Remove FULL-SCREEN INTENT from the persistent notification to stop the app from auto-opening on lock screen.
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("KAVACH Protection")
                 .setContentText(mediaPlayer != null && mediaPlayer.isPlaying()
@@ -214,10 +375,9 @@ public class KavachService extends Service implements SensorEventListener {
                         : "Shielding Neural Grid — Active: Monitoring Shake & Voice Triggers")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentIntent(pi)
-                .setFullScreenIntent(fullScreenPendingIntent, true) // ✨ MISSION CRITICAL
                 .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_MAX) // 🔥 MAX PRIORITY
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setPriority(NotificationCompat.PRIORITY_MIN) 
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .build();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -238,6 +398,15 @@ public class KavachService extends Service implements SensorEventListener {
     // ── Shake detection ───────────────────────────────────────────────────
     @Override
     public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == Sensor.TYPE_PROXIMITY) {
+            float distance = event.values[0];
+            float maxRange = event.sensor.getMaximumRange();
+            // If distance is close to 0, the screen is covered (phone in pocket or bag)
+            isPhoneInPocket = (distance < 5.0f && distance < maxRange);
+            Log.d(TAG, "PROXIMITY DETECTOR: Phone in pocket state updated to: " + isPhoneInPocket + " (Value: " + distance + ")");
+            return;
+        }
+
         if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER) return;
 
         float x = event.values[0], y = event.values[1], z = event.values[2];
@@ -245,7 +414,13 @@ public class KavachService extends Service implements SensorEventListener {
         // 🛡️ TACTICAL G-FORCE CALCULATION
         double gForce = Math.sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH;
 
-        if (gForce > MIN_FORCE_G) {
+        // 🛰️ DYNAMIC ADAPTIVE FILTERING:
+        // Pocket/Bag Mode: Threshold 4.5G force and requires 4 consecutive hits
+        // Normal Mode: Threshold 3.5G force and requires 3 consecutive hits
+        float requiredForce = isPhoneInPocket ? 4.5f : 3.5f;
+        int requiredShakes = isPhoneInPocket ? 4 : 3;
+
+        if (gForce > requiredForce) {
             long now = System.currentTimeMillis();
 
             // 1. TEMPORAL GATE: Reset if no shake in last 1.5s
@@ -257,7 +432,7 @@ public class KavachService extends Service implements SensorEventListener {
             if (now - lastPeakTime > DEBOUNCE_MS) {
                 shakeCount++;
                 lastPeakTime = now;
-                Log.d(TAG, "TACTICAL PULSE: [" + shakeCount + "/" + REQUIRED_SHAKES + "] Force: " + gForce + "G");
+                Log.d(TAG, "TACTICAL PULSE: [" + shakeCount + "/" + requiredShakes + "] Force: " + gForce + "G (Pocket Filter: " + isPhoneInPocket + ")");
 
                 // Haptic Feedback (Pulse) - System is tracking (70ms Tactical Pulse)
                 long nowPulse = System.currentTimeMillis();
@@ -270,11 +445,11 @@ public class KavachService extends Service implements SensorEventListener {
             }
 
             // 3. ENFORCEMENT: Trigger on exactly the required number of hits
-            if (shakeCount >= REQUIRED_SHAKES) {
+            if (shakeCount >= requiredShakes) {
                 if (now - lastShakeTime > 5000) { // Cooldown before next SOS blast
                     lastShakeTime = now;
                     shakeCount = 0;
-                    Log.i(TAG, "KAVACH MISSION: Pattern VERIFIED (" + gForce + "G)");
+                    Log.i(TAG, "KAVACH MISSION: Pattern VERIFIED (" + gForce + "G, Pocket Filter: " + isPhoneInPocket + ")");
                     triggerSOS("shake");
                 }
             }
@@ -295,25 +470,19 @@ public class KavachService extends Service implements SensorEventListener {
 
         // 🛡️ MIC HANDSHAKE: Release native listener immediately
         try {
-            if (speechRecognizer != null) {
+            if (speechService != null) {
                 isListening = false;
-                speechRecognizer.stopListening();
-                speechRecognizer.cancel();
-                speechRecognizer.destroy();
-                speechRecognizer = null;
-                Log.d(TAG, "MIC RELEASE: SpeechRecognizer destroyed for Forensic Capture.");
+                speechService.stop();
+                speechService.shutdown();
+                speechService = null;
+                Log.d(TAG, "MIC RELEASE: Vosk Service destroyed for Forensic Capture.");
             }
         } catch (Exception e) {
             Log.w(TAG, "Mic Release Error: " + e.getMessage());
         }
 
-        // 1. TACTICAL DECOUPLING: Run SMS dispatch in a dedicated background thread
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                dispatchEmergencySMS();
-            }
-        }).start();
+        // 1. TACTICAL DECOUPLING: Start Offline Survival Mode (Continuous SMS Fallback)
+        startOfflineSurvivalMode();
 
         // 2. Bring MainActivity to front (High Priority Override)
         Intent intent = new Intent(this, MainActivity.class);
@@ -338,7 +507,78 @@ public class KavachService extends Service implements SensorEventListener {
         }, 1000);
     }
 
-    private void dispatchEmergencySMS() {
+    // ── Zero-Internet Survival Mode (Offline Fallback) ────────────────────
+    private android.os.Handler survivalHandler;
+    private Runnable survivalRunnable;
+
+    private boolean isNetworkAvailable() {
+        android.net.ConnectivityManager connectivityManager = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.net.NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+                return capabilities != null && (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR));
+            } else {
+                android.net.NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+                return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+            }
+        }
+        return false;
+    }
+
+    private android.location.Location getLastKnownLocation() {
+        android.location.LocationManager locationManager = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (locationManager == null) return null;
+        try {
+            android.location.Location bestLocation = null;
+            for (String provider : locationManager.getProviders(true)) {
+                android.location.Location l = locationManager.getLastKnownLocation(provider);
+                if (l == null) continue;
+                if (bestLocation == null || l.getAccuracy() < bestLocation.getAccuracy()) {
+                    bestLocation = l;
+                }
+            }
+            return bestLocation;
+        } catch (SecurityException e) {
+            return null;
+        }
+    }
+
+    private void startOfflineSurvivalMode() {
+        if (survivalHandler == null) {
+            survivalHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        survivalRunnable = new Runnable() {
+            private boolean isFirstRun = true;
+            @Override
+            public void run() {
+                // Always send the first SMS blast. Subsequent blasts only if offline.
+                if (isFirstRun || !isNetworkAvailable()) {
+                    Log.w(TAG, "OFFLINE SURVIVAL MODE: Dispatching Location SMS beacon...");
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            dispatchEmergencySMSWithLocation(isFirstRun, false);
+                        }
+                    }).start();
+                } else {
+                    Log.i(TAG, "OFFLINE SURVIVAL MODE: Internet is stable. Holding SMS beacon.");
+                }
+                isFirstRun = false;
+                // Schedule next ping in 2 minutes (120,000 ms) as per offline tracking protocol
+                survivalHandler.postDelayed(this, 120000);
+            }
+        };
+        // 🛡️ DELAY INITIAL BLAST: Wait 5.5 seconds to respect the React UI's "Cancel" timer
+        survivalHandler.postDelayed(survivalRunnable, 5500);
+    }
+    
+    private void stopOfflineSurvivalMode() {
+        if (survivalHandler != null && survivalRunnable != null) {
+            survivalHandler.removeCallbacks(survivalRunnable);
+        }
+    }
+
+    private void dispatchEmergencySMSWithLocation(boolean isInitialBlast, boolean isShutdown) {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
             String contactsJson = prefs.getString("guardian_contacts", null);
@@ -357,14 +597,22 @@ public class KavachService extends Service implements SensorEventListener {
 
             if (sm == null) return;
 
+            String locationString = "Location Unknown";
+            android.location.Location loc = getLastKnownLocation();
+            if (loc != null) {
+                locationString = "https://maps.google.com/?q=" + loc.getLatitude() + "," + loc.getLongitude();
+            }
+
             while (matcher.find()) {
                 String num = matcher.group(1).replaceAll("[^0-9+]", "");
                 if (num.isEmpty()) continue;
 
                 try {
-                    String message = "🚨 KAVACH CRITICAL SOS! 🚨\nDanger Detected. Time: " + 
+                    String modeTag = isInitialBlast ? "🚨 KAVACH CRITICAL SOS! 🚨" : "🚨 KAVACH OFFLINE SOS (UPDATE) 🚨";
+                    if (isShutdown) modeTag = "⚠️ KAVACH ALERT: BATTERY DEAD / PHONE SHUTDOWN! ⚠️";
+                    String message = modeTag + "\nDanger Detected. Time: " + 
                                      new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()) + 
-                                     "\n📍 Live Grid Anchor Active.";
+                                     "\n📍 Live: " + locationString;
                     
                     if (message.length() > 70) {
                         java.util.ArrayList<String> parts = sm.divideMessage(message);
@@ -396,86 +644,148 @@ public class KavachService extends Service implements SensorEventListener {
                     // 🔊 COMMAND OVERRIDE: Force MAX Volume on ALARM & MUSIC Streams
                     AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                     if (am != null) {
-                        int maxAlarm = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-                        int maxMusic = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                        am.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0);
-                        am.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0);
+                        int maxMusicVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        int maxAlarmVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                        
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusicVol, 0);
+                        am.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarmVol, 0);
                     }
 
+                    // 🚨 Stop existing instances before launching a fresh one
                     if (mediaPlayer != null) {
-                        try { mediaPlayer.stop(); mediaPlayer.release(); } catch (Exception ignored) {}
+                        try {
+                            if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                        } catch (Exception ignored) {}
+                        mediaPlayer.release();
+                        mediaPlayer = null;
                     }
 
-                    int resId = getResources().getIdentifier("tactical_siren", "raw", getPackageName());
-                    if (resId == 0) {
-                        Log.e(TAG, "SIREN: Resource 'tactical_siren' NOT FOUND!");
-                        return;
+                    // Initialize MediaPlayer utilizing standard system alert tones 
+                    // or specify your own res/raw/siren.mp3 file
+                    Uri alertUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM);
+                    if (alertUri == null) {
+                        alertUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE);
                     }
 
-                    mediaPlayer = MediaPlayer.create(KavachService.this, resId);
-                    if (mediaPlayer == null) return;
-                    
+                    mediaPlayer = new MediaPlayer();
+                    mediaPlayer.setDataSource(KavachService.this, alertUri);
                     mediaPlayer.setLooping(true);
-                    mediaPlayer.start();
-                    Log.i(TAG, "SIREN: Loop engaged. Watchdog active.");
 
-                    // ⏲️ AUTO-SILENCE WATCHDOG: 1 Minute Limit
-                    Thread.sleep(60000);
-                    if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-                        stopSirenLogic();
+                    // Map audio properties to bypass modern system "Do Not Disturb" profiles
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                    } else {
+                        mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
                     }
+
+                    mediaPlayer.prepare();
+                    mediaPlayer.start();
+                    Log.i(TAG, "SIREN SYSTEM ACTIVE: Audio blasting.");
+
                 } catch (Exception e) {
-                    Log.e(TAG, "SIREN FAILURE: " + e.getMessage());
+                    Log.e(TAG, "Siren Audio Blast Failed: " + e.getMessage());
                 }
             }
         }).start();
     }
 
     private void stopSirenLogic() {
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying())
+        try {
+            if (mediaPlayer != null) {
+                if (mediaPlayer.isPlaying()) {
                     mediaPlayer.stop();
-            } catch (Exception ignored) {
+                }
+                mediaPlayer.release();
+                mediaPlayer = null;
+                Log.i(TAG, "SIREN SYSTEM STANDBY: Audio terminated safely.");
             }
-            mediaPlayer.release();
-            mediaPlayer = null;
-            Log.i(TAG, "SIREN: Silenced.");
+        } catch (Exception e) {
+            Log.w(TAG, "Error stopping siren logic: " + e.getMessage());
         }
     }
 
-    // ── Cleanup ───────────────────────────────────────────────────────────
+    // ── Resurrect on Swipe ───────────────────────────────────────────────
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        stopSirenLogic();
-        if (sensorManager != null)
-            sensorManager.unregisterListener(this);
-        try {
-            unregisterReceiver(screenReceiver);
-        } catch (Exception ignored) {
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.e(TAG, "TASK REMOVED: OS killed the app. Kavach is deploying AlarmManager to resurrect the Service.");
+        Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
+        restartServiceIntent.setPackage(getPackageName());
+        
+        int pendingFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? android.app.PendingIntent.FLAG_ONE_SHOT | android.app.PendingIntent.FLAG_IMMUTABLE : android.app.PendingIntent.FLAG_ONE_SHOT;
+        android.app.PendingIntent restartServicePendingIntent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            restartServicePendingIntent = android.app.PendingIntent.getForegroundService(getApplicationContext(), 1, restartServiceIntent, pendingFlags);
+        } else {
+            restartServicePendingIntent = android.app.PendingIntent.getService(getApplicationContext(), 1, restartServiceIntent, pendingFlags);
         }
-        if (wakeLock != null && wakeLock.isHeld())
-            wakeLock.release();
-        Log.i(TAG, "KAVACH SERVICE: Destroyed. Will restart via START_STICKY.");
+        android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+        alarmService.set(
+            android.app.AlarmManager.ELAPSED_REALTIME,
+            android.os.SystemClock.elapsedRealtime() + 1000,
+            restartServicePendingIntent);
+
+        Intent broadcastIntent = new Intent("com.kavach.app.RESTART_SENSOR");
+        broadcastIntent.setPackage(getPackageName());
+        sendBroadcast(broadcastIntent);
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Kavach Tactical Background Engine",
+                    NotificationManager.IMPORTANCE_MIN
+            );
+            // Hide notification badge for stealth
+            serviceChannel.setShowBadge(false);
+            serviceChannel.setDescription("Guarantees sensor arrays, voice triggers, and rescue handshakes stay processing continuously.");
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(serviceChannel);
+            }
+        }
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        return null; // Pure decoupled context background worker model
     }
 
-    // ── Notification Channel ──────────────────────────────────────────────
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager mgr = getSystemService(NotificationManager.class);
-            if (mgr == null)
-                return;
-            NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "KAVACH Safety Monitor",
-                    NotificationManager.IMPORTANCE_LOW);
-            ch.setShowBadge(false);
-            mgr.createNotificationChannel(ch);
+    @Override
+    public void onDestroy() {
+        // Clean up locks and broadcast listeners to prevent context leaks
+        stopOfflineSurvivalMode();
+        stopSirenLogic();
+        
+        try {
+            unregisterReceiver(systemReceiver);
+        } catch (Exception ignored) {}
+
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(this);
         }
+
+        if (speechService != null) {
+            try {
+                speechService.stop();
+                speechService.shutdown();
+                speechService = null;
+            } catch (Exception ignored) {}
+        }
+        if (voskModel != null) {
+            voskModel.close();
+            voskModel = null;
+        }
+
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+
+        Log.w(TAG, "KAVACH CORE STANDBY: Service destroyed completely.");
+        super.onDestroy();
     }
 }

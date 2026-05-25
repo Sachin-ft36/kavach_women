@@ -22,9 +22,17 @@ interface ProtectorTrackProps {
   isSovereignActive?: boolean;
   userStatusMap?: Record<string, any>;
   selectedState?: string;
+  detectedAdminDistrict?: string | null;
 }
 
-export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignActive, userStatusMap = {}, selectedState = 'ALL' }: ProtectorTrackProps) {
+export function ProtectorTrack({ 
+  activeMissionId, 
+  onClearMission, 
+  isSovereignActive, 
+  userStatusMap = {}, 
+  selectedState = 'ALL',
+  detectedAdminDistrict = null
+}: ProtectorTrackProps) {
   const [activeMissions, setActiveMissions] = useState<any[]>([]);
   const [resolvedMissions, setResolvedMissions] = useState<any[]>([]);
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(activeMissionId || null);
@@ -378,6 +386,7 @@ export function ProtectorTrack({ activeMissionId, onClearMission, isSovereignAct
                protectorPath={selectedMission?.protectorPath || []}
                safePath={selectedMission?.safePath || []}
                replayProgress={replayProgress}
+               selectedState={selectedState}
             />
          </div>
          

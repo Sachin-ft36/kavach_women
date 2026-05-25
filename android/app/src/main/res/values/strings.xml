@@ -4,4 +4,5 @@
     <string name="title_activity_main">Kavach</string>
     <string name="package_name">com.kavach.app</string>
     <string name="custom_url_scheme">com.kavach.app</string>
+    <string name="accessibility_service_description">Provides physical panic button capabilities and overrides screen lock for distress signals.</string>
 </resources>

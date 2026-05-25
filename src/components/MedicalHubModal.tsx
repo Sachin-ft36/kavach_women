@@ -157,19 +157,38 @@ export default function MedicalHubModal({ isOpen, onClose }: MedicalHubModalProp
       // 1. Sort nodes by distance
       const sortedHospitals = realHospitals.sort((a: any, b: any) => (a.distVal || 0) - (b.distVal || 0));
       
-      // 2. Filter within 5km
-      let filteredHospitals = sortedHospitals.filter((s: any) => (s.distVal || 0) <= 5);
-      
-      // 3. Fallback to 10km if 5km is empty
-      if (filteredHospitals.length === 0) {
-        console.log("🛰️ KAVACH: No hospitals within 5km range. Expanding grid sweep to 10km...");
-        filteredHospitals = sortedHospitals.filter((s: any) => (s.distVal || 0) <= 10);
+      // 2. INTELLIGENT DE-DUPLICATION ENGINE
+      // Filters out duplicate compounds and overlapping departments within 100 meters (0.1km).
+      const dedupedHospitals: any[] = [];
+      for (const hospital of sortedHospitals) {
+        const isDuplicate = dedupedHospitals.some((existing) => {
+          const isCoordsSame = hospital.lat && hospital.lng && existing.lat && existing.lng &&
+            Math.abs(hospital.lat - existing.lat) < 0.002 &&
+            Math.abs(hospital.lng - existing.lng) < 0.002;
+
+          const isDistanceSame = Math.abs((hospital.distVal || 0) - (existing.distVal || 0)) < 0.1;
+
+          return isCoordsSame || isDistanceSame;
+        });
+
+        if (!isDuplicate) {
+          dedupedHospitals.push(hospital);
+        }
       }
       
-      // 4. Critical Fallback: If still empty, grab the absolute nearest hospital wherever it is!
-      if (filteredHospitals.length === 0 && sortedHospitals.length > 0) {
+      // 3. Filter within 5km
+      let filteredHospitals = dedupedHospitals.filter((s: any) => (s.distVal || 0) <= 5);
+      
+      // 4. Fallback to 10km if 5km is empty
+      if (filteredHospitals.length === 0) {
+        console.log("🛰️ KAVACH: No hospitals within 5km range. Expanding grid sweep to 10km...");
+        filteredHospitals = dedupedHospitals.filter((s: any) => (s.distVal || 0) <= 10);
+      }
+      
+      // 5. Critical Fallback: If still empty, grab the absolute nearest hospital wherever it is!
+      if (filteredHospitals.length === 0 && dedupedHospitals.length > 0) {
         console.log("🛰️ KAVACH: No hospitals within 10km range! Critical fallback: displaying closest trauma center...");
-        filteredHospitals = [sortedHospitals[0]];
+        filteredHospitals = [dedupedHospitals[0]];
       }
 
       setHospitals(filteredHospitals);

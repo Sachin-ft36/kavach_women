@@ -17,7 +17,6 @@ export const initializeBackgroundSentinel = async () => {
   try {
     // 🛡️ INITIATE NATIVE HARDWARE SENTINEL (Background Persistence)
     await KavachSafe.startBackgroundSentinel();
-    await KavachSafe.startVoiceSentinel();
 
     // 🔋 REQUEST BATTERY EXEMPTION (Mandatory for Background Survival)
     const batteryStatus = await KavachSafe.isIgnoringBatteryOptimizations();
@@ -95,6 +94,29 @@ export const initializeBackgroundSentinel = async () => {
           description: "Stealth recording ended and secured in vault.",
         });
       }
+    });
+
+    // 🛡️ NATIVE HARDWARE ACCELEROMETER IMPACT TRIGGER (Lock screen safe fall-detection)
+    KavachSafe.addListener('onImpactTrigger', async (data: { gForce: number }) => {
+      const store = useKavachStore.getState();
+      if (!store.isSOSActive && !store.isSOSBlocked) {
+        console.error("🚨 KAVACH NATIVE SENTINEL: Critical G-Force Impact Detected in Background!", data.gForce);
+        // Dispatch custom global event to instantly trigger the UI override
+        window.dispatchEvent(new CustomEvent('sos-impact-trigger', { detail: { gForce: data.gForce } }));
+      }
+    });
+
+    // 🛡️ NATIVE HARDWARE TRIPLE POCKET-TAP TRIGGER (Lock screen check-in)
+    KavachSafe.addListener('onPocketTapTrigger', async () => {
+      const store = useKavachStore.getState();
+      console.log("🛰️ KAVACH NATIVE SENTINEL: Native Triple Pocket-Tap check-in recorded!");
+      store.resetSentinelPulse();
+      if (platform === 'ios' || platform === 'android') {
+        KavachSafe.triggerHapticPulse().catch(() => {});
+      }
+      toast.success("SENTINEL CHECK-IN SUCCESSFUL", {
+        description: "Safety timer reset successfully without unlocking device."
+      });
     });
 
     // 🛰️ BACKGROUND HEARTBEAT (Debug Sentinel Vitality)

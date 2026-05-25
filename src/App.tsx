@@ -41,18 +41,18 @@ const ProtectorHistoryScreen = React.lazy(() => import('./screens/ProtectorHisto
 const LanguageStep = React.lazy(() => import('./components/onboarding/LanguageStep'));
 const TrackScreen = React.lazy(() => import('./screens/TrackScreen'));
 
-import { 
-  Settings, 
-  AlertTriangle, 
-  MessageSquare, 
-  LayoutDashboard, 
-  Globe, 
-  Users, 
-  ShieldCheck, 
-  Upload, 
-  MapPin, 
-  BookOpen, 
-  UserCheck, 
+import {
+  Settings,
+  AlertTriangle,
+  MessageSquare,
+  LayoutDashboard,
+  Globe,
+  Users,
+  ShieldCheck,
+  Upload,
+  MapPin,
+  BookOpen,
+  UserCheck,
   Trophy,
   Shield,
   Volume2
@@ -77,7 +77,7 @@ export default function App() {
   const isAIChatOpen = useKavachStore(state => state.isAIChatOpen);
   const setIsAIChatOpen = useKavachStore(state => state.setIsAIChatOpen);
   const isInterceptActive = useKavachStore(state => state.isInterceptActive);
-  
+
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -112,17 +112,17 @@ export default function App() {
   const role = useKavachStore(state => state.role);
   const isRegistered = useKavachStore(state => state.isRegistered);
   const isVerified = useKavachStore(state => state.isVerified);
-  
+
   const {
     user, setUser, setRole, setGender, setRegistered, setVerified,
     userPos, setUserPos, batteryLevel, isLocked,
-    setActiveTab, 
-    activeAlertId, 
+    setActiveTab,
+    activeAlertId,
     triggerMethod,
-    setSOSActive, 
-    isShadowActive, 
-    setShadowActive, 
-    setPendingSOS, 
+    setSOSActive,
+    isShadowActive,
+    setShadowActive,
+    setPendingSOS, pendingSOS,
     loading,
     setLoading,
     handleManualUnlock, isFakeCallActive, setFakeCallActive, setGuardianCache,
@@ -137,7 +137,7 @@ export default function App() {
   useEffect(() => {
     const storedMethod = localStorage.getItem('kavach_trigger_method');
     if (isSOSActive && !triggerMethod && storedMethod) {
-       // We don't have a setter for triggerMethod alone, but we can rely on the store sync
+      // We don't have a setter for triggerMethod alone, but we can rely on the store sync
     }
   }, [isSOSActive, triggerMethod]);
 
@@ -177,13 +177,13 @@ export default function App() {
       const msg = event instanceof ErrorEvent ? event.message : String(event.reason);
       if (msg.includes('ASSERTION FAILED') || msg.includes('ca9') || msg.includes('b815')) {
         console.error("🚨 KAVACH: SDK INTERNAL CORRUPTION DETECTED. INITIATING DEEP RECOVERY...");
-        
+
         const lastReload = sessionStorage.getItem('kavach_auto_recovery_time');
         const now = Date.now();
-        
+
         if (!lastReload || now - parseInt(lastReload) > 30000) {
           sessionStorage.setItem('kavach_auto_recovery_time', now.toString());
-          
+
           try {
             // Attempt to kill the corrupt SDK instance
             await terminate(db);
@@ -191,7 +191,7 @@ export default function App() {
           } catch (e) {
             console.error("Deep Reset Interrupted:", e);
           }
-          
+
           window.location.reload();
         }
       }
@@ -218,18 +218,19 @@ export default function App() {
 
   // 🛡️ PROACTIVE SAFETY SENTINEL: Auto-enable Voice Protection for Citizens
   useEffect(() => {
-    if (role === 'citizen' && !isVoiceTriggerActive) {
+    const isResponder = role === 'protector' || role === 'super_cell' || role === 'admin' || user?.email === 'singh.sachin16559@gmail.com';
+    if (role === 'citizen' && !isResponder && !isVoiceTriggerActive) {
       console.log("🛡️ KAVACH SENTINEL: Proactive Voice Protection Engaged.");
       useKavachStore.getState().setVoiceTriggerActive(true);
     }
-  }, [role, isVoiceTriggerActive]);
+  }, [role, isVoiceTriggerActive, user]);
 
   // 🛡️ SOS RECOVERY ENGINE: Sync local state with Cloud Hub on mount/refresh
   useEffect(() => {
     if (!user) return;
-    
+
     const q = query(
-      collection(db, 'alerts'), 
+      collection(db, 'alerts'),
       where('victimUid', '==', user.uid),
       where('status', 'in', ['active', 'responding', 'rescued_pending_victim_clearance'])
     );
@@ -289,6 +290,28 @@ export default function App() {
             setPendingSOS(true, (data.source as any) || 'shake');
           }
         });
+
+        // Consume any triggers that woke the app from a cold state (e.g. background service)
+        const pendingTrigger = await KavachSafe.consumeTrigger();
+        if (pendingTrigger) {
+          const { setShadowActive, setPendingSOS } = useKavachStore.getState();
+          if (pendingTrigger.source === 'shadow') {
+            setShadowActive(true);
+            KavachSafe.startForensicCapture();
+          } else {
+            setPendingSOS(true, (pendingTrigger.source as any) || 'shake');
+          }
+        }
+
+        // 🛡️ NATIVE STATE RECONCILIATION
+        // If the user previously force-closed the app while SOS was active, 
+        // the native service might be deadlocked in 'isSOSMissionActive = true'.
+        // This explicitly clears the native lock if the React frontend is safe.
+        if (!useKavachStore.getState().isSOSActive && !pendingTrigger) {
+          console.log("🛡️ TACTICAL: Reconciling native lock state (standing down).");
+          KavachSafe.stopContinuousSiren().catch(() => {});
+        }
+
         setHubReady(true);
       }, 2000);
     } else {
@@ -298,14 +321,14 @@ export default function App() {
 
   useEffect(() => {
     let activePulse: any = null;
-    
+
     const startTracking = async () => {
       if (user && isRegistered && isHardwareSynced && !isSOSBlocked && isHubReady) {
         const state = useKavachStore.getState();
         activePulse = await watchLiveLocation((pos, acc) => {
           setUserPos(pos);
           syncTelemetry(user.uid, role, batteryLevel, pos, acc);
-          
+
           // 🚗 TRANSIT SYNC: If in ride mode, update the journey doc immediately
           if (localStorage.getItem('kavach_ride_active') === 'true') {
             state.syncLocation({ latitude: pos[0], longitude: pos[1] });
@@ -365,12 +388,29 @@ export default function App() {
           if (snap.exists()) {
             const data = snap.data();
             let currentRole = data.role || 'citizen';
-            
-            // 🛡️ SOVEREIGN ROLE LOCKDOWN: Males MUST be Protectors
-            if (data.gender === 'male' && currentRole !== 'protector') {
+
+            // 🛡️ SOVEREIGN ROLE LOCKDOWN: Males CANNOT be Citizens (Victims) in the women safety grid.
+            // However, they can be protectors, PCR patrol officers, or administrators.
+            if (data.gender === 'male' && currentRole === 'citizen') {
               currentRole = 'protector';
               await setDoc(docRef, { role: 'protector' }, { merge: true });
             }
+
+            // 🚔 AUTO-RECOVER OVERWRITTEN PCR/ADMIN ROLES
+            // If they were accidentally downgraded to protector by the previous male lockdown check,
+            // we restore them using their unique profile signature.
+            if (currentRole === 'protector') {
+              if (data.badgeId && data.vehicleNo) {
+                console.log("🚔 KAVACH: Restoring accidentally locked PCR Officer role...");
+                currentRole = 'pcr_officer';
+                await setDoc(docRef, { role: 'pcr_officer' }, { merge: true });
+              } else if (data.email && data.email !== 'singh.sachin16559@gmail.com' && data.email.includes('adminsachin')) {
+                console.log("🏛️ KAVACH: Restoring accidentally locked Admin role...");
+                currentRole = 'admin';
+                await setDoc(docRef, { role: 'admin' }, { merge: true });
+              }
+            }
+
 
             setRole(currentRole);
             setRegistered(data.isRegistered === true);
@@ -450,8 +490,8 @@ export default function App() {
   // 🛰️ VETERAN SYNC: High-speed loading for returning users
   if (loading && !trackId) return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
-       <div className="w-16 h-16 border-4 border-gray-100 border-t-[#2563EB] rounded-full animate-spin shadow-inner" />
-       <p className="text-xs font-bold text-gray-900 uppercase tracking-widest italic">Synchronizing Tactical Hub...</p>
+      <div className="w-16 h-16 border-4 border-gray-100 border-t-[#2563EB] rounded-full animate-spin shadow-inner" />
+      <p className="text-xs font-bold text-gray-900 uppercase tracking-widest italic">Synchronizing Tactical Hub...</p>
     </div>
   );
 
@@ -479,61 +519,61 @@ export default function App() {
               }} />
             ) : !hasSeenIntro ? (
               /* 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro AFTER interaction */
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 1 }}
                 animate={{ opacity: isIntroEnding ? 0 : 1 }}
                 transition={{ duration: 1 }}
                 className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden"
               >
-                <video 
-                  autoPlay 
+                <video
+                  autoPlay
                   playsInline
                   onEnded={onIntroEnd}
                   className="w-full h-full object-cover scale-[1.01]"
                 >
                   <source src="/kavachintro.mp4" type="video/mp4" />
                 </video>
-                
+
                 {/* 🏛️ NATIONAL HUD OVERLAY */}
                 <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
-                
+
                 <div className="absolute bottom-12 left-0 right-0 text-center space-y-4">
-                   <div className="flex items-center justify-center gap-3">
-                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
-                      <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.4em] italic">Tactical Briefing in Progress</p>
-                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
-                   </div>
-                   <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                    <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.4em] italic">Tactical Briefing in Progress</p>
+                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                  </div>
+                  <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
                 </div>
-                
+
                 <div className="absolute top-10 left-10 flex items-center gap-3 opacity-40">
-                   <Shield size={20} className="text-white" />
-                   <div className="h-4 w-[1px] bg-white/20" />
-                   <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
+                  <Shield size={20} className="text-white" />
+                  <div className="h-4 w-[1px] bg-white/20" />
+                  <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
                 </div>
               </motion.div>
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
             ) : isSOSActive ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
-            ) : user?.email === 'singh.sachin16559@gmail.com' ? (
-              <Layout 
-                isGhostMode={isGhostMode} 
-                onToggleGhost={onToggleGhost} 
-                activeTab={activeTab === 'dashboard' ? 'COMMAND' : activeTab} 
-                setActiveTab={setActiveTab} 
-                role="super_cell" 
-                setRole={setRole} 
+            ) : (role === 'admin' || user?.email === 'singh.sachin16559@gmail.com') ? (
+              <Layout
+                isGhostMode={isGhostMode}
+                onToggleGhost={onToggleGhost}
+                activeTab={activeTab === 'dashboard' ? 'COMMAND' : activeTab}
+                setActiveTab={setActiveTab}
+                role="super_cell"
+                setRole={setRole}
                 setGender={() => { }}
               >
                 <SuperCellDashboard viewMode={activeTab === 'dashboard' ? 'COMMAND' : activeTab} onTabChange={setActiveTab} />
               </Layout>
             ) : (!isRegistered || !isHardwareSynced) ? (
               <div className="w-full h-full">
-                <Onboarding 
-                  user={user} 
-                  onComplete={handleOnboardingComplete} 
-                  isReturningUser={isRegistered && !isHardwareSynced} 
+                <Onboarding
+                  user={user}
+                  onComplete={handleOnboardingComplete}
+                  isReturningUser={isRegistered && !isHardwareSynced}
                 />
               </div>
             ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
@@ -547,20 +587,20 @@ export default function App() {
         )}
       </React.Suspense>
 
-  {(!isSOSActive && !isInterceptActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
-    <>
-      <motion.nav 
-        initial={{ y: 120, opacity: 0 }}
-        animate={{ 
-          y: isNavVisible ? 0 : 120, 
-          opacity: isNavVisible ? 1 : 0 
-        }}
+      {(!isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
+        <>
+          <motion.nav
+            initial={{ y: 120, opacity: 0 }}
+            animate={{
+              y: isNavVisible ? 0 : 120,
+              opacity: isNavVisible ? 1 : 0
+            }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            style={{ 
-              position: 'fixed', 
-              bottom: 0, 
-              left: 0, 
-              right: 0, 
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
               zIndex: 1000000,
               padding: '16px',
               paddingBottom: '24px',
@@ -599,16 +639,16 @@ export default function App() {
           {role === 'citizen' && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ 
+              animate={{
                 bottom: '110px',
-                scale: 1, 
-                opacity: 1 
+                scale: 1,
+                opacity: 1
               }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              style={{ 
-                position: 'fixed', 
-                right: '24px', 
-                zIndex: 1000000 
+              style={{
+                position: 'fixed',
+                right: '24px',
+                zIndex: 1000000
               }}
             >
               <button
@@ -626,9 +666,9 @@ export default function App() {
 
           <AnimatePresence>
             {isAIChatOpen && (
-              <KavachAIChat 
-                isOpen={isAIChatOpen} 
-                onClose={() => setIsAIChatOpen(false)} 
+              <KavachAIChat
+                isOpen={isAIChatOpen}
+                onClose={() => setIsAIChatOpen(false)}
               />
             )}
           </AnimatePresence>
@@ -646,15 +686,15 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
 
   const renderTab = (tab: string) => {
     const isVisible = activeTab === tab;
-    
+
     // 🛡️ ROLE-BASED ACCESS CONTROL (RBAC)
-    // Protectors are STRICTLY forbidden from accessing the Victim's SOS interface.
-    if (role === 'protector' && tab === 'sos') return null;
+    // Protectors & PCR units are STRICTLY forbidden from accessing the Victim's SOS interface.
+    if ((role === 'protector' || role === 'pcr_officer') && tab === 'sos') return null;
 
     switch (tab) {
-      case 'dashboard': 
+      case 'dashboard':
         if (isVisible) {
-          if (role === 'protector' && !isVerified && !useKavachStore.getState().isSOSActive) {
+          if ((role === 'protector' || role === 'pcr_officer') && !isVerified && !useKavachStore.getState().isSOSActive) {
             return (
               <div key="pending" className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-8 animate-in fade-in duration-700">
                 <div className="relative w-32 h-32">
@@ -670,7 +710,7 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
               </div>
             );
           }
-          return <div key="dashboard" className="block">{role === 'protector' ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
+          return <div key="dashboard" className="block">{(role === 'protector' || role === 'pcr_officer') ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
         }
         return null;
       case 'map': return isVisible ? <div key="map" className="block h-[calc(100vh-210px)] w-full"><VictimMap /></div> : null;
@@ -680,7 +720,7 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
       case 'radar': return isVisible ? <div key="radar" className="max-w-4xl mx-auto px-4"><ProtectorsRadarScreen /></div> : null;
       case 'rewards': return isVisible ? <div key="rewards" className="max-w-2xl mx-auto"><Rewards /></div> : null;
       case 'history': return isVisible ? <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div> : null;
-      case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{role === 'protector' ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
+      case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{(role === 'protector' || role === 'pcr_officer') ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
       case 'grievance': return isVisible ? <div key="grievance" className="max-w-4xl mx-auto px-4"><ProtectorGrievanceScreen /></div> : null;
       case 'protector_history': return isVisible ? <div key="protector_history" className="max-w-4xl mx-auto px-4"><ProtectorHistoryScreen /></div> : null;
       default: return null;
@@ -691,8 +731,8 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
   const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history'];
   const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history'];
   const adminStack = ['dashboard', 'map', 'vault', 'history'];
-  
-  const currentStack = role === 'protector' ? protectorStack : role === 'admin' ? adminStack : citizenStack;
+
+  const currentStack = (role === 'protector' || role === 'pcr_officer') ? protectorStack : role === 'admin' ? adminStack : citizenStack;
 
   return (
     <div className="relative w-full h-full overflow-hidden">

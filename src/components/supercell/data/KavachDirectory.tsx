@@ -28,7 +28,7 @@ export function KavachDirectory({
 }: KavachDirectoryProps) {
   const [activeTab, setActiveTab] = useState<'WOMEN' | 'PROTECTORS' | 'ALL'>(defaultTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [resolvedLocations, setResolvedLocations] = useState<Record<string, { address: string, pincode: string }>>({});
+  const [resolvedLocations, setResolvedLocations] = useState<Record<string, { address?: string; pincode?: string; state?: string; name?: string | null; relation?: string; phone?: string; }>>({});
   
   // 🆔 SYSTEMATIC IDENTITY MERGER (UID DE-DUPLICATION)
   const allUsers = React.useMemo(() => {

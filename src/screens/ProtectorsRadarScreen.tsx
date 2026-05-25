@@ -26,16 +26,25 @@ export default function ProtectorsRadarScreen() {
 
   const [allProtectors, setAllProtectors] = useState<any[]>([]);
 
-  // 📡 PRIMARY SUBSCRIPTION: Listen to the global protector net once
+  // 📡 PRIMARY SUBSCRIPTION: Listen to both global protectors and on-duty PCR units
   useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      where('role', '==', 'protector'),
-      where('isVerified', '==', true)
+      where('role', 'in', ['protector', 'pcr_officer'])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const docs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((p: any) => {
+          if (p.role === 'protector') {
+            return p.isVerified === true;
+          }
+          if (p.role === 'pcr_officer') {
+            return p.isOnDuty === true;
+          }
+          return false;
+        });
       setAllProtectors(docs);
     }, (error) => {
       console.error("Tactical Net Error:", error);
@@ -55,8 +64,8 @@ export default function ProtectorsRadarScreen() {
     let currentRadius = 1.0;
 
     const allWithDistance = allProtectors.map(p => {
-      const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude;
-      const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude;
+      const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude || (p.coords && p.coords[0]);
+      const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude || p.longitude || (p.coords && p.coords[1]);
       const distanceKm = (lat && lng) ? calculateDistance(userPos[0], userPos[1], lat, lng) : null;
       return { ...p, distanceKm };
     });
@@ -149,7 +158,7 @@ export default function ProtectorsRadarScreen() {
                 const distanceM = (protector.distanceKm * 1000).toFixed(0);
                 const isInRadius = protector.distanceKm <= 1.0;
                 const isOnline = protector.isOnline !== false;
-                const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police', 'Doctor'].includes(protector.protectorVetting?.occupation);
+                const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police', 'Doctor'].includes(protector.protectorVetting?.occupation) || protector.role === 'pcr_officer';
 
                 return (
                   <motion.div
@@ -166,16 +175,16 @@ export default function ProtectorsRadarScreen() {
                   >
                     {isElite && (
                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-400 text-white text-[6px] font-black uppercase tracking-widest rounded-bl-lg shadow-sm">
-                          Elite
+                          {protector.role === 'pcr_officer' ? "PCR PATROL" : "Elite"}
                        </div>
                     )}
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="relative shrink-0">
                         <div className={cn(
                           "w-11 h-11 rounded-xl flex items-center justify-center transition-all border",
-                          isElite 
-                            ? "bg-amber-100 border-amber-200" 
-                            : (isOnline ? "bg-[#EFF6FF] border-[#2563EB]/10" : "bg-gray-50 border-[#E5E7EB]")
+                           isElite 
+                             ? "bg-amber-100 border-amber-200" 
+                             : (isOnline ? "bg-[#EFF6FF] border-[#2563EB]/10" : "bg-gray-50 border-[#E5E7EB]")
                         )}>
                           <UserIcon size={20} className={isElite ? "text-amber-600" : (isOnline ? "text-[#2563EB]" : "text-[#94A3B8]")} />
                         </div>
@@ -192,15 +201,19 @@ export default function ProtectorsRadarScreen() {
                           "text-sm font-bold flex items-center gap-1.5 truncate",
                           isElite ? "text-amber-900" : "text-[#1E293B]"
                         )}>
-                          {protector.name || 'Unit'}
-                          {protector.isVerified && <CheckCircle2 size={12} className={isElite ? "text-amber-500" : "text-[#2563EB]"} />}
+                          {protector.role === 'pcr_officer' 
+                            ? (protector.vehicleNo || `PCR Patrol Unit`) 
+                            : (protector.name || 'Unit')}
+                          {(protector.isVerified || protector.role === 'pcr_officer') && <CheckCircle2 size={12} className={isElite ? "text-amber-500" : "text-[#2563EB]"} />}
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={cn(
-                            "text-[9px] font-bold uppercase tracking-wide truncate max-w-[100px]",
+                            "text-[9px] font-bold uppercase tracking-wide truncate max-w-[120px]",
                             isElite ? "text-amber-600" : "text-[#64748B]"
                           )}>
-                             {protector.protectorVetting?.occupation || protector.profession || 'RESPONDER'}
+                             {protector.role === 'pcr_officer' 
+                               ? "🚨 ACTIVE MOBILE PATROL" 
+                               : (protector.protectorVetting?.occupation || protector.profession || 'RESPONDER')}
                           </span>
                           <span className="w-1 h-1 bg-[#E5E7EB] rounded-full shrink-0" />
                           <span className={cn(

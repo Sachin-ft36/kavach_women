@@ -40,8 +40,8 @@ interface LayoutProps {
   onToggleGhost: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  role: 'citizen' | 'protector' | 'admin' | 'super_cell';
-  setRole: (role: 'citizen' | 'protector' | 'admin' | 'super_cell') => void;
+  role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell';
+  setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
 }
 
@@ -326,7 +326,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                         </div>
                         <div>
                           <h3 className="font-bold text-gray-900 text-lg leading-tight">{displayName}</h3>
-                          <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'protector' ? 'VERIFIED PROTECTOR' : 'VERIFIED CITIZEN'}</p>
+                          <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'pcr_officer' ? 'PCR PATROL UNIT' : role === 'protector' ? 'VERIFIED PROTECTOR' : 'VERIFIED CITIZEN'}</p>
                         </div>
                       </div>
                       <div className="space-y-3 py-4 border-y border-gray-100">

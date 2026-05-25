@@ -65,6 +65,7 @@ import { JusticeLedger } from './supercell/JusticeLedger';
 import { NationalEmergencyTicker } from './supercell/NationalEmergencyTicker';
 import { NeuralAnalytics } from './supercell/NeuralAnalytics';
 import { BanAppeals } from './supercell/BanAppeals';
+import { ShiftLogs } from './supercell/ShiftLogs';
 
 const INDIAN_STATES_AND_UTS = [
   'Andaman and Nicobar Islands',
@@ -186,20 +187,53 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       return 'ALL';
     }
     
-    // 2. State Admin Check - STRICT FORMAT: [statename].adminsachin@kavach.gov.in
-    if (email.endsWith('.adminsachin@kavach.gov.in')) {
-      const statePart = email.split('.adminsachin@kavach.gov.in')[0];
-      
+    // 2. District Admin Check — FORMAT: district.state.adminsachin@kavach.gov.in
+    //    e.g. rewa.mp.adminsachin@kavach.gov.in
+    if (email.includes('adminsachin@')) {
+      const localPart = email.split('@')[0]; // e.g. 'rewa.mp.adminsachin'
+      const parts = localPart.replace('.adminsachin', '').split('.');
+      if (parts.length >= 2) {
+        // parts[0]=district, parts[1]=state abbreviation
+        // Resolve state abbreviation to full name
+        const stateAbbr = parts[1];
+        const STATE_ABBR_MAP: Record<string, string> = {
+          'mp': 'Madhya Pradesh', 'up': 'Uttar Pradesh', 'dl': 'Delhi',
+          'mh': 'Maharashtra', 'rj': 'Rajasthan', 'hr': 'Haryana',
+          'pb': 'Punjab', 'gj': 'Gujarat', 'tn': 'Tamil Nadu',
+          'ka': 'Karnataka', 'ap': 'Andhra Pradesh', 'ts': 'Telangana',
+          'wb': 'West Bengal', 'br': 'Bihar', 'jh': 'Jharkhand',
+          'uk': 'Uttarakhand', 'hp': 'Himachal Pradesh', 'jk': 'Jammu & Kashmir',
+          'la': 'Ladakh', 'ga': 'Goa', 'as': 'Assam', 'mn': 'Manipur',
+          'ml': 'Meghalaya', 'mz': 'Mizoram', 'nl': 'Nagaland', 'sk': 'Sikkim',
+          'tr': 'Tripura', 'ar': 'Arunachal Pradesh', 'ct': 'Chhattisgarh',
+          'or': 'Odisha', 'kl': 'Kerala', 'ch': 'Chandigarh'
+        };
+        const resolvedState = STATE_ABBR_MAP[stateAbbr] || stateAbbr.toUpperCase();
+        // Store district for filterByState to use
+        sessionStorage.setItem('kavach_admin_district', parts[0]);
+        sessionStorage.setItem('kavach_admin_state', resolvedState);
+        return resolvedState;
+      }
+      // State-only admin: state.adminsachin@kavach.gov.in
+      const statePart = localPart.replace('.adminsachin', '');
       for (const state of INDIAN_STATES_AND_UTS) {
         const variations = getStateVariations(state);
-        // Match with variations without spaces (e.g. 'uttarpradesh' or 'delhi' or 'up')
         if (variations.some(v => statePart === v.replace(/\s+/g, '') || statePart === v.replace(/\s+/g, '_'))) {
+          sessionStorage.removeItem('kavach_admin_district');
+          sessionStorage.setItem('kavach_admin_state', state);
           return state;
         }
       }
     }
+
     return null;
   }, [currentUserEmail]);
+
+  // District filter — non-null if district admin is logged in
+  const detectedAdminDistrict = React.useMemo(() => {
+    return sessionStorage.getItem('kavach_admin_district') || null;
+  }, [currentUserEmail]);
+
 
   useEffect(() => {
     if (detectedAdminState) {
@@ -218,6 +252,33 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
     if (!item) return false;
     if (selectedState === 'ALL') return true;
     
+    // 🏙️ DISTRICT FILTER — if district admin logged in, only show items from that district/city
+    if (detectedAdminDistrict) {
+      const district = detectedAdminDistrict.toLowerCase();
+      // Check ALL possible city/address fields (sosService nests under 'location', ZeroFIR under 'incidentLocation')
+      const city = (
+        item.city || 
+        item.location?.city || 
+        item.incidentLocation?.city || 
+        ''
+      ).toLowerCase();
+      const addr = (
+        item.address || 
+        item.locationName || 
+        item.fullAddress || 
+        item.location?.address || 
+        item.incidentLocation?.display || 
+        item.policeStation || 
+        item.policeStationGeo?.address || 
+        ''
+      ).toLowerCase();
+      const state = (item.state || '').toLowerCase();
+      // Must match district in city OR address, AND state must match
+      const districtMatch = city.includes(district) || addr.includes(district);
+      const stateMatch = !state || state === 'national' || matchesState(selectedState, state);
+      return districtMatch && stateMatch;
+    }
+
     // 🛰️ FAIL-SAFE: If alert/journey lacks specific state or matches fallback, show on all dashboards to avoid lost alerts
     const st = (item.state || '').toLowerCase();
     if (!st || st === 'national' || st === 'bharat sector' || st === 'neutral zone') return true;
@@ -616,6 +677,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             isSovereignActive={isSovereignActive} 
             userStatusMap={filteredUserStatusMap}
             selectedState={selectedState}
+            detectedAdminDistrict={detectedAdminDistrict}
           />
         );
       case 'DATA':
@@ -627,6 +689,8 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             activeJourneys={filteredActiveJourneys}
             verifiedProtectors={filteredVerifiedProtectors}
             justiceLedger={filteredActiveFirs}
+            selectedState={selectedState}
+            detectedAdminDistrict={detectedAdminDistrict}
           />
         );
       case 'CHAT':
@@ -637,6 +701,8 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             isSovereignActive={isSovereignActive}
             userStatusMap={filteredUserStatusMap}
             externalSelectedId={selectedAlertId}
+            selectedState={selectedState}
+            detectedAdminDistrict={detectedAdminDistrict}
           />
         );
       case 'GUIDES':
@@ -657,6 +723,8 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             />
           </div>
         );
+      case 'SHIFTS':
+        return <ShiftLogs selectedState={selectedState} detectedAdminDistrict={detectedAdminDistrict} />;
       case 'APPEALS':
         return <BanAppeals />;
       case 'SETTINGS':
@@ -696,6 +764,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <NavItem id="SOS" label="SOS Alerts" icon={Bell} />
           <NavItem id="FIR" label="FIR Reports" icon={FileText} />
           <NavItem id="PROTECTORS" label="Protectors" icon={Users} />
+          <NavItem id="SHIFTS" label="Shift Logs" icon={Clock} />
           <NavItem id="TRACK" label="3D Track" icon={Box} />
           <NavItem id="TRANSIT" label="Transit Intel" icon={Car} />
           <NavItem id="CHAT" label="Chat" icon={MessageCircle} />
@@ -731,10 +800,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                  </div>
                  <div>
                     <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">
-                      {selectedState === 'ALL' ? 'Kavach Supercell HQ' : `${selectedState} Grid HQ`}
+                      {selectedState === 'ALL' ? 'Kavach Supercell HQ' : detectedAdminDistrict ? `${detectedAdminDistrict.toUpperCase()} DISTRICT HQ` : `${selectedState} Grid HQ`}
                     </h1>
                     <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">
-                      {selectedState === 'ALL' ? 'National Command Grid' : 'State Jurisdiction Grid'}
+                      {selectedState === 'ALL' ? 'National Command Grid' : detectedAdminDistrict ? 'District Jurisdiction Grid' : 'State Jurisdiction Grid'}
                     </p>
                  </div>
               </div>
@@ -747,7 +816,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span className="text-[8px] font-black uppercase tracking-[2.5px] text-emerald-400 leading-none">
-                  {selectedState === 'ALL' ? 'SECURED NATIONAL COMMAND HQ' : `SECURED ${selectedState} STATE COMMAND`}
+                  {selectedState === 'ALL' ? 'SECURED NATIONAL COMMAND HQ' : detectedAdminDistrict ? `SECURED ${detectedAdminDistrict.toUpperCase()} DISTRICT COMMAND` : `SECURED ${selectedState} STATE COMMAND`}
                 </span>
               </div>
            </div>

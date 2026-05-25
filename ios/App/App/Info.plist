@@ -47,5 +47,18 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>location</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Kavach requires 24/7 microphone sentinel access to detect emergency vocal cues even when your device is locked.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Kavach tracks your live multi-point spatial route to safely guide verification nodes to your exact coordinate during distress events.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Kavach tracks your live multi-point spatial route to safely guide verification nodes to your exact coordinate during distress events.</string>
 </dict>
 </plist>

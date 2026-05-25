@@ -163,15 +163,34 @@ export function JusticeBlockModal({ fir, isOpen, onClose }: JusticeBlockModalPro
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-gray-400">
+                      <div className="flex items-start gap-5">
+                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-cyan-400 shrink-0 mt-1">
                           <Database size={20} />
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Jurisdiction Station</p>
-                          <p className="text-sm font-black text-blue-400 uppercase italic tracking-tighter">{fir.policeStation || "NATIONWIDE (ZERO FIR)"}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Jurisdiction Station</p>
+                          <p className="text-sm font-black text-cyan-400 uppercase italic tracking-tighter">
+                            {fir.policeStationGeo?.name || fir.policeStation || "NATIONWIDE (ZERO FIR)"}
+                          </p>
+                          {fir.policeStationGeo?.address && (
+                            <p className="text-[9px] text-gray-400 font-bold mt-1 leading-snug">
+                              {fir.policeStationGeo.address}
+                            </p>
+                          )}
+                          {fir.policeStationGeo?.lat && fir.policeStationGeo?.lat !== 0 && (
+                            <a
+                              href={fir.policeStationGeo.mapsLink || `https://www.google.com/maps/search/?api=1&query=${fir.policeStationGeo.lat},${fir.policeStationGeo.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-lg text-[8px] font-black text-cyan-400 uppercase tracking-widest transition-all"
+                            >
+                              <MapPin size={10} />
+                              Open in Maps
+                            </a>
+                          )}
                         </div>
                       </div>
+
 
                       <div className="flex items-center gap-5">
                         <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-gray-400">

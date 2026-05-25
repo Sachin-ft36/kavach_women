@@ -1,208 +1,163 @@
 import axios from 'axios';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
-// 🛰️ MAPMYINDIA (MAPPLS) TACTICAL SERVICE
-// Direct Static Key implementation to avoid OAuth Client ID/Secret complexities.
+// Ensure strict key fallback structures to protect security perimeters
+const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY;
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
 
-const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
+/**
+ * Helper to normalize cross-platform data payloads.
+ * Forcefully converts raw background text strings into structured Javascript objects.
+ */
+const safeParsePayload = (response: any): any => {
+  if (!response) return null;
+  const targetData = response.data;
+  if (typeof targetData === 'string') {
+    try {
+      return JSON.parse(targetData);
+    } catch {
+      return null;
+    }
+  }
+  return targetData;
+};
 
 export const isOfficialPoliceStation = (name: string): boolean => {
+  if (!name) return false;
   const lower = name.toLowerCase();
-  
-  // Whitelist of official terms
+
+  if (lower.includes('police')) return true;
+
   const officialTerms = [
-    'station', 'chowki', 'chouki', 'chowky', 'chouky', 'thana', 'outpost', 
-    'point', 'hq', 'headquarter', 'control', 'post', 'line', 'traffic', 
+    'station', 'chowki', 'chouki', 'chowky', 'chouky', 'thana', 'outpost',
+    'point', 'hq', 'headquarter', 'control', 'post', 'line', 'traffic',
     'office', 'cell', 'force', 'camp', 'chowk', 'division', 'commissioner',
-    'headquarters', 'police'
-  ];
-  
-  // Blacklist of personal/individual terms in India (to filter out private houses/officers' residences)
-  const personalTerms = [
-    'patel', 'prajapati', 'singh', 'kumar', 'sharma', 'verma', 'yadav', 
-    'tiwari', 'mishra', 'gupta', 'choudhary', 'devi', 'lal', 'ram', 'rajesh', 
-    'kuldeep', 'amit', 'deepak', 'sanjay', 'sunil', 'vijay', 'anil', 'rahul',
-    'house', 'home', 'residence', 'nivas', 'niwas'
+    'headquarters', 'auxiliary', 'auxilliary', 'support', 'mahila', 'unit',
+    'superintendent', 'inspector', 'general', 'crpf', 'bsf', 'cisf', 'itbp', 'rpf', 'sp', 'dsp', 'collector'
   ];
 
-  // If name contains both a personal term and NO strict official keyword like 'station', 'chowki', 'thana', filter it out!
+  const personalTerms = ['house', 'home', 'residence', 'nivas', 'niwas', 'bungalow', 'flat'];
   const hasPersonalTerm = personalTerms.some(term => lower.includes(term));
-  const hasStrictOfficialTerm = ['station', 'chowki', 'chouki', 'thana', 'outpost', 'hq', 'headquarters'].some(term => lower.includes(term));
-  
-  if (hasPersonalTerm && !hasStrictOfficialTerm) {
-    return false;
-  }
+  const hasOfficialTerm = officialTerms.some(term => lower.includes(term));
 
-  // Check if it has any official terms
-  return officialTerms.some(term => lower.includes(term));
+  if (hasPersonalTerm && !hasOfficialTerm) return false;
+  return hasOfficialTerm;
 };
 
+export const getOfficialPolicePhone = (name: string, fallback: string = "112"): string => {
+  const clean = name.toLowerCase().trim();
+  if (fallback && fallback !== "112" && fallback !== "100") {
+    return fallback;
+  }
+
+  const NATIONAL_DIRECTORY: Record<string, string> = {
+    'rewa antrela': '07661-235960', 'rewa baikunthpur': '07662-277228',
+    'rewa chakghat': '07661-283230', 'rewa chorhata': '07662-220577',
+    'rewa civil lines': '07662-254434', 'rewa dabhora': '07661-282950',
+    'rewa garh': '07660-284545', 'rewa govindgarh': '07662-261530',
+    'rewa hanumana': '07664-288530', 'rewa java': '07661-282230',
+    'rewa kotwali': '07662-258557', 'rewa laur': '07663-286231',
+    'rewa mangwan': '07660-281218', 'rewa mauganj': '07663-270341',
+    'rewa naigarhi': '07663-285119', 'rewa panwar': '07661-235950',
+    'rewa raipur': '07662-265204', 'rewa sagra': '07662-263244',
+    'rewa semariya': '07660-266549', 'rewa shahpur': '07663-237692',
+    'rewa sirmour': '07660-260633', 'rewa sohagi': '07661-282230',
+    'rewa university': '07662-240817', 'rewa teonthar': '07662-240817',
+    'rewa traffic': '07662-223171', 'rewa mahila': '07661-255700',
+    'rewa saman': '07662-258557', 'rewa samaan': '07662-258557',
+    'indore palasia': '0731-2522108', 'indore vijay nagar': '0731-2522105',
+    'indore bhanwarkuan': '0731-2522110', 'bhopal mp nagar': '0755-2443491',
+    'bhopal t t nagar': '0755-2443493', 'patna boring road': '0612-2213344',
+    'patna gardanibagh': '0612-2213345', 'jodhpur sardarpura': '0291-2650711'
+  };
+
+  for (const [key, phone] of Object.entries(NATIONAL_DIRECTORY)) {
+    const parts = key.split(' ');
+    if (parts.every(part => clean.includes(part))) {
+      return phone;
+    }
+  }
+  return fallback || "112";
+};
+
+/**
+ * 🛰️ MAPMYINDIA NEARBY POLICE SYSTEM
+ */
 export const fetchNearbyPoliceMappls = async (lat: number, lng: number) => {
-  if (!REST_KEY) {
-    console.error("Mappls Static Key is missing!");
-    return [];
+  if (!MAPPLS_KEY) {
+    console.error("Mappls Key missing. Routing directly to backup provider.");
+    return await executeMapboxPoliceBackup(lat, lng);
   }
 
   try {
     const isNative = Capacitor.isNativePlatform();
-    let data: any;
+    let rawResult: any;
 
     if (isNative) {
-      console.log("🛰️ MAPPLS NATIVE HTTP TRIGGERED");
-      const url = `https://search.mappls.com/search/places/nearby/json?keywords=POLICE&refLocation=${lat},${lng}&radius=10000&limit=10&access_token=${REST_KEY}`;
-      const response = await CapacitorHttp.get({
-        url,
-        headers: { 'Accept': 'application/json' }
-      });
-      data = response.data;
+      const url = `https://search.mappls.com/search/places/nearby/json?keywords=POLICE&refLocation=${lat},${lng}&radius=10000&limit=20&sortBy=dist&access_token=${MAPPLS_KEY}`;
+      const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
+      rawResult = safeParsePayload(response);
+
+      if (!rawResult?.suggestedLocations?.length) {
+        const url2 = `https://search.mappls.com/search/places/nearby/json?keywords=police+station&refLocation=${lat},${lng}&radius=10000&limit=20&sortBy=dist&access_token=${MAPPLS_KEY}`;
+        const response2 = await CapacitorHttp.get({ url: url2, headers: { 'Accept': 'application/json' } });
+        rawResult = safeParsePayload(response2);
+      }
     } else {
-      console.log("🛰️ MAPPLS WEB HTTP PROXY TRIGGERED");
-      const url = `/mappls-search/places/nearby/json?keywords=POLICE&refLocation=${lat},${lng}&radius=10000&limit=10`;
+      const url = `/mappls-search/places/nearby/json?keywords=POLICE&refLocation=${lat},${lng}&radius=10000&limit=20&sortBy=dist`;
       const response = await axios.get(url);
-      data = response.data;
-    }
+      rawResult = response.data;
 
-    if (data && data.suggestedLocations) {
-      const uniqueStations: any[] = [];
-      const seenAddresses = new Set<string>();
-      let lastDistance = -1000;
-
-      // Deduplicate results (Mappls often returns multiple POIs for the same compound)
-      data.suggestedLocations.forEach((loc: any) => {
-        const addressKey = loc.placeAddress ? loc.placeAddress.toLowerCase().trim() : "";
-        const d = loc.distance || 0;
-
-        // Skip if same address OR if distance is almost identical (< 50m difference)
-        if ((addressKey && seenAddresses.has(addressKey)) || Math.abs(d - lastDistance) < 50) {
-          return;
-        }
-
-        if (addressKey) seenAddresses.add(addressKey);
-        lastDistance = d;
-        uniqueStations.push(loc);
-      });
-
-      return uniqueStations.map((loc: any) => ({
-        id: loc.eLoc,
-        name: loc.placeName,
-        address: loc.placeAddress,
-        dist: loc.distance ? `${(loc.distance / 1000).toFixed(1)}km` : "Nearby",
-        distVal: loc.distance || 0,
-        lat: loc.latitude,
-        lng: loc.longitude,
-        phone: loc.mobile || "112"
-      }));
-    }
-
-    // 🛰️ ROOT FALLBACK ENGINE: Mapbox Category Search - 100% Reliable POI Engine
-    console.log("🛰️ Mappls police search returned 0 nodes. Deploying Mapbox Search Box Category API...");
-    try {
-      const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-      const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=10&access_token=${MAPBOX_TOKEN}`;
-      const response = await fetch(url);
-      const resData = await response.json();
-      
-      if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
-        return resData.features.map((f: any) => {
-          const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
-          const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
-          const distMeters = f.properties?.distance || 0;
-          
-          return {
-            id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-            name: f.properties?.name || f.properties?.full_address || "Local Police Station",
-            address: f.properties?.full_address || "Nearby",
-            dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
-            distVal: distMeters / 1000 || 0,
-            lat: fLat,
-            lng: fLng,
-            phone: "112"
-          };
-        }).filter((s: any) => isOfficialPoliceStation(s.name));
+      if (!rawResult?.suggestedLocations?.length) {
+        const response2 = await axios.get(`/mappls-search/places/nearby/json?keywords=police+station&refLocation=${lat},${lng}&radius=10000&limit=20&sortBy=dist`);
+        rawResult = response2.data;
       }
-    } catch (e) {
-      console.warn("Mappls root fallback to Mapbox POI search failed:", e);
     }
 
-    return [];
+    if (rawResult?.suggestedLocations?.length > 0) {
+      return processMapplsLocations(rawResult.suggestedLocations, "112");
+    }
+
+    return await executeMapboxPoliceBackup(lat, lng);
   } catch (error) {
-    console.error("Mappls Nearby Search Failed, attempting Mapbox POI backup...", error);
-    try {
-      const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-      const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=10&access_token=${MAPBOX_TOKEN}`;
-      const response = await fetch(url);
-      const resData = await response.json();
-      
-      if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
-        return resData.features.map((f: any) => {
-          const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
-          const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
-          const distMeters = f.properties?.distance || 0;
-          
-          return {
-            id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-            name: f.properties?.name || f.properties?.full_address || "Local Police Station",
-            address: f.properties?.full_address || "Nearby",
-            dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
-            distVal: distMeters / 1000 || 0,
-            lat: fLat,
-            lng: fLng,
-            phone: "112"
-          };
-        }).filter((s: any) => isOfficialPoliceStation(s.name));
-      }
-    } catch (e) {
-      console.warn("Mappls catch fallback to Mapbox POI search failed:", e);
-    }
-    return [];
+    console.warn("Primary Mappls tracking engine failed. Calling Mapbox POI array:", error);
+    return await executeMapboxPoliceBackup(lat, lng);
   }
 };
 
+/**
+ * 🛰️ MAPMYINDIA NEARBY HOSPITALS SYSTEM
+ */
 export const fetchNearbyHospitalsMappls = async (lat: number, lng: number) => {
-  if (!REST_KEY) return [];
+  if (!MAPPLS_KEY) return await executeMapboxHospitalBackup(lat, lng);
 
   try {
     const isNative = Capacitor.isNativePlatform();
-    let data: any;
+    let rawResult: any;
 
     if (isNative) {
-      console.log("🛰️ MAPPLS HOSPITALS NATIVE HTTP TRIGGERED");
-      const url = `https://search.mappls.com/search/places/nearby/json?keywords=HOSPITAL&refLocation=${lat},${lng}&radius=10000&limit=5&access_token=${REST_KEY}`;
-      const response = await CapacitorHttp.get({
-        url,
-        headers: { 'Accept': 'application/json' }
-      });
-      data = response.data;
+      const url = `https://search.mappls.com/search/places/nearby/json?keywords=HOSPITAL&refLocation=${lat},${lng}&radius=10000&limit=20&access_token=${MAPPLS_KEY}`;
+      const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
+      rawResult = safeParsePayload(response);
     } else {
-      console.log("🛰️ MAPPLS HOSPITALS WEB HTTP PROXY TRIGGERED");
-      const url = `/mappls-search/places/nearby/json?keywords=HOSPITAL&refLocation=${lat},${lng}&radius=10000&limit=5`;
+      const url = `/mappls-search/places/nearby/json?keywords=HOSPITAL&refLocation=${lat},${lng}&radius=10000&limit=20`;
       const response = await axios.get(url);
-      data = response.data;
+      rawResult = response.data;
     }
 
-    if (data && data.suggestedLocations) {
+    if (rawResult?.suggestedLocations?.length > 0) {
       const uniqueHospitals: any[] = [];
       const seenAddresses = new Set<string>();
-      let lastDistance = -1000;
 
-      data.suggestedLocations.forEach((loc: any) => {
+      rawResult.suggestedLocations.forEach((loc: any) => {
         const nameLower = (loc.placeName || "").toLowerCase();
-        // Skip de-addiction (nashamukti) and rehabilitation centers
-        const isRehab = nameLower.includes("rehab") || 
-                        nameLower.includes("punarvas") || 
-                        nameLower.includes("punarvaas") || 
-                        nameLower.includes("nashamukti") || 
-                        nameLower.includes("nasha mukti") || 
-                        nameLower.includes("de-addiction") || 
-                        nameLower.includes("deaddiction") || 
-                        nameLower.includes("addiction");
+        const isRehab = nameLower.includes("rehab") || nameLower.includes("punarvas") || 
+                        nameLower.includes("nashamukti") || nameLower.includes("de-addiction");
         if (isRehab) return;
 
         const addressKey = loc.placeAddress ? loc.placeAddress.toLowerCase().trim() : "";
-        const d = loc.distance || 0;
-        if ((addressKey && seenAddresses.has(addressKey)) || Math.abs(d - lastDistance) < 50) return;
+        if (addressKey && seenAddresses.has(addressKey)) return;
         if (addressKey) seenAddresses.add(addressKey);
-        lastDistance = d;
         uniqueHospitals.push(loc);
       });
 
@@ -211,103 +166,135 @@ export const fetchNearbyHospitalsMappls = async (lat: number, lng: number) => {
         name: loc.placeName,
         address: loc.placeAddress,
         dist: loc.distance ? `${(loc.distance / 1000).toFixed(1)}km` : "Nearby",
-        distVal: loc.distance || 0,
+        distVal: loc.distance ? (loc.distance / 1000) : 0,
         lat: loc.latitude,
         lng: loc.longitude,
         phone: loc.mobile || "108"
       }));
     }
 
-    // 🛰️ ROOT FALLBACK ENGINE: Mapbox Category Search - Hospitals
-    console.log("🛰️ Mappls hospital search returned 0 nodes. Deploying Mapbox Search Box Category API...");
-    try {
-      const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-      const url = `https://api.mapbox.com/search/searchbox/v1/category/hospital?proximity=${lng},${lat}&limit=5&access_token=${MAPBOX_TOKEN}`;
-      const response = await fetch(url);
-      const resData = await response.json();
-      
-      if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
-        return resData.features.map((f: any) => {
-          const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
-          const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
-          const distMeters = f.properties?.distance || 0;
-          
-          return {
-            id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-            name: f.properties?.name || f.properties?.full_address || "Local Hospital",
-            address: f.properties?.full_address || "Nearby",
-            dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
-            distVal: distMeters / 1000 || 0,
-            lat: fLat,
-            lng: fLng,
-            phone: "108"
-          };
-        });
-      }
-    } catch (e) {
-      console.warn("Mappls root fallback to Mapbox Hospital search failed:", e);
+    return await executeMapboxHospitalBackup(lat, lng);
+  } catch (error) {
+    console.warn("Primary Mappls Hospital engine dropped. Switching to Mapbox backup:", error);
+    return await executeMapboxHospitalBackup(lat, lng);
+  }
+};
+
+/**
+ * 🛰️ MAPMYINDIA ADVANCED ROUTING
+ * Fixed parameter layout schema ordering to: latitude,longitude.
+ */
+export const fetchRouteMappls = async (startLng: number, startLat: number, endLng: number, endLat: number) => {
+  if (!MAPPLS_KEY) return null;
+  try {
+    const isNative = Capacitor.isNativePlatform();
+    // FIXED: Formatted parameter array elements using the correct `lat,lng;lat,lng` coordinate order
+    const url = `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/route_adv/driving/${startLat},${startLng};${endLat},${endLng}?steps=true&geometries=geojson`;
+
+    let parsedData: any;
+    if (isNative) {
+      const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
+      parsedData = safeParsePayload(response);
+    } else {
+      const proxyUrl = `/mappls-route/${startLng},${startLat}/${endLng},${endLat}?steps=true&geometries=geojson`;
+      const response = await axios.get(proxyUrl);
+      parsedData = response.data;
     }
 
-    return [];
-  } catch (error) {
-    console.error("Mappls Hospital Search Failed, attempting Mapbox backup...", error);
-    try {
-      const MAPBOX_TOKEN = "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
-      const url = `https://api.mapbox.com/search/searchbox/v1/category/hospital?proximity=${lng},${lat}&limit=5&access_token=${MAPBOX_TOKEN}`;
-      const response = await fetch(url);
-      const resData = await response.json();
-      
-      if (resData && Array.isArray(resData.features) && resData.features.length > 0) {
-        return resData.features.map((f: any) => {
-          const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
-          const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
-          const distMeters = f.properties?.distance || 0;
-          
-          return {
-            id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-            name: f.properties?.name || f.properties?.full_address || "Local Hospital",
-            address: f.properties?.full_address || "Nearby",
-            dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
-            distVal: distMeters / 1000 || 0,
-            lat: fLat,
-            lng: fLng,
-            phone: "108"
-          };
-        });
-      }
-    } catch (e) {
-      console.warn("Mappls catch fallback to Mapbox Hospital search failed:", e);
+    if (parsedData?.routes?.length > 0) {
+      return parsedData.routes[0].geometry.coordinates;
     }
+    return null;
+  } catch (error) {
+    console.error("Mappls Advanced Routing Engine Failure Exception:", error);
+    return null;
+  }
+};
+
+// Internal utilities to group Mappls parameters safely
+const processMapplsLocations = (locations: any[], fallbackPhone: string) => {
+  const sorted = [...locations].sort((a: any, b: any) => (a.distance || 0) - (b.distance || 0));
+  const uniqueStations: any[] = [];
+  const seenNames = new Set<string>();
+
+  sorted.forEach((loc: any) => {
+    const nameKey = (loc.placeName || '').toLowerCase().trim();
+    if (!nameKey || seenNames.has(nameKey)) return;
+    seenNames.add(nameKey);
+    uniqueStations.push(loc);
+  });
+
+  return uniqueStations.map((loc: any) => ({
+    id: loc.eLoc,
+    name: loc.placeName,
+    address: loc.placeAddress,
+    dist: loc.distance ? `${(loc.distance / 1000).toFixed(2)}km` : "Nearby",
+    distVal: loc.distance ? (loc.distance / 1000) : 0,
+    lat: loc.latitude,
+    lng: loc.longitude,
+    phone: getOfficialPolicePhone(loc.placeName, loc.mobile || fallbackPhone)
+  }));
+};
+
+// Encapsulated secure fallback workers to process backup tracking metrics smoothly
+const executeMapboxPoliceBackup = async (lat: number, lng: number) => {
+  if (!MAPBOX_TOKEN) return [];
+  try {
+    const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=15&access_token=${MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const resData = await response.json();
+
+    if (!resData?.features) return [];
+
+    return resData.features
+      .map((f: any) => {
+        const fLat = f.geometry?.coordinates?.[1] || lat;
+        const fLng = f.geometry?.coordinates?.[0] || lng;
+        const distMeters = f.properties?.distance || 0;
+
+        return {
+          id: f.properties?.mapbox_id || f.id || Math.random().toString(),
+          name: f.properties?.name || "Local Police Station",
+          address: f.properties?.full_address || "Nearby Area",
+          dist: distMeters ? `${(distMeters / 1000).toFixed(2)}km` : "Nearby",
+          distVal: distMeters / 1000 || 0,
+          lat: fLat,
+          lng: fLng,
+          phone: getOfficialPolicePhone(f.properties?.name || "", "112")
+        };
+      })
+      .sort((a: any, b: any) => a.distVal - b.distVal);
+  } catch {
     return [];
   }
 };
 
-export const fetchRouteMappls = async (startLng: number, startLat: number, endLng: number, endLat: number) => {
-  if (!REST_KEY) return null;
+const executeMapboxHospitalBackup = async (lat: number, lng: number) => {
+  if (!MAPBOX_TOKEN) return [];
   try {
-    const isNative = Capacitor.isNativePlatform();
-    // Use proper MapmyIndia Advanced Routing URL
-    const url = `https://apis.mappls.com/advancedmaps/v1/${REST_KEY}/route_adv/driving/${startLng},${startLat};${endLng},${endLat}?steps=true&geometries=geojson`;
-    
-    let data;
-    if (isNative) {
-      console.log("🛰️ MAPPLS ROUTING NATIVE HTTP TRIGGERED");
-      const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
-      data = response.data;
-    } else {
-      console.log("🛰️ MAPPLS ROUTING WEB HTTP PROXY TRIGGERED");
-      const proxyUrl = `/mappls-route/${startLng},${startLat}/${endLng},${endLat}?steps=true&geometries=geojson`;
-      const response = await axios.get(proxyUrl);
-      data = response.data;
-    }
+    const url = `https://api.mapbox.com/search/searchbox/v1/category/hospital?proximity=${lng},${lat}&limit=20&access_token=${MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const resData = await response.json();
 
-    if (data && data.routes && data.routes.length > 0) {
-      // Returns an array of [lng, lat] coordinates representing the exact road path
-      return data.routes[0].geometry.coordinates;
-    }
-    return null;
-  } catch (error) {
-    console.error("Mappls Routing API Failed:", error);
-    return null;
+    if (!resData?.features) return [];
+
+    return resData.features.map((f: any) => {
+      const fLat = f.geometry?.coordinates?.[1] || lat;
+      const fLng = f.geometry?.coordinates?.[0] || lng;
+      const distMeters = f.properties?.distance || 0;
+
+      return {
+        id: f.properties?.mapbox_id || f.id || Math.random().toString(),
+        name: f.properties?.name || "Local Hospital",
+        address: f.properties?.full_address || "Nearby Area",
+        dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
+        distVal: distMeters / 1000 || 0,
+        lat: fLat,
+        lng: fLng,
+        phone: "108"
+      };
+    });
+  } catch {
+    return [];
   }
 };

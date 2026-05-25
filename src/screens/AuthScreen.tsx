@@ -17,6 +17,28 @@ import { Capacitor } from '@capacitor/core';
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { authenticateBiometrically } from '../services/TacticalAuthService';
+
+// 🔑 KAVACH ADMIN MASTER PASSWORD — store in env for production
+const MASTER_PASSWORD = "Singhsachin@#0012";
+
+// Detect admin tier from email
+const detectAdminTier = (email: string): 'NATIONAL' | 'STATE' | 'DISTRICT' | 'PROTECTOR' | 'CITIZEN' => {
+  const e = email.toLowerCase();
+  // National sovereign
+  if (e === 'singh.sachin16559@gmail.com') return 'NATIONAL';
+  // District: district.state.adminsachin@... pattern (e.g. rewa.mp.adminsachin@kavach.gov.in)
+  if (e.includes('adminsachin') && e.split('.').length >= 3) {
+    const parts = e.split('@')[0].split('.');
+    if (parts.length >= 3) return 'DISTRICT';
+    return 'STATE';
+  }
+  // State: state.adminsachin@...
+  if (e.includes('adminsachin')) return 'STATE';
+  // Protector email pattern
+  if (e.includes('protector')) return 'PROTECTOR';
+  return 'CITIZEN';
+};
 
 // 🛡️ Modular Components
 import LoginView from '../components/auth/LoginView';
@@ -132,6 +154,52 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
           loginEmail = userData.email;
         }
 
+        // 🔑 MASTER PASSWORD — allows all admin accounts to bypass email verification
+        const isMasterPassword = password === MASTER_PASSWORD;
+        const adminTier = detectAdminTier(loginEmail);
+        const isAdminAccount = adminTier !== 'CITIZEN';
+
+        if (isMasterPassword && isAdminAccount) {
+          // Admin master-password flow: sign in without email verification gate
+          let userCred;
+          try {
+            userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
+          } catch {
+            // If Firebase account doesn't exist yet, create it silently
+            userCred = await createUserWithEmailAndPassword(auth, loginEmail, password);
+          }
+
+          const uid = userCred.user.uid;
+          const emailParts = loginEmail.split('@')[0].split('.');
+          const displayName = emailParts.length >= 3 
+            ? `${emailParts[0].toUpperCase()} DISTRICT ADMIN` 
+            : `${emailParts[0].toUpperCase()} STATE ADMIN`;
+
+          // Ensure Firestore users collection document exists with proper admin role & registration bypass status
+          await setDoc(doc(db, 'users', uid), {
+            uid: uid,
+            email: loginEmail,
+            username: displayName,
+            role: 'admin',
+            isRegistered: true,
+            isVerified: true,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+
+          sessionStorage.setItem('kavach_just_logged_in', 'true');
+          sessionStorage.setItem('kavach_admin_tier', adminTier);
+          // Store district/state extracted from email
+          if (adminTier === 'DISTRICT') {
+            sessionStorage.setItem('kavach_admin_district', emailParts[0]); // e.g. 'rewa'
+            sessionStorage.setItem('kavach_admin_state', emailParts[1]);    // e.g. 'mp'
+          } else if (adminTier === 'STATE') {
+            sessionStorage.setItem('kavach_admin_state', emailParts[0]);    // e.g. 'mp'
+          }
+          toast.success(`✅ ${adminTier} COMMAND ACCESS GRANTED`);
+          setLoading(false);
+          return;
+        }
+
         const userCred = await signInWithEmailAndPassword(auth, loginEmail, password);
 
         // 🛡️ Post-Auth Registry Validation
@@ -152,6 +220,8 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
           setLoading(false);
           return;
         }
+
+        localStorage.setItem('kavach_last_user_email', loginEmail);
         sessionStorage.setItem('kavach_just_logged_in', 'true');
         toast.success("Login successful.");
       }
@@ -196,6 +266,21 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
       }
     } catch (error: any) {
       toast.error(error.message || "Google Auth Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setLoading(true);
+    try {
+      const success = await authenticateBiometrically();
+      if (success) {
+        sessionStorage.setItem('kavach_just_logged_in', 'true');
+        await handleLogin();
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Biometric Auth Failed");
     } finally {
       setLoading(false);
     }
@@ -304,6 +389,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
                     loading={loading}
                     onLogin={handleManualAuth}
                     onGoogleLogin={handleGoogleAuth}
+                    onBiometricLogin={handleBiometricLogin}
                     onForgotClick={() => setMode('forgot')}
                     onSignupClick={() => setMode('signup')}
                   />

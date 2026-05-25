@@ -9,17 +9,27 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Register Plugins
+        // 1. Register Plugins BEFORE super.onCreate
         registerPlugin(KavachNative.class);
-
-        // 🛡️ TACTICAL OVERRIDE: Show App over Lock Screen
-        // Using WindowManager flags for universal compatibility across all SDK levels
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
-
+        
+        // 2. super.onCreate must be called next
         super.onCreate(savedInstanceState);
+
+        // 3. 🛡️ TACTICAL OVERRIDE: Show App over Lock Screen
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+            android.app.KeyguardManager keyguardManager = (android.app.KeyguardManager) getSystemService(android.content.Context.KEYGUARD_SERVICE);
+            if (keyguardManager != null) {
+                keyguardManager.requestDismissKeyguard(this, null);
+            }
+        } else {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        }
+
         Log.i("KAVACH_SYS", "TACTICAL GRID: Neural Bridge anchored. Lock-override ACTIVE.");
     }
 
@@ -40,6 +50,24 @@ public class MainActivity extends BridgeActivity {
                  com.getcapacitor.JSObject data = new com.getcapacitor.JSObject();
                  data.put("source", source);
                  plugin.notifySosTrigger(data);
+             }
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Intent intent = getIntent();
+        if (intent != null && intent.hasExtra("trigger")) {
+             String source = intent.getStringExtra("trigger");
+             Log.i("KAVACH_SYS", "CODE RED (Cold Start): Signal received via Intent from " + source);
+             
+             KavachNative plugin = (KavachNative) getBridge().getPlugin("KavachPlugin").getInstance();
+             if (plugin != null) {
+                 com.getcapacitor.JSObject data = new com.getcapacitor.JSObject();
+                 data.put("source", source);
+                 plugin.notifySosTrigger(data);
+                 intent.removeExtra("trigger"); // Prevent loop
              }
         }
     }

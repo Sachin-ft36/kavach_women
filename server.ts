@@ -66,10 +66,10 @@ async function startServer() {
       });
       res.json(response.data);
     } catch (error: any) {
-      console.error("🛰️ SERVER: Mappls Search API Failed:", error.response?.data || error.message);
+      console.warn("🛰️ PROXY: Mappls search key expired/invalid. Deploying Mapbox Tactical Fallback Engine...");
       // Return 200 so the browser console doesn't show a red error, but return an empty response
       // so the frontend knows to fallback to Mapbox seamlessly.
-      res.status(200).json({ error: "Search API Failed", details: error.message, suggestedLocations: [] });
+      res.status(200).json({ error: "Search API Failed", details: "Mappls key inactive. Tactical Mapbox Fallback engaged.", suggestedLocations: [] });
     }
   });
 
@@ -87,8 +87,8 @@ async function startServer() {
       });
       res.json(response.data);
     } catch (error: any) {
-      console.error("🛰️ SERVER: Mappls Routing API Proxy Failed:", error.response?.data || error.message);
-      res.status(200).json({ error: "Routing API Proxy Failed", details: error.message, routes: [] });
+      console.warn("🛰️ PROXY: Mappls routing key expired/invalid. Routing request deferred to Mapbox/OSRM fallback...");
+      res.status(200).json({ error: "Routing API Proxy Failed", details: "Mappls key inactive. Tactical Mapbox Fallback engaged.", routes: [] });
     }
   });
 

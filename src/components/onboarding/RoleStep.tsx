@@ -1,12 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Shield, UserCheck } from 'lucide-react';
+import { Shield, UserCheck, Car } from 'lucide-react';
 import { PremiumCard } from './PremiumCard';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface RoleStepProps {
-  role: 'citizen' | 'protector' | null;
-  setRole: (val: 'citizen' | 'protector') => void;
+  role: 'citizen' | 'protector' | 'pcr_officer' | null;
+  setRole: (val: 'citizen' | 'protector' | 'pcr_officer') => void;
   gender: 'female' | 'male' | null;
 }
 
@@ -57,9 +57,19 @@ export default function RoleStep({ role, setRole, gender }: RoleStepProps) {
                   selected={role === 'protector'} 
                   onClick={() => setRole('protector')} 
                   icon={UserCheck} 
-                  title="Protector / Rakshak" 
+                  title="Civic Protector (Civilian)" 
                   sub="SAFETY VOLUNTEER" 
-                  desc="Join the network to help people in distress and receive emergency alerts." 
+                  desc="Join the civilian network as a volunteer to assist nearby emergency cases." 
+                  color="blue"
+                />
+
+                <PremiumCard 
+                  selected={role === 'pcr_officer'} 
+                  onClick={() => setRole('pcr_officer')} 
+                  icon={Car} 
+                  title="Official Police / PCR Patrol" 
+                  sub="LAW ENFORCEMENT" 
+                  desc="Official Police PCR Patrol unit. En-route dynamic maps, auto-dispatch triggers, and operational duties." 
                   color="blue"
                 />
              </div>

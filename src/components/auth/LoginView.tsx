@@ -25,6 +25,7 @@ interface LoginViewProps {
   onGoogleLogin: () => void;
   onForgotClick: () => void;
   onSignupClick: () => void;
+  onBiometricLogin: () => void;
   email: string;
   setEmail: (val: string) => void;
   password: string;
@@ -37,6 +38,7 @@ export default function LoginView({
   onGoogleLogin,
   onForgotClick,
   onSignupClick,
+  onBiometricLogin,
   email,
   setEmail,
   password,

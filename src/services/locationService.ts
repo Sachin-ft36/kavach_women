@@ -1,19 +1,27 @@
 import { Geolocation } from '@capacitor/geolocation';
-import { doc, setDoc, serverTimestamp, updateDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
 
+export interface PrecisionLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  provider: 'GPS_HARDWARE' | 'NETWORK_LINK';
+}
+
 /**
- * 🛰️ MISSION CRITICAL: High-Fidelity GPS Anchor
+ * 🛰️ HIGH-FIDELITY GPS ANCHOR
+ * Performs an isolated hardware poll to fetch precise spatial coordinates.
  */
-export const getLiveLocation = async () => {
+export const getLiveLocation = async (): Promise<PrecisionLocation | null> => {
   try {
     const position = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 30000,
-      maximumAge: 5000
+      timeout: 15000, // Reduced from 30s to prevent long thread locks
+      maximumAge: 3000
     });
 
     return {
@@ -24,152 +32,119 @@ export const getLiveLocation = async () => {
     };
   } catch (error) {
     try {
-      const coarse = await Geolocation.getCurrentPosition({
+      const coarsePosition = await Geolocation.getCurrentPosition({
         enableHighAccuracy: false,
-        timeout: 20000,
-        maximumAge: 15000
+        timeout: 10000,
+        maximumAge: 10000
       });
       return {
-        latitude: coarse.coords.latitude,
-        longitude: coarse.coords.longitude,
-        accuracy: coarse.coords.accuracy,
+        latitude: coarsePosition.coords.latitude,
+        longitude: coarsePosition.coords.longitude,
+        accuracy: coarsePosition.coords.accuracy,
         provider: 'NETWORK_LINK'
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }
 };
 
 /**
- * 📡 NEURAL PULSE: Real-time Location Watcher (HARDENED)
+ * 📡 NEURAL PULSE: Real-time Location Watcher
+ * Manages clean single-stream tracking hooks without running concurrent loop engines.
  */
 export const watchLiveLocation = async (
   callback: (pos: [number, number], accuracy: number) => void,
   performanceMode: 'high' | 'auto' | 'power_save' = 'auto'
-) => {
+): Promise<string> => {
   if (Capacitor.isNativePlatform()) {
     await Geolocation.requestPermissions();
   }
 
-  // Dynamic Interval Tuning
-  const getInterval = () => {
-    const isEmergency = localStorage.getItem('kavach_sos_active') === 'true' ||
-      localStorage.getItem('kavach_ride_active') === 'true';
-    if (isEmergency) return 1500; // Fast pulse for missions
+  const isEmergencyMode = localStorage.getItem('kavach_sos_active') === 'true' ||
+                          localStorage.getItem('kavach_ride_active') === 'true';
 
-    switch (performanceMode) {
-      case 'high': return 5000;
-      case 'power_save': return 60000; // 1 min pulse for extreme saving
-      default: return 15000; // 15s standard heartbeat
-    }
-  };
-
-  // Standard high-accuracy watcher
+  // Leverage the native stream architecture instead of stacking intervals over watches
   const watchId = await Geolocation.watchPosition(
     {
-      enableHighAccuracy: performanceMode !== 'power_save',
-      timeout: 15000,
-      maximumAge: performanceMode === 'power_save' ? 30000 : 5000
+      enableHighAccuracy: isEmergencyMode || performanceMode === 'high',
+      timeout: isEmergencyMode ? 5000 : 20000,
+      maximumAge: isEmergencyMode ? 0 : (performanceMode === 'power_save' ? 45000 : 10000)
     },
-    (position, err) => {
-      if (position) {
+    (position) => {
+      if (position?.coords) {
         callback([position.coords.latitude, position.coords.longitude], position.coords.accuracy);
       }
     }
   );
 
-  // 🔥 DYNAMIC PULSE: Intelligent Hardware Pull
-  const pulseInterval = setInterval(async () => {
-    const interval = getInterval();
-    // Only execute if this is the right "time" for the current mode
-    // (Simplified logic: set it once, but we'll restart it if mode changes in App.tsx)
-
-    const isEmergency = localStorage.getItem('kavach_sos_active') === 'true' ||
-      localStorage.getItem('kavach_ride_active') === 'true';
-
-    if (!isEmergency && performanceMode === 'power_save') return;
-
-    try {
-      const pos = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: performanceMode !== 'power_save',
-        timeout: 10000,
-        maximumAge: performanceMode === 'power_save' ? 10000 : 5000
-      });
-      callback([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy);
-    } catch (e) { }
-  }, getInterval());
-
-  return { watchId, pulseInterval };
-};
-
-export const startBackgroundTracking = async (uid: string, performanceMode: string = 'auto') => {
-  if (!Capacitor.isNativePlatform()) return;
-
-  try {
-    const distanceFilter = performanceMode === 'power_save' ? 50 : 5; // Relax filter for battery
-
-    // 🛡️ TACTICAL ANCHOR: High-resolution background persistent tracking
-    await BackgroundGeolocation.addWatcher(
-      {
-        backgroundMessage: "KAVACH Neural Link is active. Status: SECURE.",
-        backgroundTitle: "🛡️ KAVACH Mission Persistence",
-        requestPermissions: true,
-        stale: false,
-        distanceFilter: distanceFilter
-      },
-      async (location, error) => {
-        if (location) {
-    // 🛡️ TACTICAL ANCHOR: High-resolution background persistent tracking
-    await BackgroundGeolocation.addWatcher(
-      {
-        backgroundMessage: "KAVACH Neural Link is active. Status: SECURE.",
-        backgroundTitle: "🛡️ KAVACH Mission Persistence",
-        requestPermissions: true,
-        stale: false,
-        distanceFilter: distanceFilter
-      },
-      async (location, error) => {
-        if (location) {
-          const userRef = doc(db, 'users', uid);
-          await updateDoc(userRef, {
-            'telemetry.coords': [location.latitude, location.longitude],
-            'telemetry.lastSeen': serverTimestamp(),
-            'telemetry.status': 'Background Secure',
-            'telemetry.mode': performanceMode
-          }).catch(() => { });
-        }
-      }
-    );
-        }
-      }
-    );
-  } catch (e) { }
+  return watchId; // Simply clear via Geolocation.clearWatch({ id: watchId })
 };
 
 /**
- * 🔄 UNIVERSAL TELEMETRY SYNC (REST BYPASS)
- * Bypasses Firestore SDK to prevent b815/ca9 assertion crashes.
+ * 🛡️ PERSISTENT BACKGROUND TRACKING ENGINE
+ * Registers a single, flat native process watcher for closed-state tracking.
  */
-export const syncTelemetry = async (uid: string, role: string, battery: number | null, coords: [number, number], accuracy?: number) => {
-  if (!uid) return;
+export const startBackgroundTracking = async (uid: string, performanceMode: string = 'auto') => {
+  if (!Capacitor.isNativePlatform() || !uid) return;
+
+  try {
+    const definedDistanceFilter = performanceMode === 'power_save' ? 50 : 8;
+
+    // FIXED: Removed structural nesting loop. Allocating a single, flat native watcher handle.
+    await BackgroundGeolocation.addWatcher(
+      {
+        backgroundMessage: "KAVACH Tracker is active. Location monitoring SECURE.",
+        backgroundTitle: "🛡️ KAVACH Mission Persistence",
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: definedDistanceFilter
+      },
+      async (location: any) => {
+        if (!location || !location.latitude || !location.longitude) return;
+
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, {
+          'telemetry.coords': [location.latitude, location.longitude],
+          'telemetry.lastSeen': serverTimestamp(),
+          'telemetry.status': 'Background Secure',
+          'telemetry.mode': performanceMode
+        }).catch(() => {});
+      }
+    );
+  } catch (error) {
+    console.error("Background location tracking failed to initialize:", error);
+  }
+};
+
+/**
+ * 🔄 UNIVERSAL TELEMETRY SYNC
+ * Safely updates remote indices while managing database write targets.
+ */
+export const syncTelemetry = async (
+  uid: string, 
+  role: string, 
+  battery: number | null, 
+  coords: [number, number], 
+  accuracy?: number
+): Promise<void> => {
+  if (!uid || !coords || coords[0] === 0) return;
 
   try {
     const userRef = doc(db, 'users', uid);
-    const telemetryData = {
+    const primaryPayload = {
       'telemetry.coords': coords,
-      'telemetry.battery': battery || 0,
+      'telemetry.battery': battery ?? 100,
       'telemetry.lastSeen': serverTimestamp(),
       'telemetry.role': role,
       'telemetry.status': 'Optimal',
-      'telemetry.accuracy': accuracy || 0,
+      'telemetry.accuracy': accuracy ?? 0,
       'telemetry.isOnline': navigator.onLine,
       'lastActive': serverTimestamp()
     };
 
-    await updateDoc(userRef, telemetryData);
+    await updateDoc(userRef, primaryPayload);
 
-    // 🛡️ SOS LIVE TRACKING HEARTBEAT: Push real-time movement to tactical units
     const activeAlertId = localStorage.getItem('kavach_active_alert_id');
     if (activeAlertId) {
       const alertRef = doc(db, 'alerts', activeAlertId);
@@ -177,46 +152,77 @@ export const syncTelemetry = async (uid: string, role: string, battery: number |
         'location.latitude': coords[0],
         'location.longitude': coords[1],
         'lastPulse': serverTimestamp(),
-        'telemetry.battery': battery || 0,
-        'telemetry.accuracy': accuracy || 0
-      }).catch(() => { });
+        'telemetry.battery': battery ?? 100,
+        'telemetry.accuracy': accuracy ?? 0
+      }).catch(() => {});
     }
   } catch (error: any) {
-    // 🛡️ SILENT FAILSAFE: If Firestore internal state is corrupt, don't crash the location thread
-    if (error?.message?.includes('ASSERTION FAILED')) {
-      console.warn("Telemetry SDK Pulse: Firestore Internal State Corrupt. Re-syncing node...");
-    } else {
-      console.warn("Telemetry SDK Pulse Interrupted:", error);
-    }
+    console.error("Telemetry write tracking exception intercepted safely:", error.message);
   }
 };
 
+// Simple in-memory cache to handle immediate reverse geocoding lookups
+const reverseGeocodeThrottleCache = new Map<string, { data: any; expiry: number }>();
+
 /**
- * 🗺️ REVERSE GEOCODE METADATA: Lat/Lng -> Structured Region Data
+ * 🗺️ REVERSE GEOCODE METADATA
+ * Resolves spatial vectors to readable location names. Includes a strict local caching rule.
  */
 export const getReverseMetadata = async (lat: number, lng: number) => {
+  // Quantize coordinates to 4 decimal places (~11-meter bounding box precision) to maximize cache hits
+  const quantizedCacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const currentTime = Date.now();
+  const cachedHit = reverseGeocodeThrottleCache.get(quantizedCacheKey);
+
+  if (cachedHit && currentTime < cachedHit.expiry) {
+    return cachedHit.data;
+  }
+
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+    const targetUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    
+    // Inject custom compliance headers to meet OSM Nominatim usage requirements
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'KavachEmergencySafetyCore/2.0 (contact: tech@kavach.security MobileApp)',
+        'Accept-Language': 'en'
+      }
+    });
+
+    if (response.status === 429) {
+      throw new Error("Nominatim rate limiting exception");
+    }
+
     const data = await response.json();
-    const addr = data.address || {};
-    return {
+    const addressDetails = data.address || {};
+    
+    const resolvedPayload = {
       address: data.display_name || "Unknown Location",
-      suburb: addr.suburb || addr.neighbourhood || addr.road || "General Sector",
-      city: addr.city || addr.town || addr.village || "Unknown City",
-      state: addr.state || "Bharat Sector",
-      pincode: addr.postcode || addr.pincode || "000000",
-      country: addr.country || "India",
+      suburb: addressDetails.suburb || addressDetails.neighbourhood || addressDetails.road || "General Sector",
+      city: addressDetails.city || addressDetails.town || addressDetails.village || "Unknown City",
+      state: addressDetails.state || "Active Sector",
+      pincode: addressDetails.postcode || "000000",
+      country: addressDetails.country || "India",
       display: data.display_name || "Unknown Mission Sector"
     };
-  } catch (e) {
+
+    // Keep geocoded records cached for 5 minutes to prevent duplicate API requests
+    reverseGeocodeThrottleCache.set(quantizedCacheKey, {
+      data: resolvedPayload,
+      expiry: currentTime + 300000
+    });
+
+    return resolvedPayload;
+  } catch (error) {
+    console.warn("Geocoding service unavailable, pulling default safe fallback values:", error);
     return {
-      address: "Neutral Zone",
+      address: "Neutral Zone Location",
       suburb: "General Sector",
       city: "Unknown",
-      state: "Bharat Sector",
+      state: "Active Sector",
       pincode: "000000",
       country: "India",
-      display: "Neutral Zone"
+      display: "Position Resolved (Awaiting Network Synchronization)"
     };
   }
 };
@@ -227,17 +233,23 @@ export const geocodeLocation = async (lat: number, lng: number): Promise<string>
 };
 
 /**
- * 🔍 FORWARD GEOCODE: Address -> Lat/Lng
+ * 🔍 FORWARD GEOCODE TOOL
  */
 export const searchLocation = async (address: string): Promise<[number, number] | null> => {
+  if (!address) return null;
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+    const targetUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'KavachEmergencySafetyCore/2.0 (contact: tech@kavach.security MobileApp)'
+      }
+    });
     const data = await response.json();
     if (data && data.length > 0) {
       return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
     }
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
 };

@@ -33,6 +33,17 @@ public class KavachNative extends Plugin {
     private static final String TAG = "KavachNative";
     private static final int PHONE_HINT_REQUEST_CODE = 9001;
     private PluginCall savedCall;
+    private static KavachNative instance;
+
+    @Override
+    public void load() {
+        super.load();
+        instance = this;
+    }
+
+    public static KavachNative getInstance() {
+        return instance;
+    }
 
     // ── Permissions ───────────────────────────────────────────────────────
 
@@ -48,7 +59,7 @@ public class KavachNative extends Plugin {
     @PluginMethod
     public void requestSensitivePermissions(PluginCall call) {
         // Bridges to Manifest.permission.SEND_SMS, CALL_PHONE, and RECORD_AUDIO
-        requestPermissionForAliases(new String[]{"sms", "call", "microphone"}, call, "permissionsCallback");
+        requestPermissions(call);
     }
 
     @PermissionCallback
@@ -64,6 +75,40 @@ public class KavachNative extends Plugin {
     // ║  heart of the SOS dispatch system. Any change WILL break emergency  ║
     // ║  alerts. DO NOT refactor, rename, or remove ANY line below.         ║
     // ╚══════════════════════════════════════════════════════════════════════╝
+
+    @PluginMethod
+    public void requestLockScreenPermission(PluginCall call) {
+        String manufacturer = android.os.Build.MANUFACTURER.toLowerCase();
+        Intent intent = new Intent();
+        boolean isSupported = false;
+
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
+            intent.setAction("miui.intent.action.APP_PERM_EDITOR");
+            intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
+            intent.putExtra("extra_pkgname", getContext().getPackageName());
+            isSupported = true;
+        } else if (manufacturer.contains("oppo") || manufacturer.contains("realme")) {
+            intent.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionManagerActivity");
+            isSupported = true;
+        } else if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+            intent.setClassName("com.iqoo.secure", "com.iqoo.secure.ui.PermissionManagerActivity");
+            isSupported = true;
+        }
+
+        if (isSupported) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                call.resolve();
+            } catch (Exception e) {
+                Log.w(TAG, "OEM Lock Screen Permission activity not found for: " + manufacturer, e);
+                call.reject("Not found");
+            }
+        } else {
+            // Not a supported Chinese OEM or standard Android handles it
+            call.resolve();
+        }
+    }
 
     @PluginMethod
     public void initiateEmergencyCall(PluginCall call) {
@@ -148,7 +193,7 @@ public class KavachNative extends Plugin {
     // ── Service Control ───────────────────────────────────────────────────
 
     @PluginMethod
-    public void startService(PluginCall call) {
+    public void startBackgroundSentinel(PluginCall call) {
         try {
             Intent si = new Intent(getContext(), KavachService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -163,7 +208,7 @@ public class KavachNative extends Plugin {
     }
 
     @PluginMethod
-    public void stopService(PluginCall call) {
+    public void stopBackgroundSentinel(PluginCall call) {
         try {
             getContext().stopService(new Intent(getContext(), KavachService.class));
             call.resolve();
@@ -200,6 +245,34 @@ public class KavachNative extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void startVoiceSentinel(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_START_VOICE");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(si);
+            } else {
+                getContext().startService(si);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Voice sentinel start failure: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopVoiceSentinel(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_STOP_VOICE");
+            getContext().startService(si);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Voice sentinel stop failure: " + e.getMessage());
+        }
+    }
+
     // ── Settings ──────────────────────────────────────────────────────────
 
     @PluginMethod
@@ -211,10 +284,23 @@ public class KavachNative extends Plugin {
             getContext().startActivity(intent);
             call.resolve();
         } catch (Exception e) {
-            Intent fallback = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(fallback);
-            call.resolve();
+            try {
+                Intent fallback = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(fallback);
+                call.resolve();
+            } catch (Exception e2) {
+                try {
+                    // Ultimate Fallback: App Details Settings
+                    Intent finalFallback = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    finalFallback.setData(Uri.parse("package:" + getContext().getPackageName()));
+                    finalFallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(finalFallback);
+                    call.resolve();
+                } catch (Exception e3) {
+                    call.reject("Could not open any settings screen: " + e3.getMessage());
+                }
+            }
         }
     }
 
@@ -305,8 +391,13 @@ public class KavachNative extends Plugin {
 
             android.app.Notification.Builder builder;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Use the high-importance channel created by KavachService
-                builder = new android.app.Notification.Builder(getContext(), "KavachServiceChannel");
+                android.app.NotificationChannel alarmChannel = new android.app.NotificationChannel(
+                        "KavachAlarmChannel",
+                        "Emergency Alerts",
+                        android.app.NotificationManager.IMPORTANCE_HIGH
+                );
+                nm.createNotificationChannel(alarmChannel);
+                builder = new android.app.Notification.Builder(getContext(), "KavachAlarmChannel");
             } else {
                 builder = new android.app.Notification.Builder(getContext());
             }
@@ -339,6 +430,32 @@ public class KavachNative extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Sync failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setUserRole(PluginCall call) {
+        String role = call.getString("role");
+        if (role == null) {
+            call.reject("Role required");
+            return;
+        }
+
+        try {
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("KavachPrefs", android.content.Context.MODE_PRIVATE);
+            prefs.edit().putString("kavach_user_role", role).apply();
+            Log.i(TAG, "MISSION CONTROL: Hardware Role set to " + role);
+            
+            // If the role isn't citizen, ensure we stop any active voice sentinels
+            if (!"citizen".equals(role)) {
+                Intent si = new Intent(getContext(), KavachService.class);
+                si.setAction("com.kavach.app.ACTION_STOP_VOICE");
+                getContext().startService(si);
+            }
+            
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Role Sync failed: " + e.getMessage());
         }
     }
 

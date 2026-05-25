@@ -1,42 +1,69 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchPredictiveIntel, PredictiveIntelResult, JourneyVector } from '../lib/predictiveIntel';
 
 /**
  * 🛰️ KAVACH CLOUD ML GATEWAY
  * -------------------------
- * This hook encapsulates the transition from client-side predictive logic 
- * to a high-fidelity serverless pipeline (/api/ml/analyze-vector).
+ * Processes high-fidelity spatial telemetry vectors through a serverless pipeline.
+ * Built-in protection against race conditions and state thrashing.
  */
 export function useCloudML() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [latency, setLatency] = useState(0);
 
+  // Persistent reference to track the latest tracking request ID
+  const latestRequestIdRef = useRef<number>(0);
+
+  // Safely clean up pending network requests if the host component unmounts
+  useEffect(() => {
+    return () => {
+      latestRequestIdRef.current = -1; // Invalidates all trailing asynchronous updates instantly
+    };
+  }, []);
+
   const analyzeMissionVector = useCallback(async (
     currentPath: JourneyVector[], 
     safePath: JourneyVector[]
   ): Promise<PredictiveIntelResult | null> => {
+    
+    // Increment the request ID to track execution order
+    const currentRequestId = ++latestRequestIdRef.current;
+    
     setIsAnalyzing(true);
     const start = performance.now();
 
     try {
-      // 📡 SIMULATED SERVERLESS HANDSHAKE
-      // In production: const response = await fetch('/api/ml/analyze-vector', { method: 'POST', body: JSON.stringify({ currentPath, safePath }) });
-      // return await response.json();
+      // 📡 ML VECTOR RESOLUTION PIPELINE
+      // Real-world production pattern: 
+      // const response = await fetch('/api/ml/analyze-vector', { method: 'POST', body: JSON.stringify({ currentPath, safePath }) });
+      // const results = await response.json();
       
       const results = await fetchPredictiveIntel(currentPath, safePath);
       
-      // Artificial delay to simulate regional-scale ML processing (8-12ms)
+      // Artificial delay simulating regional-scale ML processing (8-12ms)
       await new Promise(resolve => setTimeout(resolve, 8 + Math.random() * 4));
       
-      const end = performance.now();
-      setLatency(parseFloat((end - start).toFixed(2)));
+      // 🛡️ RACE CONDITION GUARD: 
+      // Drop the results if a newer coordinate payload has already been dispatched
+      if (currentRequestId !== latestRequestIdRef.current) {
+        console.warn("⚠️ ML GATEWAY: Dropping stale out-of-order vector result.");
+        return null;
+      }
       
+      const end = performance.now();
+      const calculatedLatency = parseFloat((end - start).toFixed(2));
+      
+      setLatency(calculatedLatency);
       return results;
+
     } catch (error) {
       console.error("ML PIPELINE BREACH:", error);
       return null;
     } finally {
-      setIsAnalyzing(false);
+      // Ensure state is only modified if this specific request is still the latest one
+      if (currentRequestId === latestRequestIdRef.current) {
+        setIsAnalyzing(false);
+      }
     }
   }, []);
 

@@ -54,7 +54,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
   });
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [batteryExempt, setBatteryExempt] = useState(false);
-  const [role, setRole] = useState<'citizen' | 'protector' | null>(null);
+  const [role, setRole] = useState<'citizen' | 'protector' | 'pcr_officer' | null>(null);
   const [gender, setGender] = useState<'female' | 'male' | null>(null);
   const [aadhaar, setAadhaar] = useState('');
   const [guardians, setGuardians] = useState<{ name: string; phone: string; relation: string }[]>([]);
@@ -66,7 +66,11 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     occupation: '',
     customOccupation: '',
     reason: '',
-    agreement: false
+    agreement: false,
+    badgeId: '',
+    vehicleNo: '',
+    rank: '',
+    thanaName: ''
   });
 
   useEffect(() => {
@@ -78,14 +82,22 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   const checkHardwareStatus = async () => {
     if (!Capacitor.isNativePlatform()) return;
+    
     try {
-      const o = await KavachNative.isOverlayPermissionGranted();
-      const b = await KavachNative.isIgnoringBatteryOptimizations();
-      const p = await KavachNative.checkSafetyPermissions();
-      const geo = await Geolocation.checkPermissions();
-      const cam = await Camera.checkPermissions();
+      const o = await KavachNative.isOverlayPermissionGranted().catch(() => ({ granted: false }));
       setOverlayGranted(o.granted);
+    } catch(e) {}
+
+    try {
+      const b = await KavachNative.isIgnoringBatteryOptimizations().catch(() => ({ isExempt: false }));
       setBatteryExempt(b.isExempt);
+    } catch(e) {}
+
+    try {
+      const p = await KavachNative.checkSafetyPermissions().catch(() => ({ sms: 'prompt', call: 'prompt', microphone: 'prompt' }));
+      const geo = await Geolocation.checkPermissions().catch(() => ({ location: 'prompt' } as any));
+      const cam = await Camera.checkPermissions().catch(() => ({ camera: 'prompt' } as any));
+      
       setPerms({
         sms: p.sms || 'prompt',
         call: p.call || 'prompt',
@@ -120,9 +132,10 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
   }, [step]);
 
   const handleShieldToggle = async (id: string) => {
+    toast.info("Triggering: " + id);
     if (!Capacitor.isNativePlatform()) {
-      if (id === 'lifeline') setBatteryExempt(true);
-      if (id === 'evidence') setOverlayGranted(true);
+      if (id === 'lifeline') setBatteryExempt(!batteryExempt);
+      if (id === 'evidence') setOverlayGranted(!overlayGranted);
       if (id === 'guardian') setPerms({ sms: 'granted', call: 'granted', location: 'granted', camera: 'granted', microphone: 'granted' });
       return;
     }
@@ -132,9 +145,15 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         await Geolocation.requestPermissions();
         await Camera.requestPermissions();
         await checkHardwareStatus();
-      } else if (id === 'lifeline') await KavachNative.openBatterySettings();
-      else if (id === 'evidence') await KavachNative.openOverlaySettings();
-    } catch (e) {
+      } else if (id === 'lifeline') {
+        toast.info("Opening Battery Settings...");
+        await KavachNative.openBatterySettings();
+      } else if (id === 'evidence') {
+        toast.info("Opening Overlay Settings...");
+        await KavachNative.openOverlaySettings();
+      }
+    } catch (e: any) {
+      toast.error("Toggle Error: " + (e?.message || e));
       console.warn("Shield Toggle Error:", e);
     }
   };
@@ -204,20 +223,33 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         fullAddress = `Sector Grid: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
       } catch (geoError) {}
 
+      const isCitizen = role === 'citizen';
+      const isPcr = role === 'pcr_officer';
+      const isStandardProtector = role === 'protector';
+
       // 🛡️ TACTICAL MERGE PAYLOAD: Only update what we have, preserve what we don't
       const userProfile = {
         uid: user.uid,
-        name: (userName || existingData.name || user?.displayName || "User"),
+        name: (userName || protectorData.fullName || existingData.name || user?.displayName || "User"),
         email: user.email || existingData.email || "",
         phoneNumber: userPhone || existingData.phoneNumber || user.phoneNumber || "",
         safetyPin: safetyPin || existingData.safetyPin || "",
         role: role || existingData.role || 'citizen',
         gender: gender || existingData.gender || 'female',
         isRegistered: true,
-        isVerified: role === 'citizen' ? true : (gender === 'female' ? true : (existingData.isVerified || false)),
+        // Official Police PCR is pre-verified to bypass volunteer review
+        isVerified: isCitizen ? true : (isPcr ? true : (gender === 'female' ? true : (existingData.isVerified || false))),
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
         aadhar: aadhaar || existingData.aadhar || null,
         
+        // PCR/Patrol specific operational properties
+        vehicleNo: isPcr ? (protectorData.vehicleNo || 'PCR-TBD') : (existingData.vehicleNo || null),
+        badgeId: isPcr ? (protectorData.badgeId || 'BADGE-TBD') : (existingData.badgeId || null),
+        rank: isPcr ? (protectorData.rank || 'Officer') : (existingData.rank || null),
+        thanaName: isPcr ? (protectorData.thanaName || 'Headquarters') : (existingData.thanaName || null),
+        isOnDuty: isPcr ? true : (existingData.isOnDuty || false),
+        currentDispatchStatus: isPcr ? 'idle' : (existingData.currentDispatchStatus || null),
+
         lastLocation: initialLocation,
         locationData: {
           lat: initialLocation?.lat || null,
@@ -240,7 +272,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         
         onboardedAt: existingData.onboardedAt || serverTimestamp(),
         lastActive: serverTimestamp(),
-        protectorVetting: (role === 'protector' && gender === 'male') ? (protectorData.fullName ? protectorData : existingData.protectorVetting) : null
+        protectorVetting: (!isCitizen) ? (protectorData.fullName ? protectorData : existingData.protectorVetting) : null
       };
 
       // 🛰️ MULTI-PATH SYSTEMATIC SYNC WITH TACTICAL TIMEOUT
@@ -325,15 +357,15 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     if (step === 1) setStep(2);
     else if (step === 2) setStep(3);
     else if (step === 3) {
-      if (role === 'protector') {
-         if (gender === 'male') setStep(4);
-         else setStep(5);
+      if (role === 'protector' || role === 'pcr_officer') {
+         setStep(4); // Vetting step
       } else {
-         setStep(5);
+         setStep(5); // Safety Pin for citizens
       }
     }
     else if (step === 4) {
-       if (gender === 'male') setStep(7); // Skip Pin for Males
+       if (role === 'pcr_officer') setStep(7); // PCR Officers bypass Pin & Guardians
+       else if (gender === 'male') setStep(7); // Civilian Male Protectors bypass Pin & Guardians
        else setStep(5);
     }
     else if (step === 5) {
@@ -363,10 +395,10 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           key={`step-${step}`} 
           className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
         >
-          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={setRole} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
+          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={(r) => setRole(r as any)} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
           {step === 2 && <GenderStep gender={gender} setGender={setGender} userName={userName} setUserName={setUserName} userPhone={userPhone} setUserPhone={setUserPhone} />}
           {step === 3 && <RoleStep role={role} setRole={setRole} gender={gender} />}
-          {step === 4 && <ProtectorVerificationStep data={protectorData} setData={setProtectorData} />}
+          {step === 4 && <ProtectorVerificationStep role={role} data={protectorData} setData={setProtectorData} />}
           {step === 5 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
           {step === 6 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
           {step === 7 && (
@@ -389,7 +421,11 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
                 (step === 1 && !isAadhaarVerified) || 
                 (step === 2 && !gender) || 
                 (step === 3 && !role) || 
-                (step === 4 && (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement)) ||
+                (step === 4 && (
+                  role === 'pcr_officer'
+                    ? (!protectorData.fullName || !protectorData.address || !protectorData.badgeId || !protectorData.vehicleNo || !protectorData.rank || !protectorData.agreement)
+                    : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement)
+                )) ||
                 (step === 5 && safetyPin.length < 4) || 
                 (step === 6 && role === 'citizen' && guardians.length === 0)
               }
@@ -400,7 +436,11 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
                   (step === 1 && isAadhaarVerified) || 
                   (step === 2 && gender) || 
                   (step === 3 && role) || 
-                  (step === 4 && (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement)) ||
+                  (step === 4 && (
+                    role === 'pcr_officer'
+                      ? (protectorData.fullName && protectorData.address && protectorData.badgeId && protectorData.vehicleNo && protectorData.rank && protectorData.agreement)
+                      : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement)
+                  )) ||
                   (step === 5 && safetyPin.length === 4) || 
                   (step === 6 && guardians.length > 0)
                 ) 

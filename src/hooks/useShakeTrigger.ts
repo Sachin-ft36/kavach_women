@@ -4,70 +4,118 @@ import { Capacitor } from '@capacitor/core';
 
 /**
  * 🛰️ KAVACH KINETIC SENTINEL
- * Detects 'Violent Shakes' as a primary emergency trigger.
- * Logic: 3 high-force movements within 1 second.
+ * Monitors physical device motion to catch violent altercations automatically.
+ * Includes a low-pass filter to prevent false triggers from simple drops or running.
  */
-export const useShakeTrigger = () => {
+export function useShakeTrigger() {
   const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive, isSOSBlocked } = useKavachStore();
-  const lastShakeRef = useRef(0);
-  const shakeCountRef = useRef(0);
   
-  // 🛡️ High Force Threshold (m/s²) - Prevents false triggers from walking/biking
-  const THRESHOLD = 45; 
-  const WINDOW = 1500; // 1.5s mission window
+  const lastShakeTimestampRef = useRef<number>(0);
+  const shakeCountRef = useRef<number>(0);
+  const isListenerAttachedRef = useRef<boolean>(false);
+  
+  // 🛡️ TACTICAL SENSOR CALIBRATION PARAMETERS
+  const ACCELERATION_FORCE_THRESHOLD = 42.0; // Expressed in m/s² (Excludes gravity vector)
+  const MAX_SESSION_WINDOW_MS = 2000;         // Maximum duration allowed to register 3 distinct shakes
+  const MIN_SHAKE_INTERVAL_MS = 250;          // 4Hz Low-pass filter. Drops single-impact desk bumps.
 
   useEffect(() => {
-    // 🛡️ Trigger Gating
-    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked) return;
+    // Structural gating checks
+    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked) {
+      teardownKineticEngine();
+      return;
+    }
 
-    const handleMotion = (event: DeviceMotionEvent) => {
-      // 🛡️ ANTI-WALK FIX: Use linear acceleration
-      const acc = event.acceleration;
-      if (!acc) return;
+    function handleMotionTelemetry(event: DeviceMotionEvent) {
+      // Isolate linear acceleration (excluding gravity offsets)
+      const acceleration = event.acceleration;
+      if (!acceleration) return;
 
-      // Calculate total force vector
-      const force = Math.sqrt(
-        (acc.x || 0) ** 2 + 
-        (acc.y || 0) ** 2 + 
-        (acc.z || 0) ** 2
+      // Calculate total force vector via Euclidean norm formula
+      const forceMagnitude = Math.sqrt(
+        (acceleration.x || 0) ** 2 + 
+        (acceleration.y || 0) ** 2 + 
+        (acceleration.z || 0) ** 2
       );
 
-      if (force > THRESHOLD) {
-        const now = Date.now();
-        
-        // Check if this shake is within the window of the previous ones
-        if (now - lastShakeRef.current < WINDOW) {
-          shakeCountRef.current++;
-          
-          console.log(`📳 KINETIC SENTINEL [BG]: Shake Detected [${shakeCountRef.current}/3] - Force: ${force.toFixed(1)}`);
+      if (forceMagnitude > ACCELERATION_FORCE_THRESHOLD) {
+        const currentTime = Date.now();
+        const timeDeltaSinceLastShake = currentTime - lastShakeTimestampRef.current;
+
+        // 🛡️ LOW-PASS FILTER GAUNTLET: Stop instant micro-vibrations from counting twice
+        if (timeDeltaSinceLastShake < MIN_SHAKE_INTERVAL_MS) {
+          return; 
+        }
+
+        // Verify if this movement falls within the active tracking window
+        if (timeDeltaSinceLastShake < MAX_SESSION_WINDOW_MS) {
+          shakeCountRef.current += 1;
+          console.log(`📳 KINETIC SENTINEL: Verified movement [${shakeCountRef.current}/3] | Force: ${forceMagnitude.toFixed(1)} m/s²`);
 
           if (shakeCountRef.current >= 3) {
-            console.error("🚨 KINETIC SENTINEL [BG]: VIOLENT SHAKE PATTERN VERIFIED. TRIGGERING SOS.");
+            console.error("🚨 KINETIC SENTINEL: VIOLENT PATTERN CONFIRMED. INITIALIZING SOS PROTOCOL.");
             setPendingSOS(true, 'shake');
             shakeCountRef.current = 0;
           }
         } else {
-          // Reset if the window expired
+          // The window expired, treat this as the first shake of a new pattern
           shakeCountRef.current = 1;
-          console.log("📳 KINETIC SENTINEL [BG]: Window Reset.");
+          console.log("📳 KINETIC SENTINEL: Tracking window reset. Starting new count.");
         }
-        lastShakeRef.current = now;
-      }
-    };
 
-    // 🛡️ Request Permission for iOS 13+ if needed
-    if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-      (DeviceMotionEvent as any).requestPermission()
-        .then((state: string) => {
-          if (state === 'granted') {
-            window.addEventListener('devicemotion', handleMotion);
-          }
-        })
-        .catch(console.error);
-    } else {
-      window.addEventListener('devicemotion', handleMotion);
+        lastShakeTimestampRef.current = currentTime;
+      }
     }
 
-    return () => window.removeEventListener('devicemotion', handleMotion);
+    function initializeKineticEngine() {
+      if (isListenerAttachedRef.current) return;
+      
+      // On iOS devices inside a web container, skip auto-binding and wait for manual user initialization
+      if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+        return; 
+      }
+
+      window.addEventListener('devicemotion', handleMotionTelemetry, true);
+      isListenerAttachedRef.current = true;
+      console.log("🛰️ KAVACH: Native Kinetic Engine Monitoring active.");
+    }
+
+    function teardownKineticEngine() {
+      if (isListenerAttachedRef.current) {
+        window.removeEventListener('devicemotion', handleMotionTelemetry, true);
+        isListenerAttachedRef.current = false;
+        shakeCountRef.current = 0;
+        console.log("🛑 KAVACH: Kinetic Engine Monitoring disabled.");
+      }
+    }
+
+    initializeKineticEngine();
+
+    return () => {
+      teardownKineticEngine();
+    };
   }, [isSOSActive, pendingSOS, role, isBriefingActive, isSOSBlocked]);
-};
+
+  return null;
+}
+
+/**
+ * 🍏 iOS CRITICAL PERMISSION SECURE PLUG
+ * Must be called directly via a UI click action (e.g., onboarding or a dashboard toggle button).
+ */
+export async function requestKineticSensorAccess(): Promise<boolean> {
+  if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+    try {
+      const authorizationState = await (DeviceMotionEvent as any).requestPermission();
+      if (authorizationState === 'granted') {
+        console.log("🍏 iOS SENSOR BRIDGE: Access granted.");
+        return true;
+      }
+      return false;
+    } catch (fault) {
+      console.error("Sensor initialization rejected on iOS hardware:", fault);
+      return false;
+    }
+  }
+  return true; // Android or standard web views that do not restrict initialization
+}

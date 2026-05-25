@@ -41,6 +41,10 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   const recognitionRef = React.useRef<any>(null);
   const { initiateCall, callState } = useCall();
 
+  // 🕶️ STEALTH DISGUISE DECOY STATE
+  const [isStealthDisguised, setIsStealthDisguised] = React.useState(false);
+  const [calcInput, setCalcInput] = React.useState('');
+
   // 📡 SOS DISPATCH HANDSHAKE SEQUENCE
   React.useEffect(() => {
     if (isSOSActive) {
@@ -321,6 +325,73 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
   }
 
   if (isSOSActive) {
+    if (isStealthDisguised) {
+      return (
+        <div className="fixed inset-0 z-[9999] bg-[#0F172A] flex flex-col justify-end p-6 select-none font-sans text-white">
+          {/* Decoy Calculator Display */}
+          <div className="flex-1 flex flex-col justify-end items-end mb-8 px-4">
+            <span className="text-gray-400 text-lg font-light tracking-wide min-h-[28px]">{calcInput || '0'}</span>
+            <span className="text-white text-5xl font-extralight tracking-tighter mt-3 truncate max-w-full">
+              {(() => {
+                try {
+                  if (!calcInput) return '0';
+                  if (/^[0-9\+\-\*\/\.\s]+$/.test(calcInput)) {
+                    // eslint-disable-next-line no-eval
+                    const result = eval(calcInput);
+                    return String(result).slice(0, 12);
+                  }
+                  return '0';
+                } catch (e) {
+                  return '0';
+                }
+              })()}
+            </span>
+          </div>
+
+          {/* Keypad */}
+          <div className="grid grid-cols-4 gap-4 mb-8 max-w-md mx-auto w-full">
+            {['C', '(', ')', '/', '7', '8', '9', '*', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '=', '🔓'].map((key) => {
+              const isOperator = ['/', '*', '-', '+', '='].includes(key);
+              const isClear = ['C', '(', ')'].includes(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    if (key === 'C') {
+                      setCalcInput('');
+                    } else if (key === '=') {
+                      // Handled in dynamic eval display
+                    } else if (key === '🔓') {
+                      setIsStealthDisguised(false);
+                      setCalcInput('');
+                      toast.success("DISGUISE DISENGAGED");
+                    } else {
+                      const nextInput = calcInput + key;
+                      setCalcInput(nextInput);
+                      // Custom trigger: entering safetyPin (e.g. 1234) escapes disguise
+                      if (nextInput === safetyPin) {
+                        setIsStealthDisguised(false);
+                        setCalcInput('');
+                        toast.success("DISGUISE DISENGAGED");
+                      }
+                    }
+                  }}
+                  className={cn(
+                    "w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold transition-all active:scale-90",
+                    isOperator ? "bg-amber-500 text-white active:bg-amber-400" :
+                    isClear ? "bg-gray-700 text-gray-200 active:bg-gray-600" :
+                    "bg-gray-800 text-white active:bg-gray-700"
+                  )}
+                >
+                  {key}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 z-[5000] bg-[#080000] flex flex-col p-6 overflow-hidden">
         {/* PIN Pad Overlay */}
@@ -540,10 +611,16 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
         {/* Header: Recording Stats */}
         <div className="relative z-10 flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-white/20 rounded-full" />
-            <span className="text-[8px] font-black uppercase tracking-[2px] text-white/40 italic">LIVE FORENSIC</span>
-          </div>
+          <button 
+            onClick={() => {
+              setIsStealthDisguised(true);
+              toast.success("STEALTH DISGUISE ENGAGED");
+            }}
+            className="flex items-center gap-2 px-2.5 py-1 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all rounded-full"
+          >
+            <Eye size={10} className="text-white/40" />
+            <span className="text-[8px] font-black uppercase tracking-[2px] text-white/40 italic">STEALTH DISGUISE</span>
+          </button>
 
           {/* Protector Radar Count */}
           <div className="flex items-center gap-1.5 px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/30 rounded-full">

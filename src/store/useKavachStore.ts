@@ -38,7 +38,7 @@ const savedIsVerified = localStorage.getItem('kavach_is_verified') === 'true';
 interface KavachState {
   user: FirebaseUser | null;
   profile: any | null;
-  role: 'citizen' | 'protector' | 'admin' | 'super_cell';
+  role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell';
   gender: 'female' | 'male' | null;
   isRegistered: boolean;
   isVerified: boolean;
@@ -93,7 +93,7 @@ interface KavachState {
   setGuardianCache: (guardians: any[]) => void;
   setUser: (user: FirebaseUser | null) => Promise<void>;
   setProfile: (profile: any | null) => void;
-  setRole: (role: 'citizen' | 'protector' | 'admin' | 'super_cell') => void;
+  setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
   setRegistered: (registered: boolean) => void;
   setVerified: (verified: boolean) => void;
@@ -226,6 +226,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
   cancelPendingSOS: () => {
     set({ pendingSOS: null });
+    
+    // 🛡️ NATIVE STATE RECONCILIATION
+    // If cancelled during the timer phase, the native backend might still be locked
+    // because it already registered the trigger (e.g. from shake/voice).
+    // Send a release signal so it starts listening again.
+    KavachSafe.stopContinuousSiren().catch(() => {});
+    
     toast.info("SOS Request Cancelled", {
       description: "False trigger avoided. System returning to standby.",
       icon: '🛡️'
@@ -267,7 +274,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           v: firebaseData.isVerified || firebaseData.verified,
           xp: firebaseData.xp
         });
-        
+
         if (syncString === lastSyncedData) return; // Skip if no meaningful change
         lastSyncedData = syncString;
 
@@ -282,7 +289,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             is_verified: !!(firebaseData.isVerified || firebaseData.verified),
             xp: firebaseData.xp || 0
           });
-        
+
         if (error) console.error("⚡ SUPABASE: Sync Error", error);
         else console.log("⚡ SUPABASE: Profile Synced & Migrated.");
       };
@@ -290,7 +297,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       onSnapshot(doc(db, 'users', user.uid), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          
+
           // 🛡️ DEVICE LOCK PROTOCOL (DECOMMISSIONED)
           // Users can now login from multiple devices without lockout.
 
@@ -304,7 +311,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             profile: data,
             isVerified: !!(data.isVerified || data.verified)
           });
-          
+
           // Trigger Auto-Migration to Supabase
           syncProfile(data);
         }
@@ -313,11 +320,11 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       // REAL-TIME SUBSCRIPTION
       supabase
         .channel(`profile:${user.uid}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'profiles',
-          filter: `id=eq.${user.uid}` 
+          filter: `id=eq.${user.uid}`
         }, (payload) => {
           console.log('⚡ SUPABASE: Real-time update', payload);
           if (payload.new) {
@@ -332,6 +339,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setProfile: (profile) => set({ profile }),
   setRole: (role) => {
     localStorage.setItem('kavach_user_role', role);
+    KavachSafe.setUserRole({ role });
     set({ role });
   },
   setGender: (gender) => set({ gender }),
@@ -468,12 +476,12 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
 
               const state = useKavachStore.getState();
-              
+
               // ⚡ SUPABASE LOCATION SYNC
               await supabase
                 .from('profiles')
-                .update({ 
-                  last_location: `POINT(${lng} ${lat})` 
+                .update({
+                  last_location: `POINT(${lng} ${lat})`
                 })
                 .eq('id', auth.currentUser.uid);
 
@@ -556,7 +564,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
       // 🛡️ NEW MISSION PROTOCOL: Always start with a clean state
       const currentUid = auth.currentUser?.uid || localStorage.getItem('kavach_user_uid');
-      
+
       if (!currentUid) {
         toast.error("Tactical Identity Failure. Please re-authenticate.");
         return;
@@ -622,7 +630,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         // 🚀 AUTO-INITIATE FORENSIC SENTINEL
         set({ isShadowActive: true });
         localStorage.setItem('kavach_shadow_mode', 'true');
-        
+
         executeEmergencyBlast(get().profile || get().user, get().userPos, {
           type: method,
           alertId,
@@ -652,10 +660,10 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     } else {
       // ⚡ INSTANT UI SNAPBACK: Clear local state immediately for zero-latency response
       // 🛡️ TERMINATE ALL SENTINELS
-      set({ 
-        isSOSActive: false, 
+      set({
+        isSOSActive: false,
         isShadowActive: false,
-        activeAlertId: null, 
+        activeAlertId: null,
         triggerMethod: null,
         activeRadius: 5.0,
         activeTab: 'dashboard',
@@ -683,7 +691,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
                 if (responder.uid) {
                   // 🛡️ REBALANCED MERIT SYSTEM: Simplified for 100/50 logic
                   let meritPoints = 50; // Base points for responding (even if aborted)
-                  
+
                   // Ultimate Rescue Bonus (The Hero who verified the Handshake)
                   const isSavior = alertData.verification?.verifiedBy === responder.uid;
                   if (isSavior) meritPoints = 100; // Total 100 for a confirmed save
@@ -731,7 +739,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             // ⚡ SUPABASE ALERT DE-ESCALATION
             await supabase
               .from('alerts')
-              .update({ 
+              .update({
                 status: 'resolved',
                 created_at: new Date().toISOString() // Or resolution_at if added
               })

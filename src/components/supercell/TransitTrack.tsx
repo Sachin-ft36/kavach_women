@@ -5,7 +5,7 @@ import {
   User, Mail, Fingerprint, ShieldCheck, Heart,
   Zap, Search, Globe, Info, Target, Maximize2,
   History, CheckCircle2, Radar, Gauge, TrendingUp,
-  ShieldAlert, Lock, Power, Bell, Cpu
+  ShieldAlert, Lock, Power, Bell, Cpu, Video, Eye
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
@@ -21,20 +21,71 @@ interface TransitTrackProps {
   isSovereignActive?: boolean;
   userStatusMap?: Record<string, any>;
   externalSelectedId?: string | null;
+  selectedState?: string;
+  detectedAdminDistrict?: string | null;
 }
 
-export function TransitTrack({ isSovereignActive, userStatusMap = {}, externalSelectedId }: TransitTrackProps) {
+export function TransitTrack({ 
+  isSovereignActive, 
+  userStatusMap = {}, 
+  externalSelectedId,
+  selectedState = 'ALL',
+  detectedAdminDistrict = null
+}: TransitTrackProps) {
   const [activeJourneys, setActiveJourneys] = useState<any[]>([]);
   const [historicalJourneys, setHistoricalJourneys] = useState<any[]>([]);
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [selectedVictimId, setSelectedVictimId] = useState<string | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<'LIVE' | 'HISTORY' | 'MISSIONS'>('LIVE');
+  const [sidebarTab, setSidebarTab] = useState<'LIVE' | 'HISTORY' | 'MISSIONS' | 'INFRA'>('LIVE');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [activeProtectors, setActiveProtectors] = useState<any[]>([]);
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
+
+  // 🚧 SOVEREIGN INFRASTRUCTURE STATE
+  const [tollGates, setTollGates] = useState([
+    { id: 'TG-01', name: 'Noida Toll Plaza NH-24', state: 'Uttar Pradesh', status: 'OPEN', coords: [77.3910, 28.5355] },
+    { id: 'TG-02', name: 'Rewa Bypass Plaza NH-30', state: 'Madhya Pradesh', status: 'OPEN', coords: [81.2998, 24.5362] },
+    { id: 'TG-03', name: 'Mumbai-Pune Expressway Toll', state: 'Maharashtra', status: 'OPEN', coords: [73.8567, 18.5204] },
+    { id: 'TG-04', name: 'Delhi Border Plaza DND Flyway', state: 'Delhi NCR', status: 'CLOSED', coords: [77.2090, 28.6139] },
+  ]);
+
+  const [trafficSignals, setTrafficSignals] = useState([
+    { id: 'TS-01', intersection: 'Sector 62 Crossing Noida', status: 'AUTO-GREEN' },
+    { id: 'TS-02', intersection: 'Civil Lines Crossing Rewa', status: 'AUTO-GREEN' },
+    { id: 'TS-03', intersection: 'Connaught Place Ring Road', status: 'ALL-RED LOCK' },
+  ]);
+
+  const [activeCCTVID, setActiveCCTVID] = useState<string | null>('TG-01');
+  const [cameraZoom, setCameraZoom] = useState(1);
+  const [irMode, setIrMode] = useState(false);
+  const [anprLogs, setAnprLogs] = useState<string[]>([
+    '[ANPR LOG] MH-12-PQ-8890 | AUDI Q7 | SPEED: 82km/h | MATCH: SAFE',
+    '[ANPR LOG] UP-16-BD-1212 | SCORPIO N | SPEED: 110km/h | MATCH: VEHICLE WATCHLIST',
+  ]);
+
+  // Real-time dynamic ANPR Plate Scanning Simulator
+  useEffect(() => {
+    if (sidebarTab !== 'INFRA') return;
+    
+    const vehicles = [
+      { plate: 'DL-3C-AY-4567', model: 'TOYOTA FORTUNER', speed: '76km/h', match: 'SAFE' },
+      { plate: 'MP-17-CC-9988', model: 'HYUNDAI CRETA', speed: '94km/h', match: 'SAFE' },
+      { plate: 'UP-16-TS-0077', model: 'TATA NEXON', speed: '128km/h', match: 'SPEED VIOLATION' },
+      { plate: 'MH-02-EE-3245', model: 'MARUTI SWIFT', speed: '55km/h', match: 'SAFE' },
+      { plate: 'HR-26-DJ-8800', model: 'MAHINDRA THAR', speed: '105km/h', match: 'ABNORMAL DRIFT' }
+    ];
+
+    const interval = setInterval(() => {
+      const randomVehicle = vehicles[Math.floor(Math.random() * vehicles.length)];
+      const log = `[ANPR LOG] ${randomVehicle.plate} | ${randomVehicle.model} | SPEED: ${randomVehicle.speed} | MATCH: ${randomVehicle.match}`;
+      setAnprLogs(prev => [log, ...prev.slice(0, 8)]);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [sidebarTab]);
 
   const { analyzeMissionVector, isAnalyzing, mlLatency } = useCloudML();
   const { initiateCall } = useCall();
@@ -82,6 +133,79 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {}, externalSe
   }, []);
 
   const selectedJourney = (sidebarTab === 'LIVE' ? activeJourneys : sidebarTab === 'HISTORY' ? historicalJourneys : activeAlerts).find(j => j.id === selectedJourneyId);
+
+  // ⚡ AUTONOMOUS TACTICAL INTERDICTION & TRAPPING AUTOPILOT ENGINE
+  useEffect(() => {
+    if (!selectedJourney || !isSovereignActive) return;
+
+    // Get live vehicle coordinates
+    const vLat = selectedJourney.latitude || selectedJourney.lat || selectedJourney.location?.latitude || selectedJourney.location?.lat;
+    const vLng = selectedJourney.longitude || selectedJourney.lng || selectedJourney.location?.longitude || selectedJourney.location?.lng;
+
+    if (!vLat || !vLng) return;
+
+    // Find the closest toll gate
+    let closestGate: any = null;
+    let minDistance = Infinity;
+
+    tollGates.forEach(gate => {
+      if (!gate.coords) return;
+      const gLng = gate.coords[0];
+      const gLat = gate.coords[1];
+
+      // Quick Haversine distance calculation in meters
+      const R = 6371e3; // metres
+      const phi1 = vLat * Math.PI/180;
+      const phi2 = gLat * Math.PI/180;
+      const deltaPhi = (gLat-vLat) * Math.PI/180;
+      const deltaLambda = (gLng-vLng) * Math.PI/180;
+
+      const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c; // in meters
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestGate = gate;
+      }
+    });
+
+    if (closestGate) {
+      // 1. Auto Camera Lock within 3000 meters (3 km)
+      if (minDistance <= 3000 && activeCCTVID !== closestGate.id) {
+        setActiveCCTVID(closestGate.id);
+        toast.info(`AUTO-TRACK ENGAGED: Camera locked onto target at ${closestGate.name}!`, {
+          description: `ANPR Radar locking target vehicle, distance: ${(minDistance/1000).toFixed(1)} km.`
+        });
+      }
+
+      // 2. Auto Gate Lockdown and Traffic Lockout within 1000 meters (1 km) for emergency journeys
+      const isEmergency = selectedJourney.status === 'emergency' || selectedJourney.isTransitSOS || selectedJourney.status === 'ACTIVE';
+      if (isEmergency && minDistance <= 1000) {
+        // Toggle the closest gate to CLOSED if not already closed
+        if (closestGate.status === 'OPEN') {
+          setTollGates(prev => prev.map(g => g.id === closestGate.id ? { ...g, status: 'CLOSED' } : g));
+          
+          // Force nearest traffic signal to ALL-RED LOCK
+          const targetSignalId = closestGate.id === 'TG-01' ? 'TS-01' : closestGate.id === 'TG-02' ? 'TS-02' : 'TS-03';
+          setTrafficSignals(prev => prev.map(s => s.id === targetSignalId ? { ...s, status: 'ALL-RED LOCK' } : s));
+
+          toast.error("🚨 AUTONOMOUS LOCKDOWN TRIGGERED!", {
+            description: `Target vehicle inside 1km radius of ${closestGate.name}. Barrier CLOSED & Signals set to RED LOCKOUT to trap vehicle!`
+          });
+
+          // Play an alert sound for the command room
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3');
+            audio.volume = 0.4;
+            audio.play();
+          } catch(e) {}
+        }
+      }
+    }
+  }, [selectedJourney, isSovereignActive, tollGates, activeCCTVID]);
 
   // 🧬 CLOUD ML PIPELINE HANDSHAKE
   useEffect(() => {
@@ -144,21 +268,24 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {}, externalSe
     <div className="h-[calc(100vh-48px)] w-full bg-[#0F172A] flex overflow-hidden font-['Outfit']">
       {/* 📋 LEFT COMMAND PANEL */}
       <aside className="w-[400px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl relative h-full">
-         <div className="p-8 border-b border-white/5 bg-[#1E293B]">
+          <div className="p-8 border-b border-white/5 bg-[#1E293B]">
             <div className="flex items-center gap-3 mb-6">
-               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-xl transition-all", sidebarTab === 'LIVE' ? "bg-blue-600 shadow-blue-600/20" : sidebarTab === 'HISTORY' ? "bg-emerald-600 shadow-emerald-600/20" : "bg-rose-600 shadow-rose-600/20")}>
-                  {sidebarTab === 'LIVE' ? <Radar size={24} strokeWidth={2.5} /> : sidebarTab === 'HISTORY' ? <History size={24} /> : <Shield size={24} />}
+               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-xl transition-all", sidebarTab === 'LIVE' ? "bg-blue-600 shadow-blue-600/20" : sidebarTab === 'HISTORY' ? "bg-emerald-600 shadow-emerald-600/20" : sidebarTab === 'MISSIONS' ? "bg-rose-600 shadow-rose-600/20" : "bg-amber-600 shadow-amber-600/20")}>
+                  {sidebarTab === 'LIVE' ? <Radar size={24} strokeWidth={2.5} /> : sidebarTab === 'HISTORY' ? <History size={24} /> : sidebarTab === 'MISSIONS' ? <Shield size={24} /> : <Video size={24} />}
                </div>
                <div>
-                  <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">{sidebarTab === 'LIVE' ? 'TransitIntel' : sidebarTab === 'HISTORY' ? 'Forensic Hub' : 'Mission Grid'}</h2>
+                  <h2 className="text-sm font-black text-white tracking-widest uppercase italic leading-none">
+                    {sidebarTab === 'LIVE' ? 'TransitIntel' : sidebarTab === 'HISTORY' ? 'Forensic Hub' : sidebarTab === 'MISSIONS' ? 'Mission Grid' : 'Transit Infra'}
+                  </h2>
                   <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest opacity-60 italic mt-1">Predictive SafePass Hub</p>
                </div>
             </div>
 
-            <div className="flex bg-[#0F172A] p-1 rounded-2xl border border-white/5 mb-6">
-               <button onClick={() => { setSidebarTab('LIVE'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'LIVE' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>LIVE</button>
-               <button onClick={() => { setSidebarTab('MISSIONS'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'MISSIONS' ? "bg-rose-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>MISSIONS</button>
-               <button onClick={() => { setSidebarTab('HISTORY'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'HISTORY' ? "bg-emerald-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>HISTORY</button>
+            <div className="flex bg-[#0F172A] p-1 rounded-2xl border border-white/5 mb-6 overflow-x-auto gap-1">
+               <button onClick={() => { setSidebarTab('LIVE'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("px-3 py-2 text-[8px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0", sidebarTab === 'LIVE' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>LIVE</button>
+               <button onClick={() => { setSidebarTab('MISSIONS'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("px-3 py-2 text-[8px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0", sidebarTab === 'MISSIONS' ? "bg-rose-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>MISSIONS</button>
+               <button onClick={() => { setSidebarTab('HISTORY'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("px-3 py-2 text-[8px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0", sidebarTab === 'HISTORY' ? "bg-emerald-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>HISTORY</button>
+               <button onClick={() => { setSidebarTab('INFRA'); setSelectedJourneyId(null); setSelectedVictimId(null); }} className={cn("px-3 py-2 text-[8px] font-black uppercase tracking-widest rounded-xl transition-all shrink-0", sidebarTab === 'INFRA' ? "bg-amber-600 text-white shadow-lg" : "text-gray-500 hover:text-white")}>INFRA</button>
             </div>
 
             <div className="relative">
@@ -168,39 +295,146 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {}, externalSe
          </div>
 
          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-[#0F172A]/30">
-            {filteredItems.map((item: any) => (
-              <div 
-                key={item.id} 
-                onClick={() => { setSelectedJourneyId(item.id); setSelectedVictimId(null); }} 
-                className={cn(
-                  "p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group bg-[#1E293B]/50 relative overflow-hidden",
-                  (selectedJourneyId === item.id) && "bg-blue-600/10 border-blue-500/30",
-                  item.status === 'emergency' && "border-rose-500/50 bg-rose-500/5 shadow-[0_0_15px_rgba(244,63,94,0.1)]"
-                )}
-              >
-                {item.status === 'emergency' && (
-                  <div className="absolute top-0 right-0 bg-rose-600 text-white text-[7px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest z-10">
-                    EMERGENCY
-                  </div>
-                )}
-                {!isSovereignActive && item.status !== 'emergency' && <div className="absolute top-0 right-0 p-2 opacity-20"><Lock size={10} className="text-white" /></div>}
-                <div className="flex justify-between items-center">
-                   <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center text-white border border-white/5 transition-all",
-                        item.status === 'emergency' ? "bg-rose-600 shadow-lg shadow-rose-600/20" : "bg-white/5"
-                      )}>
-                        {item.status === 'emergency' ? <ShieldAlert size={18} /> : <Car size={18} />}
-                      </div>
-                      <div>
-                         <h4 className="text-[11px] font-black text-white uppercase leading-none">{resolveIdentity(item)}</h4>
-                         <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">{item.vehicleNo || 'Archive User'}</p>
-                      </div>
+            {sidebarTab === 'INFRA' ? (
+               <div className="space-y-6">
+                 {/* TOLL GATE CONTROL */}
+                 <div>
+                   <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-[4px] mb-4">Sovereign Toll Gates</h3>
+                   <div className="space-y-3">
+                     {tollGates.map(gate => (
+                       <div 
+                         key={gate.id} 
+                         onClick={() => setActiveCCTVID(gate.id)}
+                         className={cn(
+                           "p-4 rounded-[2.5rem] border cursor-pointer transition-all hover:bg-white/5 bg-[#1E293B]/50 flex justify-between items-center",
+                           activeCCTVID === gate.id ? "border-amber-500/30 bg-amber-500/5 shadow-md shadow-amber-500/5" : "border-white/5"
+                         )}
+                       >
+                         <div className="flex items-center gap-3 min-w-0">
+                           <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                             <Car size={16} />
+                           </div>
+                           <div className="min-w-0">
+                             <h4 className="text-[10px] font-black text-white uppercase truncate">{gate.name}</h4>
+                             <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1">{gate.state} · ID: {gate.id}</p>
+                           </div>
+                         </div>
+
+                         <div className="flex items-center gap-2">
+                           <span className={cn(
+                             "text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border shrink-0",
+                             gate.status === 'OPEN' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                           )}>
+                             {gate.status}
+                           </span>
+                           <button 
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               if (!isSovereignActive) {
+                                 toast.error("OVERRIDE BLOCKED", { description: "Sovereign Override must be active." });
+                                 return;
+                               }
+                               const updated = tollGates.map(g => g.id === gate.id ? { ...g, status: g.status === 'OPEN' ? 'CLOSED' : 'OPEN' } : g);
+                               setTollGates(updated);
+                               toast.success(gate.status === 'OPEN' ? `GATE ${gate.id} SEALED` : `GATE ${gate.id} RELEASED`);
+                             }}
+                             className="w-8 h-8 rounded-xl bg-[#0F172A] border border-white/10 flex items-center justify-center text-gray-400 hover:text-white"
+                           >
+                             <Power size={12} />
+                           </button>
+                         </div>
+                       </div>
+                     ))}
                    </div>
-                   <ChevronRight size={14} className={cn("transition-all", item.status === 'emergency' ? "text-rose-500" : "text-gray-700")} />
-                </div>
-              </div>
-            ))}
+                 </div>
+
+                 {/* TRAFFIC INTERCEPT CONTROL */}
+                 <div>
+                   <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-[4px] mb-4">Traffic Signal Override</h3>
+                   <div className="space-y-3">
+                     {trafficSignals.map(sig => (
+                       <div 
+                         key={sig.id} 
+                         className="p-4 rounded-[2.5rem] border border-white/5 bg-[#1E293B]/50 flex justify-between items-center"
+                       >
+                         <div className="flex items-center gap-3 min-w-0">
+                           <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+                             <Radar size={16} />
+                           </div>
+                           <div className="min-w-0">
+                             <h4 className="text-[10px] font-black text-white uppercase truncate">{sig.intersection}</h4>
+                             <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1">ID: {sig.id}</p>
+                           </div>
+                         </div>
+
+                         <div className="flex items-center gap-1.5 bg-[#0F172A] p-1 rounded-xl border border-white/5 shrink-0">
+                           {['RED', 'GREEN', 'AUTO'].map(mode => {
+                             const statusMap: Record<string, string> = { RED: 'ALL-RED LOCK', GREEN: 'FORCE-GREEN', AUTO: 'AUTO-GREEN' };
+                             const isCurrent = sig.status === statusMap[mode];
+                             return (
+                               <button
+                                 key={mode}
+                                 onClick={() => {
+                                   if (!isSovereignActive) {
+                                     toast.error("OVERRIDE BLOCKED", { description: "Sovereign Override must be active." });
+                                     return;
+                                   }
+                                   const updated = trafficSignals.map(s => s.id === sig.id ? { ...s, status: statusMap[mode] } : s);
+                                   setTrafficSignals(updated);
+                                   toast.success(`SIGNAL ${sig.id} FORCE SET TO ${mode}`);
+                                 }}
+                                 className={cn(
+                                   "px-2 py-1 text-[7px] font-black uppercase tracking-widest rounded-lg transition-all",
+                                   isCurrent 
+                                     ? (mode === 'RED' ? "bg-rose-600 text-white" : mode === 'GREEN' ? "bg-emerald-600 text-white" : "bg-blue-600 text-white") 
+                                     : "text-gray-500 hover:text-white"
+                                 )}
+                               >
+                                 {mode}
+                               </button>
+                             );
+                           })}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+            ) : (
+               filteredItems.map((item: any) => (
+                 <div 
+                   key={item.id} 
+                   onClick={() => { setSelectedJourneyId(item.id); setSelectedVictimId(null); }} 
+                   className={cn(
+                     "p-5 rounded-[32px] border border-white/5 cursor-pointer transition-all hover:bg-white/5 group bg-[#1E293B]/50 relative overflow-hidden",
+                     (selectedJourneyId === item.id) && "bg-blue-600/10 border-blue-500/30",
+                     item.status === 'emergency' && "border-rose-500/50 bg-rose-500/5 shadow-[0_0_15px_rgba(244,63,94,0.1)]"
+                   )}
+                 >
+                   {item.status === 'emergency' && (
+                     <div className="absolute top-0 right-0 bg-rose-600 text-white text-[7px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest z-10">
+                       EMERGENCY
+                     </div>
+                   )}
+                   {!isSovereignActive && item.status !== 'emergency' && <div className="absolute top-0 right-0 p-2 opacity-20"><Lock size={10} className="text-white" /></div>}
+                   <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                         <div className={cn(
+                           "w-10 h-10 rounded-xl flex items-center justify-center text-white border border-white/5 transition-all",
+                           item.status === 'emergency' ? "bg-rose-600 shadow-lg shadow-rose-600/20" : "bg-white/5"
+                         )}>
+                           {item.status === 'emergency' ? <ShieldAlert size={18} /> : <Car size={18} />}
+                         </div>
+                         <div>
+                            <h4 className="text-[11px] font-black text-white uppercase leading-none">{resolveIdentity(item)}</h4>
+                            <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-1.5">{item.vehicleNo || 'Archive User'}</p>
+                         </div>
+                      </div>
+                      <ChevronRight size={14} className={cn("transition-all", item.status === 'emergency' ? "text-rose-500" : "text-gray-700")} />
+                   </div>
+                 </div>
+               ))
+            )}
          </div>
       </aside>
 
@@ -218,7 +452,109 @@ export function TransitTrack({ isSovereignActive, userStatusMap = {}, externalSe
                projectedPath={predictiveResults?.projection}
                safePath={selectedJourney?.safePath}
                isSovereignActive={isSovereignActive}
+               selectedState={selectedState}
             />
+
+            {/* CCTV FEED FLOATING COMMAND SCREEN */}
+            <AnimatePresence>
+               {activeCCTVID && (
+                  <motion.div 
+                    initial={{ x: 100, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 100, opacity: 0 }}
+                    className="absolute top-6 right-6 z-40 pointer-events-auto w-[360px] bg-black/90 backdrop-blur-md border border-white/10 rounded-[30px] overflow-hidden shadow-2xl flex flex-col font-['Outfit']"
+                  >
+                     {/* CCTV Screen Titlebar */}
+                     <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between bg-white/5">
+                        <div className="flex items-center gap-2">
+                           <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+                           <span className="text-[8px] font-black text-white uppercase tracking-[4px]">LIVE CCTV FEED: {activeCCTVID}</span>
+                        </div>
+                        <button onClick={() => setActiveCCTVID(null)} className="text-gray-500 hover:text-white text-[9px] font-black uppercase tracking-widest">
+                          DISCONNECT
+                        </button>
+                     </div>
+
+                     {/* CCTV Screen Viewport */}
+                     <div className="relative aspect-video bg-neutral-950 flex items-center justify-center overflow-hidden border-b border-white/5">
+                        {/* Scanning lines */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/[0.03] to-transparent pointer-events-none animate-pulse-slow" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.4))] pointer-events-none" />
+
+                        {/* Custom IR grid overlay */}
+                        <div className="absolute top-4 left-4 border-t-2 border-l-2 border-white/20 w-4 h-4" />
+                        <div className="absolute top-4 right-4 border-t-2 border-r-2 border-white/20 w-4 h-4" />
+                        <div className="absolute bottom-4 left-4 border-b-2 border-l-2 border-white/20 w-4 h-4" />
+                        <div className="absolute bottom-4 right-4 border-b-2 border-r-2 border-white/20 w-4 h-4" />
+
+                        {/* Camera feed telemetry */}
+                        <div className="absolute top-3 left-4 text-[7px] font-mono text-cyan-400/80 uppercase tracking-widest space-y-0.5">
+                           <p>CAM-REF: {tollGates.find(g => g.id === activeCCTVID)?.name || activeCCTVID}</p>
+                           <p>UTC: {new Date().toISOString().slice(11, 19)}</p>
+                           <p>ZOOM: {cameraZoom}X {irMode ? '· IR ENGAGED' : ''}</p>
+                        </div>
+
+                        <div className="absolute bottom-3 right-4 text-[7px] font-mono text-cyan-400/80 uppercase tracking-widest text-right">
+                           <p>AUTO-ANPR: ACTIVE</p>
+                           <p>RES: 4K 60FPS</p>
+                           <p>SIG STRENGTH: 99.8%</p>
+                        </div>
+
+                        {/* Simulated Video Placeholder Scene */}
+                        <div className={cn(
+                          "w-full h-full flex flex-col items-center justify-center transition-all p-6",
+                          irMode ? "bg-emerald-950/20 grayscale invert text-emerald-400" : "bg-neutral-900 text-cyan-500"
+                        )}>
+                           <Eye size={40} className="opacity-40 animate-pulse mb-3" />
+                           <div className="text-center space-y-1">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-white">Target Tracking Feed</p>
+                              <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest">NOH-PLAZA BARRIER SECURE</p>
+                           </div>
+                        </div>
+                     </div>
+
+                     {/* ANPR Live Logs Block */}
+                     <div className="p-4 bg-black/40 flex-1 flex flex-col max-h-[140px]">
+                        <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-2 leading-none">Auto License Plate Scanner (ANPR)</span>
+                        <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar text-[8px] font-mono text-gray-400">
+                           {anprLogs.map((log, i) => (
+                              <div key={i} className={cn("p-1.5 rounded bg-white/5 border border-white/5 truncate", log.includes('WANTED') || log.includes('VIOLATION') || log.includes('DRIFT') ? "text-rose-400 border-rose-500/20 bg-rose-500/5 animate-pulse" : "")}>
+                                 {log}
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+
+                     {/* Camera Control Panel */}
+                     <div className="p-4 bg-white/5 border-t border-white/10 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1.5">
+                           <button 
+                             onClick={() => setCameraZoom(z => Math.min(8, z + 1))}
+                             className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded text-[8px] font-black uppercase tracking-widest border border-white/10 cursor-pointer"
+                           >
+                             ZOOM+
+                           </button>
+                           <button 
+                             onClick={() => setCameraZoom(z => Math.max(1, z - 1))}
+                             className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded text-[8px] font-black uppercase tracking-widest border border-white/10 cursor-pointer"
+                           >
+                             ZOOM-
+                           </button>
+                           <button 
+                             onClick={() => setIrMode(!irMode)}
+                             className={cn(
+                               "px-2.5 py-1.5 rounded text-[8px] font-black uppercase tracking-widest border transition-all cursor-pointer",
+                               irMode ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+                             )}
+                           >
+                             IR NIGHT
+                           </button>
+                        </div>
+                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Sovereign Control Link</span>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
          </div>
 
          {/* 🎯 PREDICTIVE INTELLIGENCE HUD */}
