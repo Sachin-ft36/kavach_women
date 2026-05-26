@@ -14,10 +14,9 @@ import com.getcapacitor.JSObject;
 public class KavachAccessibilityService extends AccessibilityService {
     private static final String TAG = "KavachAccessService";
     
-    // Time threshold to determine a verified long-press sequence (1.5 seconds)
-    private static final long LONG_PRESS_THRESHOLD_MS = 1500;
-    private long volumeDownPressedTimestamp = 0;
-    private boolean isSosTriggered = false;
+    private static final long CLICK_WINDOW_MS = 2000; // Time window for 3 clicks
+    private int clickCount = 0;
+    private long firstClickTime = 0;
 
     @Override
     protected void onServiceConnected() {
@@ -32,6 +31,8 @@ public class KavachAccessibilityService extends AccessibilityService {
         }
     }
 
+    private boolean isVolumeDownHeld = false;
+
     @Override
     public boolean onKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
@@ -39,29 +40,33 @@ public class KavachAccessibilityService extends AccessibilityService {
 
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             if (action == KeyEvent.ACTION_DOWN) {
-                // Initialize timestamp on initial down event
-                if (volumeDownPressedTimestamp == 0) {
-                    volumeDownPressedTimestamp = System.currentTimeMillis();
-                    isSosTriggered = false;
-                } else {
-                    long duration = System.currentTimeMillis() - volumeDownPressedTimestamp;
-                    
-                    // Trigger if threshold is crossed and we haven't fired for this sequence yet
-                    if (duration >= LONG_PRESS_THRESHOLD_MS && !isSosTriggered) {
-                        isSosTriggered = true;
-                        executeEmergencySequence();
-                        return true; // Intercept and consume event completely
-                    }
+                // Prevent long-press auto-repeating from counting as multiple clicks
+                if (isVolumeDownHeld) {
+                    return false;
                 }
-                // Consume events while holding down to block native volume slider flashes
-                return true; 
+                isVolumeDownHeld = true;
+
+                long now = System.currentTimeMillis();
                 
+                if (clickCount == 0 || (now - firstClickTime > CLICK_WINDOW_MS)) {
+                    // Start new sequence
+                    clickCount = 1;
+                    firstClickTime = now;
+                } else {
+                    clickCount++;
+                }
+
+                if (clickCount >= 3) {
+                    clickCount = 0;
+                    firstClickTime = 0;
+                    executeEmergencySequence();
+                }
+                
+                // Do NOT consume the event entirely unless we want to disable volume control.
+                return false; 
             } else if (action == KeyEvent.ACTION_UP) {
-                // Clear state on physical key release
-                volumeDownPressedTimestamp = 0;
-                boolean handled = isSosTriggered;
-                isSosTriggered = false;
-                return handled; // Return true if we consumed the sequence, false otherwise
+                isVolumeDownHeld = false;
+                return false;
             }
         }
         return super.onKeyEvent(event);
@@ -89,9 +94,9 @@ public class KavachAccessibilityService extends AccessibilityService {
             KavachNative plugin = KavachNative.getInstance();
             if (plugin != null) {
                 JSObject data = new JSObject();
-                data.put("source", "shadow");
+                data.put("source", "hardware_button");
                 plugin.notifySosTrigger(data);
-                Log.i(TAG, "Capacitor bridge notified directly with shadow intent payload.");
+                Log.i(TAG, "Capacitor bridge notified directly with hardware_button intent payload.");
             } else {
                 Log.w(TAG, "KavachNative plugin instance null; running intent fallback strategy.");
             }
@@ -105,7 +110,7 @@ public class KavachAccessibilityService extends AccessibilityService {
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-        intent.putExtra("trigger", "shadow");
+        intent.putExtra("trigger", "hardware_button");
         
         try {
             startActivity(intent);

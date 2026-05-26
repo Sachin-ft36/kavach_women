@@ -364,6 +364,17 @@ export default function PCROfficerDashboard(props: Props) {
                     <p className="text-[8px] text-slate-500 mt-1 leading-snug truncate">
                       {sosAlert.locationName || "Coordinates Lock Active"}
                     </p>
+                    {sosAlert.guardianContacts && sosAlert.guardianContacts.length > 0 && (
+                      <div className="mt-3 bg-red-100 border border-red-200 rounded-xl p-2.5">
+                        <span className="text-[6px] font-black text-red-800 uppercase tracking-widest flex items-center gap-1 mb-1.5"><PhoneCall size={8} /> Guardian Info</span>
+                        {sosAlert.guardianContacts.map((g: any, i: number) => (
+                          <div key={i} className="flex justify-between items-center mt-1 text-red-900 font-bold uppercase">
+                             <span className="text-[7px]">{g.name || 'Guardian'}</span>
+                             <a href={`tel:${g.phone}`} className="flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded-md text-[7px] tracking-wider active:scale-95"><PhoneCall size={6}/> CALL</a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -466,6 +477,20 @@ export default function PCROfficerDashboard(props: Props) {
               <p className="text-[6px] text-slate-500 uppercase">Distance</p>
             </div>
           </div>
+          
+          {/* Guardian Info */}
+          {sosAlert.guardianContacts && sosAlert.guardianContacts.length > 0 && (
+            <div className="mb-3 bg-red-100 border border-red-200 rounded-xl p-3">
+              <span className="text-[7px] font-black text-red-800 uppercase tracking-widest flex items-center gap-1 mb-2"><PhoneCall size={10} /> Emergency Contacts</span>
+              {sosAlert.guardianContacts.map((g: any, i: number) => (
+                <div key={i} className="flex justify-between items-center mt-1.5 pb-1 border-b border-red-200/50 last:border-0 last:pb-0 text-red-900">
+                   <span className="text-[9px] font-bold uppercase">{g.name || 'Guardian'}</span>
+                   <a href={`tel:${g.phone}`} className="flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-lg text-[8px] font-black tracking-wider active:scale-95 transition-all"><PhoneCall size={8}/> CALL</a>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => {

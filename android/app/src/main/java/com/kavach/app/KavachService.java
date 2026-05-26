@@ -61,7 +61,7 @@ public class KavachService extends Service implements SensorEventListener {
     private long lastScreenToggleTime = 0;
     private static final long SCREEN_WINDOW_MS = 5000;
 
-    // ── Voice Detection (Native Sentinel) ─────────────
+    // ── Voice Detection (Native Vosk Engine) ─────────────
     private org.vosk.Model voskModel;
     private org.vosk.android.SpeechService speechService;
     private boolean isListening = false;
@@ -95,8 +95,8 @@ public class KavachService extends Service implements SensorEventListener {
                 // 🔐 RE-INIT SPEECH ON SCREEN TOGGLE: Ensures listener doesn't go stale
                 if (isListening) startVoiceSentinel();
 
-                // 5 rapid toggles = SOS
-                if (screenToggleCount >= 5) {
+                // 4 rapid toggles = SOS (Avoids fighting Android 12's native 5-click SOS)
+                if (screenToggleCount >= 4) {
                     screenToggleCount = 0;
                     Log.i(TAG, "MISSION CONTROL: Power-button SOS Detected!");
                     triggerSOS("power");
@@ -159,56 +159,43 @@ public class KavachService extends Service implements SensorEventListener {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
             String role = prefs.getString("kavach_user_role", "citizen");
-            if (!"citizen".equals(role)) {
-                Log.i(TAG, "Voice Sentinel disabled for role: " + role);
-                return;
-            }
+            if (!"citizen".equals(role)) return;
 
-            if (voskModel == null) {
-                org.vosk.android.StorageService.unpack(this, "sync/vosk-model-small-en-us-0.15", "model",
-                    (model) -> {
-                        voskModel = model;
-                        startVoiceSentinel();
-                    },
-                    (exception) -> Log.e(TAG, "Failed to unpack Vosk model: " + exception.getMessage()));
-            } else {
-                startVoiceSentinel();
-            }
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (voskModel == null) {
+                    // 🇮🇳 Indian English Model loaded for perfect Hindi/Hinglish accuracy
+                    org.vosk.android.StorageService.unpack(this, "sync/vosk-model-small-en-in-0.4", "model",
+                        (model) -> {
+                            voskModel = model;
+                            startVoiceSentinel();
+                        },
+                        (exception) -> Log.e(TAG, "Vosk Unpack Error: " + exception.getMessage()));
+                } else {
+                    startVoiceSentinel();
+                }
+            });
         } catch (Exception e) { Log.e(TAG, "Voice Sentinel Init Failed: " + e.getMessage()); }
     }
 
     private void startVoiceSentinel() {
         try {
-            android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
-            String role = prefs.getString("kavach_user_role", "citizen");
-            if (!"citizen".equals(role)) return;
-
             if (isSOSMissionActive) return;
-            
+
             if (speechService != null) {
                 speechService.stop();
                 speechService = null;
             }
 
             if (voskModel != null) {
+                // 🛡️ Grammar Lock is OFF. The en-in model is powerful enough to natively detect Indian phonetics
+                // without crashing from unknown regional words.
                 org.vosk.Recognizer rec = new org.vosk.Recognizer(voskModel, 16000.0f);
                 speechService = new org.vosk.android.SpeechService(rec, 16000.0f);
                 speechService.startListening(new org.vosk.android.RecognitionListener() {
-                    @Override
-                    public void onPartialResult(String hypothesis) {
-                        processVoskResult(hypothesis, true);
-                    }
-
-                    @Override
-                    public void onResult(String hypothesis) {
-                        processVoskResult(hypothesis, false);
-                    }
-
-                    @Override
-                    public void onFinalResult(String hypothesis) {
-                        processVoskResult(hypothesis, false);
-                    }
-
+                    @Override public void onPartialResult(String hypothesis) { processVoskResult(hypothesis, true); }
+                    @Override public void onResult(String hypothesis) { processVoskResult(hypothesis, false); }
+                    @Override public void onFinalResult(String hypothesis) { processVoskResult(hypothesis, false); }
+                    
                     @Override
                     public void onError(Exception e) {
                         Log.e(TAG, "Vosk Error: " + e.getMessage());
@@ -216,7 +203,6 @@ public class KavachService extends Service implements SensorEventListener {
                             if (!isSOSMissionActive) startVoiceSentinel();
                         }, 2000);
                     }
-
                     @Override
                     public void onTimeout() {
                         if (!isSOSMissionActive) startVoiceSentinel();
@@ -268,6 +254,7 @@ public class KavachService extends Service implements SensorEventListener {
             String text = obj.optString(isPartial ? "partial" : "text", "");
             if (text.isEmpty()) return;
             
+            Log.d(TAG, "🎙️ VOSK " + (isPartial ? "PARTIAL" : "FINAL") + ": " + text);
             analyzeSpeech(text, !isPartial);
         } catch (Exception e) {
             Log.e(TAG, "JSON Parse Error: " + e.getMessage());
@@ -295,17 +282,22 @@ public class KavachService extends Service implements SensorEventListener {
 
         // Fast immediate trigger for partial results without accumulating counts
         if (!isFinal) {
-            boolean hasKavach = phrase.contains("kavach") || phrase.contains("coverage") || phrase.contains("cabbage") || phrase.contains("covach") || phrase.contains("kavic") || phrase.contains("cover") || phrase.contains("car wash") || phrase.contains("catch") || phrase.contains("kavos") || phrase.contains("cow watch");
-            boolean hasHelp = phrase.contains("help") || phrase.contains("halp") || phrase.contains("health");
+            boolean hasKavach = phrase.contains("kavach");
+            boolean hasHelp = phrase.contains("help") || phrase.contains("madad") || phrase.contains("police") || phrase.contains("bachao");
             if (hasKavach && hasHelp) {
                 triggerSOS("voice");
                 return;
             }
-            if (phrase.contains("watch out") || phrase.contains("but show") || phrase.contains("but chow") || phrase.contains("help help help") || phrase.contains("bachao")) {
+            if (phrase.contains("bachao") || phrase.contains("madad") || phrase.contains("bhaago") || phrase.contains("help help help") || phrase.contains("but job") || phrase.contains("but chow")) {
                 triggerSOS("voice");
                 return;
             }
             return; 
+        }
+
+        // Phrase level checks for common Vosk misinterpretations of "Bachao Bachao"
+        if (phrase.contains("but job") || phrase.contains("but chow") || phrase.contains("but joe")) {
+            bachaoWordCount += 2;
         }
 
         String[] tokens = phrase.split("\\s+");
@@ -313,25 +305,32 @@ public class KavachService extends Service implements SensorEventListener {
             if (token.length() < 3) continue;
 
             double similarityKavach = getPhoneticSimilarity(token, "kavach");
-            double similarityHelp = Math.max(getPhoneticSimilarity(token, "help"), getPhoneticSimilarity(token, "halp"));
-            double similarityBachao = Math.max(getPhoneticSimilarity(token, "bachao"), getPhoneticSimilarity(token, "bchaao"));
+            double similarityHelp = Math.max(getPhoneticSimilarity(token, "help"), getPhoneticSimilarity(token, "madad"));
+            double similarityBachao = Math.max(getPhoneticSimilarity(token, "bachao"), getPhoneticSimilarity(token, "bhaago"));
             
             double simVachva = getPhoneticSimilarity(token, "vachva");
             double simKaapadu = getPhoneticSimilarity(token, "kaapadu");
             double simKaappattru = getPhoneticSimilarity(token, "kaappattru");
             double simRakshisu = getPhoneticSimilarity(token, "rakshisu");
 
-            if (similarityKavach >= 0.60 || token.equals("coverage") || token.equals("cabbage") || token.equals("covach") || token.equals("kavic") || token.equals("cover") || token.equals("catch") || token.equals("kavos")) kavachWordCount++;
-            if (similarityHelp >= 0.65 || token.equals("health")) helpWordCount++;
-            if (similarityBachao >= 0.65 || token.equals("chow") || token.equals("show")) bachaoWordCount++;
-            if (simVachva >= 0.65 || simKaapadu >= 0.65 || simKaappattru >= 0.65 || simRakshisu >= 0.65) regionalWordCount++;
+            if (similarityKavach >= 0.70 || token.equals("kavach") || token.equals("cover") || token.equals("cabbage")) kavachWordCount++;
+            
+            if (similarityHelp >= 0.70 || token.equals("help") || token.equals("madad") || token.equals("police") || token.equals("emergency") 
+                || token.equals("halp") || token.equals("hell") || token.equals("mother") || token.equals("murder")) helpWordCount++;
+                
+            if (similarityBachao >= 0.70 || token.equals("bachao") || token.equals("bhaago") || token.equals("chhod") 
+                || token.equals("bachow") || token.equals("bacao")) bachaoWordCount++;
+                
+            if (simVachva >= 0.70 || simKaapadu >= 0.70 || simKaappattru >= 0.70 || simRakshisu >= 0.70) regionalWordCount++;
         }
+
+        int totalEmergencyWords = kavachWordCount + helpWordCount + bachaoWordCount + regionalWordCount;
 
         if (kavachWordCount >= 1 && helpWordCount >= 1) {
             Log.i(TAG, "VOICE SENTINEL: Triggered via Rule A (Kavach + Help)");
             triggerSOS("voice");
-        } else if (helpWordCount >= 3) {
-            Log.i(TAG, "VOICE SENTINEL: Triggered via Rule B (Help x3)");
+        } else if (totalEmergencyWords >= 3) {
+            Log.i(TAG, "VOICE SENTINEL: Triggered via Rule B (Any 3 Emergency Words)");
             triggerSOS("voice");
         } else if (bachaoWordCount >= 2 || regionalWordCount >= 2) {
             Log.i(TAG, "VOICE SENTINEL: Triggered via Rule C (Bachao/Regional x2)");
@@ -548,28 +547,27 @@ public class KavachService extends Service implements SensorEventListener {
             survivalHandler = new android.os.Handler(android.os.Looper.getMainLooper());
         }
         survivalRunnable = new Runnable() {
-            private boolean isFirstRun = true;
             @Override
             public void run() {
-                // Always send the first SMS blast. Subsequent blasts only if offline.
-                if (isFirstRun || !isNetworkAvailable()) {
-                    Log.w(TAG, "OFFLINE SURVIVAL MODE: Dispatching Location SMS beacon...");
+                // Only dispatch offline SMS beacon if internet is actually disconnected
+                if (!isNetworkAvailable()) {
+                    Log.w(TAG, "OFFLINE SURVIVAL MODE: Network dead. Dispatching Location SMS beacon...");
                     new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            dispatchEmergencySMSWithLocation(isFirstRun, false);
+                            dispatchEmergencySMSWithLocation(false, false);
                         }
                     }).start();
                 } else {
                     Log.i(TAG, "OFFLINE SURVIVAL MODE: Internet is stable. Holding SMS beacon.");
                 }
-                isFirstRun = false;
-                // Schedule next ping in 2 minutes (120,000 ms) as per offline tracking protocol
+                // Schedule next ping in 2 minutes
                 survivalHandler.postDelayed(this, 120000);
             }
         };
-        // 🛡️ DELAY INITIAL BLAST: Wait 5.5 seconds to respect the React UI's "Cancel" timer
-        survivalHandler.postDelayed(survivalRunnable, 5500);
+        // 🛡️ DELAY INITIAL CHECK: Wait 2 minutes before starting the offline ping cycle.
+        // This gives the React UI full control to handle the first immediate Call/SMS blast.
+        survivalHandler.postDelayed(survivalRunnable, 120000);
     }
     
     private void stopOfflineSurvivalMode() {

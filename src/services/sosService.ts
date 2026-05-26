@@ -80,6 +80,12 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             verification_lock: true, 
             dispatch_status: 'ACTIVE_UPLINK',
             handshakeCode: data?.handshakeCode || '0000',
+            guardianContacts: (() => {
+              try {
+                const gStr = localStorage.getItem('kavach_guardian_cache');
+                return gStr ? JSON.parse(gStr) : [];
+              } catch (e) { return []; }
+            })(),
             ...data?.rideContext
           };
 
