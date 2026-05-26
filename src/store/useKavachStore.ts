@@ -216,7 +216,9 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         pendingSOS: {
           active: true,
           method,
-          expiresAt: Date.now() + 5000
+          // 🛡️ TACTICAL UX: If triggered by Power Button, OS 112 screen takes over. 
+          // Give user 10 seconds to cancel Kavach instead of 5, so they have time to cancel 112 first.
+          expiresAt: Date.now() + (method === 'power' ? 10000 : 5000)
         }
       });
     } else {

@@ -167,11 +167,17 @@ Handshake Code: ${data?.handshakeCode || 'N/A'}`;
         }
 
         // 📞 AUTO-CALL INITIATION (First Guardian)
-        const primaryGuardian = guardians.find((g: any) => g.phone);
-        if (primaryGuardian) {
-          await KavachSafe.initiateEmergencyCall({ number: primaryGuardian.phone });
+        // 🛡️ TACTICAL OVERRIDE: If triggered via Power Button, Native OS is dialing 112. 
+        // We MUST NOT interrupt the police call by trying to dial the guardian simultaneously.
+        if (data?.source === 'power') {
+          console.warn("⚠️ KAVACH: Power Button trigger detected. Skipping auto-call to Guardian to protect Native 112 call.");
         } else {
-          console.warn("⚠️ KAVACH: No primary guardian found for auto-call.");
+          const primaryGuardian = guardians.find((g: any) => g.phone);
+          if (primaryGuardian) {
+            await KavachSafe.initiateEmergencyCall({ number: primaryGuardian.phone });
+          } else {
+            console.warn("⚠️ KAVACH: No primary guardian found for auto-call.");
+          }
         }
 
         return true;

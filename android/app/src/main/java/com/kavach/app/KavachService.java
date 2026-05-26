@@ -59,7 +59,7 @@ public class KavachService extends Service implements SensorEventListener {
     // ── Power-Button Counter ─────────────────────────
     private int screenToggleCount = 0;
     private long lastScreenToggleTime = 0;
-    private static final long SCREEN_WINDOW_MS = 5000;
+    private static final long SCREEN_WINDOW_MS = 3000;
 
     // ── Voice Detection (Native Vosk Engine) ─────────────
     private org.vosk.Model voskModel;
@@ -95,8 +95,8 @@ public class KavachService extends Service implements SensorEventListener {
                 // 🔐 RE-INIT SPEECH ON SCREEN TOGGLE: Ensures listener doesn't go stale
                 if (isListening) startVoiceSentinel();
 
-                // 4 rapid toggles = SOS (Avoids fighting Android 12's native 5-click SOS)
-                if (screenToggleCount >= 4) {
+                // 3 rapid toggles = SOS (Synchronizes perfectly with Native Android SOS)
+                if (screenToggleCount >= 3) {
                     screenToggleCount = 0;
                     Log.i(TAG, "MISSION CONTROL: Power-button SOS Detected!");
                     triggerSOS("power");
