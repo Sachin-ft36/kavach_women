@@ -166,7 +166,7 @@ export function StateNexusCommand({
                      </div>
                   </div>
                   <div className="flex-1 bg-white border border-gray-100 rounded-[2.5rem] overflow-hidden">
-                     <WomenSafetyOPS activeAlerts={activeAlerts} onAlertClick={onAlertClick} viewMode="ALL" />
+                     <WomenSafetyOPS />
                   </div>
                </div>
                <div className="col-span-12 lg:col-span-4 space-y-4">

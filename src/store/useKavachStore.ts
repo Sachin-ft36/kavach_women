@@ -46,7 +46,7 @@ interface KavachState {
   userPos: [number, number];
   batteryLevel: number | null;
   isSOSActive: boolean;
-  triggerMethod: 'button' | 'shake' | 'voice' | 'silent' | 'ride' | 'remote';
+  triggerMethod: 'button' | 'shake' | 'voice' | 'silent' | 'ride' | 'remote' | 'power';
   isRideModeActive: boolean;
   rideData: {
     vehicleNo: string;
@@ -56,12 +56,17 @@ interface KavachState {
     deviationDistance: number;
     status: 'linked' | 'displacement_only' | 'active' | 'monitored' | 'emergency';
     warningsIssued: number;
-    path?: [number, number][];
+    path?: { lng: number; lat: number }[];
     emergencyTriggeredAt?: number;
     alertLevel?: string;
   } | null;
   falseSOSCount: number;
   activeAlertId: string | null;
+  isRideDeviationAlertActive: boolean;
+  rideDeviationType: 'ROUTE_DEVIATION_BREACH' | 'STATIONARY_SUSPICIOUS_STOP' | null;
+  setIsRideDeviationAlertActive: (active: boolean, type?: 'ROUTE_DEVIATION_BREACH' | 'STATIONARY_SUSPICIOUS_STOP' | null) => void;
+  rideGracePeriodEndsAt: number | null;
+  setRideGracePeriodEndsAt: (time: number | null) => void;
   isLocked: boolean;
   isGhostMode: boolean;
   activeTab: string;
@@ -145,6 +150,8 @@ interface KavachState {
   setActiveRadius: (radius: number) => void;
   isFirFlowActive: boolean;
   setIsFirFlowActive: (active: boolean) => void;
+  isSafeTimerAlertActive: boolean;
+  setIsSafeTimerAlertActive: (active: boolean) => void;
 }
 
 const savedHandshake = localStorage.getItem('kavach_handshake_code');
@@ -165,6 +172,11 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   rideData: savedRideData,
   falseSOSCount: 0,
   activeAlertId: savedAlertId,
+  isRideDeviationAlertActive: false,
+  rideDeviationType: null,
+  setIsRideDeviationAlertActive: (active, type = null) => set({ isRideDeviationAlertActive: active, rideDeviationType: type }),
+  rideGracePeriodEndsAt: null,
+  setRideGracePeriodEndsAt: (time) => set({ rideGracePeriodEndsAt: time }),
   isLocked: false,
   isGhostMode: false,
   activeTab: 'dashboard',
@@ -209,6 +221,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setActiveRadius: (activeRadius) => set({ activeRadius }),
   isFirFlowActive: false,
   setIsFirFlowActive: (isFirFlowActive) => set({ isFirFlowActive }),
+  isSafeTimerAlertActive: false,
+  setIsSafeTimerAlertActive: (isSafeTimerAlertActive) => set({ isSafeTimerAlertActive }),
 
   setPendingSOS: (active, method = 'button') => {
     if (active) {
@@ -504,6 +518,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
               if (state.isSOSActive && state.activeAlertId) {
                 try {
+                  // Victim footprint
                   await setDoc(doc(db, 'alerts', state.activeAlertId), {
                     latitude: loc.latitude,
                     longitude: loc.longitude,
@@ -512,6 +527,18 @@ export const useKavachStore = create<KavachState>((set, get) => ({
                   }, { merge: true });
                 } catch (e) {
                   console.warn("⚠️ KAVACH: Alert Telemetry Sync Pending...");
+                }
+              } else if (state.respondingToAlertId) {
+                // 🛡️ Responder (PCR or Civilian) footprint tracking
+                try {
+                  // We store the protector footprint under a specific key based on UID so multiple responders don't mix their trails
+                  const pathKey = `footprints.${auth.currentUser.uid}`;
+                  await setDoc(doc(db, 'alerts', state.respondingToAlertId), {
+                    [pathKey]: arrayUnion({ lng: loc.longitude, lat: loc.latitude, t: Date.now() }),
+                    lastUpdated: serverTimestamp()
+                  }, { merge: true });
+                } catch (e) {
+                  console.warn("⚠️ KAVACH: Responder Footprint Sync Pending...");
                 }
               }
 
@@ -576,6 +603,28 @@ export const useKavachStore = create<KavachState>((set, get) => ({
       const existingHandshake = providedHandshake || get().handshakeCode || localStorage.getItem('kavach_handshake_code');
       const finalHandshake = existingHandshake || Math.floor(1000 + Math.random() * 9000).toString();
 
+      // ✨ Mappls Precise Building ID Fetch (eLoc) & Entry Gate Node
+      let mapplsId = null;
+      let routingLat = userPos[0];
+      let routingLng = userPos[1];
+      try {
+        // Mappls APIs block client-side CORS requests without proper headers/whitelists.
+        // We will default to GPS coordinates for routing to prevent console errors.
+        /*
+        const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
+        const response = await fetch(`https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/rev_geocode?lat=${userPos[0]}&lng=${userPos[1]}&region=IND`);
+        const data = await response.json();
+        const place = data.results?.[0];
+        if (place) {
+          mapplsId = place.eloc || null;
+          routingLat = place.entry_latitude || userPos[0];
+          routingLng = place.entry_longitude || userPos[1];
+        }
+        */
+      } catch (err) {
+        // Suppress CORS errors
+      }
+
       // 🛡️ PERMISSION ESCALATION: Ensure hardware access before engaging forensic sentinel
       if (Capacitor.isNativePlatform()) {
         try {
@@ -607,7 +656,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           isHandshakeVerified: false,
           handshakeCode: finalHandshake,
           activeTab: 'sos',
-          rideData: updatedRide
+          rideData: updatedRide,
+          isRideDeviationAlertActive: false
         });
         localStorage.setItem('kavach_ride_data', JSON.stringify(updatedRide));
       } else {
@@ -618,7 +668,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           pendingSOS: null,
           isHandshakeVerified: false,
           handshakeCode: finalHandshake,
-          activeTab: 'sos'
+          activeTab: 'sos',
+          isRideDeviationAlertActive: false
         });
       }
 
@@ -637,7 +688,10 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           type: method,
           alertId,
           handshakeCode: get().handshakeCode,
-          rideContext
+          rideContext,
+          mapplsId,
+          routingLat,
+          routingLng
         });
       } else {
         console.log("🛰️ KAVACH SYNC: State aligned with Cloud. Dispatch already operational.");
@@ -661,7 +715,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         });
     } else {
       // ⚡ INSTANT UI SNAPBACK: Clear local state immediately for zero-latency response
-      // 🛡️ TERMINATE ALL SENTINELS
+      // 🛡️ TERMINATE ALL SENTINELS & CLEAR RIDE DATA
       set({
         isSOSActive: false,
         isShadowActive: false,
@@ -670,13 +724,17 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         activeRadius: 5.0,
         activeTab: 'dashboard',
         handshakeCode: null,
-        isHandshakeVerified: false
+        isHandshakeVerified: false,
+        isRideModeActive: false,
+        rideData: null
       });
       localStorage.removeItem('kavach_sos_active');
       localStorage.removeItem('kavach_shadow_mode');
       localStorage.removeItem('kavach_active_alert_id');
       localStorage.removeItem('kavach_trigger_method');
       localStorage.removeItem('kavach_handshake_code');
+      localStorage.removeItem('kavach_ride_mode');
+      localStorage.removeItem('kavach_ride_data');
 
       const currentAlertId = activeAlertId || get().activeAlertId;
       if (auth.currentUser && currentAlertId) {

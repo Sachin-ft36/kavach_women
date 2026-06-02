@@ -38,13 +38,14 @@ const VictimMap = React.memo(({
   customPos?: [number, number],
   isCarHUD?: boolean
 }) => {
-  const { userPos } = useKavachStore();
+  const { userPos, rideData, isRideModeActive } = useKavachStore();
   const activePos = customPos || userPos;
   const metrics = useSafetyIntelligence();
   const { initiateCall } = useCall();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<{ user?: mapboxgl.Marker, victim?: mapboxgl.Marker, path?: any }>({});
+  const markersRef = useRef<{ user?: mapboxgl.Marker, victim?: mapboxgl.Marker, destination?: mapboxgl.Marker, path?: any }>({});
+  const isAutoTracking = useRef(true);
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
 
   useEffect(() => {
@@ -80,6 +81,10 @@ const VictimMap = React.memo(({
         }
       });
       resizeObserver.observe(mapContainer.current);
+
+      map.current.on('dragstart', () => {
+        isAutoTracking.current = false;
+      });
 
       map.current.on('style.load', () => {
         console.log("🛰️ KAVACH: Mapbox Tactical Grid Online.");
@@ -481,10 +486,159 @@ const VictimMap = React.memo(({
       if (markersRef.current.victim) { markersRef.current.victim.remove(); delete markersRef.current.victim; }
       if (m.getLayer('route')) m.removeLayer('route');
       if (m.getSource('route')) m.removeSource('route');
-      m.setCenter([activePos[1], activePos[0]]);
-      m.setZoom(19);
+      
+      // Auto-rotate and track when in Ride Safe mode (like native navigation)
+      const rideData = useKavachStore.getState().rideData;
+      if (rideData?.status === 'active') {
+        const calculateBearing = (start: [number, number], end: [number, number]) => {
+          const toRad = (deg: number) => deg * Math.PI / 180;
+          const toDeg = (rad: number) => rad * 180 / Math.PI;
+          const lon1 = toRad(start[0]), lat1 = toRad(start[1]);
+          const lon2 = toRad(end[0]), lat2 = toRad(end[1]);
+          const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+          const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+          return (toDeg(Math.atan2(y, x)) + 360) % 360;
+        };
+
+        const prevPos = (window as any)._last_ride_pos;
+        const currCoords: [number, number] = [activePos[1], activePos[0]];
+        
+        if (isAutoTracking.current) {
+          if (prevPos && (prevPos[0] !== activePos[0] || prevPos[1] !== activePos[1])) {
+            const prevCoords: [number, number] = [prevPos[1], prevPos[0]];
+            const bearing = calculateBearing(prevCoords, currCoords);
+            
+            m.easeTo({
+              center: currCoords,
+              zoom: 18.5,
+              pitch: 65,
+              bearing: bearing,
+              duration: 1000,
+              essential: true
+            });
+          } else if (!prevPos) {
+            m.easeTo({
+              center: currCoords,
+              zoom: 18.5,
+              pitch: 65,
+              essential: true
+            });
+          }
+        }
+        (window as any)._last_ride_pos = activePos;
+      } else {
+        if (isAutoTracking.current) {
+          m.setCenter([activePos[1], activePos[0]]);
+          m.setZoom(19);
+        }
+      }
     }
   }, [activePos, activeAlerts]);
+
+  // 🛰️ RECENTER MAP EVENT LISTENER
+  useEffect(() => {
+    const handleRecenter = () => {
+      isAutoTracking.current = true;
+      if (map.current && activePos) {
+        map.current.flyTo({
+          center: [activePos[1], activePos[0]],
+          zoom: 18,
+          pitch: 60,
+          duration: 1500,
+          essential: true
+        });
+      }
+    };
+    window.addEventListener('recenter-map', handleRecenter);
+    return () => window.removeEventListener('recenter-map', handleRecenter);
+  }, [activePos]);
+
+  // 🚨 RIDE SAFE ROUTE SYNC (Tactical Geofence Visualization)
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !isMapLoaded) return;
+
+    if (isRideModeActive && rideData?.path && rideData.path.length > 0) {
+      // Draw route polyline
+      const updateRideRoute = (coordinates: any[]) => {
+        if (!m.getSource('ride-route')) {
+          m.addSource('ride-route', {
+            'type': 'geojson',
+            'data': {
+              'type': 'Feature',
+              'properties': {},
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': coordinates
+              }
+            }
+          });
+
+          m.addLayer({
+            'id': 'ride-route',
+            'type': 'line',
+            'source': 'ride-route',
+            'layout': {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            'paint': {
+              'line-color': '#10B981', // Emerald green for safe ride
+              'line-width': 6,
+              'line-opacity': 0.8
+            }
+          });
+        } else {
+          (m.getSource('ride-route') as mapboxgl.GeoJSONSource).setData({
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': coordinates
+            }
+          });
+        }
+      };
+
+      // Convert {lng, lat} objects back to [lng, lat] arrays for Mapbox GeoJSON
+      const geoJsonCoords = rideData.path.map((p: any) => p.lng !== undefined ? [p.lng, p.lat] : p);
+      updateRideRoute(geoJsonCoords);
+
+      // Destination Marker
+      if (rideData.targetCoords) {
+        if (!markersRef.current.destination) {
+          const el = document.createElement('div');
+          el.className = 'destination-pos-marker';
+          el.innerHTML = `<div style="width: 20px; height: 20px; background: #10B981; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);"></div>`;
+          markersRef.current.destination = new mapboxgl.Marker(el)
+            .setLngLat(rideData.targetCoords)
+            .addTo(m);
+        } else {
+          markersRef.current.destination.setLngLat(rideData.targetCoords);
+        }
+      }
+
+      // Start zoomed in on the user's location instead of showing the entire route
+      if (!(window as any)._ride_route_fitted && rideData.targetCoords && activePos) {
+        m.flyTo({ 
+          center: [activePos[1], activePos[0]], 
+          zoom: 18.5, 
+          pitch: 65, 
+          essential: true 
+        });
+        (window as any)._ride_route_fitted = true;
+      }
+    } else {
+      // Cleanup if ride ends
+      if (markersRef.current.destination) {
+        markersRef.current.destination.remove();
+        delete markersRef.current.destination;
+      }
+      if (m.getLayer('ride-route')) m.removeLayer('ride-route');
+      if (m.getSource('ride-route')) m.removeSource('ride-route');
+      (window as any)._ride_route_fitted = false;
+    }
+  }, [rideData?.path, isMapLoaded, isRideModeActive, activePos]);
 
   const handleSecureCall = () => {
     const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
@@ -498,15 +652,7 @@ const VictimMap = React.memo(({
     <div className="w-full h-full relative overflow-hidden bg-[#0F172A] [contain:strict]">
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
 
-      {!isCarHUD && (
-        <div className={cn(
-          "absolute left-6 z-[10] flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-full shadow-lg transition-all",
-          isInterceptMode ? "top-24" : "top-6"
-        )}>
-          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-          <span className="text-[8px] font-black text-[#0F172A] uppercase tracking-widest">Live Tracking</span>
-        </div>
-      )}
+
 
       {isInterceptMode && onClose && (
         <div className="absolute top-8 left-6 z-[20] pointer-events-auto">

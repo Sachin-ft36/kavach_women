@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useKavachStore } from '../store/useKavachStore';
-import { calculateHaversineDistance } from '../utils/geoUtils';
-import { executeEmergencyBlast } from '../services/sosService';
+import { calculateHaversineDistance, distanceToPolylineMeters, fetchMapboxRoute } from '../utils/geoUtils';
+import { KavachSafe } from '../services/KavachNative';
+import { startBackgroundTracking } from '../services/locationService';
+import { auth } from '../firebase';
 
 /**
- * 🛰️ KAVACH RIDE MONITORING PROTOCOL
- * Automatically monitors transit paths via spatial geofence telemetry.
- * Leverages thread-safe reference caching to prevent state-change race conditions.
+ * 🛰️ KAVACH RIDE MONITORING PROTOCOL (Phase 2 - GeoFencing)
+ * Automatically monitors transit paths via spatial geofence telemetry using Polyline geometry.
  */
 export function useRideProtocol() {
   const { 
@@ -14,127 +15,203 @@ export function useRideProtocol() {
     rideData, 
     updateRideData, 
     userPos, 
-    user, 
-    setSOSActive, 
-    setActiveTab, 
-    isSOSBlocked 
+    isSOSBlocked,
+    isRideDeviationAlertActive,
+    setIsRideDeviationAlertActive,
+    isSOSActive
   } = useKavachStore();
 
-  // Unified operational state tracking references
   const userPosRef = useRef(userPos);
   const lastPosRef = useRef<[number, number] | null>(null);
   const consecutiveStopsRef = useRef(0);
   const baselineDistRef = useRef<number | null>(null);
   const loopIntervalRef = useRef<any>(null);
 
-  // Sync the latest coordinates to a reference cell to decouple from the effect loop
   useEffect(() => {
     userPosRef.current = userPos;
   }, [userPos]);
 
   useEffect(() => {
-    // Teardown any running tracking instances if parameters are invalidated
-    if (!isRideModeActive || !rideData || !rideData.targetCoords || isSOSBlocked) {
+    // If Ride Mode is off, SOS is blocked, OR an active SOS is already running, shut down the background telemetry
+    if (!isRideModeActive || !rideData || !rideData.targetCoords || isSOSBlocked || isSOSActive) {
       clearActiveTrackingEngine();
       return;
     }
 
-    // Capture initial values safely
-    const targetCoordinates = rideData.targetCoords;
+    const targetCoordinates = rideData.targetCoords; // [lng, lat]
     const warningsIssued = rideData.warningsIssued || 0;
 
-    // Prevent duplicate loop allocations
-    if (loopIntervalRef.current) return;
+    // Fetch optimal routing polyline if not already mapped
+    if (!rideData.path || rideData.path.length === 0) {
+      const initRoute = async () => {
+        const startLng = userPosRef.current[1];
+        const startLat = userPosRef.current[0];
+        const endLng = targetCoordinates[0];
+        const endLat = targetCoordinates[1];
+        console.log("🛰️ Fetching Tactical Route Polyline for Geofencing via Mapbox (Web CORS Fallback)...");
+        const path = await fetchMapboxRoute(startLng, startLat, endLng, endLat);
+        if (path) {
+          // 📡 BLIND-SPOT PREDICTION (Dead Zone Protocol)
+          // Analyze the fetched route against a database of known Cellular Dead Zones (Forests, Valleys, Highways)
+          // (In production: this queries Telco Coverage Maps / Network APIs)
+          const routeHasDeadZones = false; // Mocking Telco Coverage API
+          
+          if (routeHasDeadZones) {
+             console.warn("⚠️ KAVACH DEAD ZONE PROTOCOL: Route intersects with known Cellular Blind-Spots.");
+             console.warn("📡 Pre-emptively dispatching Shadow Tracker payload to SuperCell...");
+             // In production: Dispatch a 'dead-zone-entry' payload to Firebase with ETA. 
+             // If the device does not ping back within ETA + 5 mins, SuperCell triggers a silent SOS automatically.
+          }
 
-    console.log("🚀 KAVACH: Ride Transit Monitoring Engine Active.");
+          updateRideData({ path: path.map(p => ({ lng: p[0], lat: p[1] })) });
+        }
+      };
+      initRoute();
+    }
+
+    if (loopIntervalRef.current) return;
+    console.log("🚀 KAVACH: Advanced Route GeoFencing Engine Active.");
+
+    // 🛡️ NATIVE BACKGROUND BINDING (OS LEVEL)
+    // Links this logic to the native Android/iOS background service to prevent OS from killing the CPU/GPS when minimized.
+    KavachSafe.startBackgroundSentinel();
+    if (auth.currentUser) {
+      startBackgroundTracking(auth.currentUser.uid, 'high');
+    }
 
     loopIntervalRef.current = setInterval(async () => {
-      const currentPos = userPosRef.current;
-      if (!currentPos || !currentPos[0] || !currentPos[1]) return;
-
-      // 1. Calculate linear spatial distance to target destination
-      const distToTarget = calculateHaversineDistance(
-        currentPos[0], currentPos[1],
-        targetCoordinates[0], targetCoordinates[1]
-      );
-
-      let deviation = 0;
+      const state = useKavachStore.getState();
       
-      if (baselineDistRef.current !== null) {
-        // If the user moves further away from their closest captured distance marker
-        if (distToTarget > baselineDistRef.current + 0.15) { 
-          deviation = distToTarget - baselineDistRef.current;
-        } else {
-          // Track the closest point the user has achieved along the route
-          baselineDistRef.current = Math.min(baselineDistRef.current, distToTarget);
-        }
-      } else {
-        baselineDistRef.current = distToTarget;
-      }
+      // Do not process movement if the Dead Man's Switch interrogation is already active or SOS is running
+      if (state.isRideDeviationAlertActive || state.isSOSActive) return;
 
-      // Update the telemetry store data without triggering a component re-render
-      updateRideData({ deviationDistance: deviation });
-
-      // 🚨 CRITICAL BREACH: Off-Route Deviation Detection
-      // A 2.5km vector drift indicates a complete exit from verified transit corridors
-      if (deviation > 2.5 && warningsIssued === 0) {
-        triggerEmergencyPipeline('ROUTE_DEVIATION_BREACH');
+      // Respect the 10-minute grace period after a user provides a valid reason
+      if (state.rideGracePeriodEndsAt && Date.now() < state.rideGracePeriodEndsAt) {
+        // Still track path to re-calculate route, but DO NOT trigger alarms
+        // We will just return early to prevent triggering
         return;
       }
 
-      // 🚨 STATIONARY THREAT MONITORING
+      const currentPos = userPosRef.current; // [lat, lng]
+      if (!currentPos || !currentPos[0] || !currentPos[1]) return;
+
+      let deviation = 0;
+      const path = useKavachStore.getState().rideData?.path;
+
+      if (path && path.length > 0) {
+        // High-accuracy Polyline Geofencing
+        // currentPos is [lat, lng], distanceToPolyline expects (px=lng, py=lat)
+        const distanceMeters = distanceToPolylineMeters(currentPos[1], currentPos[0], path.map(p => [p.lng, p.lat] as [number, number]));
+        deviation = distanceMeters / 1000; // Convert to KM
+      } else {
+        // Fallback: Anchor Mode (Linear drift)
+        const distToTarget = calculateHaversineDistance(
+          currentPos[0], currentPos[1],
+          targetCoordinates[1], targetCoordinates[0] // Note: target is [lng, lat]
+        );
+        if (baselineDistRef.current !== null) {
+          if (distToTarget > baselineDistRef.current + 0.15) { 
+            deviation = distToTarget - baselineDistRef.current;
+          } else {
+            baselineDistRef.current = Math.min(baselineDistRef.current, distToTarget);
+          }
+        } else {
+          baselineDistRef.current = distToTarget;
+        }
+      }
+
+      updateRideData({ deviationDistance: deviation });
+
+      // 🚨 STATIONARY MONITORING & SPEED PROFILING
       if (lastPosRef.current) {
         const distanceMovedSinceLastCheck = calculateHaversineDistance(
           currentPos[0], currentPos[1],
           lastPosRef.current[0], lastPosRef.current[1]
         );
 
-        // If the vehicle has traveled less than 40 meters while off-route, flag it as stopped
-        if (distanceMovedSinceLastCheck < 0.04 && deviation > 0.4) { 
+        // 🏎️ HOSTILE EVASION MANEUVER (Kidnapping Speed & Aggressive U-Turns)
+        // Speed = Distance(km) / Time(hours). The interval is 10 seconds (10 / 3600 hours)
+        const currentSpeedKmh = distanceMovedSinceLastCheck * 360; 
+        const isAggressiveUturn = false; // Mocking Gyroscope/Compass rapid heading change API
+
+        // If deviating even slightly (100m) but fleeing at high speed (100+ km/h) or taking violent U-turns
+        if ((deviation > 0.1 && currentSpeedKmh > 100) || isAggressiveUturn) {
+          console.error("🚨 KAVACH HOSTILE EVASION DETECTED: Kidnapping/Fleeing pattern matched!");
+          triggerDeadMansSwitch('ROUTE_DEVIATION_BREACH');
+          return;
+        }
+
+        // 🚨 STANDARD DEVIATION DETECTION: > 500 meters (0.5 km) off the polyline route
+        if (deviation > 0.5 && warningsIssued === 0) {
+          triggerDeadMansSwitch('ROUTE_DEVIATION_BREACH');
+          return;
+        }
+
+        // If moved < 40 meters (0.04 km)
+        if (distanceMovedSinceLastCheck < 0.04) { 
           consecutiveStopsRef.current += 1;
-          console.warn(`⚠️ KAVACH: Suspicious transit stop detected. Counter: ${consecutiveStopsRef.current}/30`);
         } else {
           consecutiveStopsRef.current = 0; 
         }
 
-        // 30 intervals * 10 seconds = 5 continuous minutes of zero velocity
-        if (consecutiveStopsRef.current >= 30) {
+        // 🚥 CONTEXT-AWARE THREAT ANALYSIS (Traffic Density & POI Integration)
+        // (In production, this queries Mapbox/Mappls live traffic API and Places API)
+        const trafficDensity = 'CLEAR_ROAD'; // Mocking Traffic API
+        const isNearSafePOI = false; // Mocking POI API (Toll Plaza, Petrol Pump, Police Station)
+        
+        let stopThresholdIntervals = 30; // Default: 5 Mins for Heavy Traffic / Red Zones
+        
+        if (isNearSafePOI) {
+          // If stopped at a Toll Plaza or Petrol Pump, allow extra time without triggering alarm
+          stopThresholdIntervals = 45; // 7.5 Minutes (Toll lines can be long)
+        } else if (trafficDensity === 'CLEAR_ROAD') {
+          // If the road has NO traffic (green line) and it's NOT a safe POI, there is ZERO reason to stop.
+          // Reduce the threat timer to just 90 seconds (9 intervals).
+          stopThresholdIntervals = 9;
+        }
+
+        // 🛡️ INITIAL START GRACE PERIOD
+        // If the ride just started (within 5 mins), the user might be waiting in the cab before it departs.
+        // Prevent the 90-second clear road alarm from triggering too early.
+        const timeSinceRideStart = Date.now() - (rideData.startTime || Date.now());
+        if (timeSinceRideStart < 5 * 60 * 1000) {
+          stopThresholdIntervals = Math.max(stopThresholdIntervals, 30); // Enforce at least 5 mins
+        }
+
+        if (consecutiveStopsRef.current >= stopThresholdIntervals) {
           if (warningsIssued === 0) {
-            triggerEmergencyPipeline('STATIONARY_SUSPICIOUS_STOP');
+            triggerDeadMansSwitch('STATIONARY_SUSPICIOUS_STOP');
             return;
           }
         }
       }
 
-      // Update historical reference tracks for the next comparison pass
       lastPosRef.current = [currentPos[0], currentPos[1]];
-      
-    }, 10000); // Evaluates every 10 seconds
+    }, 10000);
 
-    function triggerEmergencyPipeline(reason: 'ROUTE_DEVIATION_BREACH' | 'STATIONARY_SUSPICIOUS_STOP') {
-      console.error(`🚨 KAVACH TRANSIT BLOCK: SOS TRIGGERED via ${reason}`);
-      
-      clearActiveTrackingEngine();
-      updateRideData({ warningsIssued: 1 });
-      
-      setActiveTab('sos');
-      setSOSActive(true, null, 'ride');
-      
-      executeEmergencyBlast(user, userPosRef.current, { type: reason });
+    function triggerDeadMansSwitch(reason: 'ROUTE_DEVIATION_BREACH' | 'STATIONARY_SUSPICIOUS_STOP') {
+      console.error(`🚨 KAVACH DEAD MAN'S SWITCH: Triggered via ${reason}`);
+      setIsRideDeviationAlertActive(true, reason);
     }
 
     function clearActiveTrackingEngine() {
       if (loopIntervalRef.current) {
-        clearInterval(loopIntervalRef.current);
-        loopIntervalRef.current = null;
-      }
+      clearInterval(loopIntervalRef.current);
+      loopIntervalRef.current = null;
     }
+    
+    // Stop native background processes when ride is cleared
+    KavachSafe.stopBackgroundSentinel();
+    
+    lastPosRef.current = null;
+    baselineDistRef.current = null;
+    consecutiveStopsRef.current = 0;
+  }
 
     return () => {
       clearActiveTrackingEngine();
     };
-    // Isolated dependencies preserve the interval instance across coordinates stream changes
-  }, [isRideModeActive, rideData?.targetCoords, isSOSBlocked]);
+  }, [isRideModeActive, rideData?.targetCoords, rideData?.path?.length, isSOSBlocked, isSOSActive]);
 
   return null;
 }

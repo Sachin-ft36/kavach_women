@@ -13,7 +13,11 @@ export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; on
       setFakeCallActive(true);
       onClose();
     } else {
-      toast.info(`SCHEDULING CALL IN ${delay} SECONDS...`);
+      toast.info(`SCHEDULING NATIVE CALL IN ${delay} SECONDS...`);
+      import('../services/KavachNative').then(({ KavachSafe }) => {
+        KavachSafe.scheduleFakeCall({ delaySeconds: delay });
+      });
+      // Fallback for web simulator
       setTimeout(() => {
         setFakeCallActive(true);
       }, delay * 1000);

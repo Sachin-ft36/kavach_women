@@ -8,7 +8,7 @@ import { KavachSafe } from '../services/KavachNative';
 import { auth } from '../firebase';
 
 export default function SOSButton() {
-  const { 
+  const {
     user, profile, isSOSActive, setSOSActive,
     isFakeCallActive, setFakeCallActive,
     isVoiceTriggerActive, setVoiceTriggerActive,
@@ -33,23 +33,23 @@ export default function SOSButton() {
       if (!acc) return;
 
       const force = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
-      const accelThreshold = 45; 
+      const accelThreshold = 55; // Extremely high threshold for explicit human intent
 
       if (force > accelThreshold) {
         const now = Date.now();
-        
+
         if (shakeCountRef.current === 0) {
           shakeWindowRef.current = now;
         }
 
-        if (shakeWindowRef.current && now - shakeWindowRef.current < 1500) {
+        if (shakeWindowRef.current && now - shakeWindowRef.current < 2000) {
           if (now - lastShakeTimeRef.current > 250) {
             shakeCountRef.current += 1;
             lastShakeTimeRef.current = now;
-            setShakeProgress(Math.min((shakeCountRef.current / 3) * 100, 100));
+            setShakeProgress(Math.min((shakeCountRef.current / 5) * 100, 100));
 
-            if (shakeCountRef.current >= 3) {
-              cooldownRef.current = now; 
+            if (shakeCountRef.current >= 5) {
+              cooldownRef.current = now;
               goLive('shake');
               shakeCountRef.current = 0;
               shakeWindowRef.current = null;
@@ -104,7 +104,7 @@ export default function SOSButton() {
 
       const currentUid = auth.currentUser?.uid || user?.uid || localStorage.getItem('kavach_user_uid') || 'GUEST';
       const alertId = `alert_${currentUid}_${Date.now()}`;
-      
+
       if (isOnline) {
         await setSOSActive(true, alertId, source);
       } else {
@@ -121,7 +121,7 @@ export default function SOSButton() {
   const handleManualTrigger = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(2);
-    
+
     let currentVal = 2;
     timerRef.current = setInterval(() => {
       currentVal -= 1;

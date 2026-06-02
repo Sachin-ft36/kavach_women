@@ -15,9 +15,9 @@ export function useShakeTrigger() {
   const isListenerAttachedRef = useRef<boolean>(false);
   
   // 🛡️ TACTICAL SENSOR CALIBRATION PARAMETERS
-  const ACCELERATION_FORCE_THRESHOLD = 42.0; // Expressed in m/s² (Excludes gravity vector)
-  const MAX_SESSION_WINDOW_MS = 2000;         // Maximum duration allowed to register 3 distinct shakes
-  const MIN_SHAKE_INTERVAL_MS = 250;          // 4Hz Low-pass filter. Drops single-impact desk bumps.
+  const ACCELERATION_FORCE_THRESHOLD = 55.0;  // Extremely high force to ignore casual sofa bounces
+  const MAX_SESSION_WINDOW_MS = 2000;         // Tightened back to 2s. 5 shakes in 2s is intentional.
+  const MIN_SHAKE_INTERVAL_MS = 250;          // Allowed fast frantic shaking (force handles false positives)
 
   useEffect(() => {
     // Structural gating checks
@@ -50,9 +50,9 @@ export function useShakeTrigger() {
         // Verify if this movement falls within the active tracking window
         if (timeDeltaSinceLastShake < MAX_SESSION_WINDOW_MS) {
           shakeCountRef.current += 1;
-          console.log(`📳 KINETIC SENTINEL: Verified movement [${shakeCountRef.current}/3] | Force: ${forceMagnitude.toFixed(1)} m/s²`);
+          console.log(`📳 KINETIC SENTINEL: Verified movement [${shakeCountRef.current}/5] | Force: ${forceMagnitude.toFixed(1)} m/s²`);
 
-          if (shakeCountRef.current >= 3) {
+          if (shakeCountRef.current >= 5) {
             console.error("🚨 KINETIC SENTINEL: VIOLENT PATTERN CONFIRMED. INITIALIZING SOS PROTOCOL.");
             setPendingSOS(true, 'shake');
             shakeCountRef.current = 0;

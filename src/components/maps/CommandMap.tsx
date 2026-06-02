@@ -1105,52 +1105,7 @@ export default function CommandMap({
         </AnimatePresence>
       </div>
 
-      {/* 🛰️ LAYER SELECTOR CONTROL BUTTON (TOP-RIGHT GLASSMORPHISM CONTROL) */}
-      <div className="absolute right-8 top-8 z-[120]">
-        <div className="relative">
-          <button
-            onClick={() => setIsStyleMenuOpen(!isStyleMenuOpen)}
-            className="w-12 h-12 bg-white/95 backdrop-blur-md hover:bg-white text-gray-800 border border-gray-200/50 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-300 pointer-events-auto transform hover:scale-105 active:scale-95"
-            title="Switch Map Layers"
-          >
-            <Layers size={20} strokeWidth={2.2} />
-          </button>
-
-          <AnimatePresence>
-            {isStyleMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -15, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                className="absolute top-14 right-0 w-52 bg-white/95 backdrop-blur-2xl border border-gray-200/50 p-2 rounded-3xl shadow-2xl pointer-events-auto flex flex-col gap-1 overflow-hidden"
-              >
-                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest px-3 py-1.5 leading-none">Map Viewport Layers</p>
-
-                {STYLES_LIST.map((style) => {
-                  const isActive = currentStyle === style.url;
-                  return (
-                    <button
-                      key={style.id}
-                      onClick={() => {
-                        setCurrentStyle(style.url);
-                        setIsStyleMenuOpen(false);
-                      }}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 ${isActive
-                        ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/10"
-                        : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 font-medium"
-                        }`}
-                    >
-                      <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${isActive ? "bg-white scale-125" : "bg-gray-400"
-                        }`} />
-                      <span className="text-[10px] uppercase tracking-wide leading-none">{style.name}</span>
-                    </button>
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+      {/* 🛰️ LAYER SELECTOR CONTROL BUTTON (REMOVED) */}
 
       {/* 🛰️ SYSTEM COMPASS / COORDINATES */}
       <div className="absolute left-8 bottom-8 pointer-events-none z-[100]">

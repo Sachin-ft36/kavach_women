@@ -13,27 +13,27 @@ interface GenderStepProps {
   setUserPhone: (val: string) => void;
 }
 
-export default function GenderStep({ 
-  gender, 
-  setGender, 
-  userName, 
-  setUserName, 
-  userPhone, 
-  setUserPhone 
+export default function GenderStep({
+  gender,
+  setGender,
+  userName,
+  setUserName,
+  userPhone,
+  setUserPhone
 }: GenderStepProps) {
   const { t } = useLanguage();
 
   const options = [
-    { 
-      id: 'female' as const, 
-      icon: User, 
+    {
+      id: 'female' as const,
+      icon: User,
       title: "Female Profile",
       subtitle: "Full access to Women Safety Grid",
       color: 'blue',
     },
-    { 
-      id: 'male' as const, 
-      icon: UserPlus, 
+    {
+      id: 'male' as const,
+      icon: UserPlus,
       title: "Male Profile",
       subtitle: "Verified Protector onboarding",
       color: 'blue',
@@ -41,17 +41,17 @@ export default function GenderStep({
   ];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, x: 20 }} 
-      animate={{ opacity: 1, x: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
       className="flex-1 flex flex-col space-y-4"
     >
       {/* Header Section */}
       <div className="flex flex-col items-center space-y-2 pt-1">
         <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-[20px] flex items-center justify-center shadow-lg shadow-gray-100">
-           <User className="text-[#2563EB] size-5 sm:size-6" />
+          <User className="text-[#2563EB] size-5 sm:size-6" />
         </div>
-        
+
         <div className="text-center space-y-0.5">
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
             User Registration
@@ -71,7 +71,7 @@ export default function GenderStep({
             onClick={() => setGender(opt.id)}
             className={cn(
               "relative overflow-hidden p-4 rounded-[24px] border-2 transition-all duration-300 flex items-center gap-4 shadow-sm group active:scale-[0.98]",
-              gender === opt.id 
+              gender === opt.id
                 ? "bg-[#2563EB]/5 border-[#2563EB] shadow-md shadow-[#2563EB]/10"
                 : "bg-white border-[#E5E7EB] hover:border-[#2563EB]/30"
             )}
@@ -79,7 +79,7 @@ export default function GenderStep({
             {/* Icon Box */}
             <div className={cn(
               "w-11 h-11 rounded-xl border flex items-center justify-center shadow-inner transition-all duration-300",
-              gender === opt.id 
+              gender === opt.id
                 ? "bg-[#2563EB] text-white border-[#2563EB]"
                 : "bg-gray-50 text-gray-300 border-gray-100"
             )}>
@@ -109,15 +109,15 @@ export default function GenderStep({
 
         {/* ⚠️ Government Legal Disclaimer */}
         <div className="bg-white border-2 border-amber-100 p-4 rounded-[22px] space-y-2 shadow-sm mt-1">
-           <div className="flex items-center gap-2.5">
-             <div className="w-6 h-6 bg-amber-50 rounded-lg flex items-center justify-center border border-amber-100">
-               <Shield size={14} className="text-amber-600" />
-             </div>
-             <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Verification Notice</span>
-           </div>
-           <p className="text-[9px] font-bold text-gray-500 leading-tight italic">
-             Inaccurate documentation is a punishable offence. Your identity will be digitally anchored.
-           </p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 bg-amber-50 rounded-lg flex items-center justify-center border border-amber-100">
+              <Shield size={14} className="text-amber-600" />
+            </div>
+            <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Verification Notice</span>
+          </div>
+          <p className="text-[9px] font-bold text-gray-500 leading-tight italic">
+            Inaccurate documentation is a punishable offence. Your identity will be digitally anchored.
+          </p>
         </div>
 
         <div className="flex items-center justify-center gap-2 opacity-30 pt-2 pb-4">

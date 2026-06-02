@@ -15,8 +15,9 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
   const metrics = useSafetyIntelligence();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<{user?: mapboxgl.Marker, responders: { [key: string]: mapboxgl.Marker }, radar?: mapboxgl.Marker, route?: mapboxgl.Marker}>({ responders: {} });
+  const markersRef = useRef<{user?: mapboxgl.Marker, responders: { [key: string]: mapboxgl.Marker }, police: mapboxgl.Marker[], radar?: mapboxgl.Marker, route?: mapboxgl.Marker}>({ responders: {}, police: [] });
   const [responderId, setResponderId] = useState<string | null>(null);
+  const fetchedPoliceCoords = useRef<{ lat: number, lng: number } | null>(null);
 
   // 📡 LISTEN FOR RESPONDER HANDSHAKE
   useEffect(() => {
@@ -220,7 +221,85 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
     } else {
       markersRef.current.user.setLngLat(coords);
     }
+
+    // 🚔 FETCH REAL POLICE STATIONS VIA OVERPASS API (Once per significant location change)
+    const fetchPoliceStations = async () => {
+      const dist = fetchedPoliceCoords.current ? calculateDistance(userPos[0], userPos[1], fetchedPoliceCoords.current.lat, fetchedPoliceCoords.current.lng) : 999;
+      // Only re-fetch if user moved more than 2KM
+      if (dist < 2.0) return; 
+
+      fetchedPoliceCoords.current = { lat: userPos[0], lng: userPos[1] };
+      console.log("🚔 RADAR: Scanning for real Police Stations...");
+
+      try {
+        const searchRadius = activeRadius * 1000; // meters
+        const query = `
+          [out:json];
+          (
+            node["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
+            way["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
+            relation["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
+          );
+          out center;
+        `;
+        const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        // Clear old police markers
+        markersRef.current.police.forEach(marker => marker.remove());
+        markersRef.current.police = [];
+
+        data.elements.forEach((station: any) => {
+          const lat = station.lat || station.center?.lat;
+          const lon = station.lon || station.center?.lon;
+          if (lat && lon && map.current) {
+            const el = document.createElement('div');
+            el.className = 'police-marker';
+            el.style.cursor = 'pointer';
+            el.style.zIndex = '800'; // Below Elite protectors, above standard
+            el.innerHTML = `
+              <div style="background: #1e3a8a; padding: 6px; border-radius: 10px; border: 2px solid #3b82f6; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(59,130,246,0.5);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              </div>
+            `;
+            
+            const popup = new mapboxgl.Popup({ offset: 25, closeButton: false, className: 'police-popup' })
+              .setHTML(`
+                <div style="padding: 4px; font-family: sans-serif;">
+                  <h3 style="color: black; font-weight: 900; margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">${station.tags?.name || 'Police Station'}</h3>
+                  <p style="color: #666; font-size: 9px; margin: 2px 0 0 0; font-weight: bold; text-transform: uppercase;">Verified Station</p>
+                </div>
+              `);
+
+            const marker = new mapboxgl.Marker(el)
+              .setLngLat([lon, lat])
+              .setPopup(popup)
+              .addTo(map.current);
+            
+            markersRef.current.police.push(marker);
+          }
+        });
+        console.log(`🚔 RADAR: Mapped ${data.elements.length} Police Stations.`);
+      } catch (e) {
+        console.error("Failed to fetch police stations", e);
+      }
+    };
+
+    if (m.isStyleLoaded()) {
+      fetchPoliceStations();
+    } else {
+      m.once('idle', fetchPoliceStations);
+    }
   }, [userPos, activeRadius]);
+
+  // HELPER FOR DISTANCE CHECK
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
 
   // 3. Protector Grid Rendering
   useEffect(() => {
@@ -292,10 +371,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
   return (
     <div className="w-full h-full relative rounded-2xl overflow-hidden bg-[#050505]">
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
-      <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2">
-        <div className="w-1.5 h-1.5 bg-[#0A84FF] rounded-full animate-pulse" />
-        <span className="text-[9px] font-black text-white uppercase tracking-widest">Tactical Radar Grid</span>
-      </div>
+
       {/* Status bars removed for tactical clarity and to prevent overlap with SOS controls */}
       <style>{`
         @keyframes responder-pulse {

@@ -4,7 +4,7 @@ import {
   AlertTriangle, History, MessageSquare,
   Activity, Zap, ShieldAlert, Ban, 
   CheckCircle2, Users, Search, Target, Clock,
-  ChevronRight, Filter, Fingerprint, Car, X,
+  ChevronRight, ChevronLeft, Filter, Fingerprint, Car, X,
   ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe, Battery
 } from 'lucide-react';
 import { db } from '../../firebase';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 // 🏛️ UHD Strategic Map
 import CommandMap from '../maps/CommandMap';
+import MapplsCommandMap from '../maps/MapplsCommandMap';
 import { MissionAuditModal } from './MissionAuditModal';
 
 const WARNING_REASONS = [
@@ -45,6 +46,7 @@ export function SOSManagement({
   const [selectedVictimId, setSelectedVictimId] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<'LIVE' | 'HISTORY'>('LIVE');
   const [searchTerm, setSearchTerm] = useState('');
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
   
   const [guardians, setGuardians] = useState<any[]>([]);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
@@ -414,9 +416,9 @@ export function SOSManagement({
         {/* LEFT COLUMN: PAST LOGS */}
         <div className="w-[50%] lg:w-[55%] h-full overflow-y-auto custom-scrollbar p-6 lg:p-8 space-y-6 border-r border-white/5 bg-[#0F172A]">
           <div className="space-y-1 mb-6">
-            <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[7px] font-black rounded-full border border-blue-500/20 uppercase tracking-widest leading-none">Archived Records</span>
+            <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[11px] font-black rounded-full border border-blue-500/20 uppercase tracking-widest leading-none">Archived Records</span>
             <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">Incident Ledger History</h1>
-            <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">Double scrollable forensic archive for {victimData.name}</p>
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">Double scrollable forensic archive for {victimData.name}</p>
           </div>
 
           <div className="space-y-6">
@@ -444,12 +446,12 @@ export function SOSManagement({
                         <h5 className="text-[14px] font-black text-white uppercase italic tracking-tighter leading-none">
                           {alert.timestamp?.toDate ? alert.timestamp.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase() : 'UNKNOWN DATE'}
                         </h5>
-                        <p className="text-[7px] font-black text-rose-500 uppercase tracking-[1.5px] mt-1.5">
+                        <p className="text-[11px] font-black text-rose-500 uppercase tracking-[1.5px] mt-1.5">
                           TRIGGERED AT: {alert.timestamp?.toDate ? alert.timestamp.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'}
                         </p>
                       </div>
                     </div>
-                    <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[8px] font-black text-emerald-500 uppercase tracking-[2px]">
+                    <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[12px] font-black text-emerald-500 uppercase tracking-[2px]">
                       Resolved
                     </div>
                   </div>
@@ -465,10 +467,10 @@ export function SOSManagement({
                       { label: 'Battery Level', value: alert.batteryLevel || alert.battery || (alert.deviceStatus && alert.deviceStatus.battery) || alert.deviceBattery || '89%', icon: Battery }
                     ].map((item, i) => (
                       <div key={i} className="bg-black/25 p-3.5 rounded-xl border border-white/5 flex flex-col justify-between">
-                        <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest mb-1 leading-none">{item.label}</p>
+                        <p className="text-[14px] font-black text-gray-500 uppercase tracking-widest mb-1 leading-none">{item.label}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <item.icon size={9} className="text-blue-400 shrink-0" />
-                          <span className="text-[8px] font-bold text-gray-200 uppercase tracking-tight truncate w-full">{item.value}</span>
+                          <span className="text-[12px] font-bold text-gray-200 uppercase tracking-tight truncate w-full">{item.value}</span>
                         </div>
                       </div>
                     ))}
@@ -476,7 +478,7 @@ export function SOSManagement({
 
                   {/* GUARDIAN NETWORK */}
                   <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mb-6">
-                    <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                       <Users size={10} className="text-rose-500" /> Connected Guardian Network
                     </p>
                     {guardians.length > 0 ? (
@@ -484,15 +486,15 @@ export function SOSManagement({
                         {guardians.map((g, idx) => (
                           <div key={idx} className="bg-black/20 px-3 py-2 rounded-xl border border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-black text-white uppercase italic leading-none">{g.name}</span>
+                              <span className="text-[13px] font-black text-white uppercase italic leading-none">{g.name}</span>
                               <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[5px] font-black rounded-full uppercase tracking-widest leading-none">{g.relation || 'Guardian'}</span>
                             </div>
-                            <span className="text-[8px] font-black text-gray-400 tabular-nums leading-none">{g.phone || g.phoneNumber}</span>
+                            <span className="text-[12px] font-black text-gray-400 tabular-nums leading-none">{g.phone || g.phoneNumber}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[8px] text-gray-500 font-bold uppercase tracking-widest italic">No guardians registered.</div>
+                      <div className="text-[12px] text-gray-500 font-bold uppercase tracking-widest italic">No guardians registered.</div>
                     )}
                   </div>
 
@@ -500,22 +502,28 @@ export function SOSManagement({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-black/20 p-5 rounded-[1.5rem] border border-white/5 flex flex-col justify-between">
                       <div>
-                        <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Resolution Log</p>
-                        <p className="text-[9px] font-black text-emerald-500 uppercase italic tracking-widest">Verified Rescue Completed</p>
-                        <p className="text-[8px] font-bold text-gray-400 uppercase italic mt-1.5">"{alert.closureReason || 'Mission Accomplished'}"</p>
+                        <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-2">Resolution Log</p>
+                        <p className="text-[13px] font-black text-emerald-500 uppercase italic tracking-widest">Verified Rescue Completed</p>
+                        <p className="text-[12px] font-bold text-gray-400 uppercase italic mt-1.5">"{alert.closureReason || 'Mission Accomplished'}"</p>
                       </div>
-                      <div className="mt-4 pt-4 border-t border-white/5">
+                      <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
                         <button 
                           onClick={() => setIsAuditModalOpen(true)}
-                          className="text-[8px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest flex items-center gap-1.5 transition-colors cursor-pointer"
+                          className="text-[12px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
                           Forensic Audit Detail <ChevronRight size={10} />
+                        </button>
+                        <button 
+                          onClick={() => setSelectedAlertId(alert.id)}
+                          className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[12px] font-black text-emerald-400 hover:bg-emerald-500 hover:text-white uppercase tracking-widest flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                        >
+                          <MapPin size={10} /> Load Tactical Map
                         </button>
                       </div>
                     </div>
                     <div className="bg-black/20 p-5 rounded-[1.5rem] border border-white/5 flex flex-col justify-between">
                       <div>
-                        <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-2">Savior & Responders</p>
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">Savior & Responders</p>
                         <div className="flex flex-wrap gap-1.5">
                           {(alert.activeResponders || []).map((r: any) => (
                             <div 
@@ -524,14 +532,14 @@ export function SOSManagement({
                                 onViewReplay?.(alert.id);
                                 toast.success(`⚡ INITIATING 3D REPLAY: ${r.name}`);
                               }}
-                              className="px-2.5 py-1 bg-emerald-500 text-white rounded-lg text-[7px] font-black uppercase tracking-widest flex items-center gap-1 cursor-pointer hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                              className="px-2.5 py-1 bg-emerald-500 text-white rounded-lg text-[11px] font-black uppercase tracking-widest flex items-center gap-1 cursor-pointer hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
                             >
                               <ShieldCheck size={8} />
                               {r.name}
                             </div>
                           ))}
                           {(!alert.activeResponders || alert.activeResponders.length === 0) && (
-                            <div className="text-[8px] font-bold text-gray-600 italic">No Responder Logged</div>
+                            <div className="text-[12px] font-bold text-gray-600 italic">No Responder Logged</div>
                           )}
                         </div>
                       </div>
@@ -560,15 +568,15 @@ export function SOSManagement({
                       <Lock size={24} className="text-rose-500" />
                     </div>
                     <h2 className="text-base font-black text-white uppercase italic leading-none">Account Blocked</h2>
-                    <p className="text-[8px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from Grid</p>
+                    <p className="text-[12px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from Grid</p>
                     
-                    <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[9px] text-gray-300 italic">
+                    <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[13px] text-gray-300 italic">
                       {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL."}
                     </div>
 
                     <div className="flex gap-2">
-                      <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg">Restore</button>
-                      <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[8px] font-black uppercase tracking-widest">Ban</button>
+                      <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[12px] font-black uppercase tracking-widest shadow-lg">Restore</button>
+                      <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[12px] font-black uppercase tracking-widest">Ban</button>
                     </div>
                   </div>
                 </motion.div>
@@ -577,16 +585,16 @@ export function SOSManagement({
 
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <span className="px-2 py-0.5 bg-[#1E293B] text-blue-400 text-[7px] font-black rounded-full border border-white/5 uppercase tracking-widest leading-none">Archived Incident Ledger</span>
+                <span className="px-2 py-0.5 bg-[#1E293B] text-blue-400 text-[11px] font-black rounded-full border border-white/5 uppercase tracking-widest leading-none">Archived Incident Ledger</span>
                 <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">{victimData.name}</h1>
               </div>
               
               {/* COMPACT ACTION BUTTONS */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
+                <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[12px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
                   <AlertTriangle size={10} /> Warn
                 </button>
-                <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
+                <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[12px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
                   <Ban size={10} /> Ban
                 </button>
               </div>
@@ -595,40 +603,40 @@ export function SOSManagement({
             <div className="flex flex-wrap items-center gap-2">
               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                 <Phone size={10} className="text-gray-500" />
-                <span className="text-[9px] font-black text-white tabular-nums">{victimData.phoneNumber || victimData.phone || 'NO RECORD'}</span>
+                <span className="text-[13px] font-black text-white tabular-nums">{victimData.phoneNumber || victimData.phone || 'NO RECORD'}</span>
               </div>
               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                 <Fingerprint size={10} className="text-gray-500" />
-                <span className="text-[9px] font-black text-white tabular-nums tracking-widest">{victimData.aadhar || victimData.aadhaar || 'UNLINKED'}</span>
+                <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData.aadhar || victimData.aadhaar || 'UNLINKED'}</span>
               </div>
               {victimData.email && (
                 <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                   <Mail size={10} className="text-gray-500" />
-                  <span className="text-[9px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
+                  <span className="text-[13px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
                 </div>
               )}
               {victimData.gender && (
                 <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
-                  <span className="text-[6px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
-                  <span className="text-[9px] font-black text-white uppercase">{victimData.gender}</span>
+                  <span className="text-[14px] font-black text-gray-500 uppercase tracking-widest">GDR:</span>
+                  <span className="text-[13px] font-black text-white uppercase">{victimData.gender}</span>
                 </div>
               )}
               {victimData.role && (
                 <div className="bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20 flex items-center gap-1.5 shadow-lg">
                   <Shield size={10} className="text-blue-400" />
-                  <span className="text-[9px] font-black text-blue-400 uppercase">{victimData.role}</span>
+                  <span className="text-[13px] font-black text-blue-400 uppercase">{victimData.role}</span>
                 </div>
               )}
               {victimData.isVerified && (
                 <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 flex items-center gap-1.5 shadow-lg">
                   <ShieldCheck size={10} className="text-emerald-400" />
-                  <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Verified</span>
+                  <span className="text-[12px] font-black text-emerald-400 uppercase tracking-widest">Verified</span>
                 </div>
               )}
               {victimData.specialCellLinked && (
                 <div className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20 flex items-center gap-1.5 shadow-lg">
                   <Zap size={10} className="text-rose-500" />
-                  <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
+                  <span className="text-[12px] font-black text-rose-500 uppercase tracking-widest">Special Cell</span>
                 </div>
               )}
             </div>
@@ -638,7 +646,7 @@ export function SOSManagement({
           {(victimData.fullAddress || victimData.locationData?.formattedAddress) && (
             <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-rose-500/30" />
-              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <MapPin size={10} className="text-rose-500" /> Permanent Sector Grid
               </p>
               <p className="text-[11px] font-black text-white uppercase italic leading-relaxed">{victimData.fullAddress || victimData.locationData?.formattedAddress}</p>
@@ -649,17 +657,17 @@ export function SOSManagement({
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Bell size={30} /></div>
-              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Total Alerts</p>
+              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-2">Total Alerts</p>
               <h3 className="text-xl font-black text-white italic tabular-nums leading-none tracking-tighter">{victimHistory.length}</h3>
             </div>
             <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><ShieldAlert size={30} /></div>
-              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Misuse</p>
+              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-2">Misuse</p>
               <h3 className="text-xl font-black text-rose-500 italic tabular-nums leading-none tracking-tighter">{victimHistory.filter(a => a.closureReason?.includes('Misuse') || a.closureReason?.includes('Accidental')).length}</h3>
             </div>
             <div className="bg-[#1E293B]/30 p-4 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Activity size={30} /></div>
-              <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest mb-2">Activity Index</p>
+              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-2">Activity Index</p>
               <h3 className="text-xl font-black text-emerald-500 italic tabular-nums leading-none tracking-tighter">
                 {Math.max(0, 100 - (victimHistory.filter(a => a.closureReason?.includes('Misuse')).length * 20))}%
               </h3>
@@ -668,21 +676,21 @@ export function SOSManagement({
 
           {/* 🛡️ SUPPORT NODES */}
           <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
-            <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
+            <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
             <div className="space-y-2.5">
               {victimData.primaryGuardian && (
                 <div className="flex justify-between items-center bg-rose-500/10 px-4 py-2 rounded-xl border border-rose-500/20 shadow-lg">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
+                    <span className="text-[13px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
                     <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[5px] font-black rounded-full uppercase tracking-widest">Primary</span>
                   </div>
-                  <span className="text-[9px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
+                  <span className="text-[13px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
                 </div>
               )}
               {guardians.map((g: any) => (
                 <div key={g.id} className="flex justify-between items-center bg-black/20 px-4 py-2 rounded-xl border border-white/5">
-                  <span className="text-[9px] font-black text-white uppercase italic">{g.name}</span>
-                  <span className="text-[9px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
+                  <span className="text-[13px] font-black text-white uppercase italic">{g.name}</span>
+                  <span className="text-[13px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
                 </div>
               ))}
             </div>
@@ -692,8 +700,8 @@ export function SOSManagement({
           <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl flex items-center justify-between relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-5"><Activity size={40} /></div>
             <div>
-              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
-              <p className="text-[6px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
+              <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
+              <p className="text-[14px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
             </div>
             <h3 className="text-3xl font-black text-rose-500 italic tabular-nums leading-none">{victimData.sosStrikeCount || 0}</h3>
           </div>
@@ -708,8 +716,8 @@ export function SOSManagement({
       <aside className="w-[380px] bg-[#1E293B] border-r border-white/5 flex flex-col z-20 shadow-2xl">
          <div className="p-8 pb-4">
             <div className="flex bg-[#0F172A] p-1 rounded-2xl border border-white/5 mb-6">
-               <button onClick={() => { setSidebarTab('LIVE'); setSelectedAlertId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'LIVE' ? "bg-rose-600 text-white shadow-lg" : "text-gray-500")}><Activity size={12} className="inline mr-2" /> Live SOS</button>
-               <button onClick={() => { setSidebarTab('HISTORY'); setSelectedAlertId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'HISTORY' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500")}><Clock size={12} className="inline mr-2" /> Logs</button>
+               <button onClick={() => { setSidebarTab('LIVE'); setSelectedAlertId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[13px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'LIVE' ? "bg-rose-600 text-white shadow-lg" : "text-gray-500")}><Activity size={12} className="inline mr-2" /> Live SOS</button>
+               <button onClick={() => { setSidebarTab('HISTORY'); setSelectedAlertId(null); setSelectedVictimId(null); }} className={cn("flex-1 py-3 text-[13px] font-black uppercase tracking-widest rounded-xl transition-all", sidebarTab === 'HISTORY' ? "bg-blue-600 text-white shadow-lg" : "text-gray-500")}><Clock size={12} className="inline mr-2" /> Logs</button>
             </div>
             <div className="relative">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
@@ -719,12 +727,19 @@ export function SOSManagement({
 
          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {filteredAlerts.map((alert: any) => (
-              <div key={alert.id || alert.uid} onClick={() => sidebarTab === 'LIVE' ? setSelectedAlertId(alert.id) : setSelectedVictimId(alert.uid)} className={cn("p-5 rounded-[2.5rem] border border-white/5 cursor-pointer transition-all", (selectedAlertId === alert.id || selectedVictimId === alert.uid) ? "bg-white/10 border-white/20" : "bg-[#1E293B]/50")}>
+              <div key={alert.id || alert.uid} onClick={() => {
+                  if (sidebarTab === 'LIVE') {
+                      setSelectedAlertId(alert.id);
+                  } else {
+                      setSelectedVictimId(alert.uid);
+                      setSelectedAlertId(null); // Clear Tactical Map to return to Ledger
+                  }
+              }} className={cn("p-5 rounded-[2.5rem] border border-white/5 cursor-pointer transition-all", (selectedAlertId === alert.id || selectedVictimId === alert.uid) ? "bg-white/10 border-white/20" : "bg-[#1E293B]/50")}>
                 <div className="flex items-center gap-4">
                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/5 border border-white/5"><User size={20} className={sidebarTab === 'LIVE' ? "text-rose-500" : "text-blue-500"} /></div>
                    <div className="flex-1 truncate">
                       <h4 className="text-[11px] font-black text-white uppercase">{userStatusMap[alert.victimUid || alert.userId || alert.uid]?.name || alert.victimName || alert.name}</h4>
-                      <p className="text-[7px] text-gray-500 font-black uppercase">{sidebarTab === 'LIVE' ? 'SOS Active' : `Resolved (${alert.count} Incidents)`}</p>
+                      <p className="text-[11px] text-gray-500 font-black uppercase">{sidebarTab === 'LIVE' ? 'SOS Active' : `Resolved (${alert.count} Incidents)`}</p>
                    </div>
                 </div>
               </div>
@@ -735,11 +750,15 @@ export function SOSManagement({
       {/* 🔍 MAIN CONTENT */}
       <main className="flex-1 relative flex flex-col overflow-hidden bg-[#0F172A]">
          {(selectedAlert || (sidebarTab === 'HISTORY' && selectedVictimId)) ? (
-            sidebarTab === 'LIVE' && selectedAlert ? (
+            selectedAlertId && selectedAlert ? (
                <div className="flex-grow flex flex-row h-full w-full overflow-hidden">
                   {/* LEFT COLUMN: MAP */}
                   <div className="w-[50%] lg:w-[55%] h-full relative shrink-0 border-r border-white/5">
-                     <CommandMap activeAlerts={[selectedAlert]} activeProtectors={verifiedProtectors} selectedAlertId={selectedAlert.id} />
+                     {!useMapboxFallback ? (
+                       <MapplsCommandMap activeAlerts={[selectedAlert]} activeProtectors={verifiedProtectors} selectedAlertId={selectedAlert.id} onFallback={() => setUseMapboxFallback(true)} />
+                     ) : (
+                       <CommandMap activeAlerts={[selectedAlert]} activeProtectors={verifiedProtectors} selectedAlertId={selectedAlert.id} />
+                     )}
                   </div>
 
                   {/* RIGHT COLUMN: DETAILS */}
@@ -759,15 +778,15 @@ export function SOSManagement({
                                     <Lock size={24} className="text-rose-500" />
                                  </div>
                                  <h2 className="text-base font-black text-white uppercase italic leading-none">Account Blocked</h2>
-                                 <p className="text-[8px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from National Grid</p>
+                                 <p className="text-[12px] font-bold text-rose-400 uppercase tracking-widest leading-relaxed">SOS restricted from National Grid</p>
                                  
-                                 <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[9px] text-gray-300 italic">
+                                 <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left text-[13px] text-gray-300 italic">
                                     {pendingAppeal ? `"${pendingAppeal.reason}"` : "NO PENDING APPEAL."}
                                  </div>
 
                                  <div className="flex gap-2">
-                                    <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg">Restore</button>
-                                    <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[8px] font-black uppercase tracking-widest">Ban</button>
+                                    <button onClick={() => handleRestoreAccess(victimData.id)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[12px] font-black uppercase tracking-widest shadow-lg">Restore</button>
+                                    <button onClick={() => handlePermanentBan(victimData.id)} className="flex-1 py-2 bg-black/40 border border-rose-900 text-rose-900 rounded-lg text-[12px] font-black uppercase tracking-widest">Ban</button>
                                  </div>
                               </div>
                             </motion.div>
@@ -776,19 +795,34 @@ export function SOSManagement({
 
                         <div className="flex items-start justify-between">
                            <div className="space-y-1">
-                              <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[7px] font-black rounded-full border border-rose-500/20 uppercase tracking-widest leading-none">Live SOS Packet</span>
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                   "px-2 py-0.5 text-[11px] font-black rounded-full border uppercase tracking-widest leading-none",
+                                   sidebarTab === 'HISTORY' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                )}>
+                                   {sidebarTab === 'HISTORY' ? 'Archived SOS Packet' : 'Live SOS Packet'}
+                                </span>
+                                {sidebarTab === 'HISTORY' && (
+                                   <button 
+                                     onClick={() => setSelectedAlertId(null)}
+                                     className="px-2 py-0.5 bg-white/5 hover:bg-white/10 text-white text-[11px] font-black rounded border border-white/10 uppercase tracking-widest flex items-center gap-1 transition-colors"
+                                   >
+                                     <ChevronLeft size={8} /> Back to Ledger
+                                   </button>
+                                )}
+                              </div>
                               <h1 className="text-xl font-black text-white uppercase italic leading-none tracking-tighter mt-1">{victimData?.name || 'Citizen Profile'}</h1>
                            </div>
                            
                            {/* COMPACT ACTION BUTTONS */}
                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
+                              <button onClick={() => handleAction('warn')} className="px-2.5 py-1.5 bg-[#1E293B] border border-amber-500/30 text-amber-500 rounded-lg text-[12px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-500 hover:text-black transition-all">
                                  <AlertTriangle size={10} /> Warn
                               </button>
-                              <button onClick={() => setIsOverrideModalOpen(true)} className="px-2.5 py-1.5 bg-rose-600 text-white rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg shadow-rose-600/20 transition-all border border-rose-400/30">
+                              <button onClick={() => setIsOverrideModalOpen(true)} className="px-2.5 py-1.5 bg-rose-600 text-white rounded-lg text-[12px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg shadow-rose-600/20 transition-all border border-rose-400/30">
                                  <Zap size={10} /> Override
                               </button>
-                              <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
+                              <button onClick={() => handleAction('ban')} className="px-2.5 py-1.5 bg-[#1E293B] border border-rose-500/30 text-rose-500 rounded-lg text-[12px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-rose-500 hover:text-white transition-all">
                                  <Ban size={10} /> Ban
                               </button>
                            </div>
@@ -797,16 +831,16 @@ export function SOSManagement({
                         <div className="flex flex-wrap items-center gap-2">
                            <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                               <Phone size={10} className="text-gray-500" />
-                              <span className="text-[9px] font-black text-white tabular-nums">{victimData?.phoneNumber || victimData?.phone || 'NO RECORD'}</span>
+                              <span className="text-[13px] font-black text-white tabular-nums">{victimData?.phoneNumber || victimData?.phone || 'NO RECORD'}</span>
                            </div>
                            <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                               <Fingerprint size={10} className="text-gray-500" />
-                              <span className="text-[9px] font-black text-white tabular-nums tracking-widest">{victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}</span>
+                              <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}</span>
                            </div>
                            {victimData?.email && (
                               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
                                  <Mail size={10} className="text-gray-500" />
-                                 <span className="text-[9px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
+                                 <span className="text-[13px] font-black text-white lowercase truncate max-w-[120px]">{victimData.email}</span>
                               </div>
                            )}
                         </div>
@@ -815,7 +849,7 @@ export function SOSManagement({
                      {/* 📍 NEURAL GEOCODE SECTOR */}
                      <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
-                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                            <MapPin size={10} className="text-blue-500" /> Neural Geocode Sector
                         </p>
                         <p className="text-[11px] font-black text-white uppercase italic leading-relaxed">{loadingAddress ? "Pinpointing..." : (resolvedAddress || selectedAlert?.fullAddress || 'Sector Unknown')}</p>
@@ -823,33 +857,33 @@ export function SOSManagement({
 
                      {/* 🛡️ SUPPORT NODES */}
                      <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
-                        <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
+                        <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Heart size={10} className="text-rose-500" /> Support Nodes</p>
                         <div className="space-y-2.5">
                            {victimData?.primaryGuardian && (
                               <div className="flex justify-between items-center bg-rose-500/10 px-4 py-2 rounded-xl border border-rose-500/20 shadow-lg">
                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
+                                    <span className="text-[13px] font-black text-white uppercase italic">{victimData.primaryGuardian.name}</span>
                                     <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[5px] font-black rounded-full uppercase tracking-widest">Primary</span>
                                  </div>
-                                 <span className="text-[9px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
+                                 <span className="text-[13px] font-black text-rose-400 tabular-nums">{victimData.primaryGuardian.phone}</span>
                               </div>
                            )}
                            {guardians.map((g: any) => (
                               <div key={g.id} className="flex justify-between items-center bg-black/20 px-4 py-2 rounded-xl border border-white/5">
-                                 <span className="text-[9px] font-black text-white uppercase italic">{g.name}</span>
-                                 <span className="text-[9px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
+                                 <span className="text-[13px] font-black text-white uppercase italic">{g.name}</span>
+                                 <span className="text-[13px] font-black text-blue-400 tabular-nums">{g.phone || g.phoneNumber}</span>
                               </div>
                            ))}
 
                            {/* 🚀 DYNAMIC EMERGENCY NODES (POLICE & HOSPITALS) */}
                            {loadingNodes ? (
                               <div className="py-2 text-center">
-                                 <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Scanning Nearby Grid...</p>
+                                 <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Scanning Nearby Grid...</p>
                               </div>
                            ) : (
                               (nearbyPolice.length > 0 || nearbyHospitals.length > 0) && (
                                  <div className="pt-3 border-t border-white/5 mt-3 space-y-2.5">
-                                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                                    <p className="text-[12px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
                                        <Globe size={10} className="text-cyan-400" /> Nearby Emergency Nodes
                                     </p>
                                     
@@ -860,20 +894,20 @@ export function SOSManagement({
                                              <div className="min-w-0">
                                                 <div className="flex items-center gap-1">
                                                    <Shield size={8} className="text-blue-400 shrink-0" />
-                                                   <span className="text-[9px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{station.name}</span>
+                                                   <span className="text-[13px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{station.name}</span>
                                                 </div>
-                                                <p className="text-[7px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{station.address}</p>
+                                                <p className="text-[11px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{station.address}</p>
                                              </div>
                                              <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[5px] font-black rounded uppercase tracking-widest scale-90 shrink-0">POLICE</span>
                                           </div>
                                           <div className="flex gap-1.5">
-                                             <button onClick={() => window.open(`tel:${station.phone || '112'}`)} className="flex-1 py-1 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/20 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                             <button onClick={() => window.open(`tel:${station.phone || '112'}`)} className="flex-1 py-1 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/20 rounded text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
                                                 <Phone size={8} /> Call
                                              </button>
                                              <button onClick={() => {
                                                 const dest = (station.lat && station.lng) ? `${station.lat},${station.lng}` : encodeURIComponent(station.name);
                                                 window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
-                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
                                                 <MapPin size={8} /> Navigate
                                              </button>
                                           </div>
@@ -887,20 +921,20 @@ export function SOSManagement({
                                              <div className="min-w-0">
                                                 <div className="flex items-center gap-1">
                                                    <Heart size={8} className="text-emerald-400 shrink-0" />
-                                                   <span className="text-[9px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{hospital.name}</span>
+                                                   <span className="text-[13px] font-black text-white uppercase italic leading-none truncate block max-w-[140px]">{hospital.name}</span>
                                                 </div>
-                                                <p className="text-[7px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{hospital.address}</p>
+                                                <p className="text-[11px] text-gray-500 font-bold uppercase mt-1 leading-none truncate block max-w-[160px]">{hospital.address}</p>
                                              </div>
                                              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[5px] font-black rounded uppercase tracking-widest scale-90 shrink-0">TRAUMA</span>
                                           </div>
                                           <div className="flex gap-1.5">
-                                             <button onClick={() => window.open(`tel:${hospital.phone || '108'}`)} className="flex-1 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                             <button onClick={() => window.open(`tel:${hospital.phone || '108'}`)} className="flex-1 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
                                                 <Phone size={8} /> Call
                                              </button>
                                              <button onClick={() => {
                                                 const dest = (hospital.lat && hospital.lng) ? `${hospital.lat},${hospital.lng}` : encodeURIComponent(hospital.name);
                                                 window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
-                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[7px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
+                                             }} className="flex-1 py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-0.5 cursor-pointer">
                                                 <MapPin size={8} /> Navigate
                                              </button>
                                           </div>
@@ -914,7 +948,7 @@ export function SOSManagement({
 
                      {/* 🛡️ ACTIVE TACTICAL RESPONDERS */}
                      <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
-                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <p className="text-[12px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                            <Shield size={10} className="text-blue-500" /> Active Tactical Responders
                         </p>
                         <div className="space-y-2.5">
@@ -929,15 +963,15 @@ export function SOSManagement({
                                        )}
                                     </div>
                                     <div className="flex flex-col">
-                                       <span className="text-[9px] font-black text-white uppercase italic leading-none">{responder.name}</span>
+                                       <span className="text-[13px] font-black text-white uppercase italic leading-none">{responder.name}</span>
                                        <span className="text-[5px] font-black text-blue-400 uppercase tracking-widest mt-0.5">Intercepting</span>
                                     </div>
                                  </div>
-                                 <span className="text-[9px] font-black text-blue-400 tabular-nums">{responder.phone}</span>
+                                 <span className="text-[13px] font-black text-blue-400 tabular-nums">{responder.phone}</span>
                               </div>
                            ))}
                            {(!selectedAlert?.activeResponders || selectedAlert.activeResponders.length === 0) && (
-                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic text-center py-2">Scanning for nearest protectors...</p>
+                              <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest italic text-center py-2">Scanning for nearest protectors...</p>
                            )}
                         </div>
                      </div>
@@ -946,8 +980,8 @@ export function SOSManagement({
                      <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl flex items-center justify-between relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-4 opacity-5"><Activity size={40} /></div>
                         <div>
-                           <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
-                           <p className="text-[6px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
+                           <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest leading-none">Protocol Strikes</p>
+                           <p className="text-[14px] text-gray-500 font-bold uppercase tracking-widest mt-1">Misuse Strike Penalty Counter</p>
                         </div>
                         <h3 className="text-3xl font-black text-rose-500 italic tabular-nums leading-none">{victimData?.sosStrikeCount || 0}</h3>
                      </div>
@@ -955,10 +989,10 @@ export function SOSManagement({
                      {/* 🛡️ FORENSIC EVIDENCE VAULT */}
                      <div className="bg-[#1E293B] p-6 rounded-[2rem] border border-white/5 shadow-xl space-y-4">
                         <div className="flex items-center justify-between">
-                           <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                           <p className="text-[12px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                               <Fingerprint size={10} className="text-blue-500" /> Forensic Evidence Vault
                            </p>
-                           <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[6px] font-black rounded border border-blue-500/20">LIVE SYNC</span>
+                           <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[14px] font-black rounded border border-blue-500/20">LIVE SYNC</span>
                         </div>
                         
                         <EvidenceGallery alertId={selectedAlert.id} />
@@ -981,7 +1015,7 @@ export function SOSManagement({
                   <h3 className="text-xl font-black text-white uppercase italic mb-8">Issue Misuse Warning</h3>
                   <div className="space-y-6">
                      <select value={selectedReason} onChange={(e) => setSelectedReason(e.target.value)} className="w-full bg-[#0F172A] border border-white/5 rounded-2xl py-4 px-6 text-xs font-bold text-white appearance-none outline-none">{WARNING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}</select>
-                     <button disabled={isSubmitting} onClick={submitWarning} className="w-full py-4 bg-amber-500 text-black rounded-2xl text-[10px] font-black uppercase shadow-xl flex items-center justify-center gap-3">{isSubmitting ? <Activity className="animate-spin" size={14} /> : <ShieldAlert size={14} />} Finalize Citation</button>
+                     <button disabled={isSubmitting} onClick={submitWarning} className="w-full py-4 bg-amber-500 text-black rounded-2xl text-[14px] font-black uppercase shadow-xl flex items-center justify-center gap-3">{isSubmitting ? <Activity className="animate-spin" size={14} /> : <ShieldAlert size={14} />} Finalize Citation</button>
                   </div>
                </motion.div>
             </div>
@@ -1013,8 +1047,8 @@ const EvidenceGallery = ({ alertId }: { alertId: string }) => {
     return () => unsub();
   }, [alertId]);
 
-  if (loading) return <div className="py-10 text-center text-[8px] font-black uppercase text-gray-600 animate-pulse tracking-widest">Accessing Forensic Cache...</div>;
-  if (evidence.length === 0) return <div className="py-10 text-center text-[8px] font-black uppercase text-gray-600 italic tracking-widest">No Environmental Intel Received Yet.</div>;
+  if (loading) return <div className="py-10 text-center text-[12px] font-black uppercase text-gray-600 animate-pulse tracking-widest">Accessing Forensic Cache...</div>;
+  if (evidence.length === 0) return <div className="py-10 text-center text-[12px] font-black uppercase text-gray-600 italic tracking-widest">No Environmental Intel Received Yet.</div>;
 
   return (
     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
@@ -1022,12 +1056,12 @@ const EvidenceGallery = ({ alertId }: { alertId: string }) => {
         <div key={item.id} className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-3 group">
           <div className="flex items-center justify-between">
             <span className={cn(
-              "text-[7px] font-black uppercase px-2 py-0.5 rounded",
+              "text-[11px] font-black uppercase px-2 py-0.5 rounded",
               item.type === 'Snapshot' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
             )}>
               {item.type}
             </span>
-            <span className="text-[6px] font-bold text-gray-500 uppercase">
+            <span className="text-[14px] font-bold text-gray-500 uppercase">
               {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleTimeString() : 'SYNCHRONIZING'}
             </span>
           </div>
@@ -1039,7 +1073,7 @@ const EvidenceGallery = ({ alertId }: { alertId: string }) => {
               </video>
               <div className="absolute top-3 left-3 flex items-center gap-2">
                  <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-                 <span className="text-[6px] font-black text-white uppercase tracking-widest">TACTICAL CCTV FEED</span>
+                 <span className="text-[14px] font-black text-white uppercase tracking-widest">TACTICAL CCTV FEED</span>
               </div>
             </div>
           )}
@@ -1048,7 +1082,7 @@ const EvidenceGallery = ({ alertId }: { alertId: string }) => {
             <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-white/5">
               <img src={item.url} alt="Forensic" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-3">
-                 <p className="text-[6px] font-black text-white/50 uppercase tracking-tighter truncate w-full">
+                 <p className="text-[14px] font-black text-white/50 uppercase tracking-tighter truncate w-full">
                     HASH: {item.hash || 'NOT_VERIFIED'}
                  </p>
               </div>

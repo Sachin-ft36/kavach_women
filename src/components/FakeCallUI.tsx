@@ -4,6 +4,7 @@ import { Phone, PhoneOff, User, MessageSquare, Clock, Mic, Volume2, Plus, UserPl
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '../lib/utils';
+import { KavachSafe } from '../services/KavachNative';
 
 interface FakeCallUIProps {
   callerName?: string;
@@ -12,7 +13,7 @@ interface FakeCallUIProps {
 }
 
 export default function FakeCallUI({ 
-  callerName = "Papa (Guardian)", 
+  callerName = "Papa", 
   callerNumber = "mobile",
   onEnd 
 }: FakeCallUIProps) {
@@ -21,16 +22,31 @@ export default function FakeCallUI({
   const platform = Capacitor.getPlatform(); // 'ios', 'android', or 'web'
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
-  const contactPhoto = "C:/Users/hp/.gemini/antigravity/brain/7af23aa6-1e66-44f5-bd2c-23316fe6978a/indian_father_contact_photo_1778135539739.png";
+  const contactPhoto = "/father_back_profile_contact.png";
 
   useEffect(() => {
-    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
-    audio.loop = true;
-    ringtoneRef.current = audio;
-    if (status === 'ringing') audio.play().catch(() => {});
-    else audio.pause();
-    return () => { audio.pause(); };
-  }, [status]);
+    if (status === 'ringing') {
+      if (platform === 'web') {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+        audio.loop = true;
+        ringtoneRef.current = audio;
+        audio.play().catch(() => {});
+      } else {
+        KavachSafe.playEmergencyRingtone();
+      }
+    } else {
+      if (platform === 'web' && ringtoneRef.current) {
+        ringtoneRef.current.pause();
+      } else {
+        KavachSafe.stopEmergencyRingtone();
+      }
+    }
+
+    return () => { 
+      if (platform === 'web' && ringtoneRef.current) ringtoneRef.current.pause();
+      else KavachSafe.stopEmergencyRingtone();
+    };
+  }, [status, platform]);
 
   useEffect(() => {
     let interval: any;
@@ -103,66 +119,84 @@ export default function FakeCallUI({
 
   // 🤖 ANDROID / SAMSUNG STYLE
   const AndroidUI = () => (
-    <div className="flex flex-col h-full bg-[#121212]">
-      <div className="flex-1 relative flex flex-col items-center pt-32">
-        {/* Full Screen Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#2563EB]/20 to-black opacity-40 pointer-events-none" />
-        
-        <div className="w-48 h-48 rounded-[64px] border-4 border-white/5 overflow-hidden mb-10 shadow-2xl relative z-10">
+    <div className="flex flex-col h-full bg-[#1A1A1A] relative overflow-hidden font-sans">
+      {/* Dynamic blurred background based on contact photo */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center blur-3xl opacity-30 scale-125"
+        style={{ backgroundImage: `url(${contactPhoto})` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-[#1A1A1A]/80 to-[#1A1A1A] pointer-events-none" />
+
+      <div className="flex-1 relative flex flex-col items-center pt-24 z-10">
+        <h1 className="text-[32px] font-normal text-white tracking-wide mb-1 drop-shadow-md">{callerName}</h1>
+        <p className="text-sm text-white/70 font-medium tracking-wide mb-12 drop-shadow-sm">
+          {status === 'ringing' ? 'Mobile • Incoming call' : formatTime(timer)}
+        </p>
+
+        <div className="w-32 h-32 rounded-full border border-white/10 overflow-hidden shadow-2xl relative">
            <img src={contactPhoto} alt="Caller" className="w-full h-full object-cover" />
         </div>
-        
-        <h1 className="text-4xl font-bold text-white mb-2 relative z-10">{callerName}</h1>
-        <p className="text-lg text-gray-400 font-medium tracking-widest relative z-10 uppercase">
-          {status === 'ringing' ? 'Calling...' : formatTime(timer)}
-        </p>
       </div>
 
-      <div className="pb-40 relative z-10">
+      <div className="pb-24 relative z-10 w-full px-8">
         {status === 'ringing' ? (
-           <div className="flex flex-col items-center">
-              <div className="flex justify-between w-full max-w-sm px-12 mb-16 opacity-50 text-white text-[10px] font-bold uppercase tracking-[2px]">
-                 <div className="flex flex-col items-center gap-2"><MessageCircle size={20} /><span>Send Message</span></div>
-                 <div className="flex flex-col items-center gap-2"><MoreVertical size={20} /><span>More</span></div>
+           <div className="flex flex-col">
+              <div className="flex justify-between w-full mb-20 px-8 text-white/80">
+                 <div className="flex flex-col items-center gap-2 active:opacity-50">
+                    <MessageCircle size={24} strokeWidth={1.5} />
+                    <span className="text-[12px] font-medium tracking-wide">Reply</span>
+                 </div>
+                 <div className="flex flex-col items-center gap-2 active:opacity-50">
+                    <Clock size={24} strokeWidth={1.5} />
+                    <span className="text-[12px] font-medium tracking-wide">Remind</span>
+                 </div>
               </div>
               
-              <div className="flex justify-between items-center w-full px-16">
-                 {/* Android Accept Swipe Feel */}
-                 <div className="flex flex-col items-center gap-4">
-                    <motion.button 
-                      animate={{ y: [0, -10, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      onClick={() => setStatus('connected')}
-                      className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(34,197,94,0.4)]"
+              <div className="flex justify-between items-center w-full px-6">
+                 {/* Decline Button */}
+                 <div className="flex flex-col items-center gap-3">
+                    <button 
+                      onClick={onEnd}
+                      className="w-[72px] h-[72px] bg-[#FF3B30] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                     >
-                       <Phone size={36} className="text-white" />
-                    </motion.button>
-                    <span className="text-[10px] font-black uppercase text-green-500 tracking-widest">Swipe Up</span>
+                       <PhoneOff size={32} className="text-white" strokeWidth={2} />
+                    </button>
+                    <span className="text-[12px] font-medium tracking-wide text-white/90">Decline</span>
                  </div>
 
-                 <div className="flex flex-col items-center gap-4">
+                 {/* Accept Button with Bounce Animation */}
+                 <div className="flex flex-col items-center gap-3">
                     <motion.button 
-                      onClick={onEnd}
-                      className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.4)]"
+                      animate={{ y: [0, -12, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      onClick={() => setStatus('connected')}
+                      className="w-[72px] h-[72px] bg-[#34C759] rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(52,199,89,0.3)] active:scale-95 transition-transform"
                     >
-                       <PhoneOff size={36} className="text-white" />
+                       <Phone size={32} className="text-white fill-white" strokeWidth={1} />
                     </motion.button>
-                    <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">Decline</span>
+                    <span className="text-[12px] font-medium tracking-wide text-white/90">Swipe up to answer</span>
                  </div>
               </div>
            </div>
         ) : (
-           <div className="grid grid-cols-4 gap-6 px-10 mb-10">
-              <AndroidAction icon={<Mic size={24} />} label="Mute" />
-              <AndroidAction icon={<Grid size={24} />} label="Keypad" />
-              <AndroidAction icon={<Volume2 size={24} />} label="Speaker" />
-              <AndroidAction icon={<Plus size={24} />} label="Add call" />
-              
-              <div className="col-span-4 flex justify-center pt-20">
-                 <button onClick={onEnd} className="w-24 h-24 bg-red-500 rounded-full flex items-center justify-center shadow-2xl">
-                    <PhoneOff size={40} className="text-white" />
-                 </button>
-              </div>
+           <div className="w-full max-w-sm mx-auto">
+             <div className="grid grid-cols-3 gap-y-10 gap-x-6 mb-16">
+                <AndroidAction icon={<Mic size={28} strokeWidth={1.5} />} label="Mute" />
+                <AndroidAction icon={<Grid size={28} strokeWidth={1.5} />} label="Keypad" />
+                <AndroidAction icon={<Volume2 size={28} strokeWidth={1.5} />} label="Speaker" />
+                <AndroidAction icon={<Plus size={28} strokeWidth={1.5} />} label="Add call" />
+                <AndroidAction icon={<Video size={28} strokeWidth={1.5} />} label="Video call" />
+                <AndroidAction icon={<User size={28} strokeWidth={1.5} />} label="Contacts" />
+             </div>
+             
+             <div className="flex justify-center">
+                <button 
+                  onClick={onEnd} 
+                  className="w-[72px] h-[72px] bg-[#FF3B30] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                >
+                   <PhoneOff size={32} className="text-white" strokeWidth={2} />
+                </button>
+             </div>
            </div>
         )}
       </div>

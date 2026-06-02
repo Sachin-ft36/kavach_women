@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Shield, 
-  Users, 
+import {
+  Shield,
+  Users,
   User,
-  Map as MapIcon, 
-  Bell, 
+  Map as MapIcon,
+  Bell,
   Activity,
   Settings,
   Clock,
@@ -32,14 +32,15 @@ import {
   Navigation,
   Globe,
   Database,
-  Layers
+  Layers,
+  ClipboardList
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
+import {
+  collection,
+  query,
+  onSnapshot,
+  doc,
+  updateDoc,
   orderBy,
   where
 } from 'firebase/firestore';
@@ -49,6 +50,7 @@ import { cn } from '../lib/utils';
 
 // High-Fidelity Tactical Modules
 import CommandMap from './maps/CommandMap';
+import MapplsCommandMap from './maps/MapplsCommandMap';
 import { TransitIntelligence } from './supercell/TransitIntelligence';
 import { KavachDirectory } from './supercell/KavachDirectory';
 import { TacticalComms } from './supercell/TacticalComms';
@@ -65,6 +67,7 @@ import { JusticeLedger } from './supercell/JusticeLedger';
 import { NationalEmergencyTicker } from './supercell/NationalEmergencyTicker';
 import { NeuralAnalytics } from './supercell/NeuralAnalytics';
 import { BanAppeals } from './supercell/BanAppeals';
+import { ProtectorReportsLedger } from './supercell/ProtectorReportsLedger';
 import { ShiftLogs } from './supercell/ShiftLogs';
 
 const INDIAN_STATES_AND_UTS = [
@@ -109,7 +112,7 @@ const INDIAN_STATES_AND_UTS = [
 const getStateVariations = (stateName: string): string[] => {
   const name = stateName.toLowerCase().trim();
   const variations = [name];
-  
+
   if (name === 'uttar pradesh') variations.push('up', 'u.p.', 'uttarpradesh');
   else if (name === 'maharashtra') variations.push('mh', 'm.h.');
   else if (name === 'delhi') variations.push('dl', 'd.l.');
@@ -125,7 +128,7 @@ const getStateVariations = (stateName: string): string[] => {
   else if (name === 'bihar') variations.push('br', 'b.r.');
   else if (name === 'tamil nadu') variations.push('tn', 't.n.');
   else if (name === 'telangana') variations.push('ts', 't.s.');
-  
+
   return variations;
 };
 
@@ -133,9 +136,9 @@ const matchesState = (selectedState: string, text: string) => {
   if (!text) return false;
   const lowerText = text.toLowerCase().trim();
   const selectedVariations = getStateVariations(selectedState);
-  
+
   if (selectedVariations.includes(lowerText)) return true;
-  
+
   return selectedVariations.some(variation => {
     if (variation.length <= 4) {
       const regex = new RegExp(`\\b${variation.replace('.', '\\.')}\\b`, 'i');
@@ -158,12 +161,13 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [isSovereignActive, setIsSovereignActive] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [activeTab, setActiveTab] = useState('DASHBOARD'); // 🛰️ TACTICAL SUB-VIEW
-  
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
+
   const [selectedProtectorId, setSelectedProtectorId] = useState<string | null>(null);
   const [selectedFir, setSelectedFir] = useState<any>(null);
   const [isFirModalOpen, setIsFirModalOpen] = useState(false);
-  const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => {} });
-  
+  const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => { } });
+
   // 🗺️ STATE SHARD FILTERING ENGINE
   const [selectedState, setSelectedState] = useState<string>(() => localStorage.getItem('kavach_selected_state') || 'ALL');
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
@@ -179,14 +183,14 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
   const detectedAdminState = React.useMemo(() => {
     if (!currentUserEmail) return null;
-    
+
     const email = currentUserEmail.toLowerCase().trim();
-    
+
     // 1. Home Ministry Check (ONLY singh.sachin16559@gmail.com can view ALL)
     if (email === 'singh.sachin16559@gmail.com') {
       return 'ALL';
     }
-    
+
     // 2. District Admin Check — FORMAT: district.state.adminsachin@kavach.gov.in
     //    e.g. rewa.mp.adminsachin@kavach.gov.in
     if (email.includes('adminsachin@')) {
@@ -251,25 +255,25 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const filterByState = (item: any) => {
     if (!item) return false;
     if (selectedState === 'ALL') return true;
-    
+
     // 🏙️ DISTRICT FILTER — if district admin logged in, only show items from that district/city
     if (detectedAdminDistrict) {
       const district = detectedAdminDistrict.toLowerCase();
       // Check ALL possible city/address fields (sosService nests under 'location', ZeroFIR under 'incidentLocation')
       const city = (
-        item.city || 
-        item.location?.city || 
-        item.incidentLocation?.city || 
+        item.city ||
+        item.location?.city ||
+        item.incidentLocation?.city ||
         ''
       ).toLowerCase();
       const addr = (
-        item.address || 
-        item.locationName || 
-        item.fullAddress || 
-        item.location?.address || 
-        item.incidentLocation?.display || 
-        item.policeStation || 
-        item.policeStationGeo?.address || 
+        item.address ||
+        item.locationName ||
+        item.fullAddress ||
+        item.location?.address ||
+        item.incidentLocation?.display ||
+        item.policeStation ||
+        item.policeStationGeo?.address ||
         ''
       ).toLowerCase();
       const state = (item.state || '').toLowerCase();
@@ -279,20 +283,19 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       return districtMatch && stateMatch;
     }
 
-    // 🛰️ FAIL-SAFE: If alert/journey lacks specific state or matches fallback, show on all dashboards to avoid lost alerts
-    const st = (item.state || '').toLowerCase();
-    if (!st || st === 'national' || st === 'bharat sector' || st === 'neutral zone') return true;
-    
+    // 🛰️ FAIL-SAFE: We used to leak 'national' or 'unknown' state alerts to all dashboards,
+    // but that causes regional dashboard pollution. They must now only appear in the National HQ.
+
     // 1. Direct State Matches
     if (item.state && matchesState(selectedState, item.state)) return true;
-    
+
     // 2. Substring Matches inside address/location fields
     if (item.address && matchesState(selectedState, item.address)) return true;
     if (item.locationName && matchesState(selectedState, item.locationName)) return true;
     if (item.incidentAddress && matchesState(selectedState, item.incidentAddress)) return true;
     if (item.city && matchesState(selectedState, item.city)) return true;
     if (item.fullAddress && matchesState(selectedState, item.fullAddress)) return true;
-    
+
     // 3. Resolve user profile for alerts / FIRs / journeys
     const uUid = item.victimUid || item.userId || item.uid;
     if (uUid && userStatusMap[uUid]) {
@@ -362,7 +365,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           }
         });
       };
-      
+
       injectFromList(activeAlerts, 'citizen');
       injectFromList(missionHistory, 'citizen');
       injectFromList(activeFirs, 'citizen');
@@ -377,7 +380,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const filteredPendingProtectors = pendingProtectors.filter(filterByState);
   const filteredActiveFirs = activeFirs.filter(filterByState);
   const filteredActiveJourneys = activeJourneys.filter(filterByState);
-  
+
   // 🛰️ STRATEGIC INTELLIGENCE LEDGER (Notifications)
   const [notifications, setNotifications] = useState<any[]>(() => {
     const saved = localStorage.getItem('kavach_notifications');
@@ -437,11 +440,11 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           snapshot.forEach(doc => {
             const data = { id: doc.id, ...(doc.data() as any), originCollection: collName };
             if (data.role?.toLowerCase() === 'protector') {
-               if (data.isVerified || data.verified) vProts.push(data);
-               else pProts.push(data);
+              if (data.isVerified || data.verified) vProts.push(data);
+              else pProts.push(data);
             }
           });
-          
+
           setVerifiedProtectors(prev => {
             const combined = [...prev.filter(p => p.originCollection !== collName), ...vProts];
             // 🛡️ DEDUPLICATE BY ID
@@ -471,7 +474,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
     // 🏛️ JUSTICE LEDGER SYNC (Unified to zero_firs)
     const unsubscribeFirs = onSnapshot(query(collection(db, 'zero_firs'), orderBy('timestamp', 'desc')), (snapshot) => {
-       setActiveFirs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setActiveFirs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubJourneys = onSnapshot(query(collection(db, 'journeys'), where('status', 'in', ['active', 'emergency'])), (snapshot) => {
@@ -533,47 +536,47 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
     }
   }, [activeAlerts, activeJourneys, activeFirs, pendingProtectors]);
 
-   // 🛰️ STRATEGIC SHARD MAPPING (State -> Sector Bridge)
-   const sectorMap: Record<string, string> = {
-     'MP': 'CENTRAL', 'MADHYA PRADESH': 'CENTRAL', 'CHHATTISGARH': 'CENTRAL',
-     'DELHI': 'NORTH', 'NCR': 'NORTH', 'UP': 'NORTH', 'UTTAR PRADESH': 'NORTH', 'RAJASTHAN': 'NORTH', 'PUNJAB': 'NORTH', 'HARYANA': 'NORTH',
-     'KARNATAKA': 'SOUTH', 'TAMIL NADU': 'SOUTH', 'TN': 'SOUTH', 'KERALA': 'SOUTH', 'AP': 'SOUTH', 'TELANGANA': 'SOUTH',
-     'MAHARASHTRA': 'WEST', 'GUJARAT': 'WEST', 'GOA': 'WEST',
-     'WB': 'EAST', 'WEST BENGAL': 'EAST', 'BIHAR': 'EAST', 'ODISHA': 'EAST'
-   };
+  // 🛰️ STRATEGIC SHARD MAPPING (State -> Sector Bridge)
+  const sectorMap: Record<string, string> = {
+    'MP': 'CENTRAL', 'MADHYA PRADESH': 'CENTRAL', 'CHHATTISGARH': 'CENTRAL',
+    'DELHI': 'NORTH', 'NCR': 'NORTH', 'UP': 'NORTH', 'UTTAR PRADESH': 'NORTH', 'RAJASTHAN': 'NORTH', 'PUNJAB': 'NORTH', 'HARYANA': 'NORTH',
+    'KARNATAKA': 'SOUTH', 'TAMIL NADU': 'SOUTH', 'TN': 'SOUTH', 'KERALA': 'SOUTH', 'AP': 'SOUTH', 'TELANGANA': 'SOUTH',
+    'MAHARASHTRA': 'WEST', 'GUJARAT': 'WEST', 'GOA': 'WEST',
+    'WB': 'EAST', 'WEST BENGAL': 'EAST', 'BIHAR': 'EAST', 'ODISHA': 'EAST'
+  };
 
-    const handleApproveProtector = async (userId: string) => {
-      try {
-        const protector = [...pendingProtectors, ...verifiedProtectors].find(p => p.id === userId);
-        const coll = protector?.originCollection || 'users';
-        
-        await updateDoc(doc(db, coll, userId), {
-          isVerified: true,
-          verified: true,
-          verificationDate: new Date()
-        });
-        toast.success('Protector Verified Successfully');
-      } catch (error) {
-        console.error('Approval Error:', error);
-        toast.error('Failed to verify protector');
-      }
-    };
+  const handleApproveProtector = async (userId: string) => {
+    try {
+      const protector = [...pendingProtectors, ...verifiedProtectors].find(p => p.id === userId);
+      const coll = protector?.originCollection || 'users';
+
+      await updateDoc(doc(db, coll, userId), {
+        isVerified: true,
+        verified: true,
+        verificationDate: new Date()
+      });
+      toast.success('Protector Verified Successfully');
+    } catch (error) {
+      console.error('Approval Error:', error);
+      toast.error('Failed to verify protector');
+    }
+  };
 
   const NavItem = ({ id, label, icon: Icon }: any) => {
     const isActive = viewMode === id;
     return (
-      <button 
-        onClick={() => onTabChange?.(id)} 
+      <button
+        onClick={() => onTabChange?.(id)}
         className={cn(
-          "w-full flex flex-col items-center py-3.5 px-1 transition-all duration-200 relative group cursor-pointer", 
-          isActive 
-            ? "bg-blue-50 text-blue-600 border-l-2 border-blue-600" 
+          "w-full flex flex-col items-center py-3.5 px-1 transition-all duration-200 relative group cursor-pointer",
+          isActive
+            ? "bg-blue-50 text-blue-600 border-l-2 border-blue-600"
             : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
         )}
       >
         <Icon size={18} className={cn("mb-1.5 transition-transform", isActive ? "scale-110 text-blue-600" : "text-slate-400 group-hover:text-slate-700")} />
         <span className={cn(
-          "text-[5.5px] font-black uppercase tracking-[0.5px] text-center leading-none transition-colors",
+          "text-[6px] font-black uppercase tracking-[0.5px] text-center leading-none transition-colors",
           isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-700"
         )}>{label}</span>
         {isActive && <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-600" />}
@@ -583,12 +586,12 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
   const renderContent = () => {
 
-    switch(viewMode) {
+    switch (viewMode) {
       case 'COMMAND':
         return (
           <div className="flex-1 flex flex-col overflow-hidden relative">
             {activeTab === 'DASHBOARD' && (
-              <NationalOverview 
+              <NationalOverview
                 activeAlerts={filteredActiveAlerts} // Show filtered shard
                 verifiedProtectors={filteredVerifiedProtectors} // Show filtered shard
                 pendingProtectors={filteredPendingProtectors} // Show filtered shard
@@ -606,7 +609,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                   };
                   const targetTab = viewMap[tab] || tab;
                   if (targetTab === 'PROTECTORS' && alertId) setSelectedProtectorId(alertId);
-                  
+
                   // 🚀 GLOBAL REDIRECTION
                   onTabChange?.(targetTab);
                 }}
@@ -635,46 +638,46 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         );
       case 'SOS':
         return (
-          <SOSManagement 
-            externalSelectedId={selectedAlertId} 
-            verifiedProtectors={filteredVerifiedProtectors} 
+          <SOSManagement
+            externalSelectedId={selectedAlertId}
+            verifiedProtectors={filteredVerifiedProtectors}
             activeAlerts={filteredActiveAlerts}
             historicalAlerts={filteredMissionHistory}
             userStatusMap={filteredUserStatusMap}
             onViewReplay={(alertId) => {
-               setActiveMissionId(alertId);
-               onTabChange?.('TRACK');
+              setActiveMissionId(alertId);
+              onTabChange?.('TRACK');
             }}
           />
         );
       case 'FIR':
         return (
-          <JusticeLedger 
-            zeroFirs={filteredActiveFirs} 
-            viewMode="JUSTICE" 
+          <JusticeLedger
+            zeroFirs={filteredActiveFirs}
+            viewMode="JUSTICE"
             onViewFir={(fir) => {
               setSelectedFir(fir);
               setIsFirModalOpen(true);
-            }} 
-            userStatusMap={filteredUserStatusMap} 
+            }}
+            userStatusMap={filteredUserStatusMap}
           />
         );
       case 'PROTECTORS':
         return (
-          <ProtectorManagement 
-            externalSelectedId={selectedProtectorId} 
-            onViewReplay={(id) => { setActiveMissionId(id); onTabChange?.('TRACK'); }} 
-            verifiedProtectors={filteredVerifiedProtectors} 
-            pendingProtectors={filteredPendingProtectors} 
+          <ProtectorManagement
+            externalSelectedId={selectedProtectorId}
+            onViewReplay={(id) => { setActiveMissionId(id); onTabChange?.('TRACK'); }}
+            verifiedProtectors={filteredVerifiedProtectors}
+            pendingProtectors={filteredPendingProtectors}
             userStatusMap={filteredUserStatusMap}
           />
         );
       case 'TRACK':
         return (
-          <ProtectorTrack 
-            activeMissionId={activeMissionId} 
-            onClearMission={() => setActiveMissionId(null)} 
-            isSovereignActive={isSovereignActive} 
+          <ProtectorTrack
+            activeMissionId={activeMissionId}
+            onClearMission={() => setActiveMissionId(null)}
+            isSovereignActive={isSovereignActive}
             userStatusMap={filteredUserStatusMap}
             selectedState={selectedState}
             detectedAdminDistrict={detectedAdminDistrict}
@@ -684,7 +687,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         return <KavachDirectory womenUsers={Object.values(filteredUserStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')} protectors={filteredVerifiedProtectors} selectedState={selectedState} isSovereignActive={isSovereignActive} />;
       case 'ANALYTICS':
         return (
-          <NeuralAnalytics 
+          <NeuralAnalytics
             activeAlerts={filteredActiveAlerts}
             activeJourneys={filteredActiveJourneys}
             verifiedProtectors={filteredVerifiedProtectors}
@@ -697,7 +700,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         return <TacticalComms />;
       case 'TRANSIT':
         return (
-          <TransitTrack 
+          <TransitTrack
             isSovereignActive={isSovereignActive}
             userStatusMap={filteredUserStatusMap}
             externalSelectedId={selectedAlertId}
@@ -706,30 +709,47 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           />
         );
       case 'GUIDES':
-        return <WomenSafetyOPS activeAlerts={filteredActiveAlerts} onAlertClick={(id) => setSelectedAlertId(id)} />;
+        return <WomenSafetyOPS />;
       case 'MAP':
         return (
           <div className="flex-1 bg-[#0F172A] rounded-[40px] overflow-hidden m-8">
-            <CommandMap 
-              activeAlerts={filteredActiveAlerts} 
-              activeProtectors={filteredVerifiedProtectors} 
-              activeJourneys={filteredActiveJourneys} 
-              activeFirs={filteredActiveFirs} 
-              pendingProtectors={[]} 
-              selectedAlertId={selectedAlertId}
-              isSovereignActive={isSovereignActive}
-              showHeatmap={showHeatmap}
-              selectedState={selectedState}
-            />
+            {!useMapboxFallback ? (
+              <MapplsCommandMap
+                activeAlerts={filteredActiveAlerts}
+                activeProtectors={filteredVerifiedProtectors}
+                activeJourneys={filteredActiveJourneys}
+                activeFirs={filteredActiveFirs}
+                pendingProtectors={[]}
+                selectedAlertId={selectedAlertId}
+                isSovereignActive={isSovereignActive}
+                showHeatmap={showHeatmap}
+                selectedState={selectedState}
+                onFallback={() => setUseMapboxFallback(true)}
+              />
+            ) : (
+              <CommandMap
+                activeAlerts={filteredActiveAlerts}
+                activeProtectors={filteredVerifiedProtectors}
+                activeJourneys={filteredActiveJourneys}
+                activeFirs={filteredActiveFirs}
+                pendingProtectors={[]}
+                selectedAlertId={selectedAlertId}
+                isSovereignActive={isSovereignActive}
+                showHeatmap={showHeatmap}
+                selectedState={selectedState}
+              />
+            )}
           </div>
         );
       case 'SHIFTS':
         return <ShiftLogs selectedState={selectedState} detectedAdminDistrict={detectedAdminDistrict} />;
       case 'APPEALS':
         return <BanAppeals />;
+      case 'REPORTS':
+        return <ProtectorReportsLedger />;
       case 'SETTINGS':
         return (
-          <StateNexusCommand 
+          <StateNexusCommand
             selectedState={selectedState}
             womenUsers={Object.values(userStatusMap).filter(u => u.role?.toLowerCase() === 'citizen')}
             verifiedProtectors={filteredVerifiedProtectors}
@@ -771,11 +791,12 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
           <NavItem id="ANALYTICS" label="Neural Pulse" icon={BarChart3} />
           <NavItem id="DATA" label="Directory" icon={Database} />
           <NavItem id="GUIDES" label="Guides" icon={BookOpen} />
+          <NavItem id="REPORTS" label="Field Reports" icon={ClipboardList} />
           <NavItem id="APPEALS" label="Appeals" icon={Gavel} />
           <NavItem id="SETTINGS" label="Settings" icon={Settings} />
         </div>
         <div className="py-4 border-t border-slate-100">
-          <button 
+          <button
             onClick={async () => {
               const { auth } = await import('../firebase');
               const { signOut } = await import('firebase/auth');
@@ -792,209 +813,209 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       </nav>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-[#0B0F19] border-b border-white/5 px-8 flex items-center justify-between z-40 shrink-0">
-           {/* 🏛️ SOVEREIGN COMMAND HEADER: AUTHORIZED PERSONNEL ONLY */}
-           <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-lg bg-blue-950/30 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
-                    <Shield size={16} strokeWidth={2.5} />
-                 </div>
-                 <div>
-                    <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">
-                      {selectedState === 'ALL' ? 'Kavach Supercell HQ' : detectedAdminDistrict ? `${detectedAdminDistrict.toUpperCase()} DISTRICT HQ` : `${selectedState} Grid HQ`}
-                    </h1>
-                    <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">
-                      {selectedState === 'ALL' ? 'National Command Grid' : detectedAdminDistrict ? 'District Jurisdiction Grid' : 'State Jurisdiction Grid'}
-                    </p>
-                 </div>
+          {/* 🏛️ SOVEREIGN COMMAND HEADER: AUTHORIZED PERSONNEL ONLY */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-950/30 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
+                <Shield size={16} strokeWidth={2.5} />
               </div>
-
-              <div className="h-6 w-[1px] bg-white/10" />
-
-              <div className="flex items-center gap-2.5 animate-in fade-in duration-300">
-                <span className="flex h-2 w-2 relative shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[8px] font-black uppercase tracking-[2.5px] text-emerald-400 leading-none">
-                  {selectedState === 'ALL' ? 'SECURED NATIONAL COMMAND HQ' : detectedAdminDistrict ? `SECURED ${detectedAdminDistrict.toUpperCase()} DISTRICT COMMAND` : `SECURED ${selectedState} STATE COMMAND`}
-                </span>
+              <div>
+                <h1 className="text-[10px] font-black text-white uppercase leading-none tracking-tighter italic">
+                  {selectedState === 'ALL' ? 'Kavach Supercell HQ' : detectedAdminDistrict ? `${detectedAdminDistrict.toUpperCase()} DISTRICT HQ` : `${selectedState} Grid HQ`}
+                </h1>
+                <p className="text-[7px] font-bold text-gray-500 uppercase tracking-[0.1em] mt-1">
+                  {selectedState === 'ALL' ? 'National Command Grid' : detectedAdminDistrict ? 'District Jurisdiction Grid' : 'State Jurisdiction Grid'}
+                </p>
               </div>
-           </div>
+            </div>
 
-           <div className="flex items-center gap-4">
-              {/* 🛰️ STRATEGIC INTELLIGENCE LEDGER (THE BOOK) */}
-              <div className="relative">
-                 <button 
-                   onClick={() => {
-                     setIsLedgerOpen(!isLedgerOpen);
-                     setUnreadCount(0);
-                   }}
-                   className={cn(
-                     "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative group",
-                     isLedgerOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" : "bg-white/5 text-gray-400 hover:text-blue-400 border border-white/5"
-                   )}
-                 >
-                    <Bell size={20} className={cn(unreadCount > 0 && "animate-bounce")} />
-                    {unreadCount > 0 && (
-                       <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center shadow-lg">
-                          {unreadCount}
-                       </span>
-                    )}
-                 </button>
+            <div className="h-6 w-[1px] bg-white/10" />
 
-                 <AnimatePresence>
-                    {isLedgerOpen && (
-                       <motion.div 
-                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                         className="absolute top-full right-0 mt-4 w-[400px] bg-[#1E293B] border border-white/10 rounded-[30px] shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden"
-                       >
-                          <div className="p-6 border-b border-white/5 bg-black/20 flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                                <BookOpen size={18} className="text-blue-400" />
-                                <h3 className="text-[10px] font-black uppercase tracking-[2px] text-white">Intelligence Ledger</h3>
-                             </div>
-                             <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{notifications.length} Records</span>
-                          </div>
-                          
-                          <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-2">
-                             {notifications.length === 0 ? (
-                                <div className="py-20 text-center opacity-20">
-                                   <History size={40} className="mx-auto mb-4" />
-                                   <p className="text-[10px] font-black uppercase tracking-widest text-white">No New Intel</p>
+            <div className="flex items-center gap-2.5 animate-in fade-in duration-300">
+              <span className="flex h-2 w-2 relative shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[8px] font-black uppercase tracking-[2.5px] text-emerald-400 leading-none">
+                {selectedState === 'ALL' ? 'SECURED NATIONAL COMMAND HQ' : detectedAdminDistrict ? `SECURED ${detectedAdminDistrict.toUpperCase()} DISTRICT COMMAND` : `SECURED ${selectedState} STATE COMMAND`}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* 🛰️ STRATEGIC INTELLIGENCE LEDGER (THE BOOK) */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setIsLedgerOpen(!isLedgerOpen);
+                  setUnreadCount(0);
+                }}
+                className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative group",
+                  isLedgerOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" : "bg-white/5 text-gray-400 hover:text-blue-400 border border-white/5"
+                )}
+              >
+                <Bell size={20} className={cn(unreadCount > 0 && "animate-bounce")} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center shadow-lg">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isLedgerOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                    className="absolute top-full right-0 mt-4 w-[400px] bg-[#1E293B] border border-white/10 rounded-[30px] shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden"
+                  >
+                    <div className="p-6 border-b border-white/5 bg-black/20 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <BookOpen size={18} className="text-blue-400" />
+                        <h3 className="text-[10px] font-black uppercase tracking-[2px] text-white">Intelligence Ledger</h3>
+                      </div>
+                      <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{notifications.length} Records</span>
+                    </div>
+
+                    <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-2">
+                      {notifications.length === 0 ? (
+                        <div className="py-20 text-center opacity-20">
+                          <History size={40} className="mx-auto mb-4" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-white">No New Intel</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                // 🚀 TACTICAL REDIRECT
+                                const tabMap: Record<string, any> = {
+                                  'SOS': 'SOS',
+                                  'JOURNEY': 'ANALYTICS',
+                                  'FIR': 'FIR',
+                                  'VETTING': 'DATA'
+                                };
+                                const targetTab = tabMap[n.type] || 'COMMAND';
+                                onTabChange(targetTab);
+
+                                // 🧹 AUTO-DISMISS
+                                setNotifications(prev => prev.filter(item => item.id !== n.id));
+                                setIsLedgerOpen(false);
+                              }}
+                              className="p-4 rounded-2xl hover:bg-gray-50 transition-all group/item border border-transparent hover:border-gray-100 cursor-pointer active:scale-[0.98]"
+                            >
+                              <div className="flex items-start gap-4">
+                                <div className={cn(
+                                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                  n.type === 'SOS' ? "bg-rose-50 text-rose-600" :
+                                    n.type === 'JOURNEY' ? "bg-amber-50 text-amber-600" :
+                                      n.type === 'FIR' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                                )}>
+                                  {n.type === 'SOS' ? <ShieldAlert size={14} /> : n.type === 'JOURNEY' ? <Car size={14} /> : n.type === 'FIR' ? <Gavel size={14} /> : <Users size={14} />}
                                 </div>
-                             ) : (
-                                <div className="flex flex-col gap-1">
-                                   {notifications.map((n) => (
-                                       <div 
-                                         key={n.id} 
-                                         onClick={() => {
-                                           // 🚀 TACTICAL REDIRECT
-                                           const tabMap: Record<string, any> = {
-                                             'SOS': 'SOS',
-                                             'JOURNEY': 'ANALYTICS',
-                                             'FIR': 'FIR',
-                                             'VETTING': 'DATA'
-                                           };
-                                           const targetTab = tabMap[n.type] || 'COMMAND';
-                                           onTabChange(targetTab);
-                                           
-                                           // 🧹 AUTO-DISMISS
-                                           setNotifications(prev => prev.filter(item => item.id !== n.id));
-                                           setIsLedgerOpen(false);
-                                         }}
-                                         className="p-4 rounded-2xl hover:bg-gray-50 transition-all group/item border border-transparent hover:border-gray-100 cursor-pointer active:scale-[0.98]"
-                                       >
-                                          <div className="flex items-start gap-4">
-                                             <div className={cn(
-                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                                n.type === 'SOS' ? "bg-rose-50 text-rose-600" : 
-                                                n.type === 'JOURNEY' ? "bg-amber-50 text-amber-600" : 
-                                                n.type === 'FIR' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-                                             )}>
-                                                {n.type === 'SOS' ? <ShieldAlert size={14} /> : n.type === 'JOURNEY' ? <Car size={14} /> : n.type === 'FIR' ? <Gavel size={14} /> : <Users size={14} />}
-                                             </div>
-                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-1">
-                                                   <span className={cn("text-[9px] font-black uppercase tracking-wider", 
-                                                      n.type === 'SOS' ? "text-rose-600" : 
-                                                      n.type === 'JOURNEY' ? "text-amber-600" : 
-                                                      n.type === 'FIR' ? "text-emerald-600" : "text-blue-600"
-                                                   )}>{n.title}</span>
-                                                   <span className="text-[7px] font-bold text-gray-400">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
-                                                <p className="text-[10px] font-bold text-gray-600 leading-relaxed truncate">{n.description}</p>
-                                                
-                                                {/* 🏛️ DIRECT ACTIONS */}
-                                                {n.type === 'VETTING' && (
-                                                   <div className="mt-3 flex gap-2">
-                                                      <div className="px-3 py-1.5 bg-blue-600 text-white text-[8px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
-                                                         Verify Credentials
-                                                      </div>
-                                                   </div>
-                                                )}
-                                             </div>
-                                          </div>
-                                       </div>
-                                    ))}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className={cn("text-[9px] font-black uppercase tracking-wider",
+                                      n.type === 'SOS' ? "text-rose-600" :
+                                        n.type === 'JOURNEY' ? "text-amber-600" :
+                                          n.type === 'FIR' ? "text-emerald-600" : "text-blue-600"
+                                    )}>{n.title}</span>
+                                    <span className="text-[7px] font-bold text-gray-400">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <p className="text-[10px] font-bold text-gray-600 leading-relaxed truncate">{n.description}</p>
+
+                                  {/* 🏛️ DIRECT ACTIONS */}
+                                  {n.type === 'VETTING' && (
+                                    <div className="mt-3 flex gap-2">
+                                      <div className="px-3 py-1.5 bg-blue-600 text-white text-[8px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+                                        Verify Credentials
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                             )}
-                          </div>
-                          <button 
-                            onClick={() => setNotifications([])}
-                            className="w-full py-4 bg-black/20 text-[8px] font-black uppercase tracking-[2px] text-gray-500 hover:text-rose-400 transition-colors border-t border-white/5"
-                          >
-                             Purge Intelligence Log
-                          </button>
-                       </motion.div>
-                    )}
-                 </AnimatePresence>
-               </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setNotifications([])}
+                      className="w-full py-4 bg-black/20 text-[8px] font-black uppercase tracking-[2px] text-gray-500 hover:text-rose-400 transition-colors border-t border-white/5"
+                    >
+                      Purge Intelligence Log
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
 
-              {/* 🛰️ TACTICAL CONTROL CLUSTER */}
-              <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-[20px] border border-white/5">
-                 <button 
-                   onClick={() => setShowHeatmap(!showHeatmap)}
-                   className={cn(
-                     "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                     showHeatmap ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
-                   )}
-                 >
-                    <Activity size={12} />
-                    Neural Load
-                 </button>
-                 <button 
-                   onClick={() => {
-                     if (!isSovereignActive) {
-                       setModalConfig({
-                         isOpen: true,
-                         type: 'danger',
-                         title: 'Sovereign Override',
-                         description: 'Initiating National Tactical Lockout. This protocol overrides all regional dispatch systems. Confirm authorization?',
-                         confirmText: 'Execute Lockout',
-                         onConfirm: () => {
-                           setIsSovereignActive(true);
-                           setModalConfig({ isOpen: false });
-                           toast.error("NATIONAL GRID LOCKOUT ACTIVE", {
-                             description: "Protocol 00-X initiated. Regional nodes bypassed.",
-                             duration: 5000
-                           });
-                         }
-                       });
-                     } else {
-                       setIsSovereignActive(false);
-                       toast.success("Sovereign Control Restored", {
-                         description: "National grid back to standard ops."
-                       });
-                     }
-                   }}
-                   className={cn(
-                     "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                     isSovereignActive ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-gray-400 hover:text-gray-600"
-                   )}
-                 >
-                    <ShieldAlert size={12} />
-                    Override
-                 </button>
-              </div>
+            {/* 🛰️ TACTICAL CONTROL CLUSTER */}
+            <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-[20px] border border-white/5">
+              <button
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className={cn(
+                  "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  showHeatmap ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+                )}
+              >
+                <Activity size={12} />
+                Neural Load
+              </button>
+              <button
+                onClick={() => {
+                  if (!isSovereignActive) {
+                    setModalConfig({
+                      isOpen: true,
+                      type: 'danger',
+                      title: 'Sovereign Override',
+                      description: 'Initiating National Tactical Lockout. This protocol overrides all regional dispatch systems. Confirm authorization?',
+                      confirmText: 'Execute Lockout',
+                      onConfirm: () => {
+                        setIsSovereignActive(true);
+                        setModalConfig({ isOpen: false });
+                        toast.error("NATIONAL GRID LOCKOUT ACTIVE", {
+                          description: "Protocol 00-X initiated. Regional nodes bypassed.",
+                          duration: 5000
+                        });
+                      }
+                    });
+                  } else {
+                    setIsSovereignActive(false);
+                    toast.success("Sovereign Control Restored", {
+                      description: "National grid back to standard ops."
+                    });
+                  }
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  isSovereignActive ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                <ShieldAlert size={12} />
+                Override
+              </button>
+            </div>
 
-              <div className="h-8 w-[1px] bg-gray-100 mx-2" />
-           </div>
+            <div className="h-8 w-[1px] bg-gray-100 mx-2" />
+          </div>
         </header>
         <NationalEmergencyTicker isActive={isSovereignActive} gridNodeCount={verifiedProtectors.length + activeAlerts.length} />
         <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
           {renderContent()}
         </main>
       </div>
-      <JusticeBlockModal 
-        fir={selectedFir} 
-        isOpen={isFirModalOpen} 
+      <JusticeBlockModal
+        fir={selectedFir}
+        isOpen={isFirModalOpen}
         onClose={() => {
           setIsFirModalOpen(false);
           setSelectedFir(null);
-        }} 
+        }}
       />
     </div>
   );

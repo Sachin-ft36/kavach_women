@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, MapPin, Phone, Navigation, ChevronRight, Users, Building2, Loader2, Car } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,10 +35,10 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
   const fetchRealData = async () => {
     if (!userPos) return;
     setLoading(true);
-    
+
     try {
       const [lat, lng] = userPos;
-      
+
       // 🛰️ PRIMARY ENGINE: MapmyIndia (Mappls) - Best for India
       let realStations: any[] = await fetchNearbyPoliceMappls(lat, lng);
 
@@ -50,16 +51,16 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
           const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=10&access_token=${MAPBOX_TOKEN}`;
           const response = await fetch(url);
           const data = await response.json();
-          
+
           if (data && Array.isArray(data.features) && data.features.length > 0) {
             realStations = data.features.map((f: any) => {
               const fLat = f.geometry?.coordinates?.[1] || f.properties?.coordinates?.latitude || lat;
               const fLng = f.geometry?.coordinates?.[0] || f.properties?.coordinates?.longitude || lng;
               const distMeters = f.properties?.distance || (calculateDistance(lat, lng, fLat, fLng) * 1000);
               const distKm = distMeters / 1000;
-              
+
               const rawName = f.properties?.name || f.properties?.full_address || "Local Police Station";
-              
+
               return {
                 id: f.properties?.mapbox_id || f.id || Math.random().toString(),
                 name: rawName,
@@ -78,7 +79,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
       }
 
       const offset = 0.1;
-      const bbox = `${lng-offset},${lat-offset},${lng+offset},${lat+offset}`;
+      const bbox = `${lng - offset},${lat - offset},${lng + offset},${lat + offset}`;
 
       // 🛰️ FALLBACK ENGINE: OpenStreetMap (Overpass API) - Extremely rich and exact geo-proximity queries for real Indian police stations
       if (realStations.length === 0) {
@@ -86,18 +87,18 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
         try {
           const query = `[out:json];(node["amenity"="police"](around:25000,${lat},${lng});way["amenity"="police"](around:25000,${lat},${lng}););out center;`;
           const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-          
+
           const response = await fetch(url);
           const data = await response.json();
-          
+
           if (data && Array.isArray(data.elements) && data.elements.length > 0) {
             realStations = data.elements.map((item: any) => {
               const fLat = item.lat || item.center?.lat;
               const fLng = item.lon || item.center?.lng;
               const d = calculateDistance(lat, lng, fLat, fLng);
-              
+
               const rawName = item.tags?.name || "Local Police Station";
-              
+
               return {
                 id: item.id.toString(),
                 name: rawName,
@@ -119,7 +120,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
       if (realStations.length === 0) {
         console.log("⚠️ SAFETY GRID: Official endpoints offline/timing out. Deploying high-fidelity local grid...");
         const isDefaultCoords = Math.abs(lat - 20.5937) < 0.01 && Math.abs(lng - 78.9629) < 0.01;
-        
+
         if (isDefaultCoords) {
           realStations = [
             {
@@ -242,16 +243,16 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
           }
         }
       }
-      
+
       // 3. Filter within 5km
       let filteredStations = dedupedStations.filter((s: any) => (s.distVal || 0) <= 5);
-      
+
       // 4. Fallback to 10km if 5km is empty
       if (filteredStations.length === 0) {
         console.log("🛰️ KAVACH: No police stations within 5km range. Expanding grid sweep to 10km...");
         filteredStations = dedupedStations.filter((s: any) => (s.distVal || 0) <= 10);
       }
-      
+
       // 5. Critical Fallback: If still empty, grab the absolute nearest station wherever it is!
       if (filteredStations.length === 0 && dedupedStations.length > 0) {
         console.log("🛰️ KAVACH: No police stations within 10km range! Critical fallback: displaying closest station...");
@@ -264,18 +265,18 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
       try {
         const protectorsRef = collection(db, 'users');
         const q = query(
-          protectorsRef, 
+          protectorsRef,
           where('role', '==', 'protector'),
           where('isVerified', '==', true),
           limit(10)
         );
         const querySnapshot = await getDocs(q);
-        
+
         const realProtectors = querySnapshot.docs.map(doc => {
           const data = doc.data() as any;
           const pLat = data.telemetry?.coords?.[0] || data.lastLocation?.lat;
           const pLng = data.telemetry?.coords?.[1] || data.lastLocation?.lng;
-          
+
           let distVal = 999;
           let distStr = "Positioning...";
 
@@ -293,8 +294,8 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
             profession: data.protectorVetting?.occupation || "RESPONDER"
           };
         })
-        .filter(p => p.id !== auth.currentUser?.uid)
-        .sort((a, b) => a.distVal - b.distVal);
+          .filter(p => p.id !== auth.currentUser?.uid)
+          .sort((a, b) => a.distVal - b.distVal);
 
         setProtectors(realProtectors.slice(0, 5));
       } catch (e) {
@@ -346,10 +347,10 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
     const R = 6371; // km
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
@@ -359,16 +360,16 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[500] bg-[#0A0A0B] flex flex-col p-6 pt-12 overflow-hidden"
+        className="fixed inset-0 z-[2000000] bg-[#0A0A0B] flex flex-col p-6 pt-12 overflow-hidden"
       >
         <header className="flex justify-between items-center mb-8">
-          <button 
+          <button
             onClick={onClose}
             className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white flex items-center gap-2 group active:scale-95 transition-all"
           >
@@ -391,74 +392,74 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
 
           {/* 🚨 NATIONAL HELPLINES */}
           <div className="grid grid-cols-2 gap-3">
-             <button onClick={() => window.open('tel:1090')} className="p-3 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
-                <span className="text-[10px] text-fuchsia-400 font-black uppercase tracking-widest">Women Helpline</span>
-                <span className="text-lg font-black text-white italic">1090</span>
-             </button>
-             <button onClick={() => window.open('tel:1930')} className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
-                <span className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Cyber Crime</span>
-                <span className="text-lg font-black text-white italic">1930</span>
-             </button>
+            <button onClick={() => window.open('tel:1090')} className="p-3 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+              <span className="text-[10px] text-fuchsia-400 font-black uppercase tracking-widest">Women Helpline</span>
+              <span className="text-lg font-black text-white italic">1090</span>
+            </button>
+            <button onClick={() => window.open('tel:1930')} className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+              <span className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Cyber Crime</span>
+              <span className="text-lg font-black text-white italic">1930</span>
+            </button>
           </div>
 
           {/* 🚔 LIVE PCR PATROL CARS */}
           <section className="space-y-4">
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-blue-400">
-                   <Car size={16} className="animate-pulse" />
-                   <span className="text-[10px] font-black uppercase tracking-widest">Live PCR Patrol Units</span>
-                </div>
-                <div className="flex items-center gap-1">
-                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
-                   <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{livePcrs.length} Active</span>
-                </div>
-             </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-400">
+                <Car size={16} className="animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Live PCR Patrol Units</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{livePcrs.length} Active</span>
+              </div>
+            </div>
 
-             <div className="grid gap-3">
-                {livePcrs.length > 0 ? livePcrs.map((pcr, idx) => (
-                   <motion.div 
-                     initial={{ opacity: 0, y: -10 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     transition={{ delay: idx * 0.08 }}
-                     key={idx} 
-                     className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-3xl space-y-4 shadow-lg shadow-blue-950/10"
-                   >
-                      <div className="flex justify-between items-start">
-                         <div className="flex-1">
-                            <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px] flex items-center gap-2">
-                               🚔 {pcr.name}
-                            </h4>
-                            <p className="text-[9px] text-blue-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
-                               <MapPin size={10} /> {pcr.dist} AWAY • {pcr.status}
-                            </p>
-                         </div>
-                         <div className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
-                            <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest animate-pulse">ON-DUTY</span>
-                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                         <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                            <Phone size={12} /> Emergency Call
-                         </button>
-                         <button 
-                           onClick={() => {
-                             const dest = `${pcr.lat},${pcr.lng}`; 
-                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
-                           }}
-                           className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
-                         >
-                            <Navigation size={12} /> Track Route
-                         </button>
-                      </div>
-                   </motion.div>
-                )) : (
-                   <div className="p-10 border border-dashed border-white/5 rounded-3xl text-center">
-                      <p className="text-[10px] text-gray-600 font-bold uppercase italic">
-                         Searching live police networks...
+            <div className="grid gap-3">
+              {livePcrs.length > 0 ? livePcrs.map((pcr, idx) => (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.08 }}
+                  key={idx}
+                  className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-3xl space-y-4 shadow-lg shadow-blue-950/10"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px] flex items-center gap-2">
+                        🚔 {pcr.name}
+                      </h4>
+                      <p className="text-[9px] text-blue-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
+                        <MapPin size={10} /> {pcr.dist} AWAY • {pcr.status}
                       </p>
-                   </div>
-                )}
-             </div>
+                    </div>
+                    <div className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
+                      <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest animate-pulse">ON-DUTY</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                      <Phone size={12} /> Emergency Call
+                    </button>
+                    <button
+                      onClick={() => {
+                        const dest = `${pcr.lat},${pcr.lng}`;
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                      }}
+                      className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      <Navigation size={12} /> Track Route
+                    </button>
+                  </div>
+                </motion.div>
+              )) : (
+                <div className="p-10 border border-dashed border-white/5 rounded-3xl text-center">
+                  <p className="text-[10px] text-gray-600 font-bold uppercase italic">
+                    Searching live police networks...
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* 🚓 OFFICIAL POLICE NODES */}
@@ -473,46 +474,46 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
 
             <div className="grid gap-3">
               {policeStations.length > 0 ? policeStations.map((station, idx) => (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  key={idx} 
+                  key={idx}
                   className="p-5 bg-white/5 border border-white/10 rounded-3xl space-y-4"
                 >
-                   <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                         <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px]">{station.name}</h4>
-                         <p className="text-[9px] text-cyan-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
-                            <MapPin size={10} /> {station.dist} AWAY • {station.status}
-                         </p>
-                      </div>
-                      <div className="px-2 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md">
-                         <span className="text-[8px] font-black text-cyan-400 uppercase tracking-widest">Official</span>
-                      </div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => window.open(`tel:${station.phone}`)} className="py-2.5 bg-white text-black rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                         <Phone size={12} /> Call
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const dest = (station.lat && station.lng) 
-                            ? `${station.lat},${station.lng}` 
-                            : encodeURIComponent(station.name);
-                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
-                        }}
-                        className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
-                      >
-                         <Navigation size={12} /> Navigate
-                      </button>
-                   </div>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px]">{station.name}</h4>
+                      <p className="text-[9px] text-cyan-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
+                        <MapPin size={10} /> {station.dist} AWAY • {station.status}
+                      </p>
+                    </div>
+                    <div className="px-2 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md">
+                      <span className="text-[8px] font-black text-cyan-400 uppercase tracking-widest">Official</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => window.open(`tel:${station.phone}`)} className="py-2.5 bg-white text-black rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                      <Phone size={12} /> Call
+                    </button>
+                    <button
+                      onClick={() => {
+                        const dest = (station.lat && station.lng)
+                          ? `${station.lat},${station.lng}`
+                          : encodeURIComponent(station.name);
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                      }}
+                      className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      <Navigation size={12} /> Navigate
+                    </button>
+                  </div>
                 </motion.div>
               )) : (
                 <div className="p-10 border-2 border-dashed border-white/5 rounded-3xl text-center">
-                   <p className="text-[10px] text-gray-600 font-bold uppercase italic">
-                     {loading ? "Searching Grid..." : "No official nodes found in 10km. Patrol units notified."}
-                   </p>
+                  <p className="text-[10px] text-gray-600 font-bold uppercase italic">
+                    {loading ? "Searching Grid..." : "No official nodes found in 10km. Patrol units notified."}
+                  </p>
                 </div>
               )}
             </div>
@@ -520,29 +521,29 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
 
           {/* 🤝 COMMUNITY PROTECTORS */}
           <section className="space-y-4">
-             <div className="flex items-center gap-2 text-amber-500">
-                <Users size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Verified Community Responders</span>
-             </div>
-             <div className="grid gap-3">
-                {protectors.map((p, idx) => (
-                  <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between">
-                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
-                           <Users size={18} />
-                           <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full" />
-                        </div>
-                        <div>
-                           <h4 className="text-xs font-black text-white uppercase italic">{p.name}</h4>
-                           <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-0.5">{p.profession} • {p.dist}</p>
-                        </div>
-                     </div>
-                     <button className="px-5 py-2 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
-                        Alert
-                     </button>
+            <div className="flex items-center gap-2 text-amber-500">
+              <Users size={16} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Verified Community Responders</span>
+            </div>
+            <div className="grid gap-3">
+              {protectors.map((p, idx) => (
+                <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
+                      <Users size={18} />
+                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white uppercase italic">{p.name}</h4>
+                      <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-0.5">{p.profession} • {p.dist}</p>
+                    </div>
                   </div>
-                ))}
-             </div>
+                  <button className="px-5 py-2 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
+                    Alert
+                  </button>
+                </div>
+              ))}
+            </div>
           </section>
         </div>
 
@@ -553,6 +554,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
           </p>
         </footer>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

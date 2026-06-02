@@ -21,6 +21,7 @@ interface ProtectorVerificationStepProps {
     vehicleNo?: string;
     rank?: string;
     thanaName?: string;
+    testingPasscode?: string;
   };
   setData: (data: any) => void;
 }
@@ -176,6 +177,7 @@ export default function ProtectorVerificationStep({ role, data, setData }: Prote
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
               />
             </div>
+
           </motion.div>
         )}
 

@@ -38,6 +38,12 @@ export interface KavachPlugin {
   getPhoneHint(): Promise<{ number?: string }>;
   requestLockScreenPermission(): Promise<void>;
   consumeTrigger(): Promise<{ source: string }>;
+  setAppStealthMode(options: { enabled: boolean }): Promise<void>;
+  startSafeTimer(options: { durationMins: number }): Promise<void>;
+  stopSafeTimer(): Promise<void>;
+  scheduleFakeCall(options: { delaySeconds: number }): Promise<void>;
+  playEmergencyRingtone(): Promise<void>;
+  stopEmergencyRingtone(): Promise<void>;
 }
 
 // 🛡️ Master Plugin Registration
@@ -281,5 +287,73 @@ export const KavachSafe = {
       }
     }
     return null;
+  },
+
+  setAppStealthMode: async (options: { enabled: boolean }): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.setAppStealthMode(options);
+      } catch (error) {
+        console.error("🚨 STEALTH BRIDGE ERROR:", error);
+      }
+    } else {
+      console.log(`🕶️ %c[SIMULATOR] App Stealth Mode: ${options.enabled ? 'ENGAGED' : 'DISENGAGED'}`, "color: #9333ea;");
+    }
+  },
+
+  startSafeTimer: async (options: { durationMins: number }): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.startSafeTimer(options);
+      } catch (error) {
+        console.error("🚨 NATIVE TIMER ERROR:", error);
+      }
+    } else {
+      console.log(`⏱️ %c[SIMULATOR] Native Safe Timer Started for ${options.durationMins} minutes.`, "color: #f59e0b;");
+    }
+  },
+
+  stopSafeTimer: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.stopSafeTimer();
+      } catch (error) {
+        console.error("🚨 NATIVE TIMER ERROR:", error);
+      }
+    } else {
+      console.log("⏱️ %c[SIMULATOR] Native Safe Timer Stopped.", "color: #10b981;");
+    }
+  },
+
+  scheduleFakeCall: async (options: { delaySeconds: number }): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.scheduleFakeCall(options);
+      } catch (error) {
+        console.error("🚨 NATIVE FAKE CALL ERROR:", error);
+      }
+    } else {
+      console.log(`📞 %c[SIMULATOR] Scheduled Fake Call natively in ${options.delaySeconds} seconds.`, "color: #f59e0b;");
+    }
+  },
+
+  playEmergencyRingtone: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.playEmergencyRingtone();
+      } catch (error) {
+        console.error("🚨 NATIVE RINGTONE ERROR:", error);
+      }
+    }
+  },
+
+  stopEmergencyRingtone: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.stopEmergencyRingtone();
+      } catch (error) {
+        console.error("🚨 NATIVE RINGTONE ERROR:", error);
+      }
+    }
   }
 };

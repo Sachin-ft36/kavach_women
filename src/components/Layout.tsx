@@ -33,6 +33,7 @@ import SOSActiveOverlay from './SOSActiveOverlay';
 import { Activity, Car, Map as MapIcon, FileText, MessageSquare } from 'lucide-react';
 import KavachAIChat from './KavachAIChat';
 import Onboarding from './Onboarding';
+import WeatherScreen from './WeatherScreen';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -49,7 +50,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const { t, language, setLanguage } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showProtectorOnboarding, setShowProtectorOnboarding] = useState(false);
-  const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive, isSOSBlocked } = useKavachStore();
+  const { profile: userData, setLoading, isSOSActive, isInterceptActive, isOverlayActive, isSOSBlocked, userPos } = useKavachStore();
   const user = auth.currentUser;
 
   // 🛰️ DYNAMIC GLOBAL WAR-ROOM VIEWPORT SCALING
@@ -168,62 +169,13 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
 
   if (isGhostMode) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] font-sans p-4 sm:p-6 pb-20">
-        <div className="max-w-md mx-auto">
-          <header className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Weather</h1>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shadow-sm">
-                {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />}
-              </button>
-              <button onClick={onToggleGhost} className="p-2 text-gray-400 hover:text-gray-900 transition-colors">
-                <EyeOff size={20} />
-              </button>
-            </div>
-          </header>
-          <AnimatePresence>
-            {isProfileOpen && (
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xl mb-6 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">
-                    {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={24} className="text-gray-400" />}
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm text-gray-900">{displayName}</p>
-                    <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">ID: {uid.slice(0, 8)}</p>
-                  </div>
-                </div>
-                <button onClick={handleLogout} className="w-full py-3 bg-gray-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">Logout</button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <div className="bg-white p-6 rounded-[28px] mb-6 shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Current Location</p>
-                <p className="text-5xl font-bold text-gray-900 leading-none">32°</p>
-                <p className="text-[#2563EB] font-bold mt-2">Partly Cloudy</p>
-              </div>
-              <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-500"><Globe size={32} /></div>
-            </div>
-            <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-widest pt-5 border-t border-gray-50">
-              <span>High: 38°</span><span>Low: 26°</span><span>Humidity: 45%</span>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Hourly Forecast</p>
-            <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="min-w-[70px] bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
-                  <span className="text-[10px] font-bold text-gray-400">{12 + i}:00</span>
-                  <div className="w-6 h-6 bg-yellow-400/20 rounded-full" />
-                  <span className="text-xs font-bold text-gray-900">3{i}°</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      <WeatherScreen 
+        onClose={onToggleGhost}
+        userPhoto={userPhoto}
+        displayName={displayName}
+        uid={uid}
+        onLogout={handleLogout}
+      />
     );
   }
 

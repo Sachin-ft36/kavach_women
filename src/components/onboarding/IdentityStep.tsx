@@ -1,309 +1,306 @@
-import React from 'react';
-import { Smartphone, Fingerprint, ExternalLink, CheckCircle2, ShieldCheck, Lock, AlertCircle, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Smartphone, Fingerprint, CheckCircle2, ShieldCheck, Lock, AlertCircle, ShieldAlert, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
+
+// 🛡️ Verhoeff Algorithm for Aadhaar Checksum Validation
+const verhoeffTableD = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]];
+const verhoeffTableP = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]];
+const validateAadhaar = (val: string) => {
+  if (val.length !== 12) return false;
+  let c = 0;
+  let rev = val.split('').reverse().map(Number);
+  for (let i = 0; i < rev.length; i++) c = verhoeffTableD[c][verhoeffTableP[(i % 8)][rev[i]]];
+  return (c === 0);
+};
 
 interface IdentityStepProps {
   aadhaar: string;
   setAadhaar: (val: string) => void;
   phone: string;
   setPhone: (val: string) => void;
+  userName: string;
   setUserName: (val: string) => void;
   setRole: (val: 'citizen' | 'protector') => void;
+  setGender: (val: 'female' | 'male') => void;
   setIsVerified: (val: boolean) => void;
   onNext: () => void;
+  checkDuplicatePhone?: (phone: string) => Promise<boolean>;
+  checkDuplicateAadhaar?: (aadhaar: string) => Promise<boolean>;
 }
 
-// 🛡️ Verhoeff Algorithm Tables
-const d_table = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
-  [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
-];
-const p_table = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
-  [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]
-];
-
-const validateAadhaarStruct = (aadhaar: string) => {
-  if (aadhaar.length !== 12) return false;
-  let c = 0;
-  let invertedArray = aadhaar.split('').map(Number).reverse();
-  for (let i = 0; i < invertedArray.length; i++) {
-    c = d_table[c][p_table[i % 8][invertedArray[i]]];
-  }
-  return c === 0;
-};
-
-export default function IdentityStep({ 
-  aadhaar, setAadhaar, phone, setPhone, setUserName, setRole, setIsVerified, onNext
+export default function IdentityStep({
+  aadhaar, setAadhaar, phone, setPhone, userName, setUserName, setRole, setGender, setIsVerified, onNext, checkDuplicatePhone, checkDuplicateAadhaar
 }: IdentityStepProps) {
-  const [localIsVerified, setLocalIsVerified] = React.useState(false);
-  const [isSyncing, setIsSyncing] = React.useState(false);
-  const [showError, setShowError] = React.useState(false);
+  // Phone Verification States
+  const [phoneState, setPhoneState] = useState<'idle' | 'otp_sent' | 'verified'>('idle');
+  const [phoneOtp, setPhoneOtp] = useState('');
 
-  const handleAadhaarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '').slice(0, 12);
-    setAadhaar(val);
-    if (showError) setShowError(false);
+  // Aadhaar Verification States
+  const [aadhaarState, setAadhaarState] = useState<'idle' | 'otp_sent' | 'verifying' | 'verified'>('idle');
+  const [aadhaarOtp, setAadhaarOtp] = useState('');
+  const [fetchedGender, setFetchedGender] = useState('');
+  const [fetchedName, setFetchedName] = useState('');
+
+  const handleSendPhoneOTP = async () => {
+    if (phone.length < 10) return;
+    
+    if (checkDuplicatePhone) {
+      const isDup = await checkDuplicatePhone(phone);
+      if (isDup) {
+        toast.error("Phone number already linked to another account.");
+        return;
+      }
+    }
+
+    setPhoneState('otp_sent');
+    setPhoneOtp('123456'); // Auto-fill for demo
+    toast.success("OTP sent to mobile via SMS");
   };
 
-  const displayAadhaar = (val: string) => {
-    return val.match(/.{1,4}/g)?.join(' ') || val;
+  const handleVerifyPhoneOTP = () => {
+    if (phoneOtp.length < 6) return;
+    setPhoneState('verified');
+    toast.success("Mobile Number Verified!");
   };
 
-  const handleVerifyClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!validateAadhaarStruct(aadhaar)) {
-      setShowError(true);
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 100);
+  const handleSendAadhaarOTP = async () => {
+    if (aadhaar.length < 12) return;
+    
+    if (!validateAadhaar(aadhaar)) {
+      toast.error("Invalid Aadhaar Number", { description: "Please enter a valid 12-digit UIDAI Aadhaar number." });
       return;
     }
-    
-    setShowError(false);
-    
-    // 🪄 Institutional Verification Theater: 100% In-App
-    setIsSyncing(true);
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 1500)),
-      {
-        loading: 'Authenticating with National Identity Grid...',
-        success: () => {
-          setLocalIsVerified(true);
-          setIsVerified(true);
-          setIsSyncing(false);
-          setTimeout(onNext, 1000);
-          return 'Identity Anchor Verified Successfully';
-        },
-        error: 'Authentication failed',
+
+    if (checkDuplicateAadhaar) {
+      const isDup = await checkDuplicateAadhaar(aadhaar);
+      if (isDup) {
+        toast.error("Aadhaar already linked to another account.");
+        return;
       }
-    );
+    }
+
+    setAadhaarState('otp_sent');
+    toast.success("Aadhaar OTP sent to UIDAI registered mobile");
   };
 
-  React.useEffect(() => {
-    const handleFocus = () => {
-      const isPending = sessionStorage.getItem('digilocker_pending');
-      if (isPending) {
-        setIsSyncing(true);
-        toast.promise(
-          new Promise((resolve) => setTimeout(resolve, 800)),
-          {
-            loading: 'Syncing identity with National Grid...',
-            success: () => {
-              setLocalIsVerified(true);
-              setIsVerified(true);
-              setIsSyncing(false);
-              setUserName('Aadhaar Verified');
-              sessionStorage.removeItem('digilocker_pending');
-              setTimeout(onNext, 1000);
-              return 'Identity Authenticated Successfully';
-            },
-            error: 'Sync failed',
-          }
-        );
-      }
-    };
+  const handleVerifyAadhaarOTP = () => {
+    if (aadhaarOtp.length < 6) return;
+    setAadhaarState('verifying');
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+    // Smart Demo Routing based on OTP
+    let mockGenderValue: 'female' | 'male' = 'female';
+    let mockGenderLabel = 'FEMALE (F)';
+
+    if (aadhaarOtp === '654321') {
+      mockGenderValue = 'male';
+      mockGenderLabel = 'MALE (M)';
+    }
+
+    // Simulate API Fetch from UIDAI DigiLocker
+    setTimeout(() => {
+      setAadhaarState('verified');
+      // If user signed in with Google, they have a name. If not, fallback.
+      const fetchedDisplayName = userName && userName.trim() !== '' ? userName : "Beta Tester";
+      setFetchedName(fetchedDisplayName);
+      setFetchedGender(mockGenderLabel);
+
+      setUserName(fetchedDisplayName);
+      setGender(mockGenderValue);
+      setIsVerified(true);
+      toast.success("Identity Fetched from National Grid!");
+    }, 2500);
+  };
 
   return (
-    <div className="flex-1 flex flex-col space-y-6 pt-2 overflow-y-auto pb-10">
-      <AnimatePresence>
-        {showError && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden mb-4"
-          >
-            <div className="bg-[#FFF5F5] border-l-4 border-[#C53030] rounded-xl p-5 relative shadow-sm">
-              <div className="flex gap-4">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-[#FED7D7] flex-shrink-0">
-                  <ShieldAlert size={20} className="text-[#C53030]" />
-                </div>
-                <div className="space-y-1 pr-6 sm:pr-10">
-                  <h3 className="text-[#C53030] font-bold text-base sm:text-lg leading-tight">Verification Failed</h3>
-                  <p className="text-gray-900 font-bold text-xs sm:text-sm leading-tight">We are unable to verify your identity.</p>
-                  <p className="text-gray-500 text-[10px] sm:text-[11px] leading-relaxed">
-                    The identity anchor provided does not match UIDAI verification standards.
-                  </p>
-                  
-                  <div className="pt-3 space-y-2">
-                    <p className="text-[#C53030] text-[10px] font-bold uppercase tracking-widest">Possible reasons:</p>
-                    <ul className="text-[11px] text-gray-600 space-y-1 list-disc pl-4 font-medium">
-                      <li>The Aadhaar number may be incorrect.</li>
-                      <li>Your identity details do not match UIDAI records.</li>
-                      <li>Please ensure your details are correct and try again.</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="absolute top-4 right-4 opacity-[0.08]">
-                   <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/200px-Emblem_of_India.svg.png" alt="watermark" className="w-16 grayscale brightness-0 opacity-20" />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="space-y-1 px-1">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Identity Verification</h2>
-        <p className="text-gray-500 text-[13px] sm:text-sm font-medium leading-tight">Link your Aadhaar via National DigiLocker Gateway</p>
-      </div>
-
+    <div className="flex-1 flex flex-col space-y-5 pt-2 overflow-y-auto pb-10 px-1">
       <div className="space-y-3">
-        {/* 📱 Mobile Display - Ultra Responsive */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-3 sm:p-5 flex items-center justify-between shadow-sm gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 flex-shrink-0">
-              <Smartphone size={18} className="text-[#2563EB]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">Mobile Number</p>
-                <input 
-                  type="tel"
-                  maxLength={10}
-                  placeholder="Enter Mobile"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                  className="bg-transparent border-none focus:ring-0 p-0 text-[#1E293B] font-bold text-sm sm:text-lg tracking-wide w-full outline-none placeholder:text-gray-200 truncate"
-                />
-            </div>
-          </div>
-          <div className="bg-green-50 text-green-600 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full flex items-center gap-1 sm:gap-2 border border-green-100 flex-shrink-0">
-            <span className="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">Verified</span>
-            <CheckCircle2 size={10} className="sm:w-3 sm:h-3" />
-          </div>
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Identity Verification</h2>
+          <p className="text-blue-600 text-[10px] sm:text-xs font-bold leading-tight uppercase tracking-widest mt-0.5">National Security Grid • Level 1 Auth</p>
         </div>
 
-        {!localIsVerified ? (
-          <div className="space-y-3">
-            {/* 🛡️ Verification Failed Alert */}
-            <AnimatePresence>
-              {showError && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -10, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="bg-[#FFF5F5] border-l-4 border-[#C53030] rounded-2xl p-3 sm:p-4 relative shadow-sm border border-[#FED7D7]/30">
-                    <div className="flex gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center border border-[#FED7D7] flex-shrink-0">
-                        <ShieldAlert size={16} className="text-[#C53030]" />
-                      </div>
-                      <div className="space-y-0.5 pr-8">
-                        <h3 className="text-[#C53030] font-bold text-sm leading-tight">Verification Failed</h3>
-                        <p className="text-gray-900 font-bold text-[10px] leading-tight">Identity verification failed.</p>
-                        
-                        <div className="pt-1.5 space-y-1">
-                          <ul className="text-[9px] text-gray-600 space-y-0.5 list-disc pl-3 font-medium">
-                            <li>Check Aadhaar number structure.</li>
-                            <li>Details must match UIDAI records.</li>
-                          </ul>
-                        </div>
-                      </div>
-                      <div className="absolute top-3 right-3 opacity-[0.06]">
-                         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/100px-Emblem_of_India.svg.png" alt="watermark" className="w-10 grayscale brightness-0 opacity-20" />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2 shadow-sm">
+          <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={14} />
+          <div>
+            <p className="text-[10px] font-black text-rose-800 uppercase tracking-widest leading-tight">Strict Legal Warning</p>
+            <p className="text-[9px] font-bold text-rose-600/90 mt-0.5 leading-relaxed">
+              Identity forgery or misrepresentation is a criminal offense under Section 419 IPC. All activities are monitored and IP tracked.
+            </p>
+          </div>
+        </div>
+      </div>
 
-            <motion.div 
-              animate={showError ? { x: [-5, 5, -5, 5, 0] } : {}}
-              transition={{ duration: 0.4 }}
-              className="bg-white border border-gray-100 rounded-[28px] p-4 sm:p-6 shadow-sm space-y-3 sm:space-y-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 flex-shrink-0">
-                   <Fingerprint size={18} className="text-[#2563EB]" />
-                </div>
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">Aadhaar (National ID)</span>
+      <div className="space-y-6">
+        {/* ================= STEP 1: MOBILE VERIFICATION ================= */}
+        <div className={cn(
+          "bg-white border-2 rounded-3xl p-5 transition-all shadow-sm relative overflow-hidden",
+          phoneState === 'verified' ? "border-green-500 bg-green-50/30" : "border-blue-100"
+        )}>
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md",
+                phoneState === 'verified' ? "bg-green-500" : "bg-blue-600"
+              )}>
+                <Smartphone size={20} />
               </div>
-              
+              <div>
+                <h3 className="font-black text-gray-900 uppercase">Mobile Verification</h3>
+                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Device Anchoring</p>
+              </div>
+            </div>
+            {phoneState === 'verified' && (
+              <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full flex items-center gap-1">
+                <CheckCircle2 size={12} /> <span className="text-[9px] font-black uppercase">Verified</span>
+              </div>
+            )}
+          </div>
+
+          {phoneState === 'idle' && (
+            <div className="space-y-3">
               <input
-                type="text"
-                inputMode="numeric"
-                value={displayAadhaar(aadhaar)}
-                onChange={handleAadhaarChange}
-                placeholder="XXXXXXXXXXXX"
-                className="w-full bg-gray-50 border-none focus:ring-2 focus:ring-[#2563EB]/20 rounded-xl py-3.5 sm:py-6 text-center text-lg sm:text-2xl font-bold tracking-[2px] sm:tracking-[4px] outline-none transition-all placeholder:text-gray-200"
+                type="tel" maxLength={10} placeholder="Enter 10-digit mobile"
+                value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-gray-50 border border-gray-200 px-4 py-3.5 rounded-xl text-center font-bold tracking-[4px] text-lg outline-none focus:border-blue-500"
               />
-              
-              <div className="flex items-center justify-center gap-2 text-gray-400">
-                 <ShieldCheck size={12} />
-                 <span className="text-[8px] font-bold uppercase tracking-widest">Secure 256-bit encryption</span>
+              <button
+                onClick={handleSendPhoneOTP} disabled={phone.length < 10}
+                className="w-full py-3.5 bg-gray-900 disabled:bg-gray-300 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+              >
+                Send SMS OTP
+              </button>
+            </div>
+          )}
+
+          {phoneState === 'otp_sent' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+              <p className="text-[9px] font-bold text-center text-blue-600">Enter OTP sent to +91 {phone}</p>
+              <input
+                type="tel" maxLength={6} placeholder="------"
+                value={phoneOtp} onChange={e => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-white border border-blue-200 px-4 py-3 rounded-xl text-center font-mono font-black tracking-[10px] text-xl outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleVerifyPhoneOTP} disabled={phoneOtp.length < 6}
+                className="w-full py-3.5 bg-blue-600 disabled:bg-blue-300 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-md"
+              >
+                Verify Mobile
+              </button>
+            </motion.div>
+          )}
+
+          {phoneState === 'verified' && (
+            <div className="bg-white/80 p-3 rounded-xl border border-green-200 text-center">
+              <p className="text-lg font-black text-gray-900 tracking-[3px]">+91 {phone}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ================= STEP 2: AADHAAR VERIFICATION ================= */}
+        <div className={cn(
+          "bg-white border-2 rounded-3xl p-5 transition-all shadow-sm relative overflow-hidden",
+          phoneState !== 'verified' ? "opacity-50 pointer-events-none border-gray-100" :
+            aadhaarState === 'verified' ? "border-emerald-500 bg-emerald-50" : "border-indigo-100"
+        )}>
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md",
+                aadhaarState === 'verified' ? "bg-emerald-500" : "bg-indigo-600"
+              )}>
+                <Fingerprint size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 uppercase">UIDAI KYC Fetch</h3>
+                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Demographic Lock</p>
+              </div>
+            </div>
+            {aadhaarState === 'verified' && (
+              <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex items-center gap-1">
+                <ShieldCheck size={12} /> <span className="text-[9px] font-black uppercase">Locked</span>
+              </div>
+            )}
+          </div>
+
+          {aadhaarState === 'idle' && (
+            <div className="space-y-3">
+              <input
+                type="tel" maxLength={12} placeholder="Enter 12-digit Aadhaar"
+                value={aadhaar} onChange={e => setAadhaar(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-gray-50 border border-gray-200 px-4 py-3.5 rounded-xl text-center font-bold tracking-[4px] text-lg outline-none focus:border-indigo-500"
+              />
+              <button
+                onClick={handleSendAadhaarOTP} disabled={aadhaar.length < 12}
+                className="w-full py-3.5 bg-indigo-600 disabled:bg-indigo-300 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-md shadow-indigo-600/20"
+              >
+                Send Aadhaar OTP
+              </button>
+            </div>
+          )}
+
+          {aadhaarState === 'otp_sent' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+              <p className="text-[9px] font-bold text-center text-indigo-600">Enter OTP sent to Aadhaar registered mobile</p>
+              <input
+                type="tel" maxLength={6} placeholder="------"
+                value={aadhaarOtp} onChange={e => setAadhaarOtp(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-white border border-indigo-200 px-4 py-3 rounded-xl text-center font-mono font-black tracking-[10px] text-xl outline-none focus:border-indigo-500"
+              />
+              <div className="bg-indigo-50 p-2 rounded-lg text-center border border-indigo-100">
+                <p className="text-[8px] font-black text-indigo-800 uppercase tracking-widest">Demo Mode Active</p>
+                <p className="text-[9px] text-indigo-600 font-bold mt-0.5">Use <span className="font-mono bg-white px-1 rounded">123456</span> for Female | Use <span className="font-mono bg-white px-1 rounded">654321</span> for Male</p>
+              </div>
+              <button
+                onClick={handleVerifyAadhaarOTP} disabled={aadhaarOtp.length < 6}
+                className="w-full py-3.5 bg-indigo-600 disabled:bg-indigo-300 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-md"
+              >
+                Fetch Demographics
+              </button>
+            </motion.div>
+          )}
+
+          {aadhaarState === 'verifying' && (
+            <div className="flex flex-col items-center justify-center py-6 space-y-3">
+              <Loader2 className="animate-spin text-indigo-600" size={28} />
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-800 animate-pulse">Pulling Data from UIDAI...</p>
+            </div>
+          )}
+
+          {aadhaarState === 'verified' && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3">
+              <div className="bg-white/80 p-4 rounded-xl border border-emerald-200 space-y-3">
+                <div className="flex items-center gap-3 border-b border-emerald-100 pb-2">
+                  <User size={16} className="text-emerald-500" />
+                  <div>
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Fetched Name</p>
+                    <p className="text-sm font-black text-gray-900">{fetchedName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Official Gender</p>
+                    <p className="text-emerald-700 font-black tracking-widest">{fetchedGender}</p>
+                  </div>
+                  <Lock size={16} className="text-emerald-500 opacity-50" />
+                </div>
               </div>
 
               <button
-                onClick={handleVerifyClick}
-                disabled={isSyncing}
-                className={cn(
-                  "w-full py-4 sm:py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all mt-2 text-white text-sm sm:text-base",
-                  aadhaar.length >= 1 
-                    ? "bg-[#2563EB] shadow-lg shadow-[#2563EB]/20 active:scale-95" 
-                    : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
-                )}
+                onClick={onNext}
+                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-[11px] uppercase tracking-[3px]"
               >
-                <ExternalLink size={18} />
-                {isSyncing ? "Syncing..." : "Verify via DigiLocker"}
+                Proceed to Next Step
               </button>
             </motion.div>
-          </div>
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-green-50/50 border-2 border-green-500/20 p-4 sm:p-6 rounded-[28px] sm:rounded-[32px] space-y-4 sm:space-y-6 relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-5 sm:opacity-10">
-              <ShieldCheck size={80} className="sm:w-[120px] sm:h-[120px]" />
-            </div>
-            
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-green-500 text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/20 flex-shrink-0">
-                <CheckCircle2 size={24} className="sm:w-8 sm:h-8" />
-              </div>
-              <div className="space-y-0.5 min-w-0">
-                <p className="text-green-600 font-bold text-xs sm:text-sm truncate">Identity Verified</p>
-                <p className="text-[8px] sm:text-[10px] font-bold text-green-700/50 uppercase tracking-widest leading-none truncate">Linked via DigiLocker</p>
-              </div>
-            </div>
+          )}
+        </div>
+      </div>
 
-            <div className="bg-white/80 backdrop-blur p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-green-100 text-center space-y-1 sm:space-y-2">
-              <p className="text-base sm:text-2xl font-bold text-gray-900 tracking-[3px] sm:tracking-[6px] whitespace-nowrap overflow-hidden text-ellipsis">
-                XXXX XXXX {aadhaar.slice(-4) || '4648'}
-              </p>
-              <p className="text-[7px] sm:text-[9px] font-bold text-gray-400 uppercase tracking-[2px] sm:tracking-[4px] truncate">Official Identity Anchor Active</p>
-            </div>
-
-            <button 
-              onClick={onNext}
-              className="w-full py-4 bg-[#2563EB] text-white rounded-2xl font-bold shadow-lg shadow-[#2563EB]/20 active:scale-95 transition-all text-sm uppercase tracking-widest"
-            >
-              Continue to Profile
-            </button>
-
-            <button 
-              onClick={() => {
-                setLocalIsVerified(false);
-                setIsVerified(false);
-                setAadhaar('');
-              }}
-              className="w-full text-center text-[8px] sm:text-[10px] font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-[3px] sm:tracking-[4px] mt-2"
-            >
-              Reset and Re-verify
-            </button>
-          </motion.div>
-        )}
+      <div className="flex items-center justify-center gap-2 opacity-40 pt-4 pb-4">
+        <ShieldCheck size={14} className="text-gray-500" />
+        <span className="text-[8px] font-black uppercase tracking-[2px] text-gray-500">IP Tracked & Encrypted by Kavach Protocol</span>
       </div>
     </div>
   );

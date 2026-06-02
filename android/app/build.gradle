@@ -63,6 +63,9 @@ dependencies {
     // Vosk Offline Speech Recognition (Zero-Beep, Offline, Wakeword)
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
     implementation 'com.alphacephei:vosk-android:0.3.47@aar'
+    
+    // Agora Native RTC (WebRTC) for Stealth Voice Broadcasting
+    implementation 'io.agora.rtc:full-sdk:4.2.2'
 }
 
 apply from: 'capacitor.build.gradle'

@@ -7,6 +7,7 @@ import { useKavachStore } from '../store/useKavachStore';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { getLiveLocation, getReverseMetadata } from '../services/locationService';
 import { KavachNative } from '../services/KavachNative';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -75,29 +76,29 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   useEffect(() => {
     if (isReturningUser) {
-      setStep(7); // Skip to Shields/Permissions
+      setStep(6); // Skip to Shields/Permissions
       setTosChecked({ terms: true, permissions: true }); // Auto-check for existing users
     }
   }, [isReturningUser]);
 
   const checkHardwareStatus = async () => {
     if (!Capacitor.isNativePlatform()) return;
-    
+
     try {
       const o = await KavachNative.isOverlayPermissionGranted().catch(() => ({ granted: false }));
       setOverlayGranted(o.granted);
-    } catch(e) {}
+    } catch (e) { }
 
     try {
       const b = await KavachNative.isIgnoringBatteryOptimizations().catch(() => ({ isExempt: false }));
       setBatteryExempt(b.isExempt);
-    } catch(e) {}
+    } catch (e) { }
 
     try {
       const p = await KavachNative.checkSafetyPermissions().catch(() => ({ sms: 'prompt', call: 'prompt', microphone: 'prompt' }));
       const geo = await Geolocation.checkPermissions().catch(() => ({ location: 'prompt' } as any));
       const cam = await Camera.checkPermissions().catch(() => ({ camera: 'prompt' } as any));
-      
+
       setPerms({
         sms: p.sms || 'prompt',
         call: p.call || 'prompt',
@@ -112,8 +113,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   useEffect(() => {
     let checkInterval: any;
-    const isShieldsStep = step === 7;
-    
+    const isShieldsStep = step === 6;
+
     if (isShieldsStep && Capacitor.isNativePlatform()) {
       checkHardwareStatus();
       // 🛰️ CONTINUOUS POLLING: Ensure UI updates immediately when permissions are granted
@@ -191,37 +192,20 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       const currentSnap = await getDoc(doc(db, 'users', user.uid));
       const existingData = currentSnap.exists() ? currentSnap.data() : {};
 
-      if (aadhaar && aadhaar !== existingData.aadhar) {
-        // Master Ledger Check (Everyone is in 'users')
-        const q = query(collection(db, 'users'), where('aadhar', '==', aadhaar));
-        const snap = await getDocs(q);
-        const duplicate = snap.docs.find(d => d.id !== user.uid);
-        if (duplicate) {
-          toast.error("Aadhaar already linked to another account.");
-          setIsFinishing(false);
-          return;
-        }
-      }
-      if (userPhone && userPhone !== existingData.phoneNumber) {
-        const q = query(collection(db, 'users'), where('phoneNumber', '==', userPhone));
-        const snap = await getDocs(q);
-        const duplicate = snap.docs.find(d => d.id !== user.uid);
-        if (duplicate) {
-          toast.error("Phone number already linked to another account.");
-          setIsFinishing(false);
-          return;
-        }
-      }
+      // Duplicates are now checked upfront during Step 1 (IdentityStep)
 
       let initialLocation = existingData.lastLocation || null;
       let fullAddress = existingData.fullAddress || "Sector Unknown";
+      let locationMeta: any = null;
+
       try {
         const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
         initialLocation = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
-        
-        // 🛰️ RESOLVE PRECISION ADDRESS (FALLBACK TO COORDINATES)
-        fullAddress = `Sector Grid: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
-      } catch (geoError) {}
+
+        // 🛰️ RESOLVE PRECISION ADDRESS 
+        locationMeta = await getReverseMetadata(position.coords.latitude, position.coords.longitude);
+        fullAddress = locationMeta.display || `Sector Grid: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+      } catch (geoError) { }
 
       const isCitizen = role === 'citizen';
       const isPcr = role === 'pcr_officer';
@@ -241,7 +225,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         isVerified: isCitizen ? true : (isPcr ? true : (gender === 'female' ? true : (existingData.isVerified || false))),
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
         aadhar: aadhaar || existingData.aadhar || null,
-        
+
         // PCR/Patrol specific operational properties
         vehicleNo: isPcr ? (protectorData.vehicleNo || 'PCR-TBD') : (existingData.vehicleNo || null),
         badgeId: isPcr ? (protectorData.badgeId || 'BADGE-TBD') : (existingData.badgeId || null),
@@ -255,21 +239,21 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           lat: initialLocation?.lat || null,
           lng: initialLocation?.lng || null,
           accuracy: initialLocation?.accuracy || null,
-          city: fullAddress.split(',').slice(-3, -2)[0]?.trim() || "Unknown",
-          district: fullAddress.split(',').slice(-4, -3)[0]?.trim() || "Unknown",
-          state: fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
-          pincode: fullAddress.match(/\b\d{6}\b/)?.[0] || "Unknown",
+          city: locationMeta?.city || fullAddress.split(',').slice(-3, -2)[0]?.trim() || "Unknown",
+          district: locationMeta?.suburb || fullAddress.split(',').slice(-4, -3)[0]?.trim() || "Unknown",
+          state: locationMeta?.state || fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
+          pincode: locationMeta?.pincode || fullAddress.match(/\b\d{6}\b/)?.[0] || "Unknown",
           formattedAddress: fullAddress
         },
         fullAddress: fullAddress,
-        state: fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
-        
+        state: locationMeta?.state || fullAddress.split(',').slice(-2, -1)[0]?.trim() || "Unknown",
+
         primaryGuardian: (guardians.length > 0) ? {
           name: guardians[0].name,
           phone: `+91${guardians[0].phone.replace(/\D/g, '')}`,
           relation: guardians[0].relation
         } : (existingData.primaryGuardian || null),
-        
+
         onboardedAt: existingData.onboardedAt || serverTimestamp(),
         lastActive: serverTimestamp(),
         protectorVetting: (!isCitizen) ? (protectorData.fullName ? protectorData : existingData.protectorVetting) : null
@@ -281,7 +265,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         const cleanProfile = Object.fromEntries(
           Object.entries(userProfile).filter(([_, v]) => v !== undefined && v !== null && v !== "")
         );
-        
+
         await setDoc(doc(db, 'users', user.uid), cleanProfile, { merge: true });
 
         // 2. Gender-Specific Partitioning
@@ -315,15 +299,15 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           for (const g of guardians) {
             if (g.name && g.phone) {
               const cleanPhone = g.phone.replace(/\D/g, '');
-              await addDoc(guardianCol, { 
-                name: g.name, phone: `+91${cleanPhone}`, relation: g.relation || 'Guardian', createdAt: serverTimestamp() 
-              }).catch(() => {});
+              await addDoc(guardianCol, {
+                name: g.name, phone: `+91${cleanPhone}`, relation: g.relation || 'Guardian', createdAt: serverTimestamp()
+              }).catch(() => { });
             }
           }
         }
 
         if (Capacitor.isNativePlatform()) {
-          KavachNative.startBackgroundSentinel().catch(() => {});
+          KavachNative.startBackgroundSentinel().catch(() => { });
         }
       };
 
@@ -334,7 +318,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
       const finalRole = userProfile.role;
       const finalGender = userProfile.gender;
-      
+
       setStoreRole(finalRole);
       setStoreGender(finalGender);
       const store = useKavachStore.getState();
@@ -353,26 +337,49 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   const [isAadhaarVerified, setIsAadhaarVerified] = useState(false);
 
+  const checkDuplicatePhone = async (phoneStr: string) => {
+    try {
+      const q = query(collection(db, 'users'), where('phoneNumber', '==', phoneStr));
+      const snap = await getDocs(q);
+      const duplicate = snap.docs.find(d => d.id !== user.uid);
+      return !!duplicate;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
+  const checkDuplicateAadhaar = async (aadhaarStr: string) => {
+    try {
+      const q = query(collection(db, 'users'), where('aadhar', '==', aadhaarStr));
+      const snap = await getDocs(q);
+      const duplicate = snap.docs.find(d => d.id !== user.uid);
+      return !!duplicate;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
   const nextStep = () => {
     if (step === 1) setStep(2);
-    else if (step === 2) setStep(3);
-    else if (step === 3) {
+    else if (step === 2) {
       if (role === 'protector' || role === 'pcr_officer') {
-         setStep(4); // Vetting step
+        setStep(3); // Vetting step
       } else {
-         setStep(5); // Safety Pin for citizens
+        setStep(4); // Safety Pin for citizens
       }
     }
+    else if (step === 3) {
+      if (role === 'pcr_officer') setStep(6); // PCR Officers bypass Pin & Guardians
+      else if (gender === 'male') setStep(6); // Civilian Male Protectors bypass Pin & Guardians
+      else setStep(4);
+    }
     else if (step === 4) {
-       if (role === 'pcr_officer') setStep(7); // PCR Officers bypass Pin & Guardians
-       else if (gender === 'male') setStep(7); // Civilian Male Protectors bypass Pin & Guardians
-       else setStep(5);
+      if (role === 'citizen') setStep(5);
+      else setStep(6);
     }
-    else if (step === 5) {
-       if (role === 'citizen') setStep(6);
-       else setStep(7);
-    }
-    else if (step === 6) setStep(7);
+    else if (step === 5) setStep(6);
   };
 
   return (
@@ -380,28 +387,27 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       <div className="w-full max-w-lg mx-auto flex-1 flex flex-col relative z-10 px-4 sm:px-8 py-3 sm:py-8">
         {/* Step Progress Indicator */}
         <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-10">
-          {[1, 2, 3, 4, 5, 6, 7].map((s) => (
-            <div 
-              key={s} 
+          {[1, 2, 3, 4, 5, 6].map((s) => (
+            <div
+              key={s}
               className={cn(
                 "h-2 flex-1 rounded-full transition-all duration-500",
                 s === step ? "bg-[#2563EB] shadow-lg shadow-[#2563EB]/20" : s < step ? "bg-[#10B981]" : "bg-gray-100"
-              )} 
+              )}
             />
           ))}
         </div>
 
-        <div 
-          key={`step-${step}`} 
+        <div
+          key={`step-${step}`}
           className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
         >
-          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} setUserName={setUserName} setRole={(r) => setRole(r as any)} setIsVerified={setIsAadhaarVerified} onNext={nextStep} />}
-          {step === 2 && <GenderStep gender={gender} setGender={setGender} userName={userName} setUserName={setUserName} userPhone={userPhone} setUserPhone={setUserPhone} />}
-          {step === 3 && <RoleStep role={role} setRole={setRole} gender={gender} />}
-          {step === 4 && <ProtectorVerificationStep role={role} data={protectorData} setData={setProtectorData} />}
-          {step === 5 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
-          {step === 6 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
-          {step === 7 && (
+          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} userName={userName} setUserName={setUserName} setRole={(r) => setRole(r as any)} setGender={setGender} setIsVerified={setIsAadhaarVerified} onNext={nextStep} checkDuplicatePhone={checkDuplicatePhone} checkDuplicateAadhaar={checkDuplicateAadhaar} />}
+          {step === 2 && <RoleStep role={role} setRole={setRole} gender={gender} />}
+          {step === 3 && <ProtectorVerificationStep role={role} data={protectorData} setData={setProtectorData} />}
+          {step === 4 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
+          {step === 5 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
+          {step === 6 && (
             <ShieldsStep
               batteryExempt={batteryExempt} overlayGranted={overlayGranted} perms={perms} isReturningUser={isReturningUser}
               tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={finishOnboarding} authStatus={isFinishing ? 'saving' : 'idle'}
@@ -415,57 +421,55 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         </div>
 
         <div className="pt-2 sm:pt-8">
-          {step < 7 ? (
+          {step < 6 ? (
             <button
               disabled={
-                (step === 1 && !isAadhaarVerified) || 
-                (step === 2 && !gender) || 
-                (step === 3 && !role) || 
-                (step === 4 && (
+                (step === 1 && !isAadhaarVerified) ||
+                (step === 2 && !role) ||
+                (step === 3 && (
                   role === 'pcr_officer'
                     ? (!protectorData.fullName || !protectorData.address || !protectorData.badgeId || !protectorData.vehicleNo || !protectorData.rank || !protectorData.agreement)
                     : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement)
                 )) ||
-                (step === 5 && safetyPin.length < 4) || 
-                (step === 6 && role === 'citizen' && guardians.length === 0)
+                (step === 4 && safetyPin.length < 4) ||
+                (step === 5 && role === 'citizen' && guardians.length === 0)
               }
               onClick={nextStep}
               className={cn(
-                "w-full py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all shadow-xl active:scale-[0.98]", 
+                "w-full py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all shadow-xl active:scale-[0.98]",
                 (
-                  (step === 1 && isAadhaarVerified) || 
-                  (step === 2 && gender) || 
-                  (step === 3 && role) || 
-                  (step === 4 && (
+                  (step === 1 && isAadhaarVerified) ||
+                  (step === 2 && role) ||
+                  (step === 3 && (
                     role === 'pcr_officer'
                       ? (protectorData.fullName && protectorData.address && protectorData.badgeId && protectorData.vehicleNo && protectorData.rank && protectorData.agreement)
                       : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement)
                   )) ||
-                  (step === 5 && safetyPin.length === 4) || 
-                  (step === 6 && guardians.length > 0)
-                ) 
-                  ? "bg-[#2563EB] text-white shadow-[#2563EB]/25" 
+                  (step === 4 && safetyPin.length === 4) ||
+                  (step === 5 && guardians.length > 0)
+                )
+                  ? "bg-[#2563EB] text-white shadow-[#2563EB]/25"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
               )}
             >
               {step === 1 ? "Verify & Link" : step === 2 ? "Confirm Category" : step === 3 ? "Confirm Profile" : step === 4 ? "Submit Verification" : step === 5 ? "Configure Pin" : "Setup Guardians"}
             </button>
           ) : null}
-          
+
           <div className="mt-4 sm:mt-8 flex flex-col items-center gap-2 sm:gap-4">
-             <div className="flex items-center justify-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
-                   <Shield size={16} className="text-[#2563EB]" />
-                </div>
+            <div className="flex items-center justify-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
+                <Shield size={16} className="text-[#2563EB]" />
+              </div>
               <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[2px] sm:tracking-[3px]">Kavach Safety Grid</span>
-             </div>
-             
-             <div className="flex flex-col items-center gap-3 pt-2 opacity-80">
-                <img src="/digitalindia.png" alt="Digital India" className="h-12 w-auto object-contain" />
-                <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6">
-                  © 2024 Unique Identification Authority of India (UIDAI) | All Rights Reserved
-                </p>
-             </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-3 pt-2 opacity-80">
+              <img src="/digitalindia.png" alt="Digital India" className="h-12 w-auto object-contain" />
+              <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6">
+                © 2024 Unique Identification Authority of India (UIDAI) | All Rights Reserved
+              </p>
+            </div>
           </div>
         </div>
       </div>

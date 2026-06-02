@@ -1,7 +1,7 @@
 import React from 'react';
 import RideSafeOverlay from '../components/RideSafeOverlay';
 import SOSButton from '../components/SOSButton';
-import VictimMap from '../components/maps/VictimMap';
+
 import { Shield, Activity, ShieldCheck, Lock, PhoneCall, Mic, MicOff, FileText, ChevronRight, Radio, MapPin, MessageSquare, EyeOff, User, Clock, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -133,8 +133,8 @@ export default function DashboardScreen() {
   const handleVoiceBriefing = async (isManual = false) => {
     const isCompleted = localStorage.getItem('kavach_briefing_completed') === 'true';
 
-    // 🛡️ STOP LOGIC: Only allowed for veterans who have completed the mandatory first briefing
-    if (isCompleted && isBriefingPlaying && audioRef.current) {
+    // 🛡️ STOP LOGIC: Allow any user to manually halt the voice briefing
+    if (isBriefingPlaying && audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setIsBriefingPlaying(false);
@@ -223,55 +223,26 @@ export default function DashboardScreen() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans selection:bg-[#2563EB]/10 text-[#1E293B]">
       <main className="max-w-md mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 pb-10">
-        {/* Header Status */}
-        <header className="flex items-center justify-between mb-0 sm:mb-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2.5 bg-white rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-[#E5E7EB]">
-            <div className="relative flex items-center justify-center">
-              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#22C55E] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-              <div className="absolute inset-0 bg-[#22C55E] rounded-full animate-ping opacity-25" />
-            </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-[#1E293B] tracking-wide">
-              {isBriefingPlaying ? 'Listening Paused' : 'Kavach Protection Active'}
-            </span>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setVoiceTriggerActive(!isVoiceTriggerActive);
-                toast.success(isVoiceTriggerActive ? "Voice Sentinel Offline" : "Voice Sentinel Engaged", {
-                  description: isVoiceTriggerActive ? "Microphone released." : "Listening for 'Kavach Help'...",
-                  icon: isVoiceTriggerActive ? '🔇' : '🎙️'
-                });
-              }}
-              className={cn(
-                "p-2 sm:p-2.5 rounded-xl border transition-all shadow-sm active:scale-95",
-                isVoiceTriggerActive
-                  ? "bg-blue-50 border-blue-200 text-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.1)]"
-                  : "bg-white border-[#E5E7EB] text-[#64748B]"
-              )}
-              title={isVoiceTriggerActive ? "Disable Voice Trigger" : "Enable Voice Trigger"}
-            >
-              {isVoiceTriggerActive ? <Mic size={14} className="sm:size-[16px]" /> : <MicOff size={14} className="sm:size-[16px]" />}
-            </button>
-
-            <button
-              disabled={!localStorage.getItem('kavach_briefing_completed') && isBriefingPlaying}
-              onClick={() => handleVoiceBriefing(true)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 border rounded-xl text-[9px] sm:text-[10px] font-bold transition-all shadow-sm",
-                (!localStorage.getItem('kavach_briefing_completed') && isBriefingPlaying)
-                  ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75"
-                  : "bg-white border-[#E5E7EB] text-[#1E293B] hover:bg-gray-50 active:scale-95"
-              )}
-            >
-              <Volume2 size={12} className={isBriefingPlaying ? "text-gray-400 animate-pulse" : "text-[#DC2626] sm:size-[14px]"} />
-              {isBriefingPlaying
-                ? (localStorage.getItem('kavach_briefing_completed') ? "Stop" : "Listening...")
-                : "Listen Now"}
-            </button>
-          </div>
-        </header>
+        {/* 🔊 BRIEFING TOGGLE BUTTON */}
+        <div className="w-full flex justify-end px-2 mb-2">
+          <button
+            onClick={() => handleVoiceBriefing(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-full shadow-sm active:scale-95 transition-all"
+          >
+            {isBriefingPlaying ? (
+              <>
+                <Volume2 size={12} className="text-red-500 animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-red-500">Stop Briefing</span>
+              </>
+            ) : (
+              <>
+                <Volume2 size={12} className="text-blue-500" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-gray-700">Listen Briefing</span>
+              </>
+            )}
+          </button>
+        </div>
 
         <VoiceVisualizer isSOSActive={isSOSActive} />
 
@@ -297,7 +268,7 @@ export default function DashboardScreen() {
         {/* Priority Helplines */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
-            onClick={() => window.open('tel:112')}
+            onClick={() => KavachSafe.initiateEmergencyCall({ number: '112' })}
             className="p-3.5 sm:p-5 bg-accent-red rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_12px_24px_rgba(239,68,68,0.2)] active:scale-95 transition-all group overflow-hidden relative"
           >
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
@@ -312,7 +283,7 @@ export default function DashboardScreen() {
             <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Emergency</span>
           </button>
           <button
-            onClick={() => window.open(gender === 'female' ? 'tel:1091' : 'tel:100')}
+            onClick={() => KavachSafe.initiateEmergencyCall({ number: gender === 'female' ? '1091' : '100' })}
             className="p-3.5 sm:p-5 bg-white border border-black/[0.05] rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.03)] active:scale-95 transition-all group overflow-hidden relative"
           >
             <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] to-transparent pointer-events-none" />

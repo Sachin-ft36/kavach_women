@@ -47,7 +47,6 @@
 
 .leaflet-container,
 .mapboxgl-map {
-  @apply rounded-[32px];
   background: #0d0d0d !important;
   min-height: 450px !important;
   width: 100% !important;
@@ -255,6 +254,14 @@ html.supercell-active {
   height: 100vh !important;
   width: 100vw !important;
   background-color: #0F172A !important;
+}
+
+/* 🔋 BATTERY SAVER PROTOCOL: Disable ALL Continuous Animations */
+/* Prevents 60FPS DOM repaints, drastically reducing battery drain. */
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+  transition-duration: 0ms !important;
 }
 
 

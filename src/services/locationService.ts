@@ -55,7 +55,7 @@ export const getLiveLocation = async (): Promise<PrecisionLocation | null> => {
  */
 export const watchLiveLocation = async (
   callback: (pos: [number, number], accuracy: number) => void,
-  performanceMode: 'high' | 'auto' | 'power_save' = 'auto'
+  performanceMode: 'high' | 'auto' | 'power_save' | 'ultra_power_save' = 'auto'
 ): Promise<string> => {
   if (Capacitor.isNativePlatform()) {
     await Geolocation.requestPermissions();
@@ -64,12 +64,14 @@ export const watchLiveLocation = async (
   const isEmergencyMode = localStorage.getItem('kavach_sos_active') === 'true' ||
                           localStorage.getItem('kavach_ride_active') === 'true';
 
+  const isUltraSave = performanceMode === 'ultra_power_save';
+
   // Leverage the native stream architecture instead of stacking intervals over watches
   const watchId = await Geolocation.watchPosition(
     {
       enableHighAccuracy: isEmergencyMode || performanceMode === 'high',
-      timeout: isEmergencyMode ? 5000 : 20000,
-      maximumAge: isEmergencyMode ? 0 : (performanceMode === 'power_save' ? 45000 : 10000)
+      timeout: isEmergencyMode ? 5000 : (isUltraSave ? 60000 : 20000),
+      maximumAge: isEmergencyMode ? 0 : (isUltraSave ? 300000 : (performanceMode === 'power_save' ? 45000 : 10000)) // 5 mins cache in ultra save
     },
     (position) => {
       if (position?.coords) {

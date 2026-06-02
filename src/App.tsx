@@ -13,14 +13,18 @@ import { useRideProtocol } from './hooks/useRideProtocol';
 import { useAudioAI } from './hooks/useAudioAI';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeBackgroundSentinel } from './services/BackgroundSentinelService';
+import { siriEmergencyService } from './services/siriService';
 import SOSConfirmationOverlay from './components/SOSConfirmationOverlay';
 import WarningOverlay from './components/WarningOverlay';
 import BanOverlay from './components/BanOverlay';
 import RemoteCommandListener from './components/RemoteCommandListener';
 import { TacticalCallOverlay } from './components/TacticalCallOverlay';
+import SafeTimerPopup from './components/SafeTimerPopup';
+import RideDeviationPopup from './components/RideDeviationPopup';
 
 const SOSButton = React.lazy(() => import('./components/SOSButton'));
 const VictimMap = React.lazy(() => import('./components/maps/VictimMap'));
+const MapplsVictimMap = React.lazy(() => import('./components/maps/MapplsVictimMap'));
 const EvidenceVault = React.lazy(() => import('./components/EvidenceVault'));
 const EmergencyContacts = React.lazy(() => import('./components/EmergencyContacts'));
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
@@ -104,6 +108,12 @@ export default function App() {
   // 🛡️ TACTICAL ZOOM LOCK REMOVED: Allowed browser scaling (Ctrl + and Ctrl -) for responsive flexibility.
   useEffect(() => {
     // Zoom locking disabled on user request.
+    // Initialize Siri Shortcuts for iOS
+    siriEmergencyService.initialize();
+    
+    // 🛡️ BIND GLOBAL BACKGROUND SENTINEL
+    // This forces Android/iOS to keep Shake/Voice/Ride running when minimized
+    initializeBackgroundSentinel();
   }, []);
   const handleHardReset = () => { localStorage.clear(); window.location.reload(); };
   const isSOSActive = useKavachStore(state => state.isSOSActive);
@@ -158,6 +168,10 @@ export default function App() {
     setIsGhostMode(prev => {
       const newState = !prev;
       localStorage.setItem('kavach_ghost_mode', newState.toString());
+      if (Capacitor.isNativePlatform()) {
+        toast.info(newState ? "Engaging WeatherPro Camouflage. App will restart." : "Restoring Kavach Security. App will restart.", { duration: 4000 });
+        KavachSafe.setAppStealthMode({ enabled: newState }).catch(e => console.warn('Stealth Mode Native Toggle Failed:', e));
+      }
       return newState;
     });
   };
@@ -282,8 +296,12 @@ export default function App() {
       setTimeout(async () => {
         await PushNotifications.requestPermissions();
         KavachSafe.addListener('sosTriggered', (data: { source: string }) => {
-          const { setShadowActive, setPendingSOS } = useKavachStore.getState();
-          if (data.source === 'shadow') {
+          const { setShadowActive, setPendingSOS, setFakeCallActive, setIsSafeTimerAlertActive } = useKavachStore.getState();
+          if (data.source === 'fake_call') {
+            setFakeCallActive(true);
+          } else if (data.source === 'safe_timer_expired') {
+            setIsSafeTimerAlertActive(true);
+          } else if (data.source === 'shadow') {
             setShadowActive(true);
             KavachSafe.startForensicCapture();
           } else {
@@ -294,8 +312,12 @@ export default function App() {
         // Consume any triggers that woke the app from a cold state (e.g. background service)
         const pendingTrigger = await KavachSafe.consumeTrigger();
         if (pendingTrigger) {
-          const { setShadowActive, setPendingSOS } = useKavachStore.getState();
-          if (pendingTrigger.source === 'shadow') {
+          const { setShadowActive, setPendingSOS, setFakeCallActive, setIsSafeTimerAlertActive } = useKavachStore.getState();
+          if (pendingTrigger.source === 'fake_call') {
+            setFakeCallActive(true);
+          } else if (pendingTrigger.source === 'safe_timer_expired') {
+            setIsSafeTimerAlertActive(true);
+          } else if (pendingTrigger.source === 'shadow') {
             setShadowActive(true);
             KavachSafe.startForensicCapture();
           } else {
@@ -309,7 +331,7 @@ export default function App() {
         // This explicitly clears the native lock if the React frontend is safe.
         if (!useKavachStore.getState().isSOSActive && !pendingTrigger) {
           console.log("🛡️ TACTICAL: Reconciling native lock state (standing down).");
-          KavachSafe.stopContinuousSiren().catch(() => {});
+          KavachSafe.stopContinuousSiren().catch(() => { });
         }
 
         setHubReady(true);
@@ -501,6 +523,9 @@ export default function App() {
       <WarningOverlay />
       <BanOverlay />
       <RemoteCommandListener />
+      <TacticalCallOverlay />
+      <SafeTimerPopup />
+      <RideDeviationPopup />
       <React.Suspense fallback={
         <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
           <div className="w-16 h-16 border-4 border-gray-100 border-t-[#2563EB] rounded-full animate-spin shadow-inner" />
@@ -587,7 +612,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
         <>
           <motion.nav
             initial={{ y: 120, opacity: 0 }}
@@ -683,6 +708,7 @@ export default function App() {
 function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onToggleGhost: () => void }) {
   const { activeTab, role, isLocked, handleManualUnlock, isVerified } = useKavachStore();
   const isSystemAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const renderTab = (tab: string) => {
     const isVisible = activeTab === tab;
@@ -713,7 +739,7 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
           return <div key="dashboard" className="block">{(role === 'protector' || role === 'pcr_officer') ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
         }
         return null;
-      case 'map': return isVisible ? <div key="map" className="block h-[calc(100vh-210px)] w-full"><VictimMap /></div> : null;
+      case 'map': return isVisible ? <div key="map" className="block h-[calc(100vh-210px)] w-full">{!useMapboxFallback ? <MapplsVictimMap onFallback={() => setUseMapboxFallback(true)} /> : <VictimMap />}</div> : null;
       case 'sos': return (isVisible && role === 'citizen') ? <SOSScreen key="sos" isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} /> : null;
       case 'vault': return isVisible ? <div key="vault" className="max-w-2xl mx-auto"><EvidenceVault /></div> : null;
       case 'contacts': return isVisible ? <div key="contacts" className="max-w-2xl mx-auto"><EmergencyContacts /></div> : null;

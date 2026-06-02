@@ -15,6 +15,7 @@ import { PredictiveIntelResult } from '../../lib/predictiveIntel';
 
 // 🏛️ IMPORT OFFICIAL COMMAND ENGINE
 import CommandMap from '../maps/CommandMap';
+import MapplsCommandMap from '../maps/MapplsCommandMap';
 
 interface ProtectorTrackProps {
   activeMissionId?: string | null;
@@ -43,6 +44,7 @@ export function ProtectorTrack({
   const [historicalJourneys, setHistoricalJourneys] = useState<any[]>([]);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const { analyzeMissionVector, isAnalyzing, mlLatency } = useCloudML();
 
@@ -376,18 +378,34 @@ export function ProtectorTrack({
       {/* 🗺️ STRATEGIC REPLAY CENTER */}
       <main className="flex-1 relative h-full overflow-hidden flex flex-col">
          <div className="flex-1 relative">
-            <CommandMap 
-               activeAlerts={filteredActiveMissions} 
-               activeProtectors={filteredActiveProtectors} 
-               activeFirs={filteredActiveFirs} 
-               pendingProtectors={[]}
-               selectedAlertId={selectedMissionId}
-               victimPath={selectedMission?.path || []}
-               protectorPath={selectedMission?.protectorPath || []}
-               safePath={selectedMission?.safePath || []}
-               replayProgress={replayProgress}
-               selectedState={selectedState}
-            />
+            {!useMapboxFallback ? (
+              <MapplsCommandMap 
+                 activeAlerts={filteredActiveMissions} 
+                 activeProtectors={filteredActiveProtectors} 
+                 activeFirs={filteredActiveFirs} 
+                 pendingProtectors={[]}
+                 selectedAlertId={selectedMissionId}
+                 victimPath={selectedMission?.path || []}
+                 protectorPath={selectedMission?.protectorPath || []}
+                 safePath={selectedMission?.safePath || []}
+                 replayProgress={replayProgress}
+                 selectedState={selectedState}
+                 onFallback={() => setUseMapboxFallback(true)}
+              />
+            ) : (
+              <CommandMap 
+                 activeAlerts={filteredActiveMissions} 
+                 activeProtectors={filteredActiveProtectors} 
+                 activeFirs={filteredActiveFirs} 
+                 pendingProtectors={[]}
+                 selectedAlertId={selectedMissionId}
+                 victimPath={selectedMission?.path || []}
+                 protectorPath={selectedMission?.protectorPath || []}
+                 safePath={selectedMission?.safePath || []}
+                 replayProgress={replayProgress}
+                 selectedState={selectedState}
+              />
+            )}
          </div>
          
          {/* 🗺️ STRATEGIC ROUTE STATUS: RELOCATED TO TOP CORNER */}

@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc } from 'firebase/firestore';
 import { getReverseMetadata } from './locationService';
+import { fetchNearbyPoliceMappls } from './MapplsService';
 import { KavachSafe } from './KavachNative';
 
 let lastTriggerTime = 0;
@@ -66,6 +67,8 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             location: { 
               latitude: userPos[0], 
               longitude: userPos[1],
+              routingLat: data?.routingLat || userPos[0],
+              routingLng: data?.routingLng || userPos[1],
               address: meta.address,
               city: meta.city,
               pincode: meta.pincode
@@ -79,7 +82,8 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             type: data?.type || 'SOS_TRIGGER',
             verification_lock: true, 
             dispatch_status: 'ACTIVE_UPLINK',
-            handshakeCode: data?.handshakeCode || '0000',
+            handshakeCode: data?.handshakeCode || Math.floor(1000 + Math.random() * 9000).toString(),
+            mapplsId: data?.mapplsId || null,
             guardianContacts: (() => {
               try {
                 const gStr = localStorage.getItem('kavach_guardian_cache');
@@ -152,11 +156,36 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
         }
 
         const phones = guardians.map((g: any) => g.phone).filter(Boolean);
-        const alertLink = `https://kavach-women.web.app/track/${victimId}`;
-        const message = `🚨 KAVACH EMERGENCY! ${user?.displayName || 'A user'} is in danger. 
-Location: https://www.google.com/maps?q=${userPos[0]},${userPos[1]}
-Track Live: ${alertLink}
-Handshake Code: ${data?.handshakeCode || 'N/A'}`;
+        const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
+        
+        // 🗺️ Grab fast local metadata for Nearest Police Station
+        const meta = await getReverseMetadata(userPos[0], userPos[1]);
+        
+        // 🛰️ TACTICAL POI QUERY: Fetch ACTUAL nearest verified Police Station
+        let nearestPS = `${meta.suburb || meta.city || 'Nearest'} Police Station`;
+        let psMapsLink = '';
+        
+        try {
+          const stations = await fetchNearbyPoliceMappls(userPos[0], userPos[1]);
+          if (stations && stations.length > 0) {
+            nearestPS = stations[0].name;
+            // Direct pin coordinate link for extreme precision
+            psMapsLink = `https://maps.google.com/?q=${stations[0].lat},${stations[0].lng}`;
+          } else {
+            const searchCity = meta.city ? ` ${meta.city}` : '';
+            psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
+          }
+        } catch (e) {
+          const searchCity = meta.city ? ` ${meta.city}` : '';
+          psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
+        }
+
+        const message = `🚨 SOS! ${user?.displayName?.split(' ')[0] || 'User'} is in danger!
+📍 Loc: https://maps.google.com/?q=${userPos[0]},${userPos[1]}
+🚔 Near Police Station: ${nearestPS}
+🔗 Nav: ${psMapsLink}
+🔴 Track: ${alertLink}
+PIN: ${data?.handshakeCode || 'N/A'}`;
 
         console.log(`🛡️ KAVACH DISPATCH: Guardian discovery complete. Found ${phones.length} active nodes.`);
 

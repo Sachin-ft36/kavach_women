@@ -38,6 +38,8 @@ export default function SignupView({
   const [emailExists, setEmailExists] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [isManualEntry, setIsManualEntry] = useState(phone.length > 0);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (email.length < 5 || !email.includes('@')) {
@@ -139,59 +141,7 @@ export default function SignupView({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('phone_number')}</label>
-          <div className="relative flex items-center bg-bg border border-border rounded-2xl overflow-hidden focus-within:border-accent-blue transition-all">
-            <div className="flex items-center gap-2 pl-5 pr-3 py-3.5 sm:py-4">
-              <span className="text-sm font-bold text-text-main">+91</span>
-              <div className="w-[1px] h-4 bg-border" />
-            </div>
-            <input
-              required
-              readOnly={!isManualEntry && !phone}
-              type={isManualEntry ? "text" : "tel"}
-              placeholder={isFetchingHint ? "Identifying number..." : isManualEntry ? "Enter mobile number" : "Use my mobile number"}
-              className={cn(
-                "flex-1 bg-transparent py-3.5 sm:py-4 pr-2 text-sm font-bold outline-none placeholder:text-text-dim placeholder:font-medium",
-                phone ? "text-accent-blue" : "text-text-main"
-              )}
-              value={phone}
-              onChange={(e) => {
-                if (isManualEntry) {
-                   const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                   setPhone(val);
-                }
-              }}
-              onClick={() => {
-                if (!phone && !isManualEntry && !isFetchingHint) fetchPhoneHint();
-              }}
-            />
-            {phone ? (
-              <button
-                type="button"
-                onClick={() => setPhone('')}
-                className="pr-4 text-xs font-bold text-accent-red hover:underline"
-              >
-                Change
-              </button>
-            ) : (
-              <div className={cn(
-                "pr-4 flex items-center gap-1.5 text-accent-blue transition-all",
-                isFetchingHint && "animate-pulse"
-              )}>
-                <div className="flex items-center gap-2 bg-accent-blue/5 border border-accent-blue/20 px-3 py-2 rounded-xl text-accent-blue cursor-pointer" onClick={fetchPhoneHint}>
-                  <Smartphone size={16} className="shrink-0" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Auto Detect</span>
-                </div>
-              </div>
-            )}
-          </div>
-          {!phone && (
-            <p className="text-[10px] text-text-dim font-medium pl-1 pt-1">
-              You can also type your number manually
-            </p>
-          )}
-        </div>
+
 
         <div className="space-y-2">
           <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
@@ -262,10 +212,42 @@ export default function SignupView({
           </div>
         </div>
 
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-text-main pl-1">Confirm Password</label>
+          <div className="relative">
+            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+            <input
+              required
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Re-enter your password"
+              className={cn(
+                "w-full bg-bg border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none transition-all placeholder:text-text-dim",
+                confirmPassword.length > 0 && password !== confirmPassword 
+                  ? "border-accent-red focus:border-accent-red" 
+                  : "border-border focus:border-accent-blue focus:bg-white"
+              )}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
+            >
+              {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
+          </div>
+          {confirmPassword.length > 0 && password !== confirmPassword && (
+            <p className="text-xs font-bold text-accent-red pl-1 pt-1">
+              Passwords do not match
+            </p>
+          )}
+        </div>
+
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || strength < 4 || emailExists || checkingEmail}
+            disabled={loading || strength < 4 || emailExists || checkingEmail || password !== confirmPassword || confirmPassword.length === 0}
             className="w-full py-4 sm:py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
           >
             {loading ? "Creating..." : checkingEmail ? "Scanning..." : t('create_account')}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Delete, ShieldCheck, Shield } from 'lucide-react';
+import { Lock, Delete, ShieldCheck, Shield, ShieldAlert } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { toast } from 'sonner';
 
 interface SecurityPinStepProps {
   pin: string;
@@ -15,7 +16,22 @@ export default function SecurityPinStep({ pin, setPin }: SecurityPinStepProps) {
     if (localPin.length < 4) {
       const newPin = localPin + val;
       setLocalPin(newPin);
-      if (newPin.length === 4) setPin(newPin);
+      
+      if (newPin.length === 4) {
+        const isRepeating = /^(\d)\1{3}$/.test(newPin);
+        const sequentialPins = ['0123', '1234', '2345', '3456', '4567', '5678', '6789', '9876', '8765', '7654', '6543', '5432', '4321', '3210'];
+        
+        if (isRepeating || sequentialPins.includes(newPin)) {
+          toast.error("Weak Security PIN! Avoid using repeating (e.g. 0000) or sequential (e.g. 1234) numbers.");
+          setTimeout(() => {
+            setLocalPin('');
+            setPin('');
+          }, 400);
+          return;
+        }
+        
+        setPin(newPin);
+      }
     }
   };
 
@@ -35,11 +51,31 @@ export default function SecurityPinStep({ pin, setPin }: SecurityPinStepProps) {
         <div className="w-16 h-16 bg-white border border-[#E5E7EB] rounded-[24px] flex items-center justify-center shadow-lg shadow-gray-100 mx-auto transition-all duration-500">
           <Lock className="text-[#2563EB]" size={32} />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-4">
           <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Set Security PIN</h2>
-          <p className="text-sm text-gray-500 font-semibold max-w-[280px] mx-auto leading-relaxed">
-            Create a 4-digit authentication code to secure your safety profile.
-          </p>
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl p-5 text-left max-w-[350px] mx-auto shadow-sm">
+            <div className="flex items-center gap-2 mb-3 border-b border-indigo-100 pb-2">
+              <ShieldAlert className="text-indigo-600" size={16} />
+              <p className="text-[10px] text-indigo-900 font-black uppercase tracking-widest">CRUCIAL SECURITY PROTOCOL</p>
+            </div>
+            <ul className="text-[11px] text-indigo-900 font-black space-y-3.5">
+              <li className="flex items-start gap-2.5">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0 mt-0.5 shadow-md">1</span> 
+                <span className="uppercase tracking-tight leading-snug">Stop an Active SOS Mission</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0 mt-0.5 shadow-md">2</span> 
+                <span className="uppercase tracking-tight leading-snug">
+                  During SOS, hide the app as a Calculator (Disguise Mode).
+                  <br/><span className="text-[9px] text-indigo-600 font-bold tracking-widest">Unlock by typing this PIN in the calculator.</span>
+                </span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0 mt-0.5 shadow-md">3</span> 
+                <span className="uppercase tracking-tight leading-snug">Cancel the Safe Timer</span>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 

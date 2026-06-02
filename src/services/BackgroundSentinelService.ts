@@ -49,10 +49,19 @@ export const initializeBackgroundSentinel = async () => {
       const isCritical = data?.type === 'SOS_ALERT' || data?.priority === 'high' || data?.shadow === 'true';
 
       if (isCritical) {
-        // 🚨 TACTICAL SIREN: Only for Responders (Protector/SuperCell)
-        if (role === 'protector' || role === 'super_cell' || role === 'admin') {
+        // 🚨 TACTICAL SIREN: Only for Patrolling Units & Command (PCR / SuperCell / Admin)
+        // Regular protectors ONLY get silent lock screen push notifications.
+        if (role === 'pcr_officer' || role === 'super_cell' || role === 'admin') {
           KavachSafe.startContinuousSiren();
           if (platform === 'ios') KavachSafe.triggerHapticPulse();
+        } else if (role === 'protector') {
+          // Force a Heads-Up Banner over other open apps (like WhatsApp) for Protectors
+          KavachSafe.showUrgentNotification({
+            title: "🚨 SOS ALERT: Emergency Triggered",
+            body: notification.body || "A protected citizen has triggered an SOS.",
+            id: notification.id || "kavach_sos",
+            sound: "default"
+          });
         }
 
         toast.info("🚨 TACTICAL ALERT: EMERGENCY IN PROGRESS", {
@@ -72,6 +81,8 @@ export const initializeBackgroundSentinel = async () => {
     // 🛡️ NATIVE HARDWARE PANIC TRIGGER (Power Button Hold)
     KavachSafe.addListener('onPanicTrigger', async () => {
       const store = useKavachStore.getState();
+      if (store.role !== 'citizen') return; // Power Button Trigger is ONLY for Citizens (Victims)
+
       if (!store.isShadowActive && !store.isSOSActive) {
         console.warn("🚨 KAVACH HARDWARE PANIC: Initiating Silent ThreatProtect Protocol...");
         localStorage.setItem('kavach_shadow_stealth', 'true');
@@ -86,6 +97,8 @@ export const initializeBackgroundSentinel = async () => {
     // 🛡️ NATIVE HARDWARE STOP TRIGGER (Volume Down Hold)
     KavachSafe.addListener('onStopTrigger', async () => {
       const store = useKavachStore.getState();
+      if (store.role !== 'citizen') return;
+
       if (store.isShadowActive) {
         console.log("🛡️ KAVACH HARDWARE STOP: Sealing Forensic Evidence...");
         store.setShadowActive(false);
@@ -99,9 +112,10 @@ export const initializeBackgroundSentinel = async () => {
     // 🛡️ NATIVE HARDWARE ACCELEROMETER IMPACT TRIGGER (Lock screen safe fall-detection)
     KavachSafe.addListener('onImpactTrigger', async (data: { gForce: number }) => {
       const store = useKavachStore.getState();
+      if (store.role !== 'citizen') return; // Crash detection is ONLY for Citizens
+
       if (!store.isSOSActive && !store.isSOSBlocked) {
         console.error("🚨 KAVACH NATIVE SENTINEL: Critical G-Force Impact Detected in Background!", data.gForce);
-        // Dispatch custom global event to instantly trigger the UI override
         window.dispatchEvent(new CustomEvent('sos-impact-trigger', { detail: { gForce: data.gForce } }));
       }
     });

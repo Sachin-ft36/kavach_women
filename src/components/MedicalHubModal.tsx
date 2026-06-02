@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, MapPin, Phone, Navigation, ChevronRight, Activity, Loader2, Heart, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -217,13 +218,13 @@ export default function MedicalHubModal({ isOpen, onClose }: MedicalHubModalProp
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[500] bg-[#0A0A0B] flex flex-col p-6 pt-12 overflow-hidden"
+        className="fixed inset-0 z-[2000000] bg-[#0A0A0B] flex flex-col p-6 pt-12 overflow-hidden"
       >
         <header className="flex justify-between items-center mb-8">
           <button 
@@ -324,6 +325,7 @@ export default function MedicalHubModal({ isOpen, onClose }: MedicalHubModalProp
           </p>
         </footer>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

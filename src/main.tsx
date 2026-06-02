@@ -7,15 +7,18 @@ import { Toaster } from 'sonner';
 
 import { LanguageProvider } from './contexts/LanguageContext';
 import { CallProvider } from './contexts/CallContext';
+import { MotionConfig } from 'motion/react';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <CallProvider>
-      <LanguageProvider>
+    <MotionConfig reducedMotion="never">
+      <CallProvider>
+        <LanguageProvider>
         <App />
         <Toaster position="top-center" theme="dark" />
       </LanguageProvider>
     </CallProvider>
+    </MotionConfig>
   </StrictMode>,
 );
 

@@ -24,6 +24,9 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <queries>
         <intent>
@@ -88,6 +91,9 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".FakeCallReceiver" android:exported="false" />
+
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -97,10 +103,6 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -109,6 +111,38 @@
                 <data android:scheme="com.kavach.app" />
             </intent-filter>
         </activity>
+
+        <!-- KAVACH DEFAULT LAUNCHER ALIAS -->
+        <activity-alias
+            android:name=".DefaultActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- WEATHER STEALTH LAUNCHER ALIAS -->
+        <activity-alias
+            android:name=".StealthActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_weather_launcher"
+            android:roundIcon="@mipmap/ic_weather_launcher_round"
+            android:label="WeatherPro"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+
 
         <provider
             android:name="androidx.core.content.FileProvider"

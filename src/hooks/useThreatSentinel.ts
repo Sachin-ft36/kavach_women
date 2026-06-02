@@ -44,27 +44,9 @@ export function useThreatSentinel() {
       const now = Date.now();
 
       // 1. HIGH-PRECISION INACTIVITY MONITORING (Ride Mode Only)
-      if (isRideModeActive && currentPos && lastPosRef.current) {
-        // Switch to the Haversine formula to ensure consistent distance math
-        const linearDistanceShiftKM = calculateHaversineDistance(
-          currentPos[0], currentPos[1],
-          lastPosRef.current[0], lastPosRef.current[1]
-        );
+      // Removed: This logic is now handled robustly by the dedicated `useRideProtocol.ts` module.
+      // -----------------------------------------------------------------------------------------
 
-        // 50 meters or less is flagged as an active stationary event
-        if (linearDistanceShiftKM < 0.05) {
-          const inactiveDurationMS = now - lastMoveTimeRef.current;
-          if (inactiveDurationMS > 300000) { // 5 continuous minutes of zero velocity
-            console.warn("🚨 SENTINEL: CRITICAL INACTIVITY BREACH DETECTED IN TRANSIT.");
-            window.dispatchEvent(new CustomEvent('sos-inactivity-trigger'));
-            lastMoveTimeRef.current = now; // Throttle duplicate events
-          }
-        } else {
-          // The vehicle moved past the jitter threshold; update location references
-          lastMoveTimeRef.current = now;
-          lastPosRef.current = [currentPos[0], currentPos[1]];
-        }
-      }
 
       // 2. HOURLY SENTINEL KEEP-ALIVE PULSE MONITORING
       if (isSentinelActive && lastSentinelPulse) {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import VictimMap from '../components/maps/VictimMap';
+import MapplsVictimMap from '../components/maps/MapplsVictimMap';
 import { Shield, MapPin, Activity, Phone, Car, Clock, Navigation } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -10,6 +11,7 @@ export default function TrackScreen() {
   const [id, setId] = useState<string | null>(null);
   const [rideData, setRideData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -71,7 +73,11 @@ export default function TrackScreen() {
       {/* 🗺️ LIVE TACTICAL MAP */}
       <main className="flex-1 p-4 -mt-6 space-y-4 relative z-20">
         <div className="bg-white rounded-[40px] overflow-hidden border border-[#E5E7EB] shadow-xl h-[450px] relative">
-           <VictimMap customPos={[rideData.location.latitude, rideData.location.longitude]} />
+           {!useMapboxFallback ? (
+             <MapplsVictimMap customPos={[rideData.location.latitude, rideData.location.longitude]} onFallback={() => setUseMapboxFallback(true)} />
+           ) : (
+             <VictimMap customPos={[rideData.location.latitude, rideData.location.longitude]} />
+           )}
            <div className="absolute top-6 left-6 px-4 py-2 bg-black/80 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-2">
               <div className="w-2 h-2 bg-accent-green rounded-full animate-pulse" />
               <span className="text-[9px] font-black text-white uppercase tracking-widest">Live: {rideData.victimName}</span>

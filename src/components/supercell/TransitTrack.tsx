@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useCloudML } from '../../hooks/useCloudML';
 import { PredictiveIntelResult } from '../../lib/predictiveIntel';
 import CommandMap from '../maps/CommandMap';
+import MapplsCommandMap from '../maps/MapplsCommandMap';
 import { useCall } from '../../contexts/CallContext';
 
 interface TransitTrackProps {
@@ -43,6 +44,7 @@ export function TransitTrack({
   const [activeFirs, setActiveFirs] = useState<any[]>([]);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [predictiveResults, setPredictiveResults] = useState<PredictiveIntelResult | null>(null);
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   // 🚧 SOVEREIGN INFRASTRUCTURE STATE
   const [tollGates, setTollGates] = useState([
@@ -441,19 +443,36 @@ export function TransitTrack({
       {/* 🗺️ PREDICTIVE HUD CENTER */}
       <main className="flex-1 relative h-full overflow-hidden flex flex-col">
          <div className="flex-1 relative">
-            <CommandMap 
-               activeAlerts={activeAlerts} 
-               activeProtectors={activeProtectors} 
-               activeJourneys={sidebarTab === 'LIVE' ? activeJourneys : []}
-               activeFirs={activeFirs} 
-               pendingProtectors={[]} 
-               selectedAlertId={selectedJourneyId}
-               onAlertClick={setSelectedJourneyId}
-               projectedPath={predictiveResults?.projection}
-               safePath={selectedJourney?.safePath}
-               isSovereignActive={isSovereignActive}
-               selectedState={selectedState}
-            />
+            {!useMapboxFallback ? (
+              <MapplsCommandMap 
+                 activeAlerts={activeAlerts} 
+                 activeProtectors={activeProtectors} 
+                 activeJourneys={sidebarTab === 'LIVE' ? activeJourneys : []}
+                 activeFirs={activeFirs} 
+                 pendingProtectors={[]} 
+                 selectedAlertId={selectedJourneyId}
+                 onAlertClick={setSelectedJourneyId}
+                 projectedPath={predictiveResults?.projection}
+                 safePath={selectedJourney?.safePath}
+                 isSovereignActive={isSovereignActive}
+                 selectedState={selectedState}
+                 onFallback={() => setUseMapboxFallback(true)}
+              />
+            ) : (
+              <CommandMap 
+                 activeAlerts={activeAlerts} 
+                 activeProtectors={activeProtectors} 
+                 activeJourneys={sidebarTab === 'LIVE' ? activeJourneys : []}
+                 activeFirs={activeFirs} 
+                 pendingProtectors={[]} 
+                 selectedAlertId={selectedJourneyId}
+                 onAlertClick={setSelectedJourneyId}
+                 projectedPath={predictiveResults?.projection}
+                 safePath={selectedJourney?.safePath}
+                 isSovereignActive={isSovereignActive}
+                 selectedState={selectedState}
+              />
+            )}
 
             {/* CCTV FEED FLOATING COMMAND SCREEN */}
             <AnimatePresence>

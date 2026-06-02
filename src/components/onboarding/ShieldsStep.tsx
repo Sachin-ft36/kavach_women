@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ShieldCheck, Activity, ScanLine, Smartphone, CheckCircle2, Shield, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { Capacitor } from '@capacitor/core';
 
 interface MissionReadinessProps {
   batteryExempt: boolean;
@@ -56,7 +57,11 @@ export default function MissionReadiness({
     perms.camera === 'granted' && 
     perms.microphone === 'granted';
 
-  const allShieldsActive = batteryExempt && overlayGranted && isLifelineActive && isSentinelActive;
+  const isIOS = Capacitor.getPlatform() === 'ios';
+  const effectiveBatteryExempt = isIOS ? true : batteryExempt;
+  const effectiveOverlayGranted = isIOS ? true : overlayGranted;
+
+  const allShieldsActive = effectiveBatteryExempt && effectiveOverlayGranted && isLifelineActive && isSentinelActive;
 
   useEffect(() => {
     if (isReturningUser) {
@@ -102,7 +107,8 @@ export default function MissionReadiness({
 
       {/* Hardware Configuration Cards */}
       <div className="space-y-4">
-        {/* 1. Always On Protection */}
+        {/* 1. Always On Protection (Hidden on iOS) */}
+        {!isIOS && (
         <div className={cn(
           "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
           batteryExempt ? "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]" : "bg-white border-amber-200 ring-4 ring-amber-50"
@@ -139,8 +145,10 @@ export default function MissionReadiness({
             </p>
           )}
         </div>
+        )}
 
-        {/* 2. Emergency Interface Authorization */}
+        {/* 2. Emergency Interface Authorization (Hidden on iOS) */}
+        {!isIOS && (
         <div className={cn(
           "p-3.5 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all duration-300 shadow-sm",
           overlayGranted ? "bg-white border-[#10B981]/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]" : "bg-white border-[#E5E7EB]"
@@ -177,6 +185,7 @@ export default function MissionReadiness({
             </p>
           )}
         </div>
+        )}
 
         {/* 3. Kinetic Sentinel Authorization */}
         <div className={cn(

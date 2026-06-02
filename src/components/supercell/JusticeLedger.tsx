@@ -31,16 +31,16 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
           </div>
           <div>
             <h3 className="text-sm font-black uppercase tracking-[4px] text-white italic leading-none">Justice Ledger</h3>
-            <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mt-2 opacity-60">Immutable Operational Chain</p>
+            <p className="text-[13px] text-blue-400 font-black uppercase tracking-widest mt-2 opacity-60">Immutable Operational Chain</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
            <div className="hidden md:flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20">
               <Fingerprint size={12} className="text-emerald-500" />
-              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest leading-none">Sync Verified</span>
+              <span className="text-[12px] font-black text-emerald-500 uppercase tracking-widest leading-none">Sync Verified</span>
            </div>
            <div className="bg-blue-600/10 px-4 py-2 rounded-2xl border border-blue-500/20">
-              <span className="text-[10px] font-black text-blue-400 tabular-nums">{zeroFirs.length} BLOCKS</span>
+              <span className="text-[14px] font-black text-blue-400 tabular-nums">{zeroFirs.length} BLOCKS</span>
            </div>
         </div>
       </div>
@@ -87,15 +87,15 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                       <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-400/10 px-3 py-1 rounded-full border border-blue-400/20">BLOCK_{idx.toString().padStart(3, '0')}</span>
-                       <span className="text-[8px] font-black text-gray-500 tabular-nums uppercase italic">Hash: {blockHash}</span>
+                       <span className="text-[14px] font-black text-blue-400 uppercase tracking-widest bg-blue-400/10 px-3 py-1 rounded-full border border-blue-400/20">BLOCK_{idx.toString().padStart(3, '0')}</span>
+                       <span className="text-[12px] font-black text-gray-500 tabular-nums uppercase italic">Hash: {blockHash}</span>
                     </div>
                     <h4 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
                       {userStatusMap?.[fir.victimUid || fir.userId || '']?.name || fir.userName || "Operative Log"}
                     </h4>
                   </div>
                   <div className={cn(
-                    "px-4 py-2 rounded-2xl border text-[9px] font-black uppercase tracking-widest flex items-center gap-2",
+                    "px-4 py-2 rounded-2xl border text-[13px] font-black uppercase tracking-widest flex items-center gap-2",
                     fir.officialResponse ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-blue-500/10 border-blue-500/20 text-blue-500"
                   )}>
                     <div className={cn("w-1.5 h-1.5 rounded-full", fir.officialResponse ? "bg-emerald-500" : "bg-blue-500 animate-pulse")} />
@@ -109,7 +109,7 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
                       <MapPin size={16} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Vector Location</p>
+                      <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest mb-1">Vector Location</p>
                       <p className="text-[11px] font-bold text-white truncate uppercase tracking-tighter italic">{locString}</p>
                     </div>
                   </div>
@@ -118,7 +118,7 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
                       <Clock size={16} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Timestamp</p>
+                      <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest mb-1">Timestamp</p>
                       <p className="text-[11px] font-bold text-white uppercase tracking-tighter italic">{firDate}</p>
                     </div>
                   </div>
@@ -128,16 +128,16 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
                    <div className="flex items-center gap-4">
                       <div className="flex -space-x-3">
                          {[1,2,3].map(i => (
-                           <div key={i} className="w-8 h-8 rounded-full border-2 border-[#1E293B] bg-blue-900/50 flex items-center justify-center text-[8px] font-black text-blue-400">
+                           <div key={i} className="w-8 h-8 rounded-full border-2 border-[#1E293B] bg-blue-900/50 flex items-center justify-center text-[12px] font-black text-blue-400">
                               <Shield size={10} />
                            </div>
                          ))}
                       </div>
-                      <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Validated by 3 Command Nodes</span>
+                      <span className="text-[12px] font-black text-gray-500 uppercase tracking-widest italic">Validated by 3 Command Nodes</span>
                    </div>
                    <button 
                      onClick={() => onViewFir(fir)} 
-                     className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-3 group/btn"
+                     className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[14px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-3 group/btn"
                    >
                      View Block
                      <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
@@ -154,14 +154,14 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
               <Lock size={12} className="text-emerald-500" />
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[4px]">Sovereign Immutability Active</span>
+              <span className="text-[13px] font-black text-white/40 uppercase tracking-[4px]">Sovereign Immutability Active</span>
            </div>
            <div className="hidden lg:flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[4px]">Neural Grid Synced</span>
+              <span className="text-[13px] font-black text-white/40 uppercase tracking-[4px]">Neural Grid Synced</span>
            </div>
         </div>
-        <button className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-3 group hover:text-white transition-colors">
+        <button className="text-[14px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-3 group hover:text-white transition-colors">
            <Database size={14} />
            Audit Full Chain
            <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />

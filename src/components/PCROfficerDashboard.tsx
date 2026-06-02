@@ -8,6 +8,7 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import VictimMap from './maps/VictimMap';
+import MapplsVictimMap from './maps/MapplsVictimMap';
 
 // ─────────────────────────────────────────────
 //  PCR Officer Dashboard — Professional MDT
@@ -65,6 +66,8 @@ export default function PCROfficerDashboard(props: Props) {
     handleStartHelp, setResolvingAlert, maskName,
     isCarScreenOpen, setIsCarScreenOpen
   } = props;
+
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const rank = profile?.rank || 'Constable';
   const badge = profile?.badgeId || 'IND-POL-00000';
@@ -278,16 +281,30 @@ export default function PCROfficerDashboard(props: Props) {
               "h-full relative transition-all duration-500",
               isNavigating ? "w-full" : "w-2/3 border-r border-slate-200"
             )}>
-              <VictimMap
-                activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
-                mapStyle="streets"
-                isNavigating={isNavigating}
-                isInterceptMode={isNavigating}
-                onToggleNav={() => setIsNavigating(!isNavigating)}
-                onResolve={() => setResolvingAlert(sosAlert)}
-                distance={sosAlert ? (distanceToVictim[sosAlert.id] || "---") : "---"}
-                isCarHUD={true}
-              />
+              {!useMapboxFallback ? (
+                <MapplsVictimMap
+                  activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
+                  mapStyle="streets"
+                  isNavigating={isNavigating}
+                  isInterceptMode={isNavigating}
+                  onToggleNav={() => setIsNavigating(!isNavigating)}
+                  onResolve={() => setResolvingAlert(sosAlert)}
+                  distance={sosAlert ? (distanceToVictim[sosAlert.id] || "---") : "---"}
+                  isCarHUD={true}
+                  onFallback={() => setUseMapboxFallback(true)}
+                />
+              ) : (
+                <VictimMap
+                  activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
+                  mapStyle="streets"
+                  isNavigating={isNavigating}
+                  isInterceptMode={isNavigating}
+                  onToggleNav={() => setIsNavigating(!isNavigating)}
+                  onResolve={() => setResolvingAlert(sosAlert)}
+                  distance={sosAlert ? (distanceToVictim[sosAlert.id] || "---") : "---"}
+                  isCarHUD={true}
+                />
+              )}
               
               {/* Dynamic Auto-Routing & Driver Advisory Card */}
               {!isNavigating && (
@@ -539,11 +556,20 @@ export default function PCROfficerDashboard(props: Props) {
 
       {/* ── LIVE MAP ── */}
       <div className="mx-4 mt-4 h-[260px] rounded-[32px] overflow-hidden border border-slate-200 relative shadow-sm">
-        <VictimMap
-          activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
-          mapStyle="streets"
-          isCarHUD={true}
-        />
+        {!useMapboxFallback ? (
+          <MapplsVictimMap
+            activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
+            mapStyle="streets"
+            isCarHUD={true}
+            onFallback={() => setUseMapboxFallback(true)}
+          />
+        ) : (
+          <VictimMap
+            activeAlerts={sosAlert ? [sosAlert] : activeAlerts}
+            mapStyle="streets"
+            isCarHUD={true}
+          />
+        )}
         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md rounded-xl px-3 py-1.5 flex items-center gap-1.5 z-10 border border-slate-200 shadow-sm">
           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
           <span className="text-[7px] font-black text-emerald-600 uppercase tracking-widest">Live Map — {zone}</span>
@@ -597,7 +623,12 @@ export default function PCROfficerDashboard(props: Props) {
                 {isMe ? (
                   <div className="flex items-center gap-2 py-2.5 bg-red-100 border border-red-200 rounded-xl justify-center">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                    <span className="text-[8px] font-black text-red-650 uppercase tracking-widest">You Are Responding</span>
+                    <span className="text-[8px] font-black text-red-600 uppercase tracking-widest">You Are Responding</span>
+                  </div>
+                ) : alert.responderUid && alert.status === 'responding' ? (
+                  <div className="flex items-center gap-2 py-2.5 bg-slate-100 border border-slate-200 rounded-xl justify-center opacity-80">
+                    <Shield size={10} className="text-slate-400" />
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Intercepted by {alert.responderName || 'Another PCR'}</span>
                   </div>
                 ) : (
                   <button

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Lock, Activity, CheckCircle, ShieldAlert, Navigation, Zap, Shield, AlertTriangle } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import SecurityRadarMap from './maps/SecurityRadarMap';
+import MapplsSecurityRadarMap from './maps/MapplsSecurityRadarMap';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, where, limit, doc } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -27,6 +28,7 @@ export default function SOSActiveOverlay() {
   const [nearbyProtectors, setNearbyProtectors] = useState<any[]>([]);
   const [alertData, setAlertData] = useState<any>(null);
   const [dispatchNotif, setDispatchNotif] = useState<{ type: 'protector' | 'supercell', active: boolean }>({ type: 'protector', active: false });
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   // 📡 LISTEN FOR ACTIVE ALERT STATUS CHANGES
   useEffect(() => {
@@ -52,6 +54,14 @@ export default function SOSActiveOverlay() {
   useEffect(() => {
     if (!isSOSActive) return;
     const q = query(collection(db, 'users'), where('role', '==', 'protector'), where('isVerified', '==', true), limit(10));
+    
+    // 📳 AGGRESSIVE HAPTIC ALARM: Vibrate heavily to confirm SOS active bypass
+    try {
+      if (navigator.vibrate) {
+        navigator.vibrate([800, 200, 800, 200, 800, 200, 800]);
+      }
+    } catch(e) {}
+
     return onSnapshot(q, (snap) => {
       setNearbyProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -137,7 +147,11 @@ export default function SOSActiveOverlay() {
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col font-sans">
       <div className="flex-1 relative">
-         <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
+         {!useMapboxFallback ? (
+           <MapplsSecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} onFallback={() => setUseMapboxFallback(true)} />
+         ) : (
+           <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
+         )}
          <div className="absolute top-10 left-6 right-6 z-[1100] space-y-3">
             <div className="bg-red-600 px-4 py-2 rounded-2xl border border-red-500 shadow-2xl flex items-center gap-3">
                <Activity size={14} className="text-white" />

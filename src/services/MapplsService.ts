@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 // Ensure strict key fallback structures to protect security perimeters
-const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY;
+const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
 
 /**
@@ -115,7 +115,8 @@ export const fetchNearbyPoliceMappls = async (lat: number, lng: number) => {
     }
 
     if (rawResult?.suggestedLocations?.length > 0) {
-      return processMapplsLocations(rawResult.suggestedLocations, "112");
+      const processed = processMapplsLocations(rawResult.suggestedLocations, "112");
+      if (processed.length > 0) return processed;
     }
 
     return await executeMapboxPoliceBackup(lat, lng);
@@ -188,27 +189,80 @@ export const fetchRouteMappls = async (startLng: number, startLat: number, endLn
   if (!MAPPLS_KEY) return null;
   try {
     const isNative = Capacitor.isNativePlatform();
-    // FIXED: Formatted parameter array elements using the correct `lat,lng;lat,lng` coordinate order
-    const url = `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/route_adv/driving/${startLat},${startLng};${endLat},${endLng}?steps=true&geometries=geojson`;
-
-    let parsedData: any;
+    // NEW MAPPLS ENDPOINT FORMAT (lng,lat order)
+    const routePath = `${startLng},${startLat};${endLng},${endLat}`;
     if (isNative) {
+      const url = `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/route_adv/driving/${routePath}?steps=true&geometries=geojson`;
       const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
       parsedData = safeParsePayload(response);
     } else {
-      const proxyUrl = `/mappls-route/${startLng},${startLat}/${endLng},${endLat}?steps=true&geometries=geojson`;
-      const response = await axios.get(proxyUrl);
+      const url = `/mappls-adv-route/${MAPPLS_KEY}/route_adv/driving/${routePath}?steps=true&geometries=geojson`;
+      const response = await axios.get(url);
       parsedData = response.data;
     }
 
     if (parsedData?.routes?.length > 0) {
       return parsedData.routes[0].geometry.coordinates;
     }
-    return null;
   } catch (error) {
-    console.error("Mappls Advanced Routing Engine Failure Exception:", error);
+    console.warn("🛰️ PROXY: Mappls routing key expired/invalid. Deploying Mapbox Tactical Fallback Engine for Geometry...");
+  }
+  
+  // Mapbox Fallback for Geometry
+  try {
+    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data?.routes?.length > 0) {
+      return data.routes[0].geometry.coordinates;
+    }
+    return null;
+  } catch (fallbackError) {
+    console.error("fetchRouteMappls Fallback error:", fallbackError);
     return null;
   }
+};
+
+export const fetchRouteDetails = async (startLng: number, startLat: number, endLng: number, endLat: number) => {
+  try {
+    if (MAPPLS_KEY) {
+      const isNative = Capacitor.isNativePlatform();
+      const routePath = `${startLng},${startLat};${endLng},${endLat}`;
+      let parsedData: any;
+      if (isNative) {
+        const url = `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/route_adv/driving/${routePath}?steps=false&overview=false`;
+        const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });
+        parsedData = safeParsePayload(response);
+      } else {
+        const url = `/mappls-adv-route/${MAPPLS_KEY}/route_adv/driving/${routePath}?steps=false&overview=false`;
+        const response = await axios.get(url);
+        parsedData = response.data;
+      }
+
+      if (parsedData?.routes?.length > 0) {
+        const r = parsedData.routes[0];
+        return { distance: r.distance, duration: r.duration };
+      }
+    }
+  } catch (error) {
+    console.warn("🛰️ PROXY: Mappls routing key expired/invalid. Deploying Mapbox Tactical Fallback Engine for ETA...");
+  }
+  
+  // Mapbox Fallback
+  try {
+    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${startLng},${startLat};${endLng},${endLat}?access_token=${MAPBOX_TOKEN}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data?.routes?.length > 0) {
+      const r = data.routes[0];
+      return { distance: r.distance, duration: r.duration };
+    }
+  } catch (fallbackError) {
+    console.error("fetchRouteDetails Fallback error:", fallbackError);
+  }
+  return null;
 };
 
 // Internal utilities to group Mappls parameters safely
@@ -224,16 +278,21 @@ const processMapplsLocations = (locations: any[], fallbackPhone: string) => {
     uniqueStations.push(loc);
   });
 
-  return uniqueStations.map((loc: any) => ({
-    id: loc.eLoc,
-    name: loc.placeName,
-    address: loc.placeAddress,
-    dist: loc.distance ? `${(loc.distance / 1000).toFixed(2)}km` : "Nearby",
-    distVal: loc.distance ? (loc.distance / 1000) : 0,
-    lat: loc.latitude,
-    lng: loc.longitude,
-    phone: getOfficialPolicePhone(loc.placeName, loc.mobile || fallbackPhone)
-  }));
+  return uniqueStations.map((loc: any) => {
+    const pLat = loc.latitude || loc.lat || loc.y || undefined;
+    const pLng = loc.longitude || loc.lng || loc.lon || loc.x || undefined;
+    
+    return {
+      id: loc.eLoc || Math.random().toString(),
+      name: loc.placeName || "Local Station",
+      address: loc.placeAddress || "",
+      dist: loc.distance ? `${(loc.distance / 1000).toFixed(2)}km` : "Nearby",
+      distVal: loc.distance ? (loc.distance / 1000) : 0,
+      lat: pLat,
+      lng: pLng,
+      phone: getOfficialPolicePhone(loc.placeName || "", loc.mobile || fallbackPhone)
+    };
+  }).filter((loc: any) => loc.lat !== undefined && loc.lng !== undefined);
 };
 
 // Encapsulated secure fallback workers to process backup tracking metrics smoothly

@@ -87,9 +87,9 @@ export default function ProtectorVerify() {
   }
 
   const filteredProtectors = protectors.filter(p => {
-    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.phoneNumber?.includes(searchTerm);
+    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.phoneNumber?.includes(searchTerm);
     const matchesFilter = filter === 'pending' ? !p.isVerified : p.isVerified;
     return matchesSearch && matchesFilter;
   });
@@ -108,16 +108,16 @@ export default function ProtectorVerify() {
               <p className="text-[10px] text-accent-blue font-mono font-bold uppercase tracking-[4px]">Central Command Node</p>
             </div>
           </div>
-          
+
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
-            <button 
+            <button
               onClick={() => setFilter('pending')}
               className={`px-6 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filter === 'pending' ? 'bg-accent-blue text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
             >
               <ShieldAlert size={14} /> Pending
               <span className="bg-white/20 px-2 py-0.5 rounded-full text-[8px]">{protectors.filter(p => !p.isVerified).length}</span>
             </button>
-            <button 
+            <button
               onClick={() => setFilter('verified')}
               className={`px-6 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filter === 'verified' ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
             >
@@ -141,18 +141,18 @@ export default function ProtectorVerify() {
               const pending = protectors.filter(p => !p.isVerified && p.aadhaar);
               if (pending.length === 0) return alert("No pending applications with Aadhaar found.");
               if (!confirm(`Running AI scan on ${pending.length} applications across Police & UIDAI databases. Continue?`)) return;
-              
+
               // Simulate API check
               alert("Initiating Database Sync... Cross-referencing Police Records.");
-              
-              const batchPromises = pending.map(p => 
+
+              const batchPromises = pending.map(p =>
                 updateDoc(doc(db, 'users', p.id), {
                   isVerified: true,
                   verifiedAt: serverTimestamp(),
                   verifiedBy: 'AI_UIDAI_CCTNS_SYSTEM'
                 })
               );
-              
+
               await Promise.all(batchPromises);
               logMissionAction('AI_BATCH_VERIFY', `${pending.length} Rakshaks auto-verified via UIDAI/CCTNS clearance.`);
               alert(`Mission Success: ${pending.length} Protector Badges issued automatically.`);
@@ -167,7 +167,7 @@ export default function ProtectorVerify() {
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-        <input 
+        <input
           type="text"
           placeholder="SEARCH RAKSHAK BY NAME, EMAIL, OR PHONE..."
           value={searchTerm}
@@ -180,7 +180,7 @@ export default function ProtectorVerify() {
       <div className="space-y-4">
         <AnimatePresence>
           {filteredProtectors.length === 0 && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="text-center py-16 bg-black/40 border border-white/5 rounded-3xl backdrop-blur-sm"
             >
@@ -190,7 +190,7 @@ export default function ProtectorVerify() {
           )}
 
           {filteredProtectors.map((p, idx) => (
-            <motion.div 
+            <motion.div
               key={p.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -216,14 +216,14 @@ export default function ProtectorVerify() {
 
               <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 border-t border-white/5 sm:border-t-0 pt-4 sm:pt-0">
                 {!p.isVerified ? (
-                  <button 
+                  <button
                     onClick={() => handleVerify(p.id, p.name || 'Unknown')}
                     className="flex-1 sm:flex-none px-6 py-4 bg-accent-blue text-white rounded-xl text-[10px] font-black uppercase tracking-[2px] hover:bg-blue-600 transition-colors shadow-[0_0_20px_rgba(0,122,255,0.3)] active:scale-95 flex items-center justify-center gap-2"
                   >
                     <UserCheck size={16} /> Assign Badge
                   </button>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => handleRevoke(p.id, p.name || 'Unknown')}
                     className="flex-1 sm:flex-none px-6 py-4 bg-white/5 text-gray-400 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-[2px] transition-all hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30 active:scale-95 flex items-center justify-center gap-2"
                   >

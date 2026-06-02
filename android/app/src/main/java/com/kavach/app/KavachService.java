@@ -20,7 +20,16 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
 import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.core.app.NotificationCompat;
+
+// Agora WebRTC Native Imports
+import io.agora.rtc2.Constants;
+import io.agora.rtc2.IRtcEngineEventHandler;
+import io.agora.rtc2.RtcEngine;
+import io.agora.rtc2.RtcEngineConfig;
+import io.agora.rtc2.ChannelMediaOptions;
 
 public class KavachService extends Service implements SensorEventListener {
 
@@ -77,6 +86,15 @@ public class KavachService extends Service implements SensorEventListener {
     // ── WakeLock ─────────────────────────────────────
     private PowerManager.WakeLock wakeLock;
     private MediaPlayer mediaPlayer;
+
+    // ── Auto-Kill Failsafe ───────────────────────────
+    private Handler autoKillHandler;
+    private Runnable autoKillRunnable;
+    private static final long AUTO_KILL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+    // ── Agora WebRTC Native Engine ───────────────────
+    private RtcEngine mRtcEngine;
+    private static final String AGORA_APP_ID = "989160effa7f461490a2d0cc54994cdb";
 
     // ── Broadcast: System Status ──────────────────────────────────────────
     private final android.content.BroadcastReceiver systemReceiver = new android.content.BroadcastReceiver() {
@@ -357,6 +375,11 @@ public class KavachService extends Service implements SensorEventListener {
                 speechService.stop();
                 speechService = null;
             }
+        } else if ("com.kavach.app.ACTION_START_SAFE_TIMER".equals(action)) {
+            long durationMs = intent.getLongExtra("duration_ms", 30 * 60 * 1000L);
+            startSafeTimer(durationMs);
+        } else if ("com.kavach.app.ACTION_STOP_SAFE_TIMER".equals(action)) {
+            stopSafeTimer();
         }
 
         // Build persistent foreground notification
@@ -414,10 +437,10 @@ public class KavachService extends Service implements SensorEventListener {
         double gForce = Math.sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH;
 
         // 🛰️ DYNAMIC ADAPTIVE FILTERING:
-        // Pocket/Bag Mode: Threshold 4.5G force and requires 4 consecutive hits
-        // Normal Mode: Threshold 3.5G force and requires 3 consecutive hits
-        float requiredForce = isPhoneInPocket ? 4.5f : 3.5f;
-        int requiredShakes = isPhoneInPocket ? 4 : 3;
+        // Pocket/Bag Mode: Threshold 6.5G force and requires 5 consecutive hits
+        // Normal Mode: Threshold 5.5G force and requires 5 consecutive hits (Filters casual TV sofa bouncing)
+        float requiredForce = isPhoneInPocket ? 6.5f : 5.5f;
+        int requiredShakes = 5;
 
         if (gForce > requiredForce) {
             long now = System.currentTimeMillis();
@@ -461,11 +484,56 @@ public class KavachService extends Service implements SensorEventListener {
 
     private boolean isSOSMissionActive = false;
 
+    // ── SOS Cancellation Logic (Failsafe & Remote Override) ───────────────
+    public void cancelSOSMission() {
+        if (!isSOSMissionActive) return;
+        isSOSMissionActive = false;
+        
+        // 1. Terminate audio/sirens if playing
+        stopSirenLogic();
+        
+        // 1.5 Terminate WebRTC Broadcasting
+        stopAgoraStealthBroadcast();
+        
+        // 2. Kill the 15-minute timer
+        if (autoKillHandler != null && autoKillRunnable != null) {
+            autoKillHandler.removeCallbacks(autoKillRunnable);
+        }
+        
+        // 3. Re-arm the native Voice listener so it's ready for next time
+        if (!isListening) {
+            startVoiceSentinel();
+        }
+
+        Log.i(TAG, "KAVACH SOS: Mission Cancelled. System returned to standby.");
+        
+        // 4. Notify React/JS layer to stop Agora streaming
+        Intent intent = new Intent("com.kavach.app.SOS_CANCELLED");
+        sendBroadcast(intent);
+    }
+
     // ── SOS Trigger (HARDENED HANDSHAKE) ──────────────────────────────────
     private void triggerSOS(final String source) {
         if (isSOSMissionActive) return; // Prevent duplicate trigger blasts
         isSOSMissionActive = true;
         Log.i(TAG, "KAVACH SOS: Triggered via " + source);
+
+        // 🛡️ THE AUTO-KILL FAILSAFE (15 Minutes)
+        if (autoKillHandler == null) {
+            autoKillHandler = new Handler(Looper.getMainLooper());
+        }
+        if (autoKillRunnable == null) {
+            autoKillRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    Log.w(TAG, "KAVACH AUTO-KILL: 15-minute safety timeout reached. Securing resources.");
+                    cancelSOSMission();
+                }
+            };
+        }
+        // Reset timer if triggered again
+        autoKillHandler.removeCallbacks(autoKillRunnable);
+        autoKillHandler.postDelayed(autoKillRunnable, AUTO_KILL_TIMEOUT_MS);
 
         // 🛡️ MIC HANDSHAKE: Release native listener immediately
         try {
@@ -496,6 +564,40 @@ public class KavachService extends Service implements SensorEventListener {
             Log.w(TAG, "Activity start suppressed: " + e.getMessage());
         }
 
+        // 🚀 TACTICAL WAKE: Force Screen ON before firing Full-Screen Intent
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "Kavach::SOS_Wake");
+                wl.acquire(3000); // Wake screen for 3 seconds
+            }
+        } catch (Exception ignore) {}
+
+        // 🚀 ANDROID 10+ BACKGROUND START BYPASS: Full-Screen Intent Notification
+        // If the screen is locked or app is in background, Android blocks startActivity.
+        // We must fire a High-Priority notification with a Full-Screen Intent to force open the UI.
+        try {
+            PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 999,
+                    intent, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setContentTitle("KAVACH SOS TRIGGERED")
+                    .setContentText("Emergency Protocol Activated via " + source)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setFullScreenIntent(fullScreenPendingIntent, true)
+                    .setAutoCancel(true)
+                    .setOngoing(true);
+
+            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                notificationManager.notify(999, builder.build());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch Full-Screen Intent: " + e.getMessage());
+        }
+
         // 3. Start Stealth Evidence Capture (Delayed for 1s to ensure Clean Mic Release)
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
@@ -504,6 +606,58 @@ public class KavachService extends Service implements SensorEventListener {
                 EvidenceEngine.startCapture(KavachService.this, "alert_" + System.currentTimeMillis());
             }
         }, 1000);
+        
+        // 4. 🌐 START NATIVE WEBRTC AUDIO BROADCASTING IN BACKGROUND
+        startAgoraStealthBroadcast();
+    }
+
+    // ── NATIVE WEBRTC AUDIO BROADCASTING (SCREEN-OFF SUPPORT) ─────────────
+    private void startAgoraStealthBroadcast() {
+        new Thread(() -> {
+            try {
+                if (mRtcEngine == null) {
+                    RtcEngineConfig config = new RtcEngineConfig();
+                    config.mContext = getApplicationContext();
+                    config.mAppId = AGORA_APP_ID;
+                    config.mEventHandler = new IRtcEngineEventHandler() {
+                        @Override
+                        public void onJoinChannelSuccess(String channel, int uid, int elapsed) {
+                            Log.i(TAG, "🎙️ KAVACH WEBRTC: Joined secure stealth channel -> " + channel);
+                        }
+                        @Override
+                        public void onError(int err) {
+                            Log.e(TAG, "🚨 KAVACH WEBRTC ERROR: Code " + err);
+                        }
+                    };
+                    mRtcEngine = RtcEngine.create(config);
+                    mRtcEngine.setChannelProfile(Constants.CHANNEL_PROFILE_LIVE_BROADCASTING);
+                    mRtcEngine.setClientRole(Constants.CLIENT_ROLE_BROADCASTER);
+                    mRtcEngine.enableAudio();
+                }
+                
+                ChannelMediaOptions options = new ChannelMediaOptions();
+                options.publishMicrophoneTrack = true;
+                options.autoSubscribeAudio = false; // Victim should NEVER hear the police/admin (Stealth)
+                options.clientRoleType = Constants.CLIENT_ROLE_BROADCASTER;
+                
+                mRtcEngine.joinChannel(null, "channel-emergency", 0, options);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize Agora RTC: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private void stopAgoraStealthBroadcast() {
+        if (mRtcEngine != null) {
+            new Thread(() -> {
+                try {
+                    mRtcEngine.leaveChannel();
+                    RtcEngine.destroy();
+                    mRtcEngine = null;
+                    Log.i(TAG, "🛑 KAVACH WEBRTC: Native Audio Stream Terminated.");
+                } catch(Exception e) {}
+            }).start();
+        }
     }
 
     // ── Zero-Internet Survival Mode (Offline Fallback) ────────────────────
@@ -574,6 +728,162 @@ public class KavachService extends Service implements SensorEventListener {
         if (survivalHandler != null && survivalRunnable != null) {
             survivalHandler.removeCallbacks(survivalRunnable);
         }
+    }
+
+    // ── Safe Timer Logic (Phase 1 & Phase 2) ─────────────────────────────
+    private Handler safeTimerHandler;
+    private Runnable phase1Runnable;
+    private Runnable phase15Runnable;
+    private Runnable phase2Runnable;
+
+    private void startSafeTimer(long durationMs) {
+        stopSafeTimer();
+        if (safeTimerHandler == null) safeTimerHandler = new Handler(Looper.getMainLooper());
+        
+        Log.i(TAG, "SAFE TIMER: Started natively for " + durationMs + "ms");
+
+        phase15Runnable = new Runnable() {
+            @Override
+            public void run() {
+                Log.w(TAG, "SAFE TIMER: Phase 1.5 (5m Grace) Expired. Sending Location SMS and making Call to Guardians.");
+                dispatchSafeTimerWarningSMS();
+                
+                // Set Phase 2 (30 mins = 1800000 ms)
+                safeTimerHandler.postDelayed(phase2Runnable, 30 * 60 * 1000L);
+            }
+        };
+
+        phase1Runnable = new Runnable() {
+            @Override
+            public void run() {
+                Log.w(TAG, "SAFE TIMER: Phase 1 Expired. Waking Screen & Launching App for PIN Verification.");
+                
+                // 🚀 WAKE SCREEN
+                try {
+                    PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                    if (pm != null) {
+                        PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "Kavach::SafeTimer_Wake");
+                        wl.acquire(5000); 
+                    }
+                } catch (Exception ignore) {}
+
+                // Launch App to show PIN Popup
+                Intent intent = new Intent(KavachService.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                intent.putExtra("trigger", "safe_timer_expired");
+                
+                try {
+                    startActivity(intent);
+                } catch (Exception e) {}
+
+                triggerSafeTimerWarningNotification(intent);
+                
+                // Set Phase 1.5 (5 mins = 300000 ms) to alert Guardians if no response
+                safeTimerHandler.postDelayed(phase15Runnable, 5 * 60 * 1000L);
+            }
+        };
+
+        phase2Runnable = new Runnable() {
+            @Override
+            public void run() {
+                Log.e(TAG, "SAFE TIMER: Phase 2 (30m Grace Period) Expired. Triggering Full SOS.");
+                triggerSOS("safe_timer_escalation");
+            }
+        };
+
+        safeTimerHandler.postDelayed(phase1Runnable, durationMs);
+    }
+
+    private void stopSafeTimer() {
+        if (safeTimerHandler != null) {
+            if (phase1Runnable != null) safeTimerHandler.removeCallbacks(phase1Runnable);
+            if (phase15Runnable != null) safeTimerHandler.removeCallbacks(phase15Runnable);
+            if (phase2Runnable != null) safeTimerHandler.removeCallbacks(phase2Runnable);
+        }
+        Log.i(TAG, "SAFE TIMER: Stopped/Cancelled");
+    }
+
+    private void dispatchSafeTimerWarningSMS() {
+        new Thread(() -> {
+            try {
+                android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
+                String contactsJson = prefs.getString("guardian_contacts", null);
+                if (contactsJson == null) return;
+
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"phone\":\"([^\"]+)\"");
+                java.util.regex.Matcher matcher = pattern.matcher(contactsJson);
+                
+                SmsManager sm;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    sm = getSystemService(SmsManager.class);
+                } else {
+                    sm = SmsManager.getDefault();
+                }
+                if (sm == null) return;
+
+                String locationString = "Location Unknown";
+                android.location.Location loc = getLastKnownLocation();
+                if (loc != null) {
+                    locationString = "https://maps.google.com/?q=" + loc.getLatitude() + "," + loc.getLongitude();
+                }
+
+                String message = "⚠️ KAVACH SAFE TIMER ALERT ⚠️\nMy timer ended and I haven't reached home yet. Please call me! Location: " + locationString;
+
+                boolean callMade = false;
+                while (matcher.find()) {
+                    String num = matcher.group(1).replaceAll("[^0-9+]", "");
+                    if (num.isEmpty()) continue;
+                    
+                    if (message.length() > 70) {
+                        java.util.ArrayList<String> parts = sm.divideMessage(message);
+                        sm.sendMultipartTextMessage(num, null, parts, null, null);
+                    } else {
+                        sm.sendTextMessage(num, null, message, null, null);
+                    }
+                    Log.i(TAG, "SAFE TIMER SMS: Sent to " + num);
+                    Thread.sleep(1500);
+                    
+                    if (!callMade) {
+                        try {
+                            Intent callIntent = new Intent(Intent.ACTION_CALL);
+                            callIntent.setData(Uri.parse("tel:" + num));
+                            callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(callIntent);
+                            Log.i(TAG, "SAFE TIMER CALL: Initiated to " + num);
+                            callMade = true;
+                        } catch (Exception e) {
+                            Log.e(TAG, "Safe Timer Call Failed: " + e.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Safe Timer Dispatch Error: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private void triggerSafeTimerWarningNotification(Intent baseIntent) {
+        try {
+            PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 1002,
+                    baseIntent, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setContentTitle("Safe Timer Expired!")
+                    .setContentText("Enter PIN to confirm safety. Guardians will be alerted in 5 minutes.")
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setFullScreenIntent(fullScreenPendingIntent, true)
+                    .setAutoCancel(true);
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(1002, builder.build());
+            }
+        } catch (Exception e) {}
     }
 
     private void dispatchEmergencySMSWithLocation(boolean isInitialBlast, boolean isShutdown) {

@@ -12,12 +12,12 @@ interface VoiceVisualizerProps {
 const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
   const { volume } = useAudioAI();
   const { isBriefingActive } = useKavachStore();
-  
+
   // 💓 HEARTBEAT GENERATOR: Flat when silent, Spikes when voice detected
   const generateHeartbeatPath = useMemo(() => {
     const vol = (isSOSActive || isBriefingActive) ? 0 : volume;
     const isSilent = vol < 10;
-    
+
     // Base line at y=25
     let path = "M 0,25 ";
     const segments = 20;
@@ -33,16 +33,16 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
         if (i % 4 === 0) {
           const spikeHeight = Math.min(20, (vol / 5));
           // Up-Down spike pattern
-          path += `L ${x - step/2},25 L ${x - step/4},${25 - spikeHeight} L ${x},${25 + spikeHeight/2} L ${x + step/4},25 `;
+          path += `L ${x - step / 2},25 L ${x - step / 4},${25 - spikeHeight} L ${x},${25 + spikeHeight / 2} L ${x + step / 4},25 `;
           continue;
         }
       }
-      
+
       // Subtle micro-ripples even in silence for "alive" feel
-      const ripple = isSilent ? (Math.sin(i + Date.now()/200) * 0.5) : 0;
+      const ripple = isSilent ? (Math.sin(i + Date.now() / 200) * 0.5) : 0;
       path += `L ${x},${25 + ripple} `;
     }
-    
+
     return path;
   }, [volume, isSOSActive]);
 
@@ -69,7 +69,7 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
         <svg viewBox="0 0 200 50" className="w-full h-full preserve-3d overflow-visible">
           {/* Background Static Line (Ghost) */}
           <path d="M 0,25 L 200,25" stroke="currentColor" className="text-gray-100" strokeWidth="1" />
-          
+
           <motion.path
             d={generateHeartbeatPath}
             fill="none"
@@ -77,7 +77,7 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            animate={{ 
+            animate={{
               opacity: [0.8, 1, 0.8],
               strokeWidth: volume > 10 ? 3 : 2
             }}

@@ -6,6 +6,15 @@ import android.net.Uri;
 import android.os.Build;
 import android.telephony.SmsManager;
 import android.util.Log;
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
+import android.content.Context;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.os.SystemClock;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -34,6 +43,8 @@ public class KavachNative extends Plugin {
     private static final int PHONE_HINT_REQUEST_CODE = 9001;
     private PluginCall savedCall;
     private static KavachNative instance;
+    private MediaPlayer ringtonePlayer;
+    private int originalVolume = -1;
 
     @Override
     public void load() {
@@ -43,6 +54,54 @@ public class KavachNative extends Plugin {
 
     public static KavachNative getInstance() {
         return instance;
+    }
+
+    @PluginMethod
+    public void playEmergencyRingtone(PluginCall call) {
+        try {
+            Context context = getContext();
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            
+            // Bypass Silent/DND by using STREAM_ALARM or STREAM_RING
+            originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0);
+
+            if (ringtonePlayer == null) {
+                Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                ringtonePlayer = new MediaPlayer();
+                ringtonePlayer.setDataSource(context, ringtoneUri);
+                ringtonePlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
+                ringtonePlayer.setLooping(true);
+                ringtonePlayer.prepare();
+            }
+            if (!ringtonePlayer.isPlaying()) {
+                ringtonePlayer.start();
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to play ringtone natively", e);
+        }
+    }
+
+    @PluginMethod
+    public void stopEmergencyRingtone(PluginCall call) {
+        try {
+            if (ringtonePlayer != null && ringtonePlayer.isPlaying()) {
+                ringtonePlayer.stop();
+                ringtonePlayer.release();
+                ringtonePlayer = null;
+            }
+            if (originalVolume != -1) {
+                Context context = getContext();
+                AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalVolume, 0);
+                originalVolume = -1;
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to stop ringtone natively", e);
+        }
     }
 
     // ── Permissions ───────────────────────────────────────────────────────
@@ -214,6 +273,37 @@ public class KavachNative extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject(e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startSafeTimer(PluginCall call) {
+        int durationMins = call.getInt("durationMins", 30);
+        long durationMs = durationMins * 60 * 1000L;
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_START_SAFE_TIMER");
+            si.putExtra("duration_ms", durationMs);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(si);
+            } else {
+                getContext().startService(si);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Timer start failure: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopSafeTimer(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_STOP_SAFE_TIMER");
+            getContext().startService(si);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Timer stop failure: " + e.getMessage());
         }
     }
 
@@ -446,11 +536,18 @@ public class KavachNative extends Plugin {
             prefs.edit().putString("kavach_user_role", role).apply();
             Log.i(TAG, "MISSION CONTROL: Hardware Role set to " + role);
             
-            // If the role isn't citizen, ensure we stop any active voice sentinels
             if (!"citizen".equals(role)) {
                 Intent si = new Intent(getContext(), KavachService.class);
                 si.setAction("com.kavach.app.ACTION_STOP_VOICE");
                 getContext().startService(si);
+            } else {
+                Intent si = new Intent(getContext(), KavachService.class);
+                si.setAction("com.kavach.app.ACTION_START_VOICE");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    getContext().startForegroundService(si);
+                } else {
+                    getContext().startService(si);
+                }
             }
             
             call.resolve();
@@ -473,6 +570,69 @@ public class KavachNative extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Haptic failure: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setAppStealthMode(PluginCall call) {
+        boolean enableStealth = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            String packageName = getContext().getPackageName();
+            
+            ComponentName defaultAlias = new ComponentName(packageName, packageName + ".DefaultActivity");
+            ComponentName stealthAlias = new ComponentName(packageName, packageName + ".StealthActivity");
+            
+            if (enableStealth) {
+                pm.setComponentEnabledSetting(stealthAlias, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+                pm.setComponentEnabledSetting(defaultAlias, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            } else {
+                pm.setComponentEnabledSetting(defaultAlias, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+                pm.setComponentEnabledSetting(stealthAlias, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            }
+
+            call.resolve();
+
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    if (getActivity() != null) {
+                        getActivity().finishAffinity();
+                        getActivity().finishAndRemoveTask();
+                    }
+                } catch(Exception ignored) {}
+            }, 1500);
+        } catch (Exception e) {
+            call.reject("Failed to toggle stealth mode: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void scheduleFakeCall(PluginCall call) {
+        Integer seconds = call.getInt("seconds", 10);
+        try {
+            Context context = getContext();
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            Intent intent = new Intent(context, FakeCallReceiver.class);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    context, 
+                    1001, 
+                    intent, 
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            
+            long triggerAtMillis = SystemClock.elapsedRealtime() + (seconds * 1000L);
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+            } else {
+                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+            }
+            
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to schedule fake call natively", e);
         }
     }
 

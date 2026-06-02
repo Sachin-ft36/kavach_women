@@ -26,26 +26,50 @@ export default function ProtectorGuideScreen() {
   const BOOTCAMP_GUIDES: ProtectorGuide[] = [
     {
       id: 'p1',
-      title: 'First Responder Protocol',
-      type: 'TACTICAL',
-      content: 'Upon receiving an alert, immediately verify the location map. Do not engage alone if the threat level is high. Coordinate with local Super Cell nodes.',
+      title: 'Personal Safety & Assessment',
+      type: 'SAFETY',
+      content: 'Your own safety is paramount. Before intervening, assess the situation from a safe distance. If the perpetrators are armed, in a large group, or highly aggressive, DO NOT engage physically. Observe, record securely, and immediately alert nearby Police (PCR) nodes.',
       priority: 'CRITICAL',
       timestamp: { toDate: () => new Date() }
     },
     {
       id: 'p2',
-      title: 'Evidence Preservation',
+      title: 'First Responder Protocol',
       type: 'TACTICAL',
-      content: 'Do not touch or clean the incident area. Take clear photos/videos through the KAVACH Vault immediately. Your actions are court-admissible.',
+      content: 'Upon accepting an SOS alert, move towards the location cautiously. Use the "Crowd-Source" approach—try to gather other bystanders or Protectors before confronting the threat. There is safety in numbers.',
       priority: 'CRITICAL',
       timestamp: { toDate: () => new Date() }
     },
     {
       id: 'p3',
-      title: 'Protector Ethics Code',
-      type: 'ETHICS',
-      content: 'Never share victim identity or photos outside the KAVACH grid. Misuse of the SOS network will result in immediate permanent ban and legal action.',
+      title: 'De-escalation & Distraction',
+      type: 'TACTICAL',
+      content: 'If you must intervene, attempt verbal de-escalation first. Create a distraction (e.g., shouting, shining a flashlight, sounding a loud alarm) to break the perpetrator\'s focus and give the victim a chance to escape.',
+      priority: 'NORMAL',
+      timestamp: { toDate: () => new Date() }
+    },
+    {
+      id: 'p4',
+      title: 'Evidence Preservation',
+      type: 'TACTICAL',
+      content: 'Do not touch or alter the incident area. Use the KAVACH Vault to record tamper-proof photos, videos, or audio from a safe distance. This evidence is geo-tagged and court-admissible.',
       priority: 'CRITICAL',
+      timestamp: { toDate: () => new Date() }
+    },
+    {
+      id: 'p5',
+      title: 'Protector Code of Ethics',
+      type: 'ETHICS',
+      content: 'Never share the victim\'s identity, location, or photos on social media or outside the KAVACH grid. Maintain absolute confidentiality. Misuse of the platform will result in a permanent ban and strict legal action.',
+      priority: 'NORMAL',
+      timestamp: { toDate: () => new Date() }
+    },
+    {
+      id: 'p6',
+      title: 'Kavach App Navigation & Features',
+      type: 'SAFETY',
+      content: '1. Dashboard: View live SOS alerts.\n2. Accept SOS: Slide to accept; your live location will instantly sync with the Command Center.\n3. Kavach Vault: Tap the camera icon during an active alert to securely record and encrypt evidence directly to the police database.\n4. Escalate: Press \'Escalate to PCR\' if the threat is beyond civilian control.',
+      priority: 'NORMAL',
       timestamp: { toDate: () => new Date() }
     }
   ];
@@ -62,7 +86,7 @@ export default function ProtectorGuideScreen() {
 
     // 🛡️ NEURAL STABILIZATION DELAY: Wait for SDK state to settle before engaging multiple listeners
     const engageTimer = setTimeout(() => {
-      const qA = query(collection(db, 'protector_guides'));
+      const qA = query(collection(db, 'safety_tips'));
       const qB = query(collection(db, 'special_cell_reports'), where('type', '==', 'INTEL_BROADCAST'), where('originalTarget', '==', 'PROTECTOR'));
       const qC = query(collection(db, 'alerts'), where('type', '==', 'INTEL_RESCUE'));
 
@@ -87,7 +111,7 @@ export default function ProtectorGuideScreen() {
           const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0);
           return timeB - timeA;
         });
-        setGuides(all);
+        setGuides(all.length > 0 ? all : BOOTCAMP_GUIDES);
         setLoading(false);
       };
 

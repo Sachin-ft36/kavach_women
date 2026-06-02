@@ -37,12 +37,14 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/mappls-api/, '/api/places')
         },
         '/mappls-search': {
-          target: 'http://localhost:3000',
-          changeOrigin: true
+          target: 'https://atlas.mappls.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/mappls-search/, '/api/places')
         },
-        '/mappls-route': {
-          target: 'http://localhost:3000',
-          changeOrigin: true
+        '/mappls-adv-route': {
+          target: 'https://apis.mappls.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/mappls-adv-route/, '/advancedmaps/v1')
         }
       }
     },

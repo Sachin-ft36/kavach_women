@@ -7,11 +7,13 @@ import { useKavachStore } from '../store/useKavachStore';
 import { useCall } from '../contexts/CallContext';
 import { cn } from '../lib/utils';
 import SecurityRadarMap from '../components/maps/SecurityRadarMap';
+import MapplsSecurityRadarMap from '../components/maps/MapplsSecurityRadarMap';
 
 export default function ProtectorsRadarScreen() {
   const { userPos, setActiveTab, activeAlertId } = useKavachStore();
   const { initiateCall } = useCall();
   const [nearbyProtectors, setNearbyProtectors] = useState<any[]>([]);
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371;
@@ -118,7 +120,11 @@ export default function ProtectorsRadarScreen() {
 
       {/* 🗺️ MAP: PRIMARY VISUALIZATION */}
       <main className="flex-1 relative min-h-0 bg-[#F1F5F9]">
-        <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
+        {!useMapboxFallback ? (
+          <MapplsSecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} onFallback={() => setUseMapboxFallback(true)} />
+        ) : (
+          <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
+        )}
         
         {/* Radar Overlay Controls */}
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">

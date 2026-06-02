@@ -16,6 +16,7 @@ import TacticalModal from './TacticalModal';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
 import VictimMap from './maps/VictimMap';
+import MapplsVictimMap from './maps/MapplsVictimMap';
 import NearbyHubModal from './NearbyHubModal';
 import MedicalHubModal from './MedicalHubModal';
 import PCROfficerDashboard from './PCROfficerDashboard';
@@ -33,6 +34,7 @@ export default function ProtectorDashboard() {
   const [isNearbyHubOpen, setIsNearbyHubOpen] = useState(false);
   const [isMedicalHubOpen, setIsMedicalHubOpen] = useState(false);
   const [mapStyle, setMapStyle] = useState<'streets' | 'satellite' | 'dark'>('streets');
+  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const [showTacticalPledge, setShowTacticalPledge] = useState<{ isOpen: boolean, alertId: string | null }>({ isOpen: false, alertId: null });
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
@@ -510,6 +512,12 @@ export default function ProtectorDashboard() {
           const isResponding = alert.responderUid === user.uid;
           if (isResponding && dist <= 20) return true;
           
+          // We keep the alert in the list even if it's assigned to someone else, 
+          // so we can show "Assigned to PCR-01" instead of just making it disappear (unprofessional).
+          // if (alert.status === 'responding' && alert.responderUid && alert.responderUid !== user.uid) {
+          //   return false;
+          // }
+          
           // Transit alerts or debug testing
           const isTransit = !!alert.isTransitSOS;
           const isDebug = localStorage.getItem('kavach_debug_mode') === 'true' || alert.type === 'TEST_ALERT' || alert.type?.includes('TEST');
@@ -581,6 +589,15 @@ export default function ProtectorDashboard() {
     if (!alertDoc.exists()) return;
     
     const alertData = alertDoc.data();
+    
+    // 🛑 EXCLUSIVE LOCK CHECK (Ola/Uber Logic Server-side validation)
+    if (alertData.responderUid && alertData.responderUid !== user.uid) {
+      toast.error("🚨 ALERT ALREADY INTERCEPTED! Another PCR unit is already en-route.");
+      setIsProcessingResponse(false);
+      setShowTacticalPledge({ isOpen: false, alertId: null });
+      return;
+    }
+
     const isAlreadyResponding = (alertData.activeResponders || []).some((r: any) => r.uid === user.uid);
     
     setRespondingToId(alertId);
@@ -656,6 +673,14 @@ export default function ProtectorDashboard() {
       const alertDoc = await getDoc(doc(db, 'alerts', alertId));
       if (!alertDoc.exists()) return;
       const alertData = alertDoc.data();
+
+      // 🛑 EXCLUSIVE LOCK CHECK (Ola/Uber Logic Server-side validation)
+      if (alertData.responderUid && alertData.responderUid !== user.uid) {
+        toast.error("🚨 ALERT ALREADY INTERCEPTED! Another PCR unit is already en-route.");
+        setIsProcessingResponse(false);
+        return;
+      }
+
       setRespondingToId(alertId);
       
       const responderData = {
@@ -872,15 +897,28 @@ export default function ProtectorDashboard() {
         {/* Full-screen Intercept Navigation HUD */}
         {isInterceptHUDOpen && activeInterceptAlert && (
           <div className="fixed inset-0 z-[2000000] bg-white animate-none">
-            <VictimMap
-              activeAlerts={[activeInterceptAlert]}
-              isInterceptMode={true}
-              isNavigating={isNavigating}
-              distance={distanceToVictim[activeInterceptAlert.id] || '---'}
-              onToggleNav={() => setIsNavigating(!isNavigating)}
-              onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
-              onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
-            />
+            {!useMapboxFallback ? (
+              <MapplsVictimMap
+                activeAlerts={[activeInterceptAlert]}
+                isInterceptMode={true}
+                isNavigating={isNavigating}
+                distance={distanceToVictim[activeInterceptAlert.id] || '---'}
+                onToggleNav={() => setIsNavigating(!isNavigating)}
+                onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
+                onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
+                onFallback={() => setUseMapboxFallback(true)}
+              />
+            ) : (
+              <VictimMap
+                activeAlerts={[activeInterceptAlert]}
+                isInterceptMode={true}
+                isNavigating={isNavigating}
+                distance={distanceToVictim[activeInterceptAlert.id] || '---'}
+                onToggleNav={() => setIsNavigating(!isNavigating)}
+                onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
+                onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }}
+              />
+            )}
           </div>
         )}
 
@@ -942,27 +980,15 @@ export default function ProtectorDashboard() {
           <h1 className="text-[22px] font-black text-slate-800 tracking-tighter uppercase italic leading-none">Protector</h1>
           <p className="text-[8px] font-bold text-blue-600 uppercase tracking-[2px] mt-1.5">Mission Control Dashboard</p>
         </div>
-        
-        <button 
-          disabled={!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying}
-          onClick={() => handleVoiceBriefing(true)}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200 text-[8px] font-black transition-all shadow-sm uppercase tracking-wider active:scale-95 cursor-pointer",
-            (!localStorage.getItem('kavach_protector_briefing_completed') && isBriefingPlaying)
-              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75" 
-              : "text-slate-800 hover:bg-blue-50"
-          )}
-        >
-          <Volume2 size={11} className={isBriefingPlaying ? "text-slate-400" : "text-blue-600"} />
-          {isBriefingPlaying 
-            ? "Stop" 
-            : "Listen Now"}
-        </button>
       </div>
 
       <div className="px-6">
         <div className="relative h-[380px] w-full rounded-[40px] bg-white overflow-hidden shadow-sm border border-slate-200">
-          <VictimMap activeAlerts={activeAlerts} mapStyle={mapStyle === 'dark' ? 'streets' : mapStyle} />
+          {!useMapboxFallback ? (
+            <MapplsVictimMap activeAlerts={activeAlerts} mapStyle={mapStyle === 'dark' ? 'streets' : mapStyle} onFallback={() => setUseMapboxFallback(true)} />
+          ) : (
+            <VictimMap activeAlerts={activeAlerts} mapStyle={mapStyle === 'dark' ? 'streets' : mapStyle} />
+          )}
           <div className="absolute inset-x-6 top-6 flex justify-between pointer-events-none">
             <div className="px-4 py-2 bg-white/90 backdrop-blur-xl rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center">
               <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest">Network Online</span>
@@ -1142,7 +1168,11 @@ export default function ProtectorDashboard() {
       {isInterceptHUDOpen && activeInterceptAlert && (
         <div className="fixed inset-0 z-[2000000] bg-white animate-none">
           <div className="absolute inset-0">
-            <VictimMap activeAlerts={[activeInterceptAlert]} isInterceptMode={true} isNavigating={isNavigating} distance={distanceToVictim[activeInterceptAlert.id] || '---'} onToggleNav={() => setIsNavigating(!isNavigating)} onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} />
+            {!useMapboxFallback ? (
+              <MapplsVictimMap activeAlerts={[activeInterceptAlert]} isInterceptMode={true} isNavigating={isNavigating} distance={distanceToVictim[activeInterceptAlert.id] || '---'} onToggleNav={() => setIsNavigating(!isNavigating)} onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} onFallback={() => setUseMapboxFallback(true)} />
+            ) : (
+              <VictimMap activeAlerts={[activeInterceptAlert]} isInterceptMode={true} isNavigating={isNavigating} distance={distanceToVictim[activeInterceptAlert.id] || '---'} onToggleNav={() => setIsNavigating(!isNavigating)} onResolve={() => { setResolvingAlert(activeInterceptAlert); setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} onClose={() => { setIsInterceptHUDOpen(false); setInterceptActive(false); setIsNavigating(false); }} />
+            )}
           </div>
           <div className="absolute inset-x-0 top-0 pt-16 px-6 pointer-events-none">
             <div className={cn("backdrop-blur-xl rounded-3xl p-4 border shadow-lg flex items-center justify-between transition-all duration-700", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-50/95 border-emerald-200" : "bg-white/95 border-slate-200")}>
