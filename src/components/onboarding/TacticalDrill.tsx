@@ -23,8 +23,8 @@ export default function TacticalDrill({ onComplete }: { onComplete: () => void }
         id: 0,
         title: isEn ? "HOW TO START SOS" : "SOS कैसे शुरू करें (Triggers)",
         desc: isEn 
-          ? "No need to unlock your phone. Simply Shake your device, press the Power Button 5 times, or shout 'KAVACH HELP' 3 times to trigger an SOS."
-          : "Emergency mein phone unlock karne ki zarurat nahi. Phone hilaayein (Shake), side button 5 baar dabayein, ya 3 baar 'KAVACH HELP' chillayein. SOS turant shuru ho jayega.",
+          ? "No need to unlock your phone. Simply Shake your device, press the Volume Down Button 3 times, or shout 'KAVACH HELP' 3 times to trigger an SOS."
+          : "Emergency mein phone unlock karne ki zarurat nahi. Phone hilaayein (Shake), Volume Down button 3 baar dabayein, ya 3 baar 'KAVACH HELP' chillayein. SOS turant shuru ho jayega.",
         icon: <Zap className="text-yellow-500" />,
         animation: (
           <div className="relative w-48 h-64 bg-white/5 border-2 border-white/10 rounded-[32px] overflow-hidden">

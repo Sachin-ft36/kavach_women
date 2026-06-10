@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, EyeOff, Mic, Video, MapPin, Lock, Camera, Activity, Terminal, AlertTriangle, X, ChevronRight, Zap, ShieldCheck } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { saveToVault } from '../lib/forensicVault';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useKavachStore } from '../store/useKavachStore';
@@ -152,36 +153,71 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
       mediaRecorderRef.current.stop();
       
       setTimeout(async () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/mp4' });
-        const fileName = `KAVACH_FORENSIC_${Date.now()}.mp4`;
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const timestamp = Date.now();
+        const fileName = `KAVACH_FORENSIC_${timestamp}.webm`;
+
+        // 1️⃣ Browser download (to Downloads folder)
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
 
         await KavachSafe.stopForensicCapture();
-        
+
         const store = useKavachStore.getState();
-        
-        // 🛡️ UPDATE NATIONAL GRID WITH FINAL SEAL
-        if (store.activeAlertId) {
-          const evidenceRef = doc(collection(db, 'alerts', store.activeAlertId, 'evidence'));
-          await setDoc(evidenceRef, {
+        const alertId = store.activeAlertId || 'standby';
+        const vaultId = `shadow_${alertId}_${timestamp}`;
+
+        try {
+          // 2️⃣ Save to IndexedDB (no subscription, no cloud cost)
+          await saveToVault({
+            id: vaultId,
+            alertId,
             type: 'CCTV_FEED',
-            timestamp: serverTimestamp(),
-            status: 'SEALED_ENCRYPTED',
-            url: url // Final local/cloud URL
-          }, { merge: true }).catch(() => {});
+            blob,
+            fileName,
+            mimeType: 'video/webm',
+            hash: '',
+            timestamp,
+            status: 'SEALED_ENCRYPTED'
+          });
+
+          // 3️⃣ Save metadata to Firestore (text only — always free)
+          if (store.activeAlertId) {
+            const evidenceRef = doc(collection(db, 'alerts', store.activeAlertId, 'evidence'));
+            await setDoc(evidenceRef, {
+              type: 'CCTV_FEED',
+              vaultId,
+              fileName,
+              url: '',
+              timestamp: serverTimestamp(),
+              status: 'SEALED_ENCRYPTED',
+              metadata: { storage: 'IndexedDB', mode: 'SHADOW_PROTECT_MANUAL' }
+            }, { merge: true }).catch(() => {});
+          }
+        } catch (e) {
+          console.error('ShadowProtect vault save failed:', e);
         }
 
         localStorage.removeItem('kavach_shadow_stealth');
         setShadowActive(false);
         setIsSaving(false);
-        toast.success("FORENSIC LOG SEALED", {
-          description: "Evidence secured in local vault.",
-          icon: <ShieldCheck className="text-emerald-500" />
+        toast.success("🔒 FORENSIC ARCHIVE SEALED", {
+          description: (
+            <div className="space-y-1.5 mt-1 text-[11px] text-gray-400">
+              <p>• <span className="text-white font-bold">Download:</span> File <span className="font-mono text-emerald-400 bg-white/10 px-1 rounded">{fileName}</span> saved to <span className="text-blue-400 font-mono">Downloads/</span></p>
+              <p>• <span className="text-white font-bold">Local Vault:</span> Secured in browser <span className="text-blue-400 font-mono">IndexedDB</span> — playable in Command Center on <span className="text-white">this device</span>.</p>
+              <p>• <span className="text-white font-bold">Cloud Metadata:</span> Record logged at <span className="text-blue-400 font-mono">alerts/{store.activeAlertId || 'standby'}/evidence</span></p>
+              <p>• <span className="text-white font-bold">Cost:</span> <span className="text-emerald-400">₹0 — No paid subscription required.</span></p>
+            </div>
+          ),
+          duration: 15000,
+          action: { label: "Dismiss", onClick: () => {} }
         });
         onClose();
       }, 500);
@@ -242,7 +278,7 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
                    </div>
                    <div>
                       <h4 className="text-[12px] sm:text-[13px] font-black uppercase tracking-widest text-white mb-0.5 sm:mb-1 italic">Quick Trigger</h4>
-                      <p className="text-[10px] sm:text-[11px] text-gray-400 font-bold uppercase tracking-tight leading-tight">Hold Power Button 5s to Start Silently</p>
+                      <p className="text-[10px] sm:text-[11px] text-gray-400 font-bold uppercase tracking-tight leading-tight">Press Volume Down 3 Times to Start Silently</p>
                    </div>
                 </div>
 

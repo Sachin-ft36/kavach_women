@@ -72,6 +72,16 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
         mapType: 'standard',
         zoomControl: false, location: false, locationControl: false, mapTypeControl: false, layerControl: false, fullscreenControl: false, searchControl: false
       });
+
+      // 🧼 Silencing Mappls sprite image missing warnings in console (e.g. agricultural_automotive)
+      mapRef.current.on('styleimagemissing', (e: any) => {
+        try {
+          const width = 16;
+          const bytesPerPixel = 4;
+          const data = new Uint8Array(width * width * bytesPerPixel);
+          mapRef.current.addImage(e.id, { width: width, height: width, data: data });
+        } catch (err) {}
+      });
       
       const controls = document.querySelectorAll('[class*="ctrl-top"], [class*="ctrl-bottom"], [class*="control-container"]');
       controls.forEach(c => (c as HTMLElement).style.display = 'none');
@@ -133,7 +143,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
         const marker = new Mappls.Marker({
           map: mapRef.current,
           position: { lat: station.lat, lng: station.lng },
-          html: `<div class="tactical-marker police shadow-[0_0_15px_rgba(59,130,246,0.6)]">🚨</div>`,
+          html: `<div class="tactical-marker police">🚨</div>`,
           width: 32, height: 32, offset: [16, 16]
         });
         marker.addListener('click', () => {
@@ -157,7 +167,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
       const marker = new Mappls.Marker({
         map: mapRef.current,
         position: { lat: p.coords[0], lng: p.coords[1] },
-        html: `<div class="tactical-marker ${isPCR ? 'pcr' : 'protector'} shadow-[0_0_15px_rgba(16,185,129,0.6)]">${isPCR ? '🚓' : '🛡️'}</div>`,
+        html: `<div class="tactical-marker ${isPCR ? 'pcr' : 'protector'}">${isPCR ? '🚓' : '🛡️'}</div>`,
         width: 32, height: 32, offset: [16, 16]
       });
       marker.addListener('click', () => {
@@ -168,28 +178,39 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
 
   }, [isLoaded, policeStations, protectors, activeFilter]);
 
-  // Handle User Pulse Marker visibility independent of other markers
+  // Handle User Marker (Pulse when idle, Navigation Dot when routing)
   useEffect(() => {
     if (!isLoaded || !mapRef.current || !userPos) return;
     const Mappls = (window as any).mappls;
 
-    if (targetPoint) {
-      // Hide red pulse when routing is active (bike is shown instead)
+    const isNavMode = !!targetPoint;
+    
+    // 🔥 CLUTTER REDUCTION: Hide our manual user dot if the bike is routing
+    if (isNavMode) {
       if (userMarkerRef.current) {
         userMarkerRef.current.remove();
         userMarkerRef.current = null;
       }
+      return;
+    }
+
+    const markerHTML = `<div class="pulse-marker-victim"></div>`;
+
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = new Mappls.Marker({
+        map: mapRef.current,
+        position: { lat: userPos[0], lng: userPos[1] },
+        html: markerHTML,
+        width: 36, height: 36, offset: [18, 18]
+      });
     } else {
-      // Show red pulse when no routing is active
-      if (!userMarkerRef.current) {
-        userMarkerRef.current = new Mappls.Marker({
-          map: mapRef.current,
-          position: { lat: userPos[0], lng: userPos[1] },
-          html: `<div class="pulse-marker-victim"></div>`,
-          width: 36, height: 36, offset: [18, 18]
-        });
-      } else {
-        userMarkerRef.current.setPosition({ lat: userPos[0], lng: userPos[1] });
+      userMarkerRef.current.setPosition({ lat: userPos[0], lng: userPos[1] });
+      // Update HTML if state changes
+      if (userMarkerRef.current.getPopup() || true) { // Hack to update inner HTML on Mappls Marker
+         const el = userMarkerRef.current._element;
+         if (el && el.innerHTML !== markerHTML) {
+            el.innerHTML = markerHTML;
+         }
       }
     }
   }, [isLoaded, userPos, targetPoint]);
@@ -251,44 +272,94 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     if (mapRef.current.getSource('custom-route-source')) mapRef.current.removeSource('custom-route-source');
 
     if (!directionPluginRef.current) {
-      // 🔥 Initialize Native Tracking Engine once per target
-      Mappls.tracking({
-        map: mapRef.current,
-        start: { geoposition: `${userPos[0]},${userPos[1]}` },
-        end: { geoposition: `${targetPoint.lat},${targetPoint.lng}` },
-        strokeWidth: 6,
-        routeColor: targetPoint.type === 'police' ? "#3B82F6" : "#10B981",
-        ccpIconWidth: 70, // 🔥 Large animated bike/car icon
-        profile: 'walking', // 🚶‍♂️ Walking profile avoids 401 Unauthorized API drops
-        resource: 'route_eta',
-        traffic: true,
-        alternatives: false,
-        fitBounds: !isNavigating,
-        sPopup: "", dPopup: "",
-      }, function (data: any) {
-        directionPluginRef.current = data;
-        if (isNavigating && data && data.trackingCall) {
-          // Immediately engage heading and centering if navigation was already active
-          data.trackingCall({
-            location: [userPos[1], userPos[0]],
-            heading: isCameraLocked,
-            mapCenter: isCameraLocked,
-            buffer: 50, delay: 2000, fitBounds: false
-          });
-        }
-      });
+      try {
+        // 🔥 Initialize Native Tracking Engine once per target
+        Mappls.tracking({
+          map: mapRef.current,
+          start: { geoposition: `${userPos[0]},${userPos[1]}` },
+          end: { geoposition: `${targetPoint.lat},${targetPoint.lng}` },
+          strokeWidth: 0, // Hide native line to prevent artifacts, we draw our own geojson below!
+          routeColor: "transparent",
+          ccpIconWidth: 70, // 🔥 Large animated bike/car icon
+          profile: 'driving', // 🚗 Use driving profile for full database support in tier-2/3 cities like Rewa
+          resource: 'route_eta',
+          traffic: false,
+          alternatives: false,
+          fitBounds: !isNavigating,
+          sPopup: "", dPopup: "",
+          start_icon: "", // 🔥 Force hide mappls native start marker
+          end_icon: "", // 🔥 Force hide mappls native end marker
+        }, function (data: any) {
+          directionPluginRef.current = data;
+          if (isNavigating && data && data.trackingCall) {
+            try {
+              // Immediately engage heading and centering if navigation was already active
+              data.trackingCall({
+                location: [userPos[1], userPos[0]],
+                heading: isCameraLocked,
+                mapCenter: isCameraLocked,
+                buffer: 50, delay: 2000, fitBounds: false
+              });
+            } catch (e) {
+              console.warn("Mappls trackingCall failed:", e);
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Mappls tracking plugin crashed:", err);
+      }
     } else if (directionPluginRef.current.trackingCall) {
-      // 🚁 Smooth Camera Chase: Dynamically move bike & rotate map
-      directionPluginRef.current.trackingCall({
-        location: [userPos[1], userPos[0]],
-        reRoute: true,
-        heading: isNavigating && isCameraLocked,    // 🎯 Rotates map towards movement direction if locked
-        mapCenter: isNavigating && isCameraLocked,  // 🎯 Auto-centers map on the girl if locked
-        buffer: 50,
-        delay: 2000,
-        fitBounds: false
-      });
+      try {
+        // 🚁 Smooth Camera Chase: Dynamically move bike & rotate map
+        directionPluginRef.current.trackingCall({
+          location: [userPos[1], userPos[0]],
+          reRoute: true,
+          heading: isNavigating && isCameraLocked,    // 🎯 Rotates map towards movement direction if locked
+          mapCenter: isNavigating && isCameraLocked,  // 🎯 Auto-centers map on the girl if locked
+          buffer: 50,
+          delay: 2000,
+          fitBounds: false
+        });
+      } catch (e) {
+        console.warn("Mappls trackingCall failed during update:", e);
+      }
     }
+
+    // 🛡️ Mapbox GL Fallback Line Drawing (Bulletproof)
+    fetchRouteMappls(userPos[1], userPos[0], targetPoint.lng, targetPoint.lat)
+      .then(coords => {
+        if (coords && coords.length > 0 && mapRef.current) {
+          const routeGeoJSON = {
+            type: 'LineString',
+            coordinates: coords // fetchRouteMappls already returns [[lng, lat]]
+          };
+          const map = mapRef.current;
+          const sourceId = 'custom-route-source';
+          const layerId = 'custom-route-layer';
+
+          if (map.getSource(sourceId)) {
+            map.getSource(sourceId).setData(routeGeoJSON);
+          } else {
+            map.addSource(sourceId, { type: 'geojson', data: routeGeoJSON });
+            
+            // Background outline for better visibility
+            map.addLayer({
+              id: layerId + '-outline', type: 'line', source: sourceId,
+              layout: { 'line-join': 'round', 'line-cap': 'round' },
+              paint: { 'line-color': targetPoint.type === 'police' ? '#1E40AF' : '#047857', 'line-width': 8, 'line-opacity': 0.6 }
+            });
+            
+            // Main route line (Flawless road snapping)
+            map.addLayer({
+              id: layerId, type: 'line', source: sourceId,
+              layout: { 'line-join': 'round', 'line-cap': 'round' },
+              paint: { 'line-color': targetPoint.type === 'police' ? '#3B82F6' : '#10B981', 'line-width': 5, 'line-opacity': 1 }
+            });
+          }
+        }
+      })
+      .catch(err => console.warn("🚨 Fallback Route drawing failed:", err));
+
   }, [targetPoint, userPos, isLoaded, isNavigating, isCameraLocked]);
 
   const toggleMapStyle = () => {
@@ -310,10 +381,19 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     // Center map on user, zoom in, and tilt the camera for 3D navigation view
     mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
     mapRef.current.setZoom(18);
+    setIsCameraLocked(true);
     if (typeof mapRef.current.setPitch === 'function') {
       mapRef.current.setPitch(60);
     }
     toast.success(`Navigating to ${targetPoint.name}`);
+  };
+
+  const handleRecenter = () => {
+    if (mapRef.current && userPos) {
+      mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
+      mapRef.current.setZoom(17);
+      setIsCameraLocked(true);
+    }
   };
 
   return (
@@ -334,17 +414,13 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
           width: 20px; height: 20px;
           background: #EF4444; border: 3px solid white;
           border-radius: 50%; position: relative;
-          box-shadow: 0 0 10px rgba(239,68,68,0.8); margin: 15px; 
+          margin: 15px; 
         }
-        .pulse-marker-victim::after {
-          content: ''; position: absolute;
-          top: -15px; left: -15px; right: -15px; bottom: -15px;
-          border-radius: 50%; border: 2px solid rgba(239,68,68,0.8);
-          animation: radarPulse 1s ease-out infinite;
-        }
-        @keyframes radarPulse {
-          0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
-          100% { transform: scale(2); opacity: 0; border-width: 1px; }
+        .nav-pulse-marker {
+          width: 24px; height: 24px;
+          background: #3B82F6; border: 4px solid white;
+          border-radius: 50%; position: relative;
+          margin: 12px;
         }
         div[title="Start"], div[title="End"], .mappls-popup, .mapboxgl-popup { display: none !important; }
         [class*="ctrl-top"], [class*="ctrl-bottom"], [class*="control-container"] { display: none !important; }
@@ -362,7 +438,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
 
         {/* Premium Map Legend (Click to Filter & Zoom) */}
         {!initialTarget && (
-          <div className="flex-1 bg-[#050B14]/90 backdrop-blur-3xl border border-white/10 p-1 rounded-full flex items-center gap-1 shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
+          <div className="flex-1 bg-[#141416] border border-[#2A2A2D] p-1 rounded-full flex items-center gap-1">
             
             <button 
               onClick={() => handleFilterClick('police')}
@@ -413,6 +489,17 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
         )}
       </div>
 
+      {/* 🚀 BULLETPROOF REACT MAP CONTROLS - VERTICALLY CENTERED */}
+      <div className="absolute top-1/2 -translate-y-1/2 right-4 z-[20] flex flex-col gap-3 pointer-events-auto">
+        {/* Recenter / My Location */}
+        <button 
+          onClick={handleRecenter} 
+          className="w-12 h-12 bg-[#141416] rounded-2xl border border-[#2A2A2D] flex items-center justify-center active:scale-90 transition-transform group"
+        >
+          <LocateFixed size={22} className={cn("transition-colors", isCameraLocked ? "text-blue-500" : "text-gray-400 group-hover:text-white")} />
+        </button>
+      </div>
+
       {/* Selected Target HUD or Active Navigation HUD */}
       <AnimatePresence>
         {targetPoint && !isNavigating && (
@@ -422,7 +509,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
             exit={{ y: 50, opacity: 0 }}
             className="absolute bottom-8 inset-x-4 z-[20]"
           >
-            <div className="bg-[#050B14]/90 backdrop-blur-xl border border-blue-500/30 rounded-3xl p-5 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#141416] border border-[#2A2A2D] rounded-3xl p-5">
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
@@ -466,7 +553,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
             exit={{ y: -50, opacity: 0 }}
             className="absolute top-20 left-1/2 -translate-x-1/2 z-[30] w-11/12 max-w-sm"
           >
-            <div className="bg-[#050B14]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(16,185,129,0.3)] flex items-center justify-between">
+            <div className="bg-[#141416] border border-[#2A2A2D] rounded-2xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                    <Navigation size={20} className="text-emerald-400" />

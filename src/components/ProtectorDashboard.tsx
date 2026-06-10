@@ -560,15 +560,8 @@ export default function ProtectorDashboard() {
   }, [activeAlerts, user, activeTab]);
 
   useEffect(() => {
-    const isJustLoggedIn = sessionStorage.getItem('kavach_just_logged_in');
-    if (isJustLoggedIn) {
-      handleVoiceBriefing();
-      const playOnInteract = () => {
-        handleVoiceBriefing();
-        document.removeEventListener('click', playOnInteract);
-      };
-      document.addEventListener('click', playOnInteract);
-    }
+    // 🛑 KAVACH CORE: Disabled automatic voice briefing for Protector role as requested by user.
+    // Protector dashboard should be silent on entry.
   }, []);
 
   const handleStartHelp = (alertId: string) => {
@@ -608,7 +601,7 @@ export default function ProtectorDashboard() {
       const responderData = {
         uid: user.uid,
         name: state.profile?.name || user.displayName || 'Protector Saathi',
-        photo: state.profile?.photoURL || user.photoURL || '',
+        photo: state.profile?.photoUrl || state.profile?.photoURL || user.photoURL || '',
         phone: state.profile?.phone || user.phoneNumber || '',
         joinedAt: isAlreadyResponding ? (alertData.activeResponders.find((r: any) => r.uid === user.uid)?.joinedAt || Date.now()) : Date.now()
       };
@@ -686,7 +679,7 @@ export default function ProtectorDashboard() {
       const responderData = {
         uid: user.uid,
         name: profile?.name || user.displayName || 'PCR Officer',
-        photo: profile?.photoURL || user.photoURL || '',
+        photo: profile?.photoUrl || profile?.photoURL || user.photoURL || '',
         phone: profile?.phone || user.phoneNumber || '',
         joinedAt: Date.now()
       };

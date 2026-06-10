@@ -218,7 +218,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input 
                 type="text" 
-                placeholder="Search Identity/Aadhaar/Phone..."
+                placeholder="Search Identity/Phone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[11px] font-bold text-gray-900 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all w-48 md:w-72"
@@ -246,7 +246,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Role</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Occupation</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
-                  <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Aadhaar / Digital ID</th>
+
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Digital Contact</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Guardian Circle</th>
                   <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Tactical Location</th>
@@ -290,7 +290,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                            </div>
                         )}
                      </td>
-                     <td className="px-8 py-5"><div className="flex flex-col gap-1"><span className="text-[10px] font-black text-gray-900 tabular-nums tracking-[2px]">{user.aadhaar || user.aadhar || "DATA_NOT_SYNCED"}</span><div className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={10} /><span className="text-[7px] font-black uppercase tracking-widest">Full Forensic ID</span></div></div></td>
+                     {/* <td className="px-8 py-5"><div className="flex flex-col gap-1"><span className="text-[10px] font-black text-gray-900 tabular-nums tracking-[2px]">{user.aadhaar || user.aadhar || "DATA_NOT_SYNCED"}</span><div className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={10} /><span className="text-[7px] font-black uppercase tracking-widest">Full Forensic ID</span></div></div></td> */}
                      <td className="px-8 py-5"><div className="flex flex-col gap-2"><div className="flex items-center gap-2 text-blue-600"><Phone size={12} strokeWidth={3} /><span className="text-[10px] font-black tabular-nums">{user.phoneNumber || user.phone || "NO_PHONE_RECORD"}</span></div><div className="flex items-center gap-2 text-gray-400"><Mail size={12} /><span className="text-[9px] font-bold truncate max-w-[140px]">{user.email || "N/A"}</span></div></div></td>
                      <td className="px-8 py-5 text-center relative"><GuardianCell userId={user.id || user.uid} /></td>
                      <td className="px-8 py-5"><AddressCell user={user} activeAlerts={activeAlerts} /></td>

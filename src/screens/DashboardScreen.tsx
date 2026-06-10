@@ -21,6 +21,8 @@ import NearbyHubModal from '../components/NearbyHubModal';
 import MedicalHubModal from '../components/MedicalHubModal';
 import WarningOverlay from '../components/WarningOverlay';
 import BannedOverlay from '../components/BannedOverlay';
+import SafeHavenMap from '../components/maps/SafeHavenMap';
+
 
 import { db, auth } from '../firebase';
 import { setDoc, doc, getDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
@@ -102,7 +104,8 @@ export default function DashboardScreen() {
     setFakeCallActive, isBatteryExempt, setBatteryExempt,
     isSOSActive, isRideModeActive, rideData, updateRideData,
     setBriefingActive, verifiedProtectorCount, setOverlayActive,
-    setActiveTab, setIsFirFlowActive, isVoiceTriggerActive, setVoiceTriggerActive
+    setActiveTab, setIsFirFlowActive, isVoiceTriggerActive, setVoiceTriggerActive,
+    pendingNavigationTarget, setPendingNavigationTarget
   } = useKavachStore();
   const { language } = useLanguage();
 
@@ -120,6 +123,7 @@ export default function DashboardScreen() {
   const [isMedicalHubOpen, setIsMedicalHubOpen] = React.useState(false);
   const [isRideSafeOpen, setIsRideSafeOpen] = React.useState(isRideModeActive);
   const [isRideActive, setIsRideActive] = React.useState(isRideModeActive);
+  const [isSafeHavenMapOpen, setIsSafeHavenMapOpen] = React.useState(false);
   const [vehicleNo, setVehicleNo] = React.useState(rideData?.vehicleNo || '');
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [isBriefingPlaying, setIsBriefingPlaying] = React.useState(false);
@@ -134,14 +138,14 @@ export default function DashboardScreen() {
     const isCompleted = localStorage.getItem('kavach_briefing_completed') === 'true';
 
     // 🛡️ STOP LOGIC: Allow any user to manually halt the voice briefing
-    if (isBriefingPlaying && audioRef.current) {
+    if (audioRef.current && !audioRef.current.paused) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setIsBriefingPlaying(false);
       setBriefingActive(false);
-      
+
       // 🔄 RESUME NATIVE MIC: Briefing interrupted manually
-      KavachSafe.startVoiceSentinel().catch(() => {});
+      KavachSafe.startVoiceSentinel().catch(() => { });
       return;
     }
 
@@ -160,16 +164,16 @@ export default function DashboardScreen() {
       setBriefingActive(false);
       setIsBriefingPlaying(false);
       localStorage.setItem('kavach_briefing_completed', 'true');
-      
+
       // 🔄 RESUME NATIVE MIC: Briefing naturally completed
-      KavachSafe.startVoiceSentinel().catch(() => {});
+      KavachSafe.startVoiceSentinel().catch(() => { });
     };
 
     // 🛑 PAUSE NATIVE MIC: Prevent feedback loop while system speaks
-    await KavachSafe.stopVoiceSentinel().catch(() => {});
+    await KavachSafe.stopVoiceSentinel().catch(() => { });
     // Give native layer 200ms to actually drop the hardware lock before speaking
     await new Promise(r => setTimeout(r, 200));
-    
+
     audio.play().then(() => {
       if (!isManual) sessionStorage.setItem('kavach_greeted', 'true');
     }).catch(err => {
@@ -177,7 +181,7 @@ export default function DashboardScreen() {
       setIsBriefingPlaying(false);
       console.log("Voice blocked by browser autoplay policy.");
       // If blocked, instantly resume mic
-      KavachSafe.startVoiceSentinel().catch(() => {});
+      KavachSafe.startVoiceSentinel().catch(() => { });
     });
   };
 
@@ -190,24 +194,36 @@ export default function DashboardScreen() {
   }, [isRideModeActive, rideData]);
 
   React.useEffect(() => {
+    if (pendingNavigationTarget) {
+      setIsNearbyHubOpen(false); // Close modal if open
+      setIsSafeHavenMapOpen(true);
+    }
+  }, [pendingNavigationTarget]);
+
+  React.useEffect(() => {
     syncLocation();
     const isJustLoggedIn = sessionStorage.getItem('kavach_just_logged_in');
 
     if (isJustLoggedIn === 'true') {
       // 🎙️ Auto-play for NEW LOGIN session
-      // Clear the session lock first to allow handleVoiceBriefing to run
+      sessionStorage.removeItem('kavach_just_logged_in');
       sessionStorage.removeItem('kavach_greeted');
+
+      // Try to play immediately (might be blocked by browser)
       handleVoiceBriefing();
 
       // Fallback for browser autoplay block (plays on first click)
-      const playOnInteract = () => {
+      const playOnInteract = (e: MouseEvent) => {
+        // If the user clicked the manual toggle button, don't auto-start and let the button handle it
+        const target = e.target as HTMLElement;
+        if (target.closest('#voice-toggle-btn')) {
+          document.removeEventListener('click', playOnInteract);
+          return;
+        }
         handleVoiceBriefing();
         document.removeEventListener('click', playOnInteract);
       };
       document.addEventListener('click', playOnInteract);
-
-      // Clean up the login marker after 5s
-      setTimeout(() => sessionStorage.removeItem('kavach_just_logged_in'), 5000);
     }
     if (Capacitor.isNativePlatform()) {
       const checkStatus = async () => {
@@ -216,8 +232,21 @@ export default function DashboardScreen() {
       };
       checkStatus();
       const interval = setInterval(checkStatus, 5000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        if (audioRef.current && !audioRef.current.paused) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+      };
     }
+
+    return () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
   }, []);
 
   return (
@@ -227,6 +256,7 @@ export default function DashboardScreen() {
         {/* 🔊 BRIEFING TOGGLE BUTTON */}
         <div className="w-full flex justify-end px-2 mb-2">
           <button
+            id="voice-toggle-btn"
             onClick={() => handleVoiceBriefing(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-full shadow-sm active:scale-95 transition-all"
           >
@@ -244,12 +274,12 @@ export default function DashboardScreen() {
           </button>
         </div>
 
-        <VoiceVisualizer isSOSActive={isSOSActive} />
+        {/* 🔊 Voice Visualizer Removed from UI (Still runs in background) */}
+        {/* <VoiceVisualizer isSOSActive={isSOSActive} /> */}
 
         {/* SOS CORE */}
-        <section className="relative min-h-[200px] sm:min-h-[250px] bg-[#0A0A0B] rounded-[32px] sm:rounded-[56px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center p-4 sm:p-6 border border-white/[0.05]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.1),transparent)] pointer-events-none" />
-          <div className="relative z-10 space-y-3 mb-8 text-center">
+        <section className="relative min-h-[200px] sm:min-h-[250px] bg-[#0A0A0B] rounded-[32px] sm:rounded-[56px] overflow-hidden shadow-xl flex flex-col items-center justify-center p-4 sm:p-6 border border-white/5">
+          <div className="relative z-10 space-y-2 mb-4 text-center">
             <div className="flex items-center gap-2 px-3 py-1 bg-accent-red/10 rounded-full border border-accent-red/20 mx-auto w-fit">
               <span className="text-[7px] sm:text-[8px] font-bold text-accent-red tracking-[2px]">SOS Emergency Control</span>
             </div>
@@ -269,30 +299,27 @@ export default function DashboardScreen() {
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
             onClick={() => KavachSafe.initiateEmergencyCall({ number: '112' })}
-            className="p-3.5 sm:p-5 bg-accent-red rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_12px_24px_rgba(239,68,68,0.2)] active:scale-95 transition-all group overflow-hidden relative"
+            className="p-3.5 sm:p-5 bg-red-600 rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 active:scale-95 transition-all overflow-hidden relative"
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
             <div className="relative">
-              <div className="w-7 h-7 sm:w-10 sm:h-10 bg-white/10 rounded-full flex items-center justify-center text-white mb-0.5 animate-pulse">
+              <div className="w-7 h-7 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center text-white mb-0.5">
                 <PhoneCall size={14} className="sm:size-[20px]" />
               </div>
-              <div className="absolute -top-0.5 -right-0.5 w-2 sm:w-2.5 h-2 sm:h-2.5 bg-white rounded-full border-2 border-accent-red animate-ping" />
             </div>
             <span className="text-base sm:text-xl font-black text-white tracking-tighter leading-tight">112</span>
-            <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Maddat ke liye</span>
+            <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Call For Help</span>
             <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Emergency</span>
           </button>
           <button
             onClick={() => KavachSafe.initiateEmergencyCall({ number: gender === 'female' ? '1091' : '100' })}
-            className="p-3.5 sm:p-5 bg-white border border-black/[0.05] rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.03)] active:scale-95 transition-all group overflow-hidden relative"
+            className="p-3.5 sm:p-5 bg-white border border-gray-200 rounded-[24px] sm:rounded-[36px] flex flex-col items-center gap-1 active:scale-95 transition-all overflow-hidden relative"
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] to-transparent pointer-events-none" />
-            <div className="w-7 h-7 sm:w-10 sm:h-10 bg-[#DC2626]/5 rounded-full flex items-center justify-center text-[#DC2626] mb-0.5">
+            <div className="w-7 h-7 sm:w-10 sm:h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-0.5">
               {gender === 'female' ? <User size={14} className="sm:size-[20px]" /> : <Shield size={14} className="sm:size-[20px]" />}
             </div>
             <span className="text-base sm:text-xl font-black text-[#1E293B] tracking-tighter leading-tight">{gender === 'female' ? '1091' : '100'}</span>
             <span className="text-[6px] sm:text-[8px] font-bold text-gray-500 uppercase tracking-wider sm:tracking-widest leading-none">{gender === 'female' ? 'Women Helpline' : 'Police Helpline'}</span>
-            <span className="text-[5px] sm:text-[7px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Dabayein</span>
+            <span className="text-[5px] sm:text-[7px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Tap To Call</span>
           </button>
         </div>
 
@@ -327,6 +354,16 @@ export default function DashboardScreen() {
       <FakeCallModal isOpen={isFakeCallHubOpen} onClose={() => toggleOverlay(setIsFakeCallHubOpen, false)} />
       <KavachAIChat isOpen={isAIChatOpen} onClose={() => toggleOverlay(setIsAIChatOpen, false)} />
 
+      {isSafeHavenMapOpen && (
+        <SafeHavenMap
+          onClose={() => {
+            setIsSafeHavenMapOpen(false);
+            setPendingNavigationTarget(null);
+          }}
+          initialTarget={pendingNavigationTarget || undefined}
+        />
+      )}
+
       <WarningOverlay />
       <BannedOverlay />
     </div>
@@ -336,10 +373,10 @@ export default function DashboardScreen() {
 const ActionCard = React.memo(({ icon, title, desc, iconColor, tint, onClick, className }: any) => (
   <button
     onClick={onClick}
-    className={cn("bento-card h-full flex flex-col gap-3 sm:gap-4 group", className)}
+    className={cn("bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 active:scale-95 transition-transform", className)}
   >
     <div className="flex items-center gap-2 sm:gap-3 relative z-10">
-      <div style={{ color: iconColor, backgroundColor: tint }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 border border-black/[0.02]">
+      <div style={{ color: iconColor, backgroundColor: tint }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
         {React.cloneElement(icon as any, { size: 16 })}
       </div>
       <h3 className="text-[10px] sm:text-[12px] font-bold text-[#1E293B] tracking-tight leading-tight flex-1 break-words">

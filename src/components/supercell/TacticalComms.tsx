@@ -159,12 +159,12 @@ export function TacticalComms() {
                                     {selectedUserData.phoneNumber ? `+91 ${selectedUserData.phoneNumber.slice(-10)}` : 'N/A'}
                                   </span>
                                </div>
-                               <div className="flex items-center gap-1.5 text-[8px] font-bold text-gray-400">
+                               {/* <div className="flex items-center gap-1.5 text-[8px] font-bold text-gray-400">
                                   <Fingerprint size={10} className="text-orange-500" />
                                   <span className="text-gray-900 uppercase tracking-tight">
                                     {selectedUserData.aadhar ? `Aadhar: ${selectedUserData.aadhar}` : 'UNLINKED'}
                                   </span>
-                               </div>
+                               </div> */}
                                <div className="flex items-center gap-1.5 text-[8px] font-bold text-gray-400">
                                   <Mail size={10} className="text-purple-500" />
                                   <span className="text-gray-900 lowercase tracking-tight">

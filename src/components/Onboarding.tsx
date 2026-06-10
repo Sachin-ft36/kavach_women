@@ -11,27 +11,16 @@ import { getLiveLocation, getReverseMetadata } from '../services/locationService
 import { KavachNative } from '../services/KavachNative';
 import { toast } from 'sonner';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Shield } from 'lucide-react';
+import { Shield, ChevronLeft } from 'lucide-react';
 
 // 🛡️ Onboarding Components
 import ShieldsStep from './onboarding/ShieldsStep';
-import GenderStep from './onboarding/GenderStep';
 import RoleStep from './onboarding/RoleStep';
 import IdentityStep from './onboarding/IdentityStep';
 import GuardiansStep from './onboarding/GuardiansStep';
 import SecurityPinStep from './onboarding/SecurityPinStep';
 import ProtectorVerificationStep from './onboarding/ProtectorVerificationStep';
-
-// 🛡️ Verhoeff Algorithm for Aadhaar Checksum Validation
-const verhoeffTableD = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]];
-const verhoeffTableP = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]];
-const validateAadhaar = (val: string) => {
-  if (val.length !== 12) return false;
-  let c = 0;
-  let rev = val.split('').reverse().map(Number);
-  for (let i = 0; i < rev.length; i++) c = verhoeffTableD[c][verhoeffTableP[(i % 8)][rev[i]]];
-  return (c === 0);
-};
+import ReviewStep from './onboarding/ReviewStep';
 
 interface OnboardingProps {
   user: any;
@@ -46,6 +35,10 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
   const [userPhone, setUserPhone] = useState(user?.phoneNumber || '');
   const [safetyPin, setLocalSafetyPin] = useState('');
   const [step, setStep] = useState(1);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [roleSubStep, setRoleSubStep] = useState<'select' | 'vetting'>('select');
+  const [isIdentityVerified, setIsIdentityVerified] = useState(false);
+
   const [perms, setPerms] = useState({
     sms: 'prompt',
     call: 'prompt',
@@ -54,10 +47,15 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     microphone: 'prompt'
   });
   const [overlayGranted, setOverlayGranted] = useState(false);
+  const [fullScreenGranted, setFullScreenGranted] = useState(true);
   const [batteryExempt, setBatteryExempt] = useState(false);
   const [role, setRole] = useState<'citizen' | 'protector' | 'pcr_officer' | null>(null);
   const [gender, setGender] = useState<'female' | 'male' | null>(null);
   const [aadhaar, setAadhaar] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [address, setAddress] = useState('');
+  const [bloodGroup, setBloodGroup] = useState('');
+  const [dob, setDob] = useState('');
   const [guardians, setGuardians] = useState<{ name: string; phone: string; relation: string }[]>([]);
   const [tosChecked, setTosChecked] = useState({ terms: false, permissions: false });
   const [isFinishing, setIsFinishing] = useState(false);
@@ -68,6 +66,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     customOccupation: '',
     reason: '',
     agreement: false,
+    serviceNumber: '',
+    isServiceNumberValid: false,
     badgeId: '',
     vehicleNo: '',
     rank: '',
@@ -76,10 +76,37 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   useEffect(() => {
     if (isReturningUser) {
-      setStep(6); // Skip to Shields/Permissions
+      setStep(5); // Skip to Shields/Permissions (now Step 5)
       setTosChecked({ terms: true, permissions: true }); // Auto-check for existing users
     }
   }, [isReturningUser]);
+
+  // 📱 KEYBOARD SENTINEL: Hide footer when software keyboard is open
+  useEffect(() => {
+    const initialHeight = window.visualViewport?.height ?? window.innerHeight;
+
+    const handleViewportResize = () => {
+      const currentHeight = window.visualViewport?.height ?? window.innerHeight;
+      // Keyboard is open if viewport shrinks by more than 25%
+      setIsKeyboardOpen(currentHeight < initialHeight * 0.75);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      return () => window.visualViewport!.removeEventListener('resize', handleViewportResize);
+    }
+  }, []);
+
+  // Synchronize base identity info (name and address) to protector/vetting state when they change
+  useEffect(() => {
+    if (role && role !== 'citizen') {
+      setProtectorData(prev => ({
+        ...prev,
+        fullName: prev.fullName || userName || '',
+        address: prev.address || address || ''
+      }));
+    }
+  }, [userName, address, role]);
 
   const checkHardwareStatus = async () => {
     if (!Capacitor.isNativePlatform()) return;
@@ -87,6 +114,11 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     try {
       const o = await KavachNative.isOverlayPermissionGranted().catch(() => ({ granted: false }));
       setOverlayGranted(o.granted);
+    } catch (e) { }
+
+    try {
+      const fs = await KavachNative.hasFullScreenIntentPermission().catch(() => ({ granted: true }));
+      setFullScreenGranted(fs.granted);
     } catch (e) { }
 
     try {
@@ -113,7 +145,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
   useEffect(() => {
     let checkInterval: any;
-    const isShieldsStep = step === 6;
+    const isShieldsStep = step === 5;
 
     if (isShieldsStep && Capacitor.isNativePlatform()) {
       checkHardwareStatus();
@@ -125,15 +157,21 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         if (state.isActive) checkHardwareStatus();
       }));
 
+      // 🛡️ BROWSER/WEBVIEW VISIBILITY SENTINEL: Unbreakable fallback
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') checkHardwareStatus();
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
       return () => {
         if (checkInterval) clearInterval(checkInterval);
         listener.then(l => l.remove());
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     }
   }, [step]);
 
   const handleShieldToggle = async (id: string) => {
-    toast.info("Triggering: " + id);
     if (!Capacitor.isNativePlatform()) {
       if (id === 'lifeline') setBatteryExempt(!batteryExempt);
       if (id === 'evidence') setOverlayGranted(!overlayGranted);
@@ -150,8 +188,12 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         toast.info("Opening Battery Settings...");
         await KavachNative.openBatterySettings();
       } else if (id === 'evidence') {
-        toast.info("Opening Overlay Settings...");
-        await KavachNative.openOverlaySettings();
+        toast.info("Opening Settings...");
+        if (!overlayGranted) {
+          await KavachNative.openOverlaySettings();
+        } else if (!fullScreenGranted) {
+          await KavachNative.openFullScreenIntentSettings();
+        }
       }
     } catch (e: any) {
       toast.error("Toggle Error: " + (e?.message || e));
@@ -175,6 +217,10 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
           if (data.aadhar) setAadhaar(data.aadhar);
           if (data.safetyPin) setLocalSafetyPin(data.safetyPin);
           if (data.protectorVetting) setProtectorData(data.protectorVetting);
+          if (data.photoUrl) setPhotoUrl(data.photoUrl);
+          if (data.address) setAddress(data.address);
+          if (data.bloodGroup) setBloodGroup(data.bloodGroup);
+          if (data.dob) setDob(data.dob);
           console.log("🛰️ KAVACH ONBOARDING: Profile Hydrated. Existing records protected.");
         }
       } catch (e) {
@@ -192,8 +238,6 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
       const currentSnap = await getDoc(doc(db, 'users', user.uid));
       const existingData = currentSnap.exists() ? currentSnap.data() : {};
 
-      // Duplicates are now checked upfront during Step 1 (IdentityStep)
-
       let initialLocation = existingData.lastLocation || null;
       let fullAddress = existingData.fullAddress || "Sector Unknown";
       let locationMeta: any = null;
@@ -209,7 +253,6 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
       const isCitizen = role === 'citizen';
       const isPcr = role === 'pcr_officer';
-      const isStandardProtector = role === 'protector';
 
       // 🛡️ TACTICAL MERGE PAYLOAD: Only update what we have, preserve what we don't
       const userProfile = {
@@ -221,10 +264,15 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         role: role || existingData.role || 'citizen',
         gender: gender || existingData.gender || 'female',
         isRegistered: true,
-        // Official Police PCR is pre-verified to bypass volunteer review
-        isVerified: isCitizen ? true : (isPcr ? true : (gender === 'female' ? true : (existingData.isVerified || false))),
+        photoUrl: photoUrl || existingData.photoUrl || "",
+        address: address || existingData.address || "",
+        bloodGroup: bloodGroup || existingData.bloodGroup || "",
+        dob: dob || existingData.dob || "",
+        // ⏳ COMMAND CENTER VETTING: Everyone must be verified by admin, except master admin
+        isVerified: user.email === 'singh.sachin16559@gmail.com' ? true : false,
+        verificationStatus: user.email === 'singh.sachin16559@gmail.com' ? 'approved' : 'pending',
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
-        aadhar: aadhaar || existingData.aadhar || null,
+        aadhaarHash: aadhaar ? await crypto.subtle.digest('SHA-256', new TextEncoder().encode(aadhaar)).then(b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('')) : (existingData.aadhaarHash || null),
 
         // PCR/Patrol specific operational properties
         vehicleNo: isPcr ? (protectorData.vehicleNo || 'PCR-TBD') : (existingData.vehicleNo || null),
@@ -261,7 +309,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
       // 🛰️ MULTI-PATH SYSTEMATIC SYNC WITH TACTICAL TIMEOUT
       const syncTasks = async () => {
-        // 1. Master Ledger (Clean only truly empty/undefined values)
+        // 1. Master Ledger
         const cleanProfile = Object.fromEntries(
           Object.entries(userProfile).filter(([_, v]) => v !== undefined && v !== null && v !== "")
         );
@@ -288,7 +336,6 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
 
         if (userProfile.role === 'citizen' && guardians.length > 0) {
           const guardianCol = collection(db, 'users', user.uid, 'guardians');
-          // 🛡️ EMERGENCY CACHE: Ensure guardians are accessible to local SOS service
           const localGuardians = guardians.map(g => ({
             name: g.name,
             phone: `+91${g.phone.replace(/\D/g, '')}`,
@@ -311,10 +358,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         }
       };
 
-      await Promise.race([
-        syncTasks(),
-        new Promise(resolve => setTimeout(resolve, 4000)) // Increased to 4s for safety
-      ]);
+      await syncTasks();
 
       const finalRole = userProfile.role;
       const finalGender = userProfile.gender;
@@ -335,8 +379,6 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     }
   };
 
-  const [isAadhaarVerified, setIsAadhaarVerified] = useState(false);
-
   const checkDuplicatePhone = async (phoneStr: string) => {
     try {
       const q = query(collection(db, 'users'), where('phoneNumber', '==', phoneStr));
@@ -349,130 +391,372 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     }
   };
 
-  const checkDuplicateAadhaar = async (aadhaarStr: string) => {
-    try {
-      const q = query(collection(db, 'users'), where('aadhar', '==', aadhaarStr));
-      const snap = await getDocs(q);
-      const duplicate = snap.docs.find(d => d.id !== user.uid);
-      return !!duplicate;
-    } catch (e) {
-      console.error(e);
-      return false;
+  const nextStep = () => {
+    if (step === 1) {
+      setStep(2);
+      setRoleSubStep('select');
+    } else if (step === 2) {
+      if (role === 'citizen') {
+        setStep(3);
+      } else {
+        if (roleSubStep === 'select') {
+          setRoleSubStep('vetting');
+        } else {
+          if (gender === 'male') {
+            setStep(5);
+          } else {
+            setStep(4);
+          }
+        }
+      }
+    } else if (step === 3) {
+      setStep(4);
+    } else if (step === 4) {
+      setStep(5);
+    } else if (step === 5) {
+      setStep(6);
     }
   };
 
-  const nextStep = () => {
-    if (step === 1) setStep(2);
-    else if (step === 2) {
-      if (role === 'protector' || role === 'pcr_officer') {
-        setStep(3); // Vetting step
+  const handleBack = () => {
+    if (step === 1) return;
+    if (step === 2) {
+      if (roleSubStep === 'vetting') {
+        setRoleSubStep('select');
       } else {
-        setStep(4); // Safety Pin for citizens
+        setStep(1);
       }
+    } else if (step === 3) {
+      setStep(2);
+      setRoleSubStep('select');
+    } else if (step === 4) {
+      if (role === 'citizen') {
+        setStep(3);
+      } else {
+        setStep(2);
+        setRoleSubStep('vetting');
+      }
+    } else if (step === 5) {
+      if (role === 'citizen') {
+        setStep(4);
+      } else {
+        if (gender === 'male') {
+          setStep(2);
+          setRoleSubStep('vetting');
+        } else {
+          setStep(4);
+        }
+      }
+    } else if (step === 6) {
+      setStep(5);
     }
-    else if (step === 3) {
-      if (role === 'pcr_officer') setStep(6); // PCR Officers bypass Pin & Guardians
-      else if (gender === 'male') setStep(6); // Civilian Male Protectors bypass Pin & Guardians
-      else setStep(4);
-    }
-    else if (step === 4) {
-      if (role === 'citizen') setStep(5);
-      else setStep(6);
-    }
-    else if (step === 5) setStep(6);
   };
+
+  // Helper to calculate active visual step and step count based on selected role path
+  const getVisualStepInfo = () => {
+    const isCitizen = role === 'citizen' || !role;
+    const isMaleProtector = !isCitizen && gender === 'male';
+
+    if (isCitizen) {
+      return {
+        current: step,
+        total: 6,
+        steps: [1, 2, 3, 4, 5, 6]
+      };
+    } else if (isMaleProtector) {
+      let current = step;
+      if (step === 5) current = 3;
+      if (step === 6) current = 4;
+      return {
+        current: current,
+        total: 4,
+        steps: [1, 2, 3, 4]
+      };
+    } else {
+      let current = step;
+      if (step === 4) current = 3;
+      if (step === 5) current = 4;
+      if (step === 6) current = 5;
+      return {
+        current: current,
+        total: 5,
+        steps: [1, 2, 3, 4, 5]
+      };
+    }
+  };
+
+  const visualStepInfo = getVisualStepInfo();
 
   return (
-    <div className="fixed inset-0 z-[2000] bg-white flex flex-col text-gray-900 font-sans overflow-hidden">
-      <div className="w-full max-w-lg mx-auto flex-1 flex flex-col relative z-10 px-4 sm:px-8 py-3 sm:py-8">
-        {/* Step Progress Indicator */}
-        <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-10">
-          {[1, 2, 3, 4, 5, 6].map((s) => (
-            <div
-              key={s}
-              className={cn(
-                "h-2 flex-1 rounded-full transition-all duration-500",
-                s === step ? "bg-[#2563EB] shadow-lg shadow-[#2563EB]/20" : s < step ? "bg-[#10B981]" : "bg-gray-100"
-              )}
-            />
-          ))}
-        </div>
+    <div className="fixed inset-0 z-[2000] bg-[#F5F7FB] flex flex-col text-gray-900 font-sans overflow-hidden">
 
+      {/* Unified Top Header Row with White Background */}
+      <div className="w-full bg-white shrink-0 relative z-20">
+        <div className="w-full max-w-md mx-auto px-4 pt-3 pb-3 flex flex-col gap-2">
+          {/* Logo Row */}
+          <div className="flex items-center justify-between">
+            {/* Back button + KAVACH Logo */}
+            <div className="flex items-center gap-2">
+              {step > 1 ? (
+                <button onClick={handleBack} className="p-1.5 -ml-1 rounded-full hover:bg-slate-100 transition-colors">
+                  <ChevronLeft size={20} className="text-slate-700" />
+                </button>
+              ) : null}
+
+              <div className="flex items-center gap-2">
+                {/* KAVACH Original Logo */}
+                <img src="/logo.jpeg" alt="KAVACH Logo" className="h-14 w-14 rounded-xl object-contain" />
+                <div className="flex flex-col">
+                  <span className="text-base font-extrabold text-[#0B2545] leading-none tracking-tight">KAVACH</span>
+                  <span className="text-[6.5px] font-black text-slate-400 tracking-wider mt-0.5 leading-none">NATIONAL SAFETY NETWORK</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Digital India Logo */}
+            <div className="flex items-center">
+              <img src="/digitalindia.png" alt="Digital India" className="h-9 w-auto object-contain" />
+            </div>
+          </div>
+
+          {/* STEP indicator label */}
+          <div className="text-center mt-1">
+            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-widest">
+              STEP {visualStepInfo.current} OF {visualStepInfo.total}
+            </span>
+          </div>
+
+          {/* Circular Progress Indicator row */}
+          <div className="relative w-full flex items-center justify-between px-2 py-1">
+            {/* Background line */}
+            <div className="absolute top-1/2 left-2 right-2 h-[2px] bg-slate-200 -translate-y-1/2 z-0" />
+
+            {/* Active line */}
+            <div className="absolute top-1/2 left-2 right-2 h-[2px] -translate-y-1/2 z-0">
+              <div
+                className="h-full bg-[#0B2545] transition-all duration-500"
+                style={{ width: `${((visualStepInfo.current - 1) / (visualStepInfo.total - 1)) * 100}%` }}
+              />
+            </div>
+
+            {/* Steps */}
+            {visualStepInfo.steps.map((s) => (
+              <div
+                key={s}
+                className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] z-10 transition-all duration-300 border-2",
+                  s === visualStepInfo.current
+                    ? "bg-[#0B2545] border-[#0B2545] text-white shadow-sm scale-110"
+                    : s < visualStepInfo.current
+                      ? "bg-white border-[#0B2545] text-[#0B2545]"
+                      : "bg-white border-slate-200 text-slate-400"
+                )}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+
+          {/* Quad-color stripe */}
+          <div className="flex h-[3.5px] w-full rounded-full overflow-hidden mt-1.5">
+            <div className="w-[20%] bg-[#2563EB]" />
+            <div className="w-[22%] bg-[#FF9933]" />
+            <div className="w-[30%] bg-[#F59E0B]" />
+            <div className="w-[28%] bg-[#10B981]" />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Viewport */}
+      <div className="w-full max-w-md mx-auto flex-1 flex flex-col min-h-0 relative px-4 pt-4 pb-2">
         <div
-          key={`step-${step}`}
-          className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar -mx-2 px-2 pb-4"
+          key={`step-${step}-${roleSubStep}`}
+          className="flex-1 flex flex-col min-h-0"
         >
-          {step === 1 && <IdentityStep aadhaar={aadhaar} setAadhaar={setAadhaar} phone={userPhone} setPhone={setUserPhone} userName={userName} setUserName={setUserName} setRole={(r) => setRole(r as any)} setGender={setGender} setIsVerified={setIsAadhaarVerified} onNext={nextStep} checkDuplicatePhone={checkDuplicatePhone} checkDuplicateAadhaar={checkDuplicateAadhaar} />}
-          {step === 2 && <RoleStep role={role} setRole={setRole} gender={gender} />}
-          {step === 3 && <ProtectorVerificationStep role={role} data={protectorData} setData={setProtectorData} />}
-          {step === 4 && <SecurityPinStep pin={safetyPin} setPin={setLocalSafetyPin} />}
-          {step === 5 && <GuardiansStep guardians={guardians} setGuardians={setGuardians} />}
-          {step === 6 && (
+          {step === 1 && (
+            <IdentityStep
+              phone={userPhone}
+              setPhone={setUserPhone}
+              userName={userName}
+              setUserName={setUserName}
+              setIsVerified={setIsIdentityVerified}
+              onNext={nextStep}
+              checkDuplicatePhone={checkDuplicatePhone}
+              photoUrl={photoUrl}
+              setPhotoUrl={setPhotoUrl}
+              gender={gender}
+              setGender={(g) => {
+                setGender(g);
+                setStoreGender(g);
+              }}
+              isGoogleLogin={!!user?.displayName}
+              isKeyboardOpen={isKeyboardOpen}
+            />
+          )}
+
+          {step === 2 && (
+            roleSubStep === 'select' ? (
+              <RoleStep
+                role={role}
+                setRole={(r) => {
+                  setRole(r);
+                  setStoreRole(r);
+                }}
+                gender={gender}
+                onNext={nextStep}
+                isKeyboardOpen={isKeyboardOpen}
+              />
+            ) : (
+              <ProtectorVerificationStep
+                role={role}
+                data={protectorData}
+                setData={setProtectorData}
+              />
+            )
+          )}
+
+          {step === 3 && (
+            <GuardiansStep guardians={guardians} setGuardians={setGuardians} userPhone={userPhone} />
+          )}
+
+          {step === 4 && (
+            <SecurityPinStep
+              pin={safetyPin}
+              setPin={setLocalSafetyPin}
+              onNext={nextStep}
+              isKeyboardOpen={isKeyboardOpen}
+            />
+          )}
+
+          {step === 5 && (
             <ShieldsStep
-              batteryExempt={batteryExempt} overlayGranted={overlayGranted} perms={perms} isReturningUser={isReturningUser}
-              tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={finishOnboarding} authStatus={isFinishing ? 'saving' : 'idle'}
+              batteryExempt={batteryExempt} overlayGranted={overlayGranted && fullScreenGranted} perms={perms} isReturningUser={isReturningUser}
+              tosChecked={tosChecked} setTosChecked={setTosChecked} onActivate={nextStep} authStatus={isFinishing ? 'saving' : 'idle'}
               tr={t} onOpenBattery={() => handleShieldToggle('lifeline')} onOpenOverlay={() => handleShieldToggle('evidence')}
-              onRequestPerms={() => handleShieldToggle('guardian')} onOpenAppSettings={async () => { if (Capacitor.isNativePlatform()) await KavachNative.openAppSettings(); }}
+              onRequestPerms={() => handleShieldToggle('guardian')}
+              onOpenAppSettings={async () => { if (Capacitor.isNativePlatform()) await KavachNative.openAppSettings(); }}
+              onOpenOEMSettings={async () => {
+                if (Capacitor.isNativePlatform()) {
+                  await KavachNative.requestLockScreenPermission();
+                  setOverlayGranted(true);
+                }
+              }}
+              onForceBatteryExempt={() => setBatteryExempt(true)}
               isNative={Capacitor.isNativePlatform()}
               isSentinelActive={isSentinelActive}
               setSentinelActive={setSentinelActive}
+              role={role}
             />
           )}
-        </div>
 
-        <div className="pt-2 sm:pt-8">
-          {step < 6 ? (
-            <button
-              disabled={
-                (step === 1 && !isAadhaarVerified) ||
-                (step === 2 && !role) ||
-                (step === 3 && (
-                  role === 'pcr_officer'
-                    ? (!protectorData.fullName || !protectorData.address || !protectorData.badgeId || !protectorData.vehicleNo || !protectorData.rank || !protectorData.agreement)
-                    : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement)
-                )) ||
-                (step === 4 && safetyPin.length < 4) ||
-                (step === 5 && role === 'citizen' && guardians.length === 0)
-              }
-              onClick={nextStep}
-              className={cn(
-                "w-full py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all shadow-xl active:scale-[0.98]",
-                (
-                  (step === 1 && isAadhaarVerified) ||
-                  (step === 2 && role) ||
-                  (step === 3 && (
-                    role === 'pcr_officer'
-                      ? (protectorData.fullName && protectorData.address && protectorData.badgeId && protectorData.vehicleNo && protectorData.rank && protectorData.agreement)
-                      : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement)
+          {step === 6 && (
+            <ReviewStep
+              photoUrl={photoUrl}
+              setPhotoUrl={setPhotoUrl}
+              name={userName}
+              setName={setUserName}
+              phone={userPhone}
+              setPhone={setUserPhone}
+              dob={dob}
+              setDob={setDob}
+              bloodGroup={bloodGroup}
+              setBloodGroup={setBloodGroup}
+              gender={gender}
+              setGender={(g) => {
+                setGender(g);
+                setStoreGender(g);
+              }}
+              role={role}
+              setRole={(r) => {
+                setRole(r);
+                setStoreRole(r);
+              }}
+              aadhaar={aadhaar}
+              tosChecked={tosChecked}
+              setTosChecked={setTosChecked}
+              onSubmit={finishOnboarding}
+              isSubmitting={isFinishing}
+            />
+          )}
+
+          {/* Render global proceed button ONLY for steps that do not have their own actions */}
+          {((step === 2 && roleSubStep !== 'select') || step === 3) && (
+            <div className="pt-6 mt-auto">
+              <button
+                disabled={
+                  (step === 2 && (
+                    roleSubStep === 'select'
+                      ? !role
+                      : (role === 'pcr_officer'
+                        ? (!protectorData.fullName || !protectorData.address || !protectorData.badgeId || !protectorData.vehicleNo || !protectorData.rank || !protectorData.agreement)
+                        : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement ||
+                          (['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) && (!protectorData.serviceNumber || !protectorData.isServiceNumberValid)))
+                      )
                   )) ||
-                  (step === 4 && safetyPin.length === 4) ||
-                  (step === 5 && guardians.length > 0)
-                )
-                  ? "bg-[#2563EB] text-white shadow-[#2563EB]/25"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+                  (step === 3 && guardians.length === 0)
+                }
+                onClick={nextStep}
+                className={cn(
+                  "w-full py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all shadow-xl active:scale-[0.98]",
+                  (
+                    (step === 2 && (
+                      roleSubStep === 'select'
+                        ? !!role
+                        : (role === 'pcr_officer'
+                          ? (protectorData.fullName && protectorData.address && protectorData.badgeId && protectorData.vehicleNo && protectorData.rank && protectorData.agreement)
+                          : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement &&
+                            (!['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) || (!!protectorData.serviceNumber && protectorData.isServiceNumberValid)))
+                        )
+                    )) ||
+                    (step === 3 && guardians.length > 0)
+                  )
+                    ? "bg-[#2563EB] text-white shadow-[#2563EB]/25"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+                )}
+              >
+                {step === 2
+                  ? (roleSubStep === 'select' ? "Confirm Category" : "Confirm Profile")
+                  : "Setup Guardians"
+                }
+              </button>
+
+              {/* GOI Footer — hidden when keyboard is open */}
+              {!isKeyboardOpen && step !== 3 && (
+                <div className="flex flex-col items-center gap-1.5 pt-4 pb-6 mt-6 shrink-0">
+                  <div className="flex items-center justify-between w-full border-t border-slate-200/60 pt-3 px-0.5">
+                    <div className="flex items-center gap-2.5 text-left">
+                      <img
+                        src="/emblem-dark.png"
+                        alt="Emblem of India"
+                        className="h-10 w-auto object-contain shrink-0"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-[9.5px] font-black text-slate-800 uppercase tracking-tight leading-none">
+                          Government of India Initiative
+                        </span>
+                        <span className="text-[8.5px] text-slate-400 font-bold mt-1 leading-none">
+                          Securing Citizens. Empowering India.
+                        </span>
+                      </div>
+                    </div>
+
+                    <img
+                      src="/Made-In-India-Lion-PNG-Cutout.png"
+                      alt="Made in India"
+                      className="h-10 w-auto object-contain opacity-95"
+                    />
+                  </div>
+
+                  <p className="text-[8.5px] font-extrabold uppercase tracking-widest text-[#94A3B8] text-center mt-1">
+                    MINISTRY OF WOMEN &amp; CHILD DEVELOPMENT • GOVT. OF INDIA
+                  </p>
+                </div>
               )}
-            >
-              {step === 1 ? "Verify & Link" : step === 2 ? "Confirm Category" : step === 3 ? "Confirm Profile" : step === 4 ? "Submit Verification" : step === 5 ? "Configure Pin" : "Setup Guardians"}
-            </button>
-          ) : null}
-
-          <div className="mt-4 sm:mt-8 flex flex-col items-center gap-2 sm:gap-4">
-            <div className="flex items-center justify-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
-                <Shield size={16} className="text-[#2563EB]" />
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-[2px] sm:tracking-[3px]">Kavach Safety Grid</span>
             </div>
-
-            <div className="flex flex-col items-center gap-3 pt-2 opacity-80">
-              <img src="/digitalindia.png" alt="Digital India" className="h-12 w-auto object-contain" />
-              <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6">
-                © 2024 Unique Identification Authority of India (UIDAI) | All Rights Reserved
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

@@ -614,8 +614,8 @@ export default function CommandMap({
           const uLat = journey.latitude || journey.lat || journey.lastLat || journey.currentLat || journey.location?.latitude || journey.location?.lat;
           const uLng = journey.longitude || journey.lng || journey.lastLng || journey.currentLng || journey.location?.longitude || journey.location?.lng;
 
-          const destLat = journey.targetCoords?.[0] || journey.destLat || journey.destinationLatitude;
-          const destLng = journey.targetCoords?.[1] || journey.destLng || journey.destinationLongitude;
+          const destLat = journey.targetCoords?.[1] || journey.destLat || journey.destinationLatitude;
+          const destLng = journey.targetCoords?.[0] || journey.destLng || journey.destinationLongitude;
 
           if (uLat && uLng && destLat && destLng) {
             startCoords = [uLng, uLat];

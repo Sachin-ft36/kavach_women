@@ -51,6 +51,7 @@ interface KavachState {
   rideData: {
     vehicleNo: string;
     destination: string;
+    destinationEloc?: string | null;
     targetCoords: [number, number] | null;
     startTime: number | null;
     deviationDistance: number;
@@ -152,6 +153,8 @@ interface KavachState {
   setIsFirFlowActive: (active: boolean) => void;
   isSafeTimerAlertActive: boolean;
   setIsSafeTimerAlertActive: (active: boolean) => void;
+  pendingNavigationTarget: { lat: number; lng: number; name: string } | null;
+  setPendingNavigationTarget: (target: { lat: number; lng: number; name: string } | null) => void;
 }
 
 const savedHandshake = localStorage.getItem('kavach_handshake_code');
@@ -223,9 +226,18 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setIsFirFlowActive: (isFirFlowActive) => set({ isFirFlowActive }),
   isSafeTimerAlertActive: false,
   setIsSafeTimerAlertActive: (isSafeTimerAlertActive) => set({ isSafeTimerAlertActive }),
+  pendingNavigationTarget: null,
+  setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target }),
 
   setPendingSOS: (active, method = 'button') => {
     if (active) {
+      const state = useKavachStore.getState();
+      const isAdmin = state.user?.email === 'singh.sachin16559@gmail.com';
+      const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
+      if (!isAuthorized) {
+        console.warn("🛡️ KAVACH GUARD: SOS Trigger blocked. Profile must be registered, synced, and approved by the Command Center.");
+        return;
+      }
       set({
         pendingSOS: {
           active: true,
@@ -310,9 +322,18 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         else console.log("⚡ SUPABASE: Profile Synced & Migrated.");
       };
 
-      onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      onSnapshot(doc(db, 'users', user.uid), async (snap) => {
         if (snap.exists()) {
           const data = snap.data();
+
+          if (data.isPermanentlyBlocked) {
+            console.warn("🚨 KAVACH STORE: Banned identity detected. Auto-evicting...");
+            const { auth } = await import('../firebase');
+            const { signOut } = await import('firebase/auth');
+            await signOut(auth);
+            set({ user: null, profile: null, isPermanentlyBlocked: true });
+            return;
+          }
 
           // 🛡️ DEVICE LOCK PROTOCOL (DECOMMISSIONED)
           // Users can now login from multiple devices without lockout.
@@ -331,6 +352,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           // Trigger Auto-Migration to Supabase
           syncProfile(data);
         }
+      }, (error) => {
+        console.warn("⚠️ KAVACH STORE: Profile snapshot subscription error:", error);
       });
 
       // REAL-TIME SUBSCRIPTION
@@ -386,6 +409,19 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     return { batteryLevel, performanceMode: mode };
   }),
   setRideMode: async (isRideModeActive, rideData = null) => {
+    if (isRideModeActive) {
+      const state = get();
+      const isAdmin = state.user?.email === 'singh.sachin16559@gmail.com';
+      const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
+      if (!isAuthorized) {
+        const { toast } = await import('sonner');
+        toast.error("Access Denied", {
+          description: "Your account must be registered and approved by the Command Center before using Ride Safe.",
+          className: "bg-red-950 border-red-500 text-white font-black"
+        });
+        return;
+      }
+    }
     localStorage.setItem('kavach_ride_mode_active', isRideModeActive.toString());
     if (rideData) localStorage.setItem('kavach_ride_data', JSON.stringify({ ...rideData, path: [] }));
     else if (!isRideModeActive) localStorage.removeItem('kavach_ride_data');
@@ -589,6 +625,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     const { userPos } = get();
 
     if (isSOSActive) {
+      const state = get();
+      const isAdmin = state.user?.email === 'singh.sachin16559@gmail.com';
+      const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
+      if (!isAuthorized) {
+        console.warn("🛡️ KAVACH GUARD: SOS activation blocked. Profile must be registered, synced, and approved by the Command Center.");
+        return;
+      }
       console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
 
       // 🛡️ NEW MISSION PROTOCOL: Always start with a clean state
@@ -634,7 +677,6 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         }
       }
 
-      const state = get();
       const isTransit = !!state.isRideModeActive;
       const rideContext = isTransit ? {
         isTransitSOS: true,

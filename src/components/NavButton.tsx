@@ -14,18 +14,18 @@ export function NavButton({ active, onClick, icon, label }: NavButtonProps) {
     <button 
       onClick={onClick} 
       className={cn(
-        "flex flex-col items-center justify-center flex-1 h-14 sm:h-16 transition-all relative group", 
+        "flex flex-col items-center justify-center flex-1 h-14 sm:h-16 transition-all relative group min-w-0 overflow-hidden px-1", 
         active ? "text-[#2563EB]" : "text-[#64748B]"
       )}
     >
       <div className={cn(
-        "p-2 sm:p-2.5 rounded-2xl transition-all duration-500", 
+        "p-2 sm:p-2.5 rounded-2xl transition-all duration-500 shrink-0", 
         active && "bg-[#2563EB]/10 scale-105 shadow-sm"
       )}>
         {icon}
       </div>
       <span className={cn(
-        "text-[6px] sm:text-[7px] font-black uppercase tracking-[1px] transition-all mt-0.5", 
+        "text-[5px] sm:text-[6px] font-black uppercase tracking-[0.3px] transition-all mt-0.5 truncate w-full text-center leading-none px-0.5 max-w-full block", 
         active ? "opacity-100 translate-y-0" : "opacity-40 translate-y-1"
       )}>
         {label}

@@ -44,6 +44,7 @@ const ProtectorGrievanceScreen = React.lazy(() => import('./screens/ProtectorGri
 const ProtectorHistoryScreen = React.lazy(() => import('./screens/ProtectorHistoryScreen'));
 const LanguageStep = React.lazy(() => import('./components/onboarding/LanguageStep'));
 const TrackScreen = React.lazy(() => import('./screens/TrackScreen'));
+import { VerificationPendingGate } from './components/onboarding/VerificationPendingGate';
 
 import {
   Settings,
@@ -59,7 +60,8 @@ import {
   UserCheck,
   Trophy,
   Shield,
-  Volume2
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import KavachAIChat from './components/KavachAIChat';
 import StealthOverlay from './components/StealthOverlay';
@@ -69,7 +71,7 @@ import { KavachNative, KavachSafe } from './services/KavachNative';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Geolocation } from '@capacitor/geolocation';
 import { auth, googleProvider, db, resetKavachState } from './firebase';
-import { onAuthStateChanged, signInWithCredential, GoogleAuthProvider, signInWithPopup, getRedirectResult, signInWithRedirect } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCredential, GoogleAuthProvider, signInWithPopup, getRedirectResult, signInWithRedirect, signOut, signInAnonymously } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, onSnapshot, query, where, terminate } from 'firebase/firestore';
 import { App as CapApp } from '@capacitor/app';
 import { cn } from './lib/utils';
@@ -108,9 +110,13 @@ export default function App() {
   // 🛡️ TACTICAL ZOOM LOCK REMOVED: Allowed browser scaling (Ctrl + and Ctrl -) for responsive flexibility.
   useEffect(() => {
     // Zoom locking disabled on user request.
-    // Initialize Siri Shortcuts for iOS
-    siriEmergencyService.initialize();
-    
+    // Initialize Siri Shortcuts for iOS safely
+    try {
+      siriEmergencyService.initialize();
+    } catch (e) {
+      console.warn("Siri Shortcuts skipped (Web Platform)");
+    }
+
     // 🛡️ BIND GLOBAL BACKGROUND SENTINEL
     // This forces Android/iOS to keep Shake/Voice/Ride running when minimized
     initializeBackgroundSentinel();
@@ -122,6 +128,7 @@ export default function App() {
   const role = useKavachStore(state => state.role);
   const isRegistered = useKavachStore(state => state.isRegistered);
   const isVerified = useKavachStore(state => state.isVerified);
+  const profile = useKavachStore(state => state.profile);
 
   const {
     user, setUser, setRole, setGender, setRegistered, setVerified,
@@ -153,8 +160,9 @@ export default function App() {
 
   const [superCellViewMode, setSuperCellViewMode] = useState<'OPS' | 'GATEKEEPER' | 'JUSTICE' | 'LEADERBOARD' | 'ALL' | 'COMMS'>('ALL');
   const [isGhostMode, setIsGhostMode] = useState<boolean>(() => localStorage.getItem('kavach_ghost_mode') === 'true');
-  const [hasSeenIntro, setHasSeenIntro] = useState<boolean>(() => localStorage.getItem('kavach_intro_seen') === 'true');
+  const [hasSeenIntro, setHasSeenIntro] = useState<boolean>(true);
   const [isIntroEnding, setIsIntroEnding] = useState(false);
+  const [isIntroMuted, setIsIntroMuted] = useState(false);
 
   const onIntroEnd = () => {
     setIsIntroEnding(true);
@@ -183,30 +191,24 @@ export default function App() {
   useShakeTrigger();
   useRideProtocol();
 
-  const [isLanguageSelected, setIsLanguageSelected] = useState<boolean>(() => localStorage.getItem('kavach_language_selected') === 'true');
+  const [isLanguageSelected, setIsLanguageSelected] = useState<boolean>(() => {
+    return localStorage.getItem('kavach_language_selected') === 'true';
+  });
 
   useEffect(() => {
     // 🛡️ AUTO-RECOVERY SENTINEL: Detect Firestore Internal Assertion Failures
     const handleGlobalError = async (event: ErrorEvent | PromiseRejectionEvent) => {
       const msg = event instanceof ErrorEvent ? event.message : String(event.reason);
       if (msg.includes('ASSERTION FAILED') || msg.includes('ca9') || msg.includes('b815')) {
-        console.error("🚨 KAVACH: SDK INTERNAL CORRUPTION DETECTED. INITIATING DEEP RECOVERY...");
-
         const lastReload = sessionStorage.getItem('kavach_auto_recovery_time');
         const now = Date.now();
 
-        if (!lastReload || now - parseInt(lastReload) > 30000) {
+        // Only reload once every 60 seconds to prevent infinite loops
+        if (!lastReload || now - parseInt(lastReload) > 60000) {
           sessionStorage.setItem('kavach_auto_recovery_time', now.toString());
-
-          try {
-            // Attempt to kill the corrupt SDK instance
-            await terminate(db);
-            await resetKavachState();
-          } catch (e) {
-            console.error("Deep Reset Interrupted:", e);
-          }
-
-          window.location.reload();
+          console.warn('⚠️ KAVACH: Firestore stream error detected. Reloading to recover...');
+          // Small delay to let any pending writes finish
+          setTimeout(() => window.location.reload(), 1500);
         }
       }
     };
@@ -374,23 +376,65 @@ export default function App() {
       }
       listener.then(l => l.remove());
     };
-  }, [user, isRegistered, isHardwareSynced, performanceMode, isSOSBlocked]);
+  }, [user, isRegistered, isHardwareSynced, performanceMode, isSOSBlocked, isHubReady]);
+
+  const [loadingStatus, setLoadingStatus] = useState("Resolving Local Telemetry...");
 
   useEffect(() => {
+    if (!loading) return;
+    const statuses = [
+      "Establishing Sovereign Link...",
+      "Resolving Local Telemetry...",
+      "Decrypting Credentials...",
+      "Connecting to Command Hub..."
+    ];
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index < statuses.length - 1) {
+        index++;
+        setLoadingStatus(statuses[index]);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  useEffect(() => {
+    const cachedUid = localStorage.getItem('kavach_user_uid');
     const timer = setTimeout(() => {
       if (loading) setShowFailSafe(true);
-    }, 4000);
+    }, cachedUid ? 2500 : 1000);
     return () => clearTimeout(timer);
   }, [loading]);
 
   useEffect(() => {
+    // 🛡️ INSTANT STARTUP FAILSAFE: Guarantee an instant responsive cold start
+    const cachedUid = localStorage.getItem('kavach_user_uid');
+    // Increased delay to 5 seconds to give Firebase Auth enough time to fetch tokens
+    const delay = cachedUid ? 5000 : 3000; 
+
+    const loadingTimeout = setTimeout(() => {
+      if (useKavachStore.getState().loading) {
+        console.warn("🛰️ KAVACH: Optimistic startup bypass engaged to prevent network blocking.");
+        setLoading(false);
+      }
+    }, delay);
+
+    return () => clearTimeout(loadingTimeout);
+  }, [setLoading]);
+
+  useEffect(() => {
     let unsubProfile: (() => void) | null = null;
 
-    // 🛡️ TACTICAL REDIRECT CATCH
+    // 🛰️ Handle Google Redirect result (for mobile browsers that can't use popup)
     if (!Capacitor.isNativePlatform()) {
-      getRedirectResult(auth).catch((err) => {
-        if (err.code !== 'auth/web-storage-unsupported') {
-          console.error("KAVACH Redirect Error:", err);
+      getRedirectResult(auth).then((result) => {
+        if (result?.user) {
+          console.log('✅ KAVACH: Redirect sign-in success:', result.user.email);
+          // onAuthStateChanged will handle setting user state
+        }
+      }).catch((err) => {
+        if (err.code && err.code !== 'auth/web-storage-unsupported' && err.code !== 'auth/no-auth-event') {
+          console.error('🚨 KAVACH Redirect Result Error:', err.code, err.message);
         }
       });
     }
@@ -402,13 +446,47 @@ export default function App() {
       }
 
       if (firebaseUser) {
+
         setUser(firebaseUser);
         localStorage.setItem('kavach_user_uid', firebaseUser.uid);
         const docRef = doc(db, 'users', firebaseUser.uid);
 
+        // 🏛️ ADMIN AUTO-PROVISIONING: Auto-promote to admin role if logged in with admin email
+        const userEmail = firebaseUser.email || '';
+        const isAdminEmail = userEmail === 'singh.sachin16559@gmail.com' || userEmail.toLowerCase().includes('adminsachin');
+        if (isAdminEmail) {
+          // Instantly set store state to bypass onboarding
+          setRole('admin');
+          setRegistered(true);
+          setVerified(true);
+          setIsHardwareSynced(true);
+
+          const { setDoc } = await import('firebase/firestore');
+          await setDoc(docRef, {
+            uid: firebaseUser.uid,
+            email: userEmail,
+            role: 'admin',
+            isRegistered: true,
+            isVerified: true
+          }, { merge: true }).catch(err => console.error("Admin auto-provisioning failed:", err));
+        }
+
         unsubProfile = onSnapshot(docRef, async (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+            
+            // 🛡️ TERMINAL LOCKOUT PROTOCOL: Instantly eject banned users
+            if (data.isPermanentlyBlocked) {
+              console.warn("🚨 KAVACH: Terminal lockout active. Session revoked.");
+              await signOut(auth);
+              toast.error("TERMINAL LOCKOUT: This identity is permanently blacklisted.", {
+                className: "bg-rose-950 border-rose-500 text-white font-black"
+              });
+              setUser(null);
+              setLoading(false);
+              return;
+            }
+
             let currentRole = data.role || 'citizen';
 
             // 🛡️ SOVEREIGN ROLE LOCKDOWN: Males CANNOT be Citizens (Victims) in the women safety grid.
@@ -450,13 +528,19 @@ export default function App() {
           setLoading(false);
         });
 
-        const gSnap = await getDocs(collection(db, 'users', firebaseUser.uid, 'guardians'));
-        const guardianList = gSnap.docs.map(d => ({ name: d.data().name, phone: d.data().phone }));
-        setGuardianCache(guardianList);
+        // 🚀 NON-BLOCKING BACKGROUND SYNC: Fetch guardians in the background so it never blocks app initialization
+        getDocs(collection(db, 'users', firebaseUser.uid, 'guardians'))
+          .then((gSnap) => {
+            const guardianList = gSnap.docs.map(d => ({ name: d.data().name, phone: d.data().phone }));
+            setGuardianCache(guardianList);
+            if (Capacitor.isNativePlatform() && guardianList.length > 0) {
+              KavachNative.updateGuardianContacts({ contacts: JSON.stringify(guardianList) }).catch(() => { });
+            }
+          })
+          .catch((err) => {
+            console.warn("KAVACH Background Guardian Sync failed:", err);
+          });
 
-        if (Capacitor.isNativePlatform() && guardianList.length > 0) {
-          KavachNative.updateGuardianContacts({ contacts: JSON.stringify(guardianList) }).catch(() => { });
-        }
         setLoading(false);
       } else {
         setUser(null);
@@ -478,6 +562,7 @@ export default function App() {
   const handleLogin = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
+        // 📱 Native iOS/Android: Use Capacitor Firebase Auth (no WebView restriction)
         await PushNotifications.requestPermissions();
         const result = await FirebaseAuthentication.signInWithGoogle();
         if (result.credential?.idToken) {
@@ -485,21 +570,41 @@ export default function App() {
           await signInWithCredential(auth, credential);
         }
       } else {
-        try {
-          await signInWithPopup(auth, googleProvider);
-        } catch (webErr: any) {
-          // 🛡️ TACTICAL REDIRECT FALLBACK
-          if (webErr.code === 'auth/popup-closed-by-user' || webErr.code === 'auth/network-request-failed' || webErr.code === 'auth/internal-error') {
-            toast.info("Handshake interrupted. Switching to Secure Redirect...", { duration: 4000 });
-            await signInWithRedirect(auth, googleProvider);
-            return;
+        // 🌐 Web: Detect mobile browser - use redirect (popup blocked on mobile)
+        const isMobileBrowser = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+        if (isMobileBrowser) {
+          // Mobile browser: use redirect flow
+          await signInWithRedirect(auth, googleProvider);
+        } else {
+          // Desktop browser: use popup (faster, no page reload)
+          try {
+            await signInWithPopup(auth, googleProvider);
+          } catch (popupErr: any) {
+            if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+              toast.info("Popup blocked. Redirecting to Google...");
+              await signInWithRedirect(auth, googleProvider);
+            } else {
+              throw popupErr;
+            }
           }
-          throw webErr;
         }
       }
     } catch (e: any) {
-      console.error("KAVACH Login Error:", e);
-      toast.error(e.message || "Login failed. Please check your browser's popup blocker.");
+      console.group('🚨 KAVACH LOGIN FAILED');
+      console.error('Error Code:', e?.code);
+      console.error('Error Message:', e?.message);
+      console.error('Full Error Object:', e);
+      console.groupEnd();
+
+      const errCode = e?.code || '';
+      const errMsg = e?.message || '';
+      if (errCode === 'auth/popup-closed-by-user' || errMsg.includes('popup-closed-by-user')) {
+        toast.info("Google sign-in window was closed.");
+      } else if (errCode === 'auth/cancelled-popup-request' || errMsg.includes('cancelled-popup-request')) {
+        // Ignore duplicate request cancellation
+      } else {
+        toast.error(`Login Failed: ${errCode || errMsg || 'Unknown error'}`);
+      }
     }
   };
 
@@ -509,11 +614,34 @@ export default function App() {
     setRegistered(true);
   };
 
-  // 🛰️ VETERAN SYNC: High-speed loading for returning users
   if (loading && !trackId) return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-6">
-      <div className="w-16 h-16 border-4 border-gray-100 border-t-[#2563EB] rounded-full animate-spin shadow-inner" />
-      <p className="text-xs font-bold text-gray-900 uppercase tracking-widest italic">Synchronizing Tactical Hub...</p>
+    <div className="min-h-[100svh] bg-black flex flex-col items-center justify-center font-['Outfit'] relative">
+      <div className="flex flex-col items-center justify-center flex-1">
+        <h1 className="text-6xl font-black tracking-tight mb-2 bg-gradient-to-b from-[#FF9933] via-white to-[#138808] text-transparent bg-clip-text">KAVACH</h1>
+        <p className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Loading...</p>
+        
+        {/* Failsafe Button */}
+        {showFailSafe && (
+          <button
+            onClick={() => {
+              console.warn("🚨 KAVACH TACTICAL: Manual offline bypass triggered.");
+              setLoading(false);
+            }}
+            className="mt-12 px-6 py-3 bg-[#111] border border-[#333] rounded-lg text-white text-[10px] font-bold tracking-widest uppercase active:scale-95"
+          >
+            Continue Offline →
+          </button>
+        )}
+      </div>
+
+      <div className="absolute bottom-12 flex flex-col items-center justify-center gap-1.5 opacity-60">
+        <p className="text-[9px] font-black tracking-[0.3em] text-white uppercase">Proudly Made In India</p>
+        <div className="flex gap-1 mt-0.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#FF9933]" />
+          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[#138808]" />
+        </div>
+      </div>
     </div>
   );
 
@@ -537,27 +665,66 @@ export default function App() {
         ) : (
           <>
             {isFakeCallActive && <FakeCallUI onEnd={() => setFakeCallActive(false)} />}
-            {!isLanguageSelected ? (
-              <LanguageStep onNext={() => {
-                localStorage.setItem('kavach_language_selected', 'true');
-                setIsLanguageSelected(true);
-              }} />
-            ) : !hasSeenIntro ? (
-              /* 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro AFTER interaction */
+            {!hasSeenIntro ? (
+              /* 🛡️ MANDATORY BRIEFING: Force new users to watch the cinematic intro */
               <motion.div
                 initial={{ opacity: 1 }}
                 animate={{ opacity: isIntroEnding ? 0 : 1 }}
                 transition={{ duration: 1 }}
-                className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden"
+                className="fixed inset-0 bg-black flex items-center justify-center z-[1000000] overflow-hidden cursor-pointer"
+                onClick={onIntroEnd}
               >
                 <video
                   autoPlay
                   playsInline
+                  muted={isIntroMuted}
                   onEnded={onIntroEnd}
+                  onError={onIntroEnd}
                   className="w-full h-full object-cover scale-[1.01]"
+                  ref={(el) => {
+                    if (el) {
+                      // Auto-skip after 15 seconds as failsafe
+                      setTimeout(() => { if (!isIntroEnding) onIntroEnd(); }, 15000);
+                    }
+                  }}
                 >
                   <source src="/kavachintro.mp4" type="video/mp4" />
                 </video>
+
+                {/* 🔊 PREMIUM AUDIO CONTROLLER (Bypasses Browser Autoplay Block) */}
+                <div className="absolute top-10 right-10 z-50">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsIntroMuted(prev => !prev);
+                    }}
+                    className="flex items-center gap-2.5 px-4 py-2 bg-black/40 hover:bg-black/60 border border-white/10 backdrop-blur-xl rounded-2xl text-white transition-all active:scale-95 shadow-lg group relative overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-white/[0.02] group-hover:opacity-100 transition-opacity" />
+                    
+                    {/* Pulsing indicator */}
+                    <span className="relative flex h-2 w-2">
+                      <span className={cn(
+                        "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                        isIntroMuted ? "bg-rose-400" : "bg-emerald-400"
+                      )} />
+                      <span className={cn(
+                        "relative inline-flex rounded-full h-2 w-2",
+                        isIntroMuted ? "bg-rose-500" : "bg-emerald-500"
+                      )} />
+                    </span>
+
+                    {isIntroMuted ? (
+                      <VolumeX size={15} className="text-rose-400 animate-pulse" />
+                    ) : (
+                      <Volume2 size={15} className="text-emerald-400" />
+                    )}
+
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white/90">
+                      {isIntroMuted ? "Tap for Sound" : "Mute Sound"}
+                    </span>
+                  </button>
+                </div>
 
                 {/* 🏛️ NATIONAL HUD OVERLAY */}
                 <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
@@ -569,6 +736,13 @@ export default function App() {
                     <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
                   </div>
                   <p className="text-[8px] text-white/20 font-bold uppercase tracking-[2px]">Synchronizing Sovereign Safety Matrix v4.2</p>
+                  {/* Skip button */}
+                  <button
+                    onClick={onIntroEnd}
+                    className="mt-4 px-5 py-2 border border-white/20 rounded-full text-white/40 text-[9px] font-bold uppercase tracking-widest hover:border-white/50 hover:text-white/70 transition-all"
+                  >
+                    Tap to Skip →
+                  </button>
                 </div>
 
                 <div className="absolute top-10 left-10 flex items-center gap-3 opacity-40">
@@ -577,6 +751,11 @@ export default function App() {
                   <span className="text-[8px] text-white font-black uppercase tracking-widest">KAVACH HQ</span>
                 </div>
               </motion.div>
+            ) : !isLanguageSelected ? (
+              <LanguageStep onNext={() => {
+                localStorage.setItem('kavach_language_selected', 'true');
+                setIsLanguageSelected(true);
+              }} />
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
             ) : isSOSActive ? (
@@ -601,6 +780,8 @@ export default function App() {
                   isReturningUser={isRegistered && !isHardwareSynced}
                 />
               </div>
+            ) : (!isVerified && user?.email !== 'singh.sachin16559@gmail.com') ? (
+              <VerificationPendingGate user={user} profile={profile} />
             ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : (
@@ -612,7 +793,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && !trackId && isRegistered && isHardwareSynced) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && role !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || user?.email === 'singh.sachin16559@gmail.com')) && createPortal(
         <>
           <motion.nav
             initial={{ y: 120, opacity: 0 }}
@@ -649,13 +830,6 @@ export default function App() {
                   <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Users size={20} />} label="Community" />
                   <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={20} />} label="Safety Tips" />
                   <NavButton active={activeTab === 'grievance'} onClick={() => setActiveTab('grievance')} icon={<AlertTriangle size={20} />} label="Reports" />
-                </>
-              )}
-              {role === 'admin' && (
-                <>
-                  <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Admin" />
-                  <NavButton active={activeTab === 'verify'} onClick={() => setActiveTab('verify')} icon={<UserCheck size={20} />} label="Verify" />
-                  <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Trophy size={20} />} label="Audits" />
                 </>
               )}
             </div>
@@ -708,7 +882,7 @@ export default function App() {
 function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onToggleGhost: () => void }) {
   const { activeTab, role, isLocked, handleManualUnlock, isVerified } = useKavachStore();
   const isSystemAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
-  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
+  const [useMapboxFallback, setUseMapboxFallback] = useState(true);
 
   const renderTab = (tab: string) => {
     const isVisible = activeTab === tab;

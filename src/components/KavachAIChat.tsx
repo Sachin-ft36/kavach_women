@@ -133,7 +133,7 @@ export default function KavachAIChat({ isOpen, onClose }: { isOpen: boolean; onC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-0">
+    <div className="fixed inset-0 z-[2000000] flex items-center justify-center p-0">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#080000]" />
       
       <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }} className="relative w-full h-full bg-white flex flex-col shadow-2xl overflow-hidden">

@@ -127,8 +127,8 @@ export default function ProtectorVerify() {
           </div>
         </div>
 
-        {/* AI AUTO VERIFICATION SYSTEM */}
-        <div className="relative z-10 mt-6 border-t border-white/10 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* AI AUTO VERIFICATION SYSTEM - Commented out until API integration is complete */}
+        {/* <div className="relative z-10 mt-6 border-t border-white/10 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
               <Database size={16} className="text-accent-blue" />
@@ -161,7 +161,7 @@ export default function ProtectorVerify() {
           >
             Run Auto-Clearance Scan
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Search */}
@@ -208,8 +208,6 @@ export default function ProtectorVerify() {
                     <span className="truncate">{p.email}</span>
                     <span className="hidden sm:inline">•</span>
                     <span className="text-white tracking-widest">{p.phoneNumber || 'NO PHONE'}</span>
-                    <span className="hidden sm:inline">•</span>
-                    <span className="text-white tracking-widest">AADHAAR: {p.aadhaar ? `**** ${p.aadhaar.slice(-4)}` : 'N/A'}</span>
                   </div>
                 </div>
               </div>

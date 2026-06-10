@@ -5,4 +5,7 @@
     <string name="package_name">com.kavach.app</string>
     <string name="custom_url_scheme">com.kavach.app</string>
     <string name="accessibility_service_description">Provides physical panic button capabilities and overrides screen lock for distress signals.</string>
+    <!-- Required by @capacitor-firebase/authentication for native Google Sign-In on Android -->
+    <!-- Without this, Google Sign-In falls back to WebView which is blocked by Google (Error 403) -->
+    <string name="default_web_client_id">1052169617522-6ubmqvfcifqejt7bd4tae0h8tscuao7o.apps.googleusercontent.com</string>
 </resources>

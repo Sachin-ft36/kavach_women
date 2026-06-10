@@ -22,15 +22,21 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
   };
 
   const langs = [
-    { id: 'en', label: 'English', sub: 'Primary' },
     { id: 'hi', label: 'हिन्दी', sub: 'Hindi' },
+    { id: 'en', label: 'English', sub: 'Primary' },
     { id: 'hinglish', label: 'Hinglish', sub: 'Hinglish' },
     { id: 'ml', label: 'മലയാളം', sub: 'Malayalam' },
     { id: 'pa', label: 'ਪੰਜਾਬੀ', sub: 'Punjabi' },
     { id: 'mr', label: 'मराठी', sub: 'Marathi' },
     { id: 'ta', label: 'தமிழ்', sub: 'Tamil' },
     { id: 'bn', label: 'বাংলা', sub: 'Bengali' },
-    { id: 'gu', label: 'ગુજરાતી', sub: 'Gujarati' }
+    { id: 'gu', label: 'ગુજરાતી', sub: 'Gujarati' },
+    { id: 'te', label: 'తెలుగు', sub: 'Telugu' },
+    { id: 'kn', label: 'ಕನ್ನಡ', sub: 'Kannada' },
+    { id: 'or', label: 'ଓଡ଼ିଆ', sub: 'Odia' },
+    { id: 'as', label: 'অসমীয়া', sub: 'Assamese' },
+    { id: 'ur', label: 'اردو', sub: 'Urdu' },
+    { id: 'bho', label: 'भोजपुरी', sub: 'Bhojpuri' }
   ];
 
   return (
@@ -40,12 +46,12 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
       className="flex-1 flex flex-col items-center justify-between min-h-0 space-y-4 py-4 px-6 overflow-y-auto"
     >
       <div className="flex flex-col items-center space-y-4 pt-2">
-        <div className="w-16 h-16 bg-white rounded-[20px] flex items-center justify-center shadow-lg border border-border">
-          <Globe className="text-[#2563EB]" size={32} />
+        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md border border-border">
+          <Globe className="text-[#2563EB]" size={24} />
         </div>
 
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
             KAVACH Language
           </h1>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[2px]">
@@ -54,7 +60,7 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 w-full max-w-sm">
+      <div className="grid grid-cols-3 gap-2 w-full max-w-sm notranslate">
         {langs.map((l) => (
           <button
             key={l.id}
@@ -92,18 +98,18 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
         <div className="space-y-4">
           <button 
             onClick={handleProceed}
-            className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-bold text-base shadow-lg shadow-[#2563EB]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+            className="w-full bg-[#2563EB] text-white py-4 px-4 rounded-2xl font-bold text-sm shadow-lg shadow-[#2563EB]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group overflow-hidden"
           >
-            <span>Confirm & Proceed</span>
-            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            <span className="truncate min-w-0">Confirm & Proceed</span>
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform shrink-0" />
           </button>
           
-          <div className="flex flex-col items-center gap-3 opacity-60">
+          <div className="flex flex-col items-center gap-3 opacity-90">
             <div className="flex items-center gap-3">
-              <img src="/digitalindia.png" alt="Digital India" className="h-10 w-auto object-contain grayscale" />
+              <img src="/Made-In-India-Lion-PNG-Cutout.png" alt="Made in India" className="h-10 w-auto object-contain" />
             </div>
             <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6 leading-relaxed">
-              © 2024 Unique Identification Authority of India (UIDAI)<br/>Ministry of Electronics & IT
+              National Emergency Response Grid<br/>Ministry of Electronics & IT
             </p>
           </div>
         </div>

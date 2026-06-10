@@ -154,6 +154,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
           lastActive: serverTimestamp()
         });
       }
+      sessionStorage.setItem('kavach_dev_logout', 'true');
       await signOut(auth);
       localStorage.clear();
       window.location.reload();
@@ -162,7 +163,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     }
   };
 
-  const userPhoto = user?.photoURL || userData?.photoURL;
+  const userPhoto = userData?.photoUrl || userData?.photoURL || user?.photoURL;
   const uid = userData?.aadhaarMasked || 'XXXX-XXXX-XXXX';
   const gender = userData?.gender || 'female';
   const displayName = user?.displayName || userData?.name || t('kavach_user');
@@ -251,8 +252,8 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && !isSOSBlocked && (
         <header className="relative z-[150] flex justify-between items-center mb-4 sm:mb-8 max-w-7xl mx-auto px-1">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-500 overflow-hidden border border-[#F1F5F9]">
-              <img src="/logo.jpg" alt="KAVACH" className="w-full h-full object-contain" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center overflow-hidden">
+              <img src="/logo.jpeg" alt="KAVACH" className="w-full h-full object-cover rounded-full" />
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-tight">{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
@@ -282,7 +283,8 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
                         </div>
                       </div>
                       <div className="space-y-3 py-4 border-y border-gray-100">
-                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Aadhaar Link</span><span className="text-[10px] font-bold text-gray-900">{userData?.aadhar ? `XXXXXXXX${userData.aadhar.slice(-4)}` : 'NOT LINKED'}</span></div>
+                        {/* Aadhaar details commented out until API integration is ready */}
+                        {/* <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Aadhaar Link</span><span className="text-[10px] font-bold text-gray-900">{userData?.aadhar ? `XXXXXXXX${userData.aadhar.slice(-4)}` : 'NOT LINKED'}</span></div> */}
                         <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone</span><span className="text-[10px] font-bold text-gray-900">{userData?.phoneNumber ? `+91 ${userData.phoneNumber.slice(-10)}` : 'UNLINKED'}</span></div>
                         <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Shield Status</span><span className="text-[10px] font-bold text-accent-green uppercase tracking-widest">SECURE</span></div>
                         <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gender</span><span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">{userData?.gender || 'FEMALE'}</span></div>

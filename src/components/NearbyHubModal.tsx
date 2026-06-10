@@ -392,13 +392,13 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
 
           {/* 🚨 NATIONAL HELPLINES */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => window.open('tel:1090')} className="p-3 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
-              <span className="text-[10px] text-fuchsia-400 font-black uppercase tracking-widest">Women Helpline</span>
-              <span className="text-lg font-black text-white italic">1090</span>
+            <button onClick={() => window.open('tel:1090')} className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+              <span className="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest">Women Helpline</span>
+              <span className="text-xl font-black text-white italic">1090</span>
             </button>
-            <button onClick={() => window.open('tel:1930')} className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
-              <span className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Cyber Crime</span>
-              <span className="text-lg font-black text-white italic">1930</span>
+            <button onClick={() => window.open('tel:1930')} className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+              <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Cyber Crime</span>
+              <span className="text-xl font-black text-white italic">1930</span>
             </button>
           </div>
 
@@ -418,11 +418,11 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
             <div className="grid gap-3">
               {livePcrs.length > 0 ? livePcrs.map((pcr, idx) => (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.08 }}
+                  transition={{ delay: idx * 0.05 }}
                   key={idx}
-                  className="p-5 bg-blue-950/20 border border-blue-500/20 rounded-3xl space-y-4 shadow-lg shadow-blue-950/10"
+                  className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl space-y-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -433,20 +433,23 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
                         <MapPin size={10} /> {pcr.dist} AWAY • {pcr.status}
                       </p>
                     </div>
-                    <div className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
-                      <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest animate-pulse">ON-DUTY</span>
+                    <div className="px-2 py-1 bg-[#1A1A1D] border border-[#3A3A3D] rounded-md">
+                      <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">ON-DUTY</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                      <Phone size={12} /> Emergency Call
+                    <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                      <Phone size={12} /> Emergency
                     </button>
                     <button
                       onClick={() => {
-                        const dest = `${pcr.lat},${pcr.lng}`;
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                        useKavachStore.getState().setPendingNavigationTarget({
+                          lat: pcr.lat,
+                          lng: pcr.lng,
+                          name: pcr.name
+                        });
                       }}
-                      className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                      className="py-3 bg-[#1A1A1D] border border-[#3A3A3D] hover:bg-[#2A2A2D] text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
                     >
                       <Navigation size={12} /> Track Route
                     </button>
@@ -475,11 +478,11 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
             <div className="grid gap-3">
               {policeStations.length > 0 ? policeStations.map((station, idx) => (
                 <motion.div
-                  initial={{ opacity: 0, x: -10 }}
+                  initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
+                  transition={{ delay: idx * 0.05 }}
                   key={idx}
-                  className="p-5 bg-white/5 border border-white/10 rounded-3xl space-y-4"
+                  className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl space-y-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -488,22 +491,25 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
                         <MapPin size={10} /> {station.dist} AWAY • {station.status}
                       </p>
                     </div>
-                    <div className="px-2 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md">
-                      <span className="text-[8px] font-black text-cyan-400 uppercase tracking-widest">Official</span>
+                    <div className="px-2 py-1 bg-[#1A1A1D] border border-[#3A3A3D] rounded-md">
+                      <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-widest">Official</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => window.open(`tel:${station.phone}`)} className="py-2.5 bg-white text-black rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                    <button onClick={() => window.open(`tel:${station.phone}`)} className="py-3 bg-white text-black rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-gray-200">
                       <Phone size={12} /> Call
                     </button>
                     <button
                       onClick={() => {
-                        const dest = (station.lat && station.lng)
-                          ? `${station.lat},${station.lng}`
-                          : encodeURIComponent(station.name);
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+                        if (station.lat && station.lng) {
+                          useKavachStore.getState().setPendingNavigationTarget({
+                            lat: station.lat,
+                            lng: station.lng,
+                            name: station.name
+                          });
+                        }
                       }}
-                      className="py-2.5 bg-white/5 border border-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                      className="py-3 bg-[#1A1A1D] border border-[#3A3A3D] hover:bg-[#2A2A2D] text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
                     >
                       <Navigation size={12} /> Navigate
                     </button>

@@ -55,15 +55,14 @@ export default function ProtectorsRadarScreen() {
     return () => unsubscribe();
   }, []);
 
-  const [activeRadius, setActiveRadius] = useState(1.0);
+  const [activeRadius, setActiveRadius] = useState(5.0);
 
-  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Recursive scan from 1km to 5km
+  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Direct 5km scan
   useEffect(() => {
     if (!userPos || allProtectors.length === 0) return;
 
-    const layers = [1.0, 2.0, 3.0, 4.0, 5.0];
     let foundProtectors: any[] = [];
-    let currentRadius = 1.0;
+    let currentRadius = 5.0;
 
     const allWithDistance = allProtectors.map(p => {
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude || (p.coords && p.coords[0]);
@@ -72,19 +71,9 @@ export default function ProtectorsRadarScreen() {
       return { ...p, distanceKm };
     });
 
-    // 🛰️ RECURSIVE SEARCH: Find the smallest radius with active units
-    for (const radius of layers) {
-      const filtered = allWithDistance
-        .filter(p => p.distanceKm !== null && p.distanceKm <= radius)
-        .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
-      
-      if (filtered.length > 0) {
-        foundProtectors = filtered;
-        currentRadius = radius;
-        break;
-      }
-      currentRadius = radius; // Default to the largest scanned even if 0
-    }
+    foundProtectors = allWithDistance
+      .filter(p => p.distanceKm !== null && p.distanceKm <= currentRadius)
+      .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
 
     setNearbyProtectors(foundProtectors);
     setActiveRadius(currentRadius);
@@ -108,7 +97,7 @@ export default function ProtectorsRadarScreen() {
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-[#22C55E] rounded-full animate-pulse" />
-               <p className="text-[7px] sm:text-[9px] text-[#64748B] font-bold uppercase tracking-widest leading-none truncate">1KM Perimeter // Live</p>
+               <p className="text-[7px] sm:text-[9px] text-[#64748B] font-bold uppercase tracking-widest leading-none truncate">5KM Perimeter // Live</p>
             </div>
           </div>
         </div>

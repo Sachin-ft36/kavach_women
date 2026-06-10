@@ -17,10 +17,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { db, auth, handleFirestoreError } from '../firebase';
 import { collection, query, onSnapshot, where, limit } from 'firebase/firestore';
+import { useLanguage } from '../contexts/LanguageContext';
 
 import ZeroFIR from './ZeroFIR';
 
 export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
+  const { t } = useLanguage();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [firs, setFirs] = useState<any[]>([]);
@@ -192,8 +194,11 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
           });
 
           const unusedLogs = logs.filter(log => !usedEvidenceIds.has(log.id) && !usedEvidenceIds.has(log.hash));
+          
+          // 🔥 Only attach the absolute latest evidence to the FIR to prevent old test data from mixing
+          const latestUnusedLogs = unusedLogs.length > 0 ? [unusedLogs[0]] : [];
 
-          return <ZeroFIR evidenceLogs={unusedLogs} />;
+          return <ZeroFIR evidenceLogs={latestUnusedLogs} />;
         })()}
 
         {/* 📋 COMPLAINT HISTORY SECTION */}
@@ -283,7 +288,7 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
               <div className="w-14 h-14 bg-[#2563EB] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-[#2563EB]/30">
                 <Lock size={28} strokeWidth={1.5} />
               </div>
-              <h3 className="text-2xl font-bold text-[#1E293B]">Secure Evidence Vault</h3>
+              <h3 className="text-2xl font-bold text-[#1E293B]">{t('vault')}</h3>
             </div>
 
             <p className="text-sm sm:text-base text-[#475569] leading-relaxed max-w-2xl mb-10">
@@ -317,53 +322,117 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
           
           <div className="grid gap-4">
             {logs.length > 0 ? (
-              logs.map((log) => {
-                const firsWithThisEvidence = firs.filter(f => 
-                  f.evidence?.some((ev: any) => ev.id === log.id || ev.hash === log.hash)
-                );
-                const isLinked = firsWithThisEvidence.length > 0;
+              <>
+                {/* 🔴 LATEST RECORD */}
+                <div className="mb-4">
+                  {[logs[0]].map((log) => {
+                    const firsWithThisEvidence = firs.filter(f => 
+                      f.evidence?.some((ev: any) => ev.id === log.id || ev.hash === log.hash)
+                    );
+                    const isLinked = firsWithThisEvidence.length > 0;
 
-                return (
-                  <motion.div
-                    key={log.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/60 backdrop-blur-md border border-[#F1F5F9] rounded-[24px] p-4 flex items-center justify-between group hover:bg-white transition-all shadow-sm"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
-                        log.type?.includes('SOS') ? "bg-red-50 text-red-500 border-red-100" : "bg-blue-50 text-blue-500 border-blue-100"
-                      )}>
-                        {log.type?.includes('Audio') ? <Mic size={20} /> : <Video size={20} />}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-[#1E293B] text-sm truncate">{log.type}</h4>
-                          {isLinked && (
-                            <span className="px-2 py-0.5 bg-emerald-50 text-[#059669] border border-emerald-100 rounded-md text-[8px] font-black uppercase tracking-tighter">
-                              Linked to Case
-                            </span>
-                          )}
+                    return (
+                      <motion.div
+                        key={log.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-red-50/50 backdrop-blur-md border border-red-100 rounded-[24px] p-5 flex items-center justify-between group hover:bg-white transition-all shadow-sm"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
+                            log.type?.includes('SOS') ? "bg-red-50 text-red-500 border-red-200" : "bg-blue-50 text-blue-500 border-blue-200"
+                          )}>
+                            {log.type?.includes('Audio') ? <Mic size={20} /> : <Video size={20} />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-[#1E293B] text-sm truncate">LATEST: {log.type}</h4>
+                              {isLinked && (
+                                <span className="px-2 py-0.5 bg-emerald-50 text-[#059669] border border-emerald-100 rounded-md text-[8px] font-black uppercase tracking-tighter">
+                                  Linked to Case
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
-                      </div>
-                    </div>
+                        <div className="flex items-center gap-2">
+                           {log.url && (
+                             <button 
+                               onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
+                               className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
+                             >
+                               <Download size={16} />
+                             </button>
+                           )}
+                           <span className="text-[10px] font-mono text-gray-400 font-bold pr-2">#{log.hash.slice(0,8)}</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
 
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                       {log.url && (
-                         <button 
-                           onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
-                           className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
-                         >
-                           <Download size={16} />
-                         </button>
-                       )}
-                       <span className="text-[10px] font-mono text-gray-300 font-bold pr-2">#{log.hash.slice(0,8)}</span>
+                {/* 🕰️ HISTORY RECORDS */}
+                {logs.length > 1 && (
+                  <details className="group">
+                    <summary className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl cursor-pointer list-none select-none hover:bg-gray-100 transition-colors">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        View Past Evidence History ({logs.length - 1})
+                      </span>
+                      <span className="text-gray-400 group-open:rotate-180 transition-transform duration-300">▼</span>
+                    </summary>
+                    <div className="grid gap-3 mt-4 pl-2 border-l-2 border-gray-100">
+                      {logs.slice(1).map((log) => {
+                        const firsWithThisEvidence = firs.filter(f => 
+                          f.evidence?.some((ev: any) => ev.id === log.id || ev.hash === log.hash)
+                        );
+                        const isLinked = firsWithThisEvidence.length > 0;
+
+                        return (
+                          <motion.div
+                            key={log.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="bg-white/60 backdrop-blur-md border border-[#F1F5F9] rounded-[20px] p-3 flex items-center justify-between group/item hover:bg-white transition-all shadow-sm"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={cn(
+                                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+                                log.type?.includes('SOS') ? "bg-red-50 text-red-400 border-red-50" : "bg-blue-50 text-blue-400 border-blue-50"
+                              )}>
+                                {log.type?.includes('Audio') ? <Mic size={16} /> : <Video size={16} />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-gray-600 text-xs truncate">{log.type}</h4>
+                                  {isLinked && (
+                                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[7px] font-black uppercase tracking-tighter">
+                                      Linked
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-all">
+                               {log.url && (
+                                 <button 
+                                   onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
+                                   className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
+                                 >
+                                   <Download size={14} />
+                                 </button>
+                               )}
+                               <span className="text-[8px] font-mono text-gray-300 font-bold pr-1">#{log.hash.slice(0,8)}</span>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
-                  </motion.div>
-                );
-              })
+                  </details>
+                )}
+              </>
             ) : (
               <div className="bg-white/40 backdrop-blur-sm border-2 border-dashed border-[#F1F5F9] rounded-[32px] p-10 sm:p-20 flex flex-col items-center text-center gap-6">
                 <div className="relative">

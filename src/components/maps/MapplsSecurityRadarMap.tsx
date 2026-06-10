@@ -164,7 +164,6 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
               height: ${markerSize}; 
               border-radius: 50%; 
               border: 2px solid white; 
-              box-shadow: 0 0 15px ${markerGlow}; 
             "></div>`;
 
         if (!markersRef.current[pid]) {
@@ -190,36 +189,13 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
           width: 16px; height: 16px;
           background: #FFF; border: 3px solid #0A84FF;
           border-radius: 50%; position: relative;
-          box-shadow: 0 0 15px rgba(10,132,255,0.8);
           margin: 8px;
-        }
-        .pulse-marker-user::after {
-          content: ''; position: absolute;
-          top: -10px; left: -10px; right: -10px; bottom: -10px;
-          border-radius: 50%; border: 2px solid rgba(10,132,255,0.8);
-          animation: radarPulse 1.5s ease-out infinite;
         }
         .pulse-marker-responder {
           width: 16px; height: 16px;
           background: #10B981; border: 3px solid white;
           border-radius: 50%; position: relative;
-          box-shadow: 0 0 15px rgba(16,185,129,0.8);
           margin: 10px;
-        }
-        .pulse-marker-responder::after {
-          content: ''; position: absolute;
-          top: -12px; left: -12px; right: -12px; bottom: -12px;
-          border-radius: 50%; border: 2px dashed rgba(16,185,129,0.6);
-          animation: spinPulse 3s linear infinite;
-        }
-        @keyframes radarPulse {
-          0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
-          100% { transform: scale(2.5); opacity: 0; border-width: 1px; }
-        }
-        @keyframes spinPulse {
-          0% { transform: rotate(0deg) scale(1); }
-          50% { transform: rotate(180deg) scale(1.2); }
-          100% { transform: rotate(360deg) scale(1); }
         }
       `}</style>
       <div id={mapId} className="absolute inset-0 w-full h-full" />

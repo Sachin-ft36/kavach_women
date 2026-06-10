@@ -63,12 +63,7 @@ export const KavachSafe = {
         console.error("🚨 DISPATCH FAULT: SMS Hardware Bridge Failure:", error);
       }
     } else {
-      console.log("%c📡 KAVACH VIRTUAL HARDWARE: SMS BLAST SIMULATED", "background: #1e3a8a; color: #60a5fa; font-weight: bold; padding: 4px 8px; border-radius: 4px;");
-      console.table({
-        Targets: options.numbers.join(", "),
-        Payload: options.message,
-        Status: "✅ READY_FOR_NATIVE_DISPATCH"
-      });
+      // Web simulator: SMS not available
     }
   },
 
@@ -81,11 +76,7 @@ export const KavachSafe = {
         console.error("🚨 DISPATCH FAULT: Voice Call Bridge Failure:", error);
       }
     } else {
-      console.log("%c📞 KAVACH VIRTUAL HARDWARE: VOICE CALL SIMULATED", "background: #1e3a8a; color: #60a5fa; font-weight: bold; padding: 4px 8px; border-radius: 4px;");
-      console.table({
-        Target: options.number,
-        Status: "✅ READY_FOR_NATIVE_UPLINK"
-      });
+      // Web simulator: Call not available
     }
   },
 
@@ -97,7 +88,7 @@ export const KavachSafe = {
         console.error("🚨 HARDWARE ERROR: Unable to trigger native siren speaker:", error);
       }
     } else {
-      console.log("🔊 %c[SIMULATOR] Continuous Siren Started.", "color: #ef4444; font-weight: bold;");
+      // Web simulator: Siren not available
     }
   },
 
@@ -109,7 +100,7 @@ export const KavachSafe = {
         console.error("🚨 HARDWARE ERROR: Unable to halt native siren speaker:", error);
       }
     } else {
-      console.log("🔊 %c[SIMULATOR] Continuous Siren Stopped.", "color: #10b981;");
+      // Web simulator: Siren not available
     }
   },
 
@@ -147,7 +138,7 @@ export const KavachSafe = {
         console.error("🚨 SENTINEL CONFIG FAULT: Core Background Tracking Engine failed to start:", error);
       }
     } else {
-      console.log("🛰️ %c[SIMULATOR] Background Tracking Sentinel Engaged.", "color: #3b82f6;");
+      // Web simulator: Background sentinel not available
     }
   },
 
@@ -159,7 +150,7 @@ export const KavachSafe = {
         console.error("🚨 SENTINEL CONFIG FAULT: Core Background Tracking Engine failed to halt:", error);
       }
     } else {
-      console.log("🛰️ %c[SIMULATOR] Background Tracking Sentinel Terminated.", "color: #6b7280;");
+      // Web simulator: Background sentinel not available
     }
   },
 
@@ -191,7 +182,7 @@ export const KavachSafe = {
         console.error("🚨 FORENSIC SECURITY SYSTEM ERROR: Capture engagement drop:", error); 
       }
     } else {
-      console.log("📹 %c[SIMULATOR] Ambient Microphone and Camera Forensic Capture active.", "color: #a855f7;");
+      // Web simulator: Forensic capture not available
     }
   },
 
@@ -203,7 +194,7 @@ export const KavachSafe = {
         console.error("🚨 FORENSIC SECURITY SYSTEM ERROR: Capture seal drop:", error); 
       }
     } else {
-      console.log("📹 %c[SIMULATOR] Ambient Forensic Capture sealed and vaulted.", "color: #22c55e;");
+      // Web simulator: Forensic capture not available
     }
   },
 
@@ -215,7 +206,7 @@ export const KavachSafe = {
         console.error("🚨 ACOUSTIC SENTINEL FAULT: Voice tracking failed to attach:", error);
       }
     } else {
-      console.log("🎙️ %c[SIMULATOR] Acoustic Keyword Engine listening for hot phrases...", "color: #f59e0b;");
+      // Web simulator: Voice sentinel not available
     }
   },
 
@@ -227,7 +218,7 @@ export const KavachSafe = {
         console.error("🚨 ACOUSTIC SENTINEL FAULT: Voice tracking failed to halt:", error);
       }
     } else {
-      console.log("🎙️ %c[SIMULATOR] Acoustic Keyword Engine disabled.", "color: #6b7280;");
+      // Web simulator: Voice sentinel not available
     }
   },
 
@@ -261,7 +252,7 @@ export const KavachSafe = {
         console.error("🚨 NOTIFICATION EXCEPTION: High-priority system banner drop:", error);
       }
     } else {
-      console.log(`🔔 %c[SIMULATOR ALERT] ${options.title} - ${options.body}`, "background: #b91c1c; color: white; padding: 4px; font-weight: bold;");
+      // Web simulator: Notifications not available
     }
   },
 
@@ -297,7 +288,7 @@ export const KavachSafe = {
         console.error("🚨 STEALTH BRIDGE ERROR:", error);
       }
     } else {
-      console.log(`🕶️ %c[SIMULATOR] App Stealth Mode: ${options.enabled ? 'ENGAGED' : 'DISENGAGED'}`, "color: #9333ea;");
+      // Web simulator: Stealth mode not available
     }
   },
 
@@ -309,7 +300,7 @@ export const KavachSafe = {
         console.error("🚨 NATIVE TIMER ERROR:", error);
       }
     } else {
-      console.log(`⏱️ %c[SIMULATOR] Native Safe Timer Started for ${options.durationMins} minutes.`, "color: #f59e0b;");
+      // Web simulator: Safe timer not available
     }
   },
 
@@ -321,7 +312,7 @@ export const KavachSafe = {
         console.error("🚨 NATIVE TIMER ERROR:", error);
       }
     } else {
-      console.log("⏱️ %c[SIMULATOR] Native Safe Timer Stopped.", "color: #10b981;");
+      // Web simulator: Safe timer not available
     }
   },
 
@@ -333,7 +324,7 @@ export const KavachSafe = {
         console.error("🚨 NATIVE FAKE CALL ERROR:", error);
       }
     } else {
-      console.log(`📞 %c[SIMULATOR] Scheduled Fake Call natively in ${options.delaySeconds} seconds.`, "color: #f59e0b;");
+      // Web simulator: Fake call not available
     }
   },
 

@@ -69,6 +69,7 @@ import { NeuralAnalytics } from './supercell/NeuralAnalytics';
 import { BanAppeals } from './supercell/BanAppeals';
 import { ProtectorReportsLedger } from './supercell/ProtectorReportsLedger';
 import { ShiftLogs } from './supercell/ShiftLogs';
+import { VettingDesk } from './supercell/VettingDesk';
 
 const INDIAN_STATES_AND_UTS = [
   'Andaman and Nicobar Islands',
@@ -167,6 +168,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [selectedFir, setSelectedFir] = useState<any>(null);
   const [isFirModalOpen, setIsFirModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => { } });
+  const [selectedVettingUserId, setSelectedVettingUserId] = useState<string | null>(null);
 
   // 🗺️ STATE SHARD FILTERING ENGINE
   const [selectedState, setSelectedState] = useState<string>(() => localStorage.getItem('kavach_selected_state') || 'ALL');
@@ -599,7 +601,11 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
                 selectedState={selectedState}
                 isSovereignActive={isSovereignActive}
                 onNavigate={(tab, alertId) => {
-                  if (alertId) setSelectedAlertId(alertId);
+                  if (tab === 'VERIFICATION') {
+                    if (alertId) setSelectedVettingUserId(alertId);
+                  } else {
+                    if (alertId) setSelectedAlertId(alertId);
+                  }
                   const viewMap: Record<string, string> = {
                     'ALERTS': 'SOS',
                     'SAFETY': 'SOS',
@@ -636,6 +642,16 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             )}
           </div>
         );
+      case 'VERIFICATION':
+        return (
+          <VettingDesk 
+            userStatusMap={userStatusMap} 
+            selectedState={selectedState} 
+            detectedAdminDistrict={detectedAdminDistrict}
+            initialSelectedUserId={selectedVettingUserId}
+            onSelectUser={(uid) => setSelectedVettingUserId(uid)}
+          />
+        );
       case 'SOS':
         return (
           <SOSManagement
@@ -670,6 +686,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             verifiedProtectors={filteredVerifiedProtectors}
             pendingProtectors={filteredPendingProtectors}
             userStatusMap={filteredUserStatusMap}
+            onSelectPendingProtector={(id) => {
+              setSelectedVettingUserId(id);
+              onTabChange?.('VERIFICATION');
+            }}
           />
         );
       case 'TRACK':
@@ -781,6 +801,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         </div>
         <div className="flex-1 py-2 overflow-y-auto scrollbar-hide">
           <NavItem id="COMMAND" label="Dashboard" icon={LayoutDashboard} />
+          <NavItem id="VERIFICATION" label="Vetting Desk" icon={ShieldCheck} />
           <NavItem id="SOS" label="SOS Alerts" icon={Bell} />
           <NavItem id="FIR" label="FIR Reports" icon={FileText} />
           <NavItem id="PROTECTORS" label="Protectors" icon={Users} />
@@ -800,6 +821,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
             onClick={async () => {
               const { auth } = await import('../firebase');
               const { signOut } = await import('firebase/auth');
+              sessionStorage.setItem('kavach_dev_logout', 'true');
               await signOut(auth);
               localStorage.clear(); // 🏛️ SYSTEM WIPE: AUTHORIZED
               window.location.reload();

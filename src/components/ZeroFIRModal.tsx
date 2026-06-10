@@ -20,6 +20,17 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [vaultAttachments, setVaultAttachments] = useState<any[]>([]);
   const [isVaultPickerOpen, setIsVaultPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);

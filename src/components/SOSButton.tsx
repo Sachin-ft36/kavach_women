@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Phone, Mic } from 'lucide-react';
+import { Shield, Phone, Mic, Lock } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useKavachStore } from '../store/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { KavachSafe } from '../services/KavachNative';
 import { auth } from '../firebase';
+import { motion } from 'motion/react';
 
 export default function SOSButton() {
   const {
@@ -137,31 +138,47 @@ export default function SOSButton() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-12 py-4">
-      <div className="relative group">
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="absolute w-44 h-44 rounded-full bg-[#DC2626]/20" />
-          <div className="absolute w-56 h-56 rounded-full bg-[#DC2626]/10" />
-          <div className="absolute w-64 h-64 rounded-full bg-[#DC2626]/5" />
-        </div>
+    <div className="flex flex-col items-center justify-center space-y-6 py-1">
+      <div className="relative flex items-center justify-center">
 
+        {/* Soft, warm glowing protective waves (Rose/Crimson tones) */}
+        <motion.div
+          className="absolute w-64 h-64 rounded-full bg-rose-500/10 blur-xl pointer-events-none"
+          animate={{ scale: [0.95, 1.15, 0.95], opacity: [0.3, 0.6, 0.3] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute w-56 h-56 rounded-full border border-rose-500/20 bg-rose-500/5 pointer-events-none"
+          animate={{ scale: [1, 1.25, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+        />
+
+        {/* Matte-Glossy Red Emergency Button */}
         <button
           onMouseDown={handleManualTrigger}
           onMouseUp={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
           onTouchStart={handleManualTrigger}
           onTouchEnd={() => { if (timerRef.current) clearInterval(timerRef.current); setCountdown(3); }}
-          className="relative w-40 h-40 rounded-full flex flex-col items-center justify-center z-10 select-none bg-[#DC2626] shadow-[0_10px_40px_rgba(220,38,38,0.3)] active:scale-95 transition-all duration-300 overflow-hidden border-none"
+          className="relative w-44 h-44 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center z-10 select-none bg-red-600 shadow-[0_15px_45px_rgba(220,38,38,0.35)] active:scale-[0.96] transition-all duration-300 cursor-pointer overflow-hidden group"
         >
-          <div className="relative z-10 flex flex-col items-center">
-            <p className="text-white font-black text-6xl tracking-tighter leading-none">
-              {countdown < 3 ? countdown : "SOS"}
-            </p>
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-          <div className="absolute inset-0 rounded-full shadow-[inset_0_2px_10px_rgba(0,0,0,0.1)] pointer-events-none" />
+
+          {/* Delicate protective grid pattern overlay */}
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8),transparent_80%)]" />
+
+          {/* Glowing Shield Badge above SOS */}
+          <Shield size={16} className="text-white/95 mb-1.5 z-10 drop-shadow-md animate-pulse" />
+
+          <p className="text-white font-black text-5xl sm:text-6xl tracking-tight leading-none select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+            {countdown < 3 ? countdown : "SOS"}
+          </p>
+
+          <p className="text-[7.5px] sm:text-[8.5px] font-extrabold text-white/90 uppercase tracking-[3px] mt-2 select-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+            {countdown < 3 ? "HOLDING..." : "PRESS & HOLD"}
+          </p>
+
           {shakeProgress > 0 && (
-            <div className="absolute -bottom-4 w-40 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
-              <div className="h-full bg-[#DC2626] transition-all duration-300" style={{ width: `${shakeProgress}%` }} />
+            <div className="absolute bottom-6 w-20 h-1 bg-white/30 rounded-full overflow-hidden z-20">
+              <div className="h-full bg-white transition-all duration-300" style={{ width: `${shakeProgress}%` }} />
             </div>
           )}
         </button>
@@ -169,41 +186,32 @@ export default function SOSButton() {
 
       <div className="flex flex-col items-center gap-6 z-10 w-full max-w-sm px-6">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-1.5 bg-[#DC2626] rounded-full" />
-          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[2px]">Hold 3s or Shake to Blast</p>
+          <div className="w-1.5 h-1.5 bg-[#DC2626] rounded-full shrink-0" />
+          <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest whitespace-nowrap">Power Button 3x or Shake to Blast</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
           <button
             onClick={() => setFakeCallActive(true)}
-            className="py-2.5 px-3 bg-white/5 border border-white/10 rounded-[20px] flex items-center gap-3 hover:bg-white/10 active:scale-95 transition-all shadow-sm group"
+            className="py-3 px-4 bg-gray-800 rounded-2xl flex items-center gap-3 active:scale-95 transition-transform"
           >
-            <div className="w-8 h-8 bg-[#2563EB]/20 rounded-lg flex items-center justify-center text-[#2563EB] group-hover:bg-[#2563EB] group-hover:text-white transition-all">
-              <Phone size={14} />
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Fake Call</span>
+            <Phone size={14} className="text-blue-500 shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Fake Call</span>
           </button>
 
           <button
             onClick={() => setVoiceTriggerActive(!isVoiceTriggerActive)}
             className={cn(
-              "py-2.5 px-3 border rounded-[20px] flex items-center gap-3 relative overflow-hidden active:scale-95 transition-all shadow-sm group",
-              isVoiceTriggerActive
-                ? "bg-[#2563EB]/10 border-[#2563EB] shadow-[0_0_15px_rgba(37,99,235,0.1)]"
-                : "bg-white/5 border-white/10 hover:bg-white/10"
+              "py-3 px-4 rounded-2xl flex items-center gap-3 active:scale-95 transition-transform",
+              isVoiceTriggerActive ? "bg-blue-600" : "bg-gray-800"
             )}
           >
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-              isVoiceTriggerActive ? "bg-[#2563EB] text-white" : "bg-white/5 text-white/20"
-            )}>
-              <Mic size={14} />
-            </div>
+            <Mic size={14} className={cn("shrink-0", isVoiceTriggerActive ? "text-white" : "text-gray-400")} />
             <span className={cn(
-              "text-[9px] font-black uppercase tracking-widest",
-              isVoiceTriggerActive ? "text-[#2563EB]" : "text-white/50"
+              "text-[10px] font-bold uppercase tracking-widest",
+              isVoiceTriggerActive ? "text-white" : "text-gray-300"
             )}>
-              {isVoiceTriggerActive ? "On" : "Voice"}
+              {isVoiceTriggerActive ? "Voice On" : "Voice Off"}
             </span>
           </button>
         </div>

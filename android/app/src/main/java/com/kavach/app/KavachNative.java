@@ -138,35 +138,52 @@ public class KavachNative extends Plugin {
     @PluginMethod
     public void requestLockScreenPermission(PluginCall call) {
         String manufacturer = android.os.Build.MANUFACTURER.toLowerCase();
-        Intent intent = new Intent();
-        boolean isSupported = false;
+        java.util.List<Intent> intentsToTry = new java.util.ArrayList<>();
 
         if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
-            intent.setAction("miui.intent.action.APP_PERM_EDITOR");
-            intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
-            intent.putExtra("extra_pkgname", getContext().getPackageName());
-            isSupported = true;
+            Intent i1 = new Intent("miui.intent.action.APP_PERM_EDITOR");
+            i1.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
+            i1.putExtra("extra_pkgname", getContext().getPackageName());
+            intentsToTry.add(i1);
+
+            Intent i2 = new Intent();
+            i2.setClassName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity");
+            intentsToTry.add(i2);
         } else if (manufacturer.contains("oppo") || manufacturer.contains("realme")) {
-            intent.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionManagerActivity");
-            isSupported = true;
+            Intent i1 = new Intent(); i1.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionManagerActivity"); intentsToTry.add(i1);
+            Intent i2 = new Intent(); i2.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"); intentsToTry.add(i2);
+            Intent i3 = new Intent(); i3.setClassName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"); intentsToTry.add(i3);
+            Intent i4 = new Intent(); i4.setClassName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"); intentsToTry.add(i4);
         } else if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
-            intent.setClassName("com.iqoo.secure", "com.iqoo.secure.ui.PermissionManagerActivity");
-            isSupported = true;
+            Intent i1 = new Intent(); i1.setClassName("com.iqoo.secure", "com.iqoo.secure.ui.PermissionManagerActivity"); intentsToTry.add(i1);
+            Intent i2 = new Intent(); i2.setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"); intentsToTry.add(i2);
+            Intent i3 = new Intent(); i3.setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity"); intentsToTry.add(i3);
+            Intent i4 = new Intent(); i4.setClassName("com.iqoo.secure", "com.iqoo.secure.MainActivity"); intentsToTry.add(i4);
         }
 
-        if (isSupported) {
+        boolean launched = false;
+        for (Intent intent : intentsToTry) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getContext().startActivity(intent);
-                call.resolve();
+                launched = true;
+                break;
             } catch (Exception e) {
-                Log.w(TAG, "OEM Lock Screen Permission activity not found for: " + manufacturer, e);
-                call.reject("Not found");
+                // Ignore and try next
             }
-        } else {
-            // Not a supported Chinese OEM or standard Android handles it
-            call.resolve();
         }
+
+        if (!launched) {
+            // Ultimate fallback for Chinese OEMs if all specific intents fail (e.g. Android 15 changes)
+            try {
+                Intent fallback = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(fallback);
+            } catch (Exception e) {
+                Log.w(TAG, "All OEM Lock Screen Permission intents failed for: " + manufacturer, e);
+            }
+        }
+        call.resolve();
     }
 
     @PluginMethod
@@ -420,6 +437,33 @@ public class KavachNative extends Plugin {
             ret.put("granted", android.provider.Settings.canDrawOverlays(getContext()));
         } else { ret.put("granted", true); }
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void hasFullScreenIntentPermission(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+            android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+            ret.put("granted", nm.canUseFullScreenIntent());
+        } else {
+            ret.put("granted", true);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openFullScreenIntentSettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+            } catch (Exception e) {
+                call.reject("Could not open full screen intent settings: " + e.getMessage());
+            }
+        }
+        call.resolve();
     }
 
     // ── SOS Trigger Bridge ────────────────────────────────────────────────

@@ -1163,27 +1163,21 @@ export function NationalOverview({
                                </div>
                             ) : (
                                pendingProtectors.map((prot, i) => (
-                                  <div key={prot.id} className="bg-white/5 border border-white/5 rounded-[1.25rem] p-3 group hover:border-amber-500/30 transition-all">
-                                     <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 font-black italic text-xs">
+                                  <div 
+                                     key={prot.id} 
+                                     onClick={() => onNavigate?.('VERIFICATION', prot.id)}
+                                     className="bg-white/5 border border-white/5 rounded-[1.25rem] p-3.5 group hover:border-blue-500/40 hover:bg-white/[0.08] transition-all cursor-pointer flex items-center justify-between"
+                                  >
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 font-black italic text-sm transition-colors group-hover:bg-blue-500/10 group-hover:text-blue-400 group-hover:border-blue-500/20">
                                            {prot.name?.charAt(0) || 'P'}
                                         </div>
                                         <div>
-                                           <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight leading-none">{prot.name || 'New Node'}</h4>
-                                           <p className="text-[11px] text-gray-500 font-bold tracking-widest mt-1">{prot.phone || 'NO CONTACT'}</p>
+                                           <h4 className="text-[13px] font-black text-white uppercase italic tracking-tight leading-none group-hover:text-blue-400 transition-colors">{prot.name || 'New Node'}</h4>
+                                           <p className="text-[11px] text-gray-500 font-bold tracking-widest mt-1.5">{prot.phone || 'NO CONTACT'}</p>
                                         </div>
                                      </div>
-                                     <div className="flex gap-2">
-                                        <button 
-                                           onClick={() => onApproveProtector?.(prot.id)}
-                                           className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 rounded-lg text-[14px] font-black uppercase tracking-widest transition-all"
-                                        >
-                                           Approve
-                                        </button>
-                                        <button className="flex-1 py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 rounded-lg text-[14px] font-black uppercase tracking-widest transition-all">
-                                           Reject
-                                        </button>
-                                     </div>
+                                     <ArrowRight size={14} className="text-gray-500 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-blue-400 transition-all duration-300" />
                                   </div>
                                ))
                             )}

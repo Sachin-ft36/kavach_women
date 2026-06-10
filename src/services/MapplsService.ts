@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 // Ensure strict key fallback structures to protect security perimeters
-const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
+const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
 
 /**
@@ -191,6 +191,7 @@ export const fetchRouteMappls = async (startLng: number, startLat: number, endLn
     const isNative = Capacitor.isNativePlatform();
     // NEW MAPPLS ENDPOINT FORMAT (lng,lat order)
     const routePath = `${startLng},${startLat};${endLng},${endLat}`;
+    let parsedData: any;
     if (isNative) {
       const url = `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/route_adv/driving/${routePath}?steps=true&geometries=geojson`;
       const response = await CapacitorHttp.get({ url, headers: { 'Accept': 'application/json' } });

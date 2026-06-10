@@ -4,7 +4,7 @@ import { useKavachStore } from '../../store/useKavachStore';
 import { cn } from '../../lib/utils';
 import { LocateFixed, Navigation, Activity, Layers, Compass } from 'lucide-react';
 
-const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
+const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
 
 interface MapplsCommandMapProps {
   activeAlerts: any[];
@@ -32,13 +32,15 @@ interface MapplsCommandMapProps {
 export default function MapplsCommandMap({
   activeAlerts,
   activeProtectors,
+  activeJourneys = [],
   selectedAlertId,
   selectedState,
   victimPath,
   protectorPath,
   dangerZonesKmlUrl,
   jurisdictionKmlUrl,
-  onFallback
+  onFallback,
+  onAlertClick
 }: MapplsCommandMapProps) {
   const { userPos } = useKavachStore();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -150,6 +152,16 @@ export default function MapplsCommandMap({
         searchControl: false
       });
 
+      // 🧼 Silencing Mappls sprite image missing warnings in console (e.g. agricultural_automotive)
+      mapRef.current.on('styleimagemissing', (e: any) => {
+        try {
+          const width = 16;
+          const bytesPerPixel = 4;
+          const data = new Uint8Array(width * width * bytesPerPixel);
+          mapRef.current.addImage(e.id, { width: width, height: width, data: data });
+        } catch (err) {}
+      });
+      
       // Also manually remove any auto-injected DOM controls just to be safe
       const controls = document.querySelectorAll('[class*="ctrl-top"], [class*="ctrl-bottom"], [class*="control-container"]');
       controls.forEach(c => (c as HTMLElement).style.display = 'none');
@@ -273,6 +285,8 @@ export default function MapplsCommandMap({
 
     if (selectedAlertId && selectedAlertId !== prevSelectedAlertIdRef.current) {
       const alert = activeAlerts.find(a => a.id === selectedAlertId);
+      const journey = activeJourneys.find(j => j.id === selectedAlertId || j.userId === selectedAlertId);
+
       if (alert) {
         const lat = alert.latitude || alert.lat || alert.location?.latitude || alert.location?.lat;
         const lng = alert.longitude || alert.lng || alert.location?.longitude || alert.location?.lng;
@@ -471,11 +485,75 @@ export default function MapplsCommandMap({
             console.warn("Failed to execute tactical navigation", e);
           }
         }
+      } else if (journey) {
+        const lat = journey.latitude || journey.lat || journey.lastLat || journey.currentLat || journey.location?.latitude || journey.location?.lat;
+        const lng = journey.longitude || journey.lng || journey.lastLng || journey.currentLng || journey.long || journey.location?.longitude || journey.location?.lng;
+
+        if (lat && lng && typeof mapRef.current.flyTo === 'function') {
+          mapRef.current.flyTo({ center: [lng, lat], zoom: 15, pitch: 45, duration: 2000 });
+        }
+
+        // 🛣️ Draw safe ride navigation route if destination coords are present!
+        const destLat = journey.targetCoords?.[1] || journey.destLat || journey.destinationLatitude;
+        const destLng = journey.targetCoords?.[0] || journey.destLng || journey.destinationLongitude;
+
+        if (lat && lng && destLat && destLng) {
+          fetchRouteMappls(lng, lat, destLng, destLat)
+            .then((coords) => {
+              if (coords && coords.length > 0 && mapRef.current) {
+                const geojsonData = {
+                  type: 'Feature',
+                  properties: {},
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: coords
+                  }
+                };
+
+                if (mapRef.current.getSource('tactical-route-source')) {
+                  mapRef.current.getSource('tactical-route-source').setData(geojsonData);
+                } else {
+                  mapRef.current.addSource('tactical-route-source', { type: 'geojson', data: geojsonData });
+                  mapRef.current.addLayer({
+                    id: 'tactical-route-line',
+                    type: 'line',
+                    source: 'tactical-route-source',
+                    layout: {
+                      'line-join': 'round',
+                      'line-cap': 'round'
+                    },
+                    paint: {
+                      'line-color': '#0EA5E9',
+                      'line-width': 6,
+                      'line-opacity': 0.9
+                    }
+                  });
+                }
+              }
+            })
+            .catch((err) => {
+              console.warn("Failed to fetch journey route:", err);
+            });
+        }
+      }
+    } else if (!selectedAlertId) {
+      // Clear route source if it exists when selection is cleared
+      if (isLoaded && mapRef.current && mapRef.current.getSource && mapRef.current.getSource('tactical-route-source')) {
+        try {
+          mapRef.current.getSource('tactical-route-source').setData({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: []
+            }
+          });
+        } catch (e) {}
       }
     }
 
     prevSelectedAlertIdRef.current = selectedAlertId || null;
-  }, [selectedAlertId, activeAlerts, isLoaded, userPos]);
+  }, [selectedAlertId, activeAlerts, activeJourneys, isLoaded, userPos]);
 
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
@@ -483,7 +561,8 @@ export default function MapplsCommandMap({
 
     const activeIds = [
       ...activeAlerts.map(a => a.id),
-      ...activeProtectors.map(p => p.id || p.uid)
+      ...activeProtectors.map(p => p.id || p.uid),
+      ...activeJourneys.map(j => j.id)
     ];
 
     Object.keys(markersRef.current).forEach(id => {
@@ -662,10 +741,52 @@ export default function MapplsCommandMap({
         });
       } else {
         markersRef.current[pid].setPosition({ lat, lng });
-        const carElement = document.getElementById(`car-rotator-${pid}`);
-        if (carElement) {
-          carElement.style.transform = `rotate(${heading}deg)`;
-        }
+        markersRef.current[pid].setIcon(html);
+      }
+    });
+
+    // Render Active Journeys
+    activeJourneys.forEach(journey => {
+      if (journey.status === 'completed' || journey.status === 'resolved') return;
+      const lat = journey.latitude || journey.lat || journey.lastLat || journey.currentLat || journey.location?.latitude || journey.location?.lat;
+      const lng = journey.longitude || journey.lng || journey.lastLng || journey.currentLng || journey.long || journey.location?.longitude || journey.location?.lng;
+      if (!lat || !lng) return;
+
+      const isSelected = selectedAlertId === journey.id || selectedAlertId === journey.userId;
+      const html = isSelected ? `
+        <div class="pulse-marker-transit"></div>
+      ` : `
+        <div style="
+          width: 20px; 
+          height: 20px; 
+          background: #0EA5E9; 
+          border: 2px solid white; 
+          border-radius: 50%; 
+          box-shadow: 0 0 15px rgba(14, 165, 233, 0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 10px;
+        ">🚗</div>
+      `;
+
+      if (!markersRef.current[journey.id]) {
+        const marker = new Mappls.Marker({
+          map: mapRef.current,
+          position: { lat, lng },
+          html: html,
+          width: isSelected ? 44 : 20,
+          height: isSelected ? 44 : 20,
+          offset: isSelected ? [22, 22] : [10, 10]
+        });
+        marker.addListener('click', () => {
+          if (onAlertClick) onAlertClick(journey.id);
+        });
+        markersRef.current[journey.id] = marker;
+      } else {
+        markersRef.current[journey.id].setPosition({ lat, lng });
+        markersRef.current[journey.id].setIcon(html);
       }
     });
 
@@ -715,7 +836,7 @@ export default function MapplsCommandMap({
       polylineRef.current.push(pLine);
     }
 
-  }, [activeAlerts, activeProtectors, selectedAlertId, isLoaded, victimPath, protectorPath]);
+  }, [activeAlerts, activeProtectors, activeJourneys, selectedAlertId, isLoaded, victimPath, protectorPath, onAlertClick]);
 
   // 🎯 HUD FOCUS CONTROLS
   const handleFocusBase = () => {
@@ -825,6 +946,30 @@ export default function MapplsCommandMap({
           animation: radarPulse 1s ease-out infinite;
         }
         @keyframes radarPulse {
+          0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
+          100% { transform: scale(2); opacity: 0; border-width: 1px; }
+        }
+        .pulse-marker-transit {
+          width: 20px; height: 20px;
+          background: #0EA5E9; border: 3px solid white;
+          border-radius: 50%; position: relative;
+          box-shadow: 0 0 15px rgba(14,165,233,0.9);
+          margin: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .pulse-marker-transit::after {
+          content: '🚗';
+          font-size: 10px;
+        }
+        .pulse-marker-transit::before {
+          content: ''; position: absolute;
+          top: -15px; left: -15px; right: -15px; bottom: -15px;
+          border-radius: 50%; border: 2px solid rgba(14,165,233,0.8);
+          animation: radarPulseTransit 1.5s ease-out infinite;
+        }
+        @keyframes radarPulseTransit {
           0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
           100% { transform: scale(2); opacity: 0; border-width: 1px; }
         }

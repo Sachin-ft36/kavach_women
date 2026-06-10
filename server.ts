@@ -27,6 +27,14 @@ async function startServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // 🔑 COOP HEADER: Allow Firebase Google popup auth to communicate back with opener window
+  // 'same-origin-allow-popups' is required for signInWithPopup to work without COOP blocking
+  app.use((req, res, next) => {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    next();
+  });
+
   // 🛰️ MAPMYINDIA (MAPPLS) TACTICAL PROXY (OAuth Token - Kept for legacy compatibility if needed)
   app.post("/mappls-token", async (req, res) => {
     try {
@@ -46,6 +54,65 @@ async function startServer() {
     } catch (error: any) {
       const errorMsg = error.response?.data || error.message;
       res.status(error.response?.status || 500).json(errorMsg);
+    }
+  });
+
+  // 🛰️ MAPPLS PLACE DETAIL PROXY — OAuth-authenticated eLoc → coordinates resolver
+  // REST key returns 401 for place_detail; this uses OAuth client_credentials instead
+  let cachedMapplsToken: string | null = null;
+  let tokenExpiry = 0;
+
+  const getMapplsOAuthToken = async (): Promise<string> => {
+    if (cachedMapplsToken && Date.now() < tokenExpiry) return cachedMapplsToken;
+
+    const params = new URLSearchParams();
+    params.append('grant_type', 'client_credentials');
+    params.append('client_id', process.env.VITE_MAPMYINDIA_CLIENT_ID || '');
+    params.append('client_secret', process.env.VITE_MAPMYINDIA_CLIENT_SECRET || '');
+
+    const resp = await axios.post(
+      'https://outpost.mapmyindia.com/api/security/oauth/token',
+      params.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, family: 4 }
+    );
+    cachedMapplsToken = resp.data.access_token;
+    tokenExpiry = Date.now() + (resp.data.expires_in - 60) * 1000; // refresh 1min early
+    return cachedMapplsToken!;
+  };
+
+  app.get('/mappls-place-detail/:eloc', async (req, res) => {
+    const { eloc } = req.params;
+    if (!eloc) return res.status(400).json({ error: 'eLoc required' });
+    try {
+      const token = await getMapplsOAuthToken();
+      const response = await axios.get(
+        `https://explore.mappls.com/apis/O2O/entity/${eloc}`,
+        { headers: { Authorization: `Bearer ${token}`, 'Accept': 'application/json' }, family: 4 }
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      console.warn(`🛰️ PROXY: Place Detail failed for eLoc ${eloc}:`, error.response?.status);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: error.message });
+    }
+  });
+
+
+  // 🛰️ MAPMYINDIA (MAPPLS) GENERIC ADVANCED MAPS PROXY (To bypass CORS for Place Details & Route Geometries)
+  app.get("/mappls-adv-route/*", async (req, res) => {
+    try {
+      const path = req.params[0];
+      const restKey = process.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
+      const url = `https://apis.mappls.com/advancedmaps/v1/${path}`;
+      
+      const response = await axios.get(url, {
+        params: req.query,
+        headers: { 'Accept': 'application/json' },
+        family: 4
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      console.warn("🛰️ PROXY: Mappls advanced maps proxy failed.");
+      res.status(error.response?.status || 500).json(error.response?.data || error.message);
     }
   });
 
@@ -246,7 +313,13 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        headers: {
+          'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+          'Cross-Origin-Embedder-Policy': 'unsafe-none'
+        }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

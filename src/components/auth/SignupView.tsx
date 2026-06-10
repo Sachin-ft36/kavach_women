@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User as UserIcon, Phone, Eye, EyeOff, Shield, Check, CheckCircle2, Sparkles, Smartphone } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, Phone, Eye, EyeOff, Shield, Check, CheckCircle2, Sparkles, Smartphone, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { cn } from '../../lib/utils';
 
@@ -125,72 +125,73 @@ export default function SignupView({
       exit={{ opacity: 0, x: -10 }}
       className="space-y-4 sm:space-y-6"
     >
-      <form onSubmit={onSignup} className="space-y-3 sm:space-y-4">
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('fullname')}</label>
-          <div className="relative">
-            <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+      <form onSubmit={onSignup} className="space-y-3.5 sm:space-y-4">
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-[#0B2545] pl-0.5">Full Name</label>
+          <div className="relative group">
+            <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               required
               type="text"
-              placeholder={t('enter_name')}
-              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              placeholder="Enter your full name"
+              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-xs font-medium placeholder:font-normal outline-none focus:border-[#2563EB] focus:bg-white transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
           </div>
         </div>
 
-
-
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
-          <div className="relative">
-            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+        {/* Email Address */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-[#0B2545] pl-0.5">Email Address</label>
+          <div className="relative group">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               required
               type="email"
-              placeholder={t('enter_email')}
-              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              placeholder="example@gmail.com"
+              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-xs font-medium placeholder:font-normal outline-none focus:border-[#2563EB] focus:bg-white transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           {emailExists && (
-            <p className="text-xs font-bold text-accent-red pl-1 pt-1">
+            <p className="text-[11px] font-bold text-red-500 pl-0.5 pt-0.5">
               This email is already registered
             </p>
           )}
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('password')}</label>
-          <div className="relative">
-            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+        {/* Password */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-[#0B2545] pl-0.5">Password</label>
+          <div className="relative group">
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               required
               type={showPassword ? "text" : "password"}
-              placeholder={t('enter_password')}
-              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              placeholder="Enter password"
+              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl py-3 pl-10 pr-10 text-xs font-medium placeholder:font-normal outline-none focus:border-[#2563EB] focus:bg-white transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
             >
-              {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
           </div>
 
-          <div className="px-1 pt-2 space-y-2">
+          {/* Strength meter */}
+          <div className="px-0.5 pt-2 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Strength</span>
-              <span className={cn("text-[10px] font-bold uppercase tracking-wider", sData.text)}>{sData.label}</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Strength</span>
+              <span className={cn("text-[9px] font-black uppercase tracking-wider", sData.text)}>{sData.label}</span>
             </div>
 
-            <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: (strength / 4) * 100 + '%' }}
@@ -198,13 +199,13 @@ export default function SignupView({
               />
             </div>
 
-            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
               {requirements.map((req, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <div className={cn("w-1.5 h-1.5 rounded-full", req.met ? "bg-accent-green" : "bg-border")} />
+                <div key={i} className="flex items-center gap-1">
+                  <div className={cn("w-1.5 h-1.5 rounded-full", req.met ? "bg-emerald-500" : "bg-slate-200")} />
                   <span className={cn(
-                    "text-[10px] font-bold transition-all",
-                    req.met ? "text-text-main" : "text-text-dim"
+                    "text-[9.5px] font-bold transition-all",
+                    req.met ? "text-slate-700 font-bold" : "text-slate-400"
                   )}>{req.label}</span>
                 </div>
               ))}
@@ -212,19 +213,20 @@ export default function SignupView({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">Confirm Password</label>
-          <div className="relative">
-            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim" size={20} />
+        {/* Confirm Password */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-[#0B2545] pl-0.5">Confirm Password</label>
+          <div className="relative group">
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" size={16} />
             <input
               required
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Re-enter your password"
               className={cn(
-                "w-full bg-bg border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none transition-all placeholder:text-text-dim",
+                "w-full bg-[#F8FAFC] border rounded-xl py-3 pl-10 pr-10 text-xs font-medium placeholder:font-normal outline-none transition-all placeholder:text-slate-400 text-slate-800 shadow-sm",
                 confirmPassword.length > 0 && password !== confirmPassword 
-                  ? "border-accent-red focus:border-accent-red" 
-                  : "border-border focus:border-accent-blue focus:bg-white"
+                  ? "border-red-500 focus:border-red-500" 
+                  : "border-slate-200 focus:border-[#2563EB] focus:bg-white"
               )}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -232,43 +234,32 @@ export default function SignupView({
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
             >
-              {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+              {showConfirmPassword ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
           </div>
           {confirmPassword.length > 0 && password !== confirmPassword && (
-            <p className="text-xs font-bold text-accent-red pl-1 pt-1">
+            <p className="text-[11px] font-bold text-red-500 pl-0.5 pt-0.5">
               Passwords do not match
             </p>
           )}
         </div>
 
-        <div className="pt-2">
+        <div className="pt-1.5">
           <button
             type="submit"
             disabled={loading || strength < 4 || emailExists || checkingEmail || password !== confirmPassword || confirmPassword.length === 0}
-            className="w-full py-4 sm:py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
+            className="w-full py-3.5 sm:py-4 bg-[#052B68] hover:bg-[#031c44] text-white rounded-xl font-bold text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            {loading ? "Creating..." : checkingEmail ? "Scanning..." : t('create_account')}
+            <ShieldCheck size={15} strokeWidth={2.5} />
+            {loading ? "CREATING..." : checkingEmail ? "SCANNING..." : "INITIALIZE ACCOUNT"}
           </button>
-          <p className="text-center mt-4 text-[10px] text-text-dim font-medium leading-relaxed">
+          <p className="text-center mt-2.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
             Your data is encrypted and protected under secure safety guidelines.
           </p>
         </div>
       </form>
-
-      <div className="text-center pt-2">
-        <button
-          type="button"
-          onClick={onLoginClick}
-          className="text-sm font-medium text-text-dim hover:text-text-main transition-all group"
-        >
-          {t('already_registered') + ' '}
-          <span className="text-accent-blue font-bold group-hover:underline underline-offset-4">{t('login')}</span>
-        </button>
-      </div>
     </motion.div>
-
   );
 }

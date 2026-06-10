@@ -60,7 +60,7 @@ export function TransitTrack({
     { id: 'TS-03', intersection: 'Connaught Place Ring Road', status: 'ALL-RED LOCK' },
   ]);
 
-  const [activeCCTVID, setActiveCCTVID] = useState<string | null>('TG-01');
+  const [activeCCTVID, setActiveCCTVID] = useState<string | null>(null);
   const [cameraZoom, setCameraZoom] = useState(1);
   const [irMode, setIrMode] = useState(false);
   const [anprLogs, setAnprLogs] = useState<string[]>([

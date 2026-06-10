@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, Eye, EyeOff, Shield } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Shield, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { cn } from '../../lib/utils';
 
@@ -53,97 +53,90 @@ export default function LoginView({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 10 }}
-      className="space-y-4 sm:space-y-6"
+      className="space-y-4 sm:space-y-5"
     >
-      <form onSubmit={onLogin} className="space-y-4 sm:space-y-5">
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('email_address')}</label>
+      <form onSubmit={onLogin} className="space-y-3.5">
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-800 pl-0.5">Email Address</label>
           <div className="relative group">
-            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within:text-accent-blue transition-colors" size={20} />
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#1d4ed8] transition-colors" size={16} />
             <input
               required
               type="email"
-              placeholder={t('enter_email')}
-              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              placeholder="example@gmail.com"
+              className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-xs font-medium placeholder:font-normal outline-none focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8] transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-text-main pl-1">{t('password')}</label>
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-800 pl-0.5">Password</label>
           <div className="relative group">
-            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within:text-accent-blue transition-colors" size={20} />
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#1d4ed8] transition-colors" size={16} />
             <input
               required
               type={showPassword ? "text" : "password"}
-              placeholder={t('enter_password')}
-              className="w-full bg-bg border border-border rounded-2xl py-3.5 sm:py-4 pl-14 pr-6 text-sm font-medium outline-none focus:border-accent-blue focus:bg-white transition-all placeholder:text-text-dim"
+              placeholder="Enter your password"
+              className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-10 text-xs font-medium placeholder:font-normal outline-none focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8] transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-main transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition-colors"
             >
-              {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
           </div>
-          <div className="flex justify-end pr-1">
+          <div className="flex justify-end pt-1">
             <button
               type="button"
               onClick={onForgotClick}
-              className="text-xs font-bold text-accent-blue hover:underline underline-offset-4"
+              className="text-[11px] font-bold text-[#1d4ed8] hover:underline underline-offset-4"
             >
-              {t('forgot_password_q')}
+              Forgot Password?
             </button>
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-4 sm:py-5 bg-accent-blue text-white rounded-2xl font-bold text-lg shadow-lg shadow-accent-blue/20 active:scale-[0.98] transition-all mt-1 sm:mt-2"
-        >
-          {loading ? "Authenticating..." : t('login')}
-        </button>
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={loading || !email.trim() || !password.trim()}
+            className="w-full py-3.5 sm:py-4 bg-[#0B2545] hover:bg-[#031c44] text-white rounded-xl font-bold text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          >
+            <ShieldCheck size={15} strokeWidth={2.5} />
+            {loading ? "AUTHENTICATING..." : "LOGIN SECURELY"}
+          </button>
+        </div>
       </form>
 
-      <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
+      <div className="space-y-4 pt-2">
         <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"></div></div>
-          <span className="relative px-4 text-[10px] font-bold text-text-dim uppercase tracking-[2px] bg-white">Other login options</span>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+          <span className="relative px-4 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest bg-white">Or Continue With</span>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <button
             type="button"
             onClick={onGoogleLogin}
-            className="py-3 sm:py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
+            className="py-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm hover:border-slate-300 transition-all cursor-pointer shadow-sm"
           >
-            <GoogleLogo /> Google
+            <GoogleLogo /> Continue with Google
           </button>
           <button
             type="button"
-            className="py-3 sm:py-4 bg-white border border-border text-text-main rounded-2xl flex items-center justify-center gap-3 font-bold text-xs hover:border-accent-blue transition-all"
+            className="py-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm hover:border-slate-300 transition-all cursor-pointer shadow-sm"
           >
-            <AppleLogo /> Apple
+            <AppleLogo /> Continue with Apple
           </button>
         </div>
       </div>
 
-      <div className="text-center pt-2 sm:pt-4">
-        <button
-          type="button"
-          onClick={onSignupClick}
-          className="text-sm font-medium text-text-dim hover:text-text-main transition-all group"
-        >
-          {t('new_to_kavach') + ' '}
-          <span className="text-accent-blue font-bold group-hover:underline underline-offset-4">Get Started</span>
-        </button>
-      </div>
-    </motion.div>
 
+    </motion.div>
   );
 }

@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import { useKavachStore } from '../store/useKavachStore';
 import { executeEmergencyBlast } from './sosService';
 
@@ -15,6 +15,8 @@ class SiriEmergencyService {
   private isInitialized = false;
 
   async initialize() {
+    // ✅ iOS-only: Siri Shortcuts only work on native iOS. Skip silently on web/Android.
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') return;
     if (this.isInitialized) return;
     
     try {
@@ -29,23 +31,18 @@ class SiriEmergencyService {
 
       // Listen for Siri invoking the shortcut
       SiriShortcuts.addListener('appShortcutReceived', async (info) => {
-        console.log('SIRI SHORTCUT TRIGGERED:', info);
         if (info.persistentIdentifier === 'com.kavach.app.sos') {
-          // Trigger the master SOS logic
           console.warn("🚨 KAVACH TRIGGERED VIA SIRI 🚨");
-          
           const state = useKavachStore.getState();
           state.setSOSActive(true);
-          
-          // Trigger hardware/backend blast
           await executeEmergencyBlast(state.user, state.userPos);
         }
       });
 
       this.isInitialized = true;
-      console.log('✅ Siri Shortcuts Registered for Kavach');
+      console.log('✅ Siri Shortcuts Registered for Kavach (iOS)');
     } catch (e) {
-      console.warn('Siri Shortcuts not supported on this platform or failed to initialize:', e);
+      // Silently ignore — plugin not available on this build
     }
   }
 }

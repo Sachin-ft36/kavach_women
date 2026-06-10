@@ -5,10 +5,10 @@ service cloud.firestore {
     // --- 🏛️ AUTH & IDENTITY HELPERS (SAFE-GUARDED) ---
     function isAuthenticated() { return request.auth != null; }
     
-    // 🛡️ MASTER ADMIN OVERRIDE
     function isAdmin() {
       return isAuthenticated() && (
              request.auth.token.email == 'singh.sachin16559@gmail.com' ||
+             request.auth.token.email.lower().matches('.*adminsachin.*') ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell' ||
@@ -41,11 +41,22 @@ service cloud.firestore {
         isOwner(userId) || 
         isAdmin() || 
         isProtector() ||
-        resource.data.role == 'protector'
+        (resource != null && 'role' in resource.data && resource.data.role == 'protector')
       ); 
-      allow update: if isOwner(userId) || isAdmin() || 
-        (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'livesSaved', 'successfulRescues', 'abortedAssists', 'missionHistory']));
-      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        // 🛡️ SECURITY SHIELD: Prevents users from self-verifying or escalating their role to admin/super_cell
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified']) || request.resource.data.isVerified == false) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified']) || request.resource.data.verified == false) &&
+        (!('role' in request.resource.data) || !(request.resource.data.role in ['admin', 'super_cell', 'SuperCell']))
+      ) || (
+        isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'livesSaved', 'successfulRescues', 'abortedAssists', 'missionHistory'])
+      );
+      allow create: if isAdmin() || (
+        isOwner(userId) &&
+        (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
+        (!('role' in request.resource.data) || !(request.resource.data.role in ['admin', 'super_cell', 'SuperCell']))
+      );
       allow delete: if isAdmin();
       
       // 🛡️ FORENSIC EVIDENCE VAULT (WORM: Write Once, Read Many)
@@ -84,7 +95,7 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
-
+    
     match /protector_guides/{guideId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
@@ -92,7 +103,7 @@ service cloud.firestore {
 
     match /protector_reports/{reportId} {
       allow create: if isAuthenticated(); 
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.uid || isAdmin());
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'uid' in resource.data && request.auth.uid == resource.data.uid));
       allow update: if isAdmin();
       allow delete: if false;
     }
@@ -117,7 +128,7 @@ service cloud.firestore {
 
     match /zero_firs/{firId} {
       allow create: if isAuthenticated(); 
-      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.victimUid);
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'victimUid' in resource.data && request.auth.uid == resource.data.victimUid));
       allow update, delete: if isAdmin();
     }
 
@@ -128,7 +139,8 @@ service cloud.firestore {
     }
 
     match /global_registry/{registryId} {
-      allow read, write: if isAuthenticated() && (resource.data.owner == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'owner' in resource.data && resource.data.owner == request.auth.uid));
+      allow write: if isAuthenticated() && (isAdmin() || (resource == null || (resource != null && 'owner' in resource.data && resource.data.owner == request.auth.uid)));
     }
 
     // --- LEGACY REPORTS & STATUS ---
@@ -150,7 +162,7 @@ service cloud.firestore {
     // --- ⚖️ NATIONAL ADJUDICATION REGISTRY (APPEALS) ---
     match /appeals/{appealId} {
       allow create: if isAuthenticated();
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'userId' in resource.data && request.auth.uid == resource.data.userId));
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

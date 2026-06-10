@@ -45,6 +45,28 @@
   }
 }
 
+/* 🚀 NATIVE APP FEEL: Hide Scrollbars Globally */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+* {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .leaflet-container,
 .mapboxgl-map {
   background: #0d0d0d !important;
@@ -256,13 +278,17 @@ html.supercell-active {
   background-color: #0F172A !important;
 }
 
-/* 🔋 BATTERY SAVER PROTOCOL: Disable ALL Continuous Animations */
-/* Prevents 60FPS DOM repaints, drastically reducing battery drain. */
-*, *::before, *::after {
-  animation: none !important;
-  transition: none !important;
-  transition-duration: 0ms !important;
+/* 🚀 MAXIMUM PERFORMANCE MODE FOR LOW-END DEVICES */
+/* Globally disable GPU-heavy effects to ensure 60fps on 2GB RAM phones */
+* {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-
-
+/* Neutralize continuous layout repaints while keeping Framer Motion intact */
+.animate-pulse, 
+.animate-ping, 
+.animate-spin {
+  animation: none !important;
+  transform: none !important;
+}

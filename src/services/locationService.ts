@@ -159,7 +159,11 @@ export const syncTelemetry = async (
       }).catch(() => {});
     }
   } catch (error: any) {
-    console.error("Telemetry write tracking exception intercepted safely:", error.message);
+    if (error.message && error.message.includes("No document to update")) {
+      console.warn("Telemetry Sync: User document not yet created on Firestore (onboarding pending). Telemetry write deferred.");
+    } else {
+      console.error("Telemetry write tracking exception intercepted safely:", error.message);
+    }
   }
 };
 

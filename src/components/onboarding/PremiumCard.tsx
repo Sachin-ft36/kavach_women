@@ -14,45 +14,34 @@ interface PremiumCardProps {
 }
 
 export const PremiumCard = ({ selected, onClick, icon: Icon, title, sub, desc, color = "blue" }: PremiumCardProps) => {
-    const accents: any = {
-        blue: "border-[#2563EB] bg-[#2563EB]/5 shadow-lg shadow-[#2563EB]/10",
-        red: "border-[#DC2626] bg-[#DC2626]/5 shadow-lg shadow-[#DC2626]/10",
-        orange: "border-[#D97706] bg-[#D97706]/5 shadow-lg shadow-[#D97706]/10"
-    };
-
-    const iconColors: any = {
-        blue: "text-[#2563EB]",
-        red: "text-[#DC2626]",
-        orange: "text-[#D97706]"
-    };
-
     return (
         <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={onClick}
             className={cn(
-                "w-full text-left p-4 rounded-[22px] border-2 transition-all duration-300 relative overflow-hidden group",
-                selected ? accents[color] : "bg-white border-[#E5E7EB] hover:border-[#2563EB]/30"
+                "w-full text-left p-5 rounded-[22px] border-2 transition-all duration-300 relative overflow-hidden group shadow-sm",
+                selected 
+                  ? "border-[#1B3A6B] bg-[#F0F4FF]" 
+                  : "bg-white border-slate-100 hover:border-slate-200"
             )}
         >
             <div className="relative z-10 flex items-start gap-4">
                 <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border transition-all duration-300 shrink-0",
-                    selected ? "bg-white " + iconColors[color] + " border-white" : "bg-gray-50 text-gray-300 border-gray-100"
+                    "w-12 h-12 rounded-full flex items-center justify-center border transition-all duration-300 shrink-0",
+                    selected 
+                      ? "bg-white border-[#1B3A6B]/20 text-[#1B3A6B]" 
+                      : "bg-slate-50 text-slate-400 border-slate-100"
                 )}>
-                    <Icon size={20} />
+                    <Icon size={22} className="stroke-[1.5]" />
                 </div>
                 
                 <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-1.5">
-                        <h3 className={cn(
-                            "text-sm font-black leading-tight transition-colors",
-                            selected ? "text-gray-900" : "text-gray-700"
-                        )}>{title}</h3>
-                        {selected && <CheckCircle2 size={14} className={iconColors[color]} />}
+                        <h3 className="text-sm font-black leading-tight text-[#1B3A6B]">{title}</h3>
+                        {selected && <CheckCircle2 size={14} className="text-[#1B3A6B]" />}
                     </div>
-                    <p className="text-[8px] font-black uppercase tracking-[1px] text-gray-400">{sub}</p>
-                    <p className="text-[10px] font-bold text-gray-500 leading-tight">
+                    <p className="text-[9px] font-extrabold uppercase tracking-wider" style={{color:'#FF9933'}}>{sub}</p>
+                    <p className="text-xs font-medium text-slate-500 leading-relaxed">
                         {desc}
                     </p>
                 </div>
@@ -60,3 +49,4 @@ export const PremiumCard = ({ selected, onClick, icon: Icon, title, sub, desc, c
         </motion.button>
     );
 };
+

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -21,6 +21,7 @@ import {
   clearIndexedDbPersistence
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
@@ -40,8 +41,16 @@ export const resetKavachState = async () => {
   return new Promise(resolve => setTimeout(resolve, 1500)); 
 };
 
-export const auth = getAuth(app);
+// 🛡️ CAPACITOR AUTH FIX: Use IndexedDB persistence on native platforms
+// Default browserLocalStorage fails in Capacitor WebView → user gets logged out on reload
+export const auth = Capacitor.isNativePlatform()
+  ? initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+    })
+  : getAuth(app);
+
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Error Handling Utility

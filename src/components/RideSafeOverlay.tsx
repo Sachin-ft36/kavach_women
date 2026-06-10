@@ -29,13 +29,15 @@ export default function RideSafeOverlay({
   vehicleNo,
   setVehicleNo
 }: RideSafeOverlayProps) {
-  const { userPos, batteryLevel, updateRideData, setRideMode, setVoiceTriggerActive, setSOSActive, rideData } = useKavachStore();
+  const { userPos, batteryLevel, updateRideData, setRideMode, setVoiceTriggerActive, setSOSActive, rideData, pendingNavigationTarget, setPendingNavigationTarget } = useKavachStore();
   const [destinationQuery, setDestinationQuery] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedDestination, setSelectedDestination] = React.useState<any>(null);
   const [verifiedVehicle, setVerifiedVehicle] = React.useState<any>(null);
-  const [useMapboxFallback, setUseMapboxFallback] = React.useState(false);
+  const [useMapboxFallback, setUseMapboxFallback] = React.useState(false); // 🛰️ Mappls Native Engine is default!
   const [isSearching, setIsSearching] = React.useState(false);
+  const [mapboxSuggestions, setMapboxSuggestions] = React.useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [mapStyle, setMapStyle] = React.useState<'streets' | 'satellite' | 'dark'>('streets');
   const [showLayerMenu, setShowLayerMenu] = React.useState(false);
   const [showPinModal, setShowPinModal] = React.useState(false);
@@ -45,7 +47,7 @@ export default function RideSafeOverlay({
     if (isOpen) {
       // Ensure Mappls Scripts are loaded globally for Search even before Map mounts
       const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
-      
+
       if (!document.getElementById('mappls-sdk')) {
         const script = document.createElement('script');
         script.id = 'mappls-sdk';
@@ -53,7 +55,7 @@ export default function RideSafeOverlay({
         script.async = true;
         document.head.appendChild(script);
       }
-      
+
       if (!document.getElementById('mappls-plugins')) {
         const pluginsScript = document.createElement('script');
         pluginsScript.id = 'mappls-plugins';
@@ -66,9 +68,23 @@ export default function RideSafeOverlay({
 
   React.useEffect(() => {
     if (showPinModal) {
-      try { if (navigator.vibrate) navigator.vibrate([400, 150, 400]); } catch(e) {}
+      try { if (navigator.vibrate) navigator.vibrate([400, 150, 400]); } catch (e) { }
     }
   }, [showPinModal]);
+
+  React.useEffect(() => {
+    if (isOpen && pendingNavigationTarget) {
+      setDestinationQuery(pendingNavigationTarget.name);
+      setSelectedDestination({
+        name: pendingNavigationTarget.name,
+        place_name: pendingNavigationTarget.name,
+        center: [pendingNavigationTarget.lng, pendingNavigationTarget.lat],
+        eLoc: "CUSTOM_COORDS"
+      });
+      // Clear it so it doesn't fire again unexpectedly
+      setPendingNavigationTarget(null);
+    }
+  }, [isOpen, pendingNavigationTarget]);
 
   // SOS Hold Logic
   const [holdProgress, setHoldProgress] = React.useState(0);
@@ -78,7 +94,7 @@ export default function RideSafeOverlay({
   const handleSOSPress = () => {
     KavachSafe.triggerHapticPulse();
     let progress = 0;
-    
+
     // Animate progress bar over 3 seconds
     holdIntervalRef.current = setInterval(() => {
       progress += (100 / 30); // 30 frames for 3 seconds (100ms per frame)
@@ -105,43 +121,79 @@ export default function RideSafeOverlay({
   // Initialize Mappls AutoSuggest Plugin on the Input Field
   React.useEffect(() => {
     let checkInterval: any;
-    
+
     const initMapplsSearch = () => {
       const Mappls = (window as any).mappls;
       const inputEl = document.getElementById("kavach-mappls-auto");
-      
+
       if (Mappls && Mappls.search && inputEl && !inputEl.classList.contains("mappls-initialized")) {
         inputEl.classList.add("mappls-initialized");
-        
-        // Use the official plugin attached directly to the DOM node for highest accuracy
-        new Mappls.search(inputEl, { 
-          region: "IND", 
-          clearButton: false, // 🚫 Removes the ugly Mappls default cross icon
+
+        // 🛡️ KAVACH: Mappls-only coordinate resolution — NO Nominatim, NO Mapbox, NO fake offsets
+        new Mappls.search(inputEl, {
+          region: "IND",
+          location: userPos ? [userPos[0], userPos[1]] : undefined,
+          hyperLocal: true,
+          clearButton: false,
           tokenizeAddress: true
-        }, (data: any) => {
-          if (data && data.length > 0) {
-            const dt = data[0];
+        }, async (data: any) => {
+          if (data) {
+            const dt = Array.isArray(data) ? data[0] : data;
+            if (!dt) return;
+
+            console.log("🔍 KAVACH MAPPLS RESULT:", dt);
+
             const title = dt.placeName || dt.poi || "Unknown Place";
             const address = dt.placeAddress || "";
-            
             setDestinationQuery(title);
-            
-            if (dt.latitude && dt.longitude) {
-              setSelectedDestination({
-                name: title,
-                place_name: address,
-                center: [dt.longitude, dt.latitude],
-                eLoc: dt.eLoc
-              });
-            } else {
-              // Fallback
-              setSelectedDestination({
-                name: title,
-                place_name: address,
-                center: userPos ? [userPos[1], userPos[0]] : [77.209, 28.613],
-                eLoc: dt.eLoc
-              });
+
+            // ── TIER 1: Direct coords from Mappls autosuggest payload (Drop-off point) ──
+            // Mappls V3 Autosuggest provides the exact driving drop-off coordinates (e.g., highway entry gates).
+            // We do NOT use OSM or Mapbox text-based fallbacks here because they aggressively match partial address strings (like 'Gothwa') if the exact POI name fails, causing wild offsets.
+            const directLat = parseFloat(dt.latitude || dt.lat || dt.y || '');
+            const directLng = parseFloat(dt.longitude || dt.lon || dt.lng || dt.x || '');
+
+            if (directLat && directLng && !isNaN(directLat) && !isNaN(directLng)) {
+              const dest = { name: title, place_name: address, center: [directLng, directLat] as [number, number], eLoc: dt.eLoc };
+              console.log("✅ KAVACH TIER-1 DESTINATION (direct autosuggest):", dest);
+              setSelectedDestination(dest);
+              return;
             }
+            // ── TIER 2: Mapbox geocoding with proximity bias ──
+            // If Mappls omits the coordinates (common in V3 for certain eLocs), we fallback to Mapbox.
+            try {
+              const addrParts = address.split(',').map((s: string) => s.trim()).filter(Boolean);
+              const cityState = addrParts.slice(-3, -1).join(', ');
+              const qualifiedQuery = cityState ? `${title}, ${cityState}` : title;
+
+              const proximity = userPos ? `&proximity=${userPos[1]},${userPos[0]}` : '';
+              const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
+
+              console.log('🔍 KAVACH TIER-2 Mapbox query:', qualifiedQuery);
+
+              const mbResp = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(qualifiedQuery)}.json?access_token=${MAPBOX_TOKEN}&limit=1&country=in${proximity}`
+              );
+              const mbData = await mbResp.json();
+
+              if (mbData?.features?.length > 0) {
+                const [mbLng, mbLat] = mbData.features[0].center;
+                if (mbLat && mbLng && !isNaN(mbLat) && !isNaN(mbLng)) {
+                  const dest = { name: title, place_name: address, center: [mbLng, mbLat] as [number, number], eLoc: dt.eLoc };
+                  console.log('✅ KAVACH TIER-2 DESTINATION (Mapbox):', dest);
+                  setSelectedDestination(dest);
+                  return;
+                }
+              }
+            } catch (e) {
+              console.warn('⚠️ KAVACH: Mapbox Tier-2 failed.', e);
+            }
+
+
+            // ── TIER 3: HARD FAIL — no fake offsets, no wrong cities ──
+            console.error("❌ KAVACH: Could not resolve coordinates for:", title, dt);
+            toast.error(`Could not find exact location for "${title}". Please search again.`);
+            setDestinationQuery("");
           }
         });
         clearInterval(checkInterval);
@@ -151,7 +203,7 @@ export default function RideSafeOverlay({
     if (isOpen) {
       checkInterval = setInterval(initMapplsSearch, 500);
     }
-    
+
     return () => {
       if (checkInterval) clearInterval(checkInterval);
     };
@@ -181,18 +233,18 @@ export default function RideSafeOverlay({
         (mapplsWrap as HTMLElement).style.setProperty('box-shadow', '0 25px 50px -12px rgba(0, 0, 0, 0.8)', 'important');
         (mapplsWrap as HTMLElement).style.setProperty('overflow', 'hidden', 'important');
         (mapplsWrap as HTMLElement).style.setProperty('margin-top', '8px', 'important');
-        
+
         const ul = mapplsWrap.querySelector('ul');
         if (ul) {
           ul.style.setProperty('background', 'transparent', 'important');
-          
+
           // Style all Mappls generated li items
           const lis = ul.querySelectorAll('li');
           lis.forEach(li => {
             (li as HTMLElement).style.setProperty('background-color', 'transparent', 'important');
             (li as HTMLElement).style.setProperty('border-bottom', '1px solid rgba(255, 255, 255, 0.05)', 'important');
             (li as HTMLElement).style.setProperty('padding', '12px 16px', 'important');
-            
+
             const spans = li.querySelectorAll('span');
             spans.forEach(span => {
               if (span.classList.contains('place-address')) {
@@ -203,21 +255,21 @@ export default function RideSafeOverlay({
                 (span as HTMLElement).style.setProperty('font-weight', 'bold', 'important');
               }
             });
-            
+
             li.addEventListener('mouseover', () => { (li as HTMLElement).style.setProperty('background-color', 'rgba(255, 255, 255, 0.05)', 'important'); });
             li.addEventListener('mouseout', () => { (li as HTMLElement).style.setProperty('background-color', 'transparent', 'important'); });
           });
         }
       }
     }, 200);
-    
+
     return () => clearInterval(interval);
   }, []);
 
   // Dynamic Distance and ETA Calculation
   let calculatedDistance = 0;
   let estimatedMinutes = 0;
-  
+
   if (userPos && rideData?.targetCoords) {
     const lat1 = userPos[0];
     const lon1 = userPos[1];
@@ -227,12 +279,12 @@ export default function RideSafeOverlay({
     const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-              Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     calculatedDistance = R * c;
-    
+
     // Assume average speed in city is roughly 25 km/h -> multiplied by 1.3 for routing overhead
     estimatedMinutes = Math.round(((calculatedDistance * 1.3) / 25) * 60);
     if (estimatedMinutes < 1 && calculatedDistance > 0) estimatedMinutes = 1;
@@ -250,7 +302,7 @@ export default function RideSafeOverlay({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.1),transparent_70%)]" />
 
       <div className="relative z-10 flex flex-col h-full p-4 sm:p-6 pt-6 sm:pt-10">
-        
+
         {/* Full-Screen Map Background (Rendered underneath UI) */}
         {isRideActive && (
           <div className="absolute -inset-x-4 -top-6 -bottom-4 sm:-inset-x-6 sm:-top-10 sm:-bottom-6 z-0 pointer-events-auto">
@@ -339,26 +391,28 @@ export default function RideSafeOverlay({
                             value={destinationQuery}
                             onChange={(e) => {
                               setDestinationQuery(e.target.value);
-                              setSelectedDestination(null);
+                              // Only reset if user actively clears or changes the text after a selection
+                              if (selectedDestination && e.target.value !== selectedDestination.name) {
+                                setSelectedDestination(null);
+                              }
                             }}
                             placeholder="Search Destination"
                             className="w-full pl-12 sm:pl-14 pr-4 sm:pr-6 py-4 sm:py-5 bg-white/10 border border-white/20 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-white placeholder:text-white/60 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all shadow-inner"
                           />
-
                         </div>
 
                         {/* Vehicle Number Input */}
                         <div className="relative">
-                        <div className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-blue-400">
-                          <Car size={16} className="sm:size-[18px]" />
+                          <div className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-blue-400">
+                            <Car size={16} className="sm:size-[18px]" />
+                          </div>
+                          <input
+                            value={vehicleNo}
+                            onChange={(e) => setVehicleNo(e.target.value.toUpperCase())}
+                            placeholder="e.g. MH 01 AB 1234"
+                            className="w-full pl-12 sm:pl-14 pr-4 sm:pr-6 py-4 sm:py-5 bg-white/10 border border-white/20 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-white placeholder:text-white/60 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all shadow-inner uppercase"
+                          />
                         </div>
-                        <input
-                          value={vehicleNo}
-                          onChange={(e) => setVehicleNo(e.target.value.toUpperCase())}
-                          placeholder="e.g. MH 01 AB 1234"
-                          className="w-full pl-12 sm:pl-14 pr-4 sm:pr-6 py-4 sm:py-5 bg-white/10 border border-white/20 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-white placeholder:text-white/60 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all shadow-inner uppercase"
-                        />
-                      </div>
                       </div>
                     </div>
 
@@ -383,11 +437,18 @@ export default function RideSafeOverlay({
                             toast.error("Please search and select a valid destination.");
                             return;
                           }
+                          // 🔍 DEBUG: Log final coordinates before route starts
+                          console.log("🚀 KAVACH RIDE START — SELECTED DESTINATION:", {
+                            name: selectedDestination.name,
+                            center: selectedDestination.center,
+                            eLoc: selectedDestination.eLoc,
+                            interpretation: `lng=${selectedDestination.center[0]}, lat=${selectedDestination.center[1]}`
+                          });
                           if (!vehicleNo) {
                             toast.error("Please enter vehicle number for tactical logging.");
                             return;
                           }
-                          
+
                           // Strict Validation for Indian Vehicle Number Plate Format (All Official Series)
                           // 1. Standard: MH 01 AB 1234
                           // 2. BH Series: 25 BH 1234 AB
@@ -404,6 +465,7 @@ export default function RideSafeOverlay({
                             status: 'active',
                             startTime: Date.now(),
                             destination: selectedDestination ? selectedDestination.place_name : 'Tactical Monitoring',
+                            destinationEloc: selectedDestination ? selectedDestination.eLoc : null,
                             targetCoords: selectedDestination ? selectedDestination.center : null,
                             deviationDistance: 0,
                             warningsIssued: 0
@@ -437,7 +499,7 @@ export default function RideSafeOverlay({
                     onPointerLeave={handleSOSRelease}
                     className="relative overflow-hidden flex-1 py-3 sm:py-4 bg-gradient-to-b from-red-500 to-red-600 text-white rounded-[22px] text-[11px] sm:text-[12px] font-black uppercase tracking-[2px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_10px_20px_rgba(220,38,38,0.3)] hover:brightness-110 active:scale-[0.98] transition-all flex flex-col items-center justify-center select-none"
                   >
-                    <div 
+                    <div
                       className="absolute inset-y-0 left-0 bg-red-800 transition-all duration-100 ease-linear z-0"
                       style={{ width: `${holdProgress}%` }}
                     />
@@ -469,7 +531,7 @@ export default function RideSafeOverlay({
               {/* Floating Layers Button (Right - Top) */}
               <div className="absolute top-24 sm:top-28 right-4 z-10 flex flex-col gap-3 pointer-events-auto items-end">
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={() => setShowLayerMenu(!showLayerMenu)}
                     className={cn(
                       "w-14 h-14 bg-white rounded-[20px] flex items-center justify-center shadow-lg active:scale-95 transition-all border",
@@ -486,37 +548,38 @@ export default function RideSafeOverlay({
                   {/* Layer Selection Menu */}
                   {showLayerMenu && (
                     <div className="absolute top-0 right-16 w-[260px] bg-white rounded-[24px] p-2 shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 flex flex-col gap-1 z-20 animate-in fade-in zoom-in-95 duration-200">
+
                       <div className="px-3 py-2 pt-3">
                         <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Map Viewport Layers</span>
                       </div>
 
-                      <button 
+                      <button
                         onClick={() => { setMapStyle('streets'); setShowLayerMenu(false); }}
                         className={cn(
-                          "w-full flex items-center gap-4 px-5 py-3.5 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
-                          mapStyle === 'streets' ? "bg-[#1E5AF7] text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
+                          "w-full flex items-center gap-4 px-5 py-3 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
+                          mapStyle === 'streets' ? "bg-gray-900 text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
                         )}
                       >
                         <div className={cn("w-2 h-2 rounded-full", mapStyle === 'streets' ? "bg-white" : "bg-gray-400")} />
                         Standard Streets
                       </button>
 
-                      <button 
+                      <button
                         onClick={() => { setMapStyle('dark'); setShowLayerMenu(false); }}
                         className={cn(
-                          "w-full flex items-center gap-4 px-5 py-3.5 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
-                          mapStyle === 'dark' ? "bg-[#1E5AF7] text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
+                          "w-full flex items-center gap-4 px-5 py-3 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
+                          mapStyle === 'dark' ? "bg-gray-900 text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
                         )}
                       >
                         <div className={cn("w-2 h-2 rounded-full", mapStyle === 'dark' ? "bg-white" : "bg-gray-400")} />
                         Tactical Dark
                       </button>
 
-                      <button 
+                      <button
                         onClick={() => { setMapStyle('satellite'); setShowLayerMenu(false); }}
                         className={cn(
-                          "w-full flex items-center gap-4 px-5 py-3.5 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
-                          mapStyle === 'satellite' ? "bg-[#1E5AF7] text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
+                          "w-full flex items-center gap-4 px-5 py-3 rounded-[18px] transition-all text-left font-black text-[12px] uppercase tracking-widest",
+                          mapStyle === 'satellite' ? "bg-gray-900 text-white shadow-md" : "hover:bg-gray-100/80 text-gray-600"
                         )}
                       >
                         <div className={cn("w-2 h-2 rounded-full", mapStyle === 'satellite' ? "bg-white" : "bg-gray-400")} />
@@ -529,7 +592,7 @@ export default function RideSafeOverlay({
 
               {/* Floating Navigation Button (Right - Bottom) */}
               <div className="absolute bottom-28 sm:bottom-32 right-4 z-10 pointer-events-auto">
-                <button 
+                <button
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('recenter-map'));
                   }}
@@ -543,13 +606,13 @@ export default function RideSafeOverlay({
               {/* Bottom Info Sheet (Mappls Style) */}
               <div className="absolute bottom-4 left-4 right-4 z-10 pointer-events-auto">
                 <div className="bg-white rounded-[32px] p-4 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-lg mx-auto border border-gray-100">
-                  <button 
+                  <button
                     onClick={() => setShowPinModal(true)}
                     className="w-14 h-14 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-50 active:scale-95 transition-all shadow-sm shrink-0"
                   >
                     <X size={26} strokeWidth={2.5} />
                   </button>
-                  
+
                   <div className="flex flex-col items-center justify-center">
                     <div className="text-red-600 text-[28px] font-black tracking-tight flex items-baseline gap-1.5 leading-none">
                       {displayMinutes} <span className="text-base font-bold">min</span>
@@ -557,7 +620,7 @@ export default function RideSafeOverlay({
                     <div className="text-[#3A4349] text-xs font-bold flex items-center gap-1.5 mt-1">
                       <span>{displayDistance} km</span>
                       <span className="w-1 h-1 bg-gray-400 rounded-full" />
-                      <span>{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
 
@@ -577,9 +640,9 @@ export default function RideSafeOverlay({
                 <ShieldCheck className="w-14 h-14 text-emerald-400 mx-auto mb-5 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" />
                 <h3 className="text-white text-lg font-black tracking-widest uppercase mb-2">Authorize Drop-Off</h3>
                 <p className="text-gray-400 text-xs font-medium mb-8">Enter your 4-digit Kavach Security PIN to disable tactical monitoring.</p>
-                
-                <input 
-                  type="password" 
+
+                <input
+                  type="password"
                   maxLength={4}
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
@@ -587,9 +650,9 @@ export default function RideSafeOverlay({
                   placeholder="••••"
                   autoFocus
                 />
-                
+
                 <div className="flex gap-4">
-                  <button 
+                  <button
                     onClick={() => {
                       setShowPinModal(false);
                       setPinInput("");
@@ -598,7 +661,7 @@ export default function RideSafeOverlay({
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       const currentPin = useKavachStore.getState().safetyPin;
                       if (currentPin && pinInput !== currentPin) {

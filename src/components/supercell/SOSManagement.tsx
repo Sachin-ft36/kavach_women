@@ -5,10 +5,12 @@ import {
   Activity, Zap, ShieldAlert, Ban, 
   CheckCircle2, Users, Search, Target, Clock,
   ChevronRight, ChevronLeft, Filter, Fingerprint, Car, X,
-  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe, Battery
+  ChevronDown, Heart, Lock, Calendar, Mail, ShieldCheck, Globe, Battery,
+  Mic, Camera
 } from 'lucide-react';
-import { db } from '../../firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, getDocs, serverTimestamp } from 'firebase/firestore';
+import { db, storage } from '../../firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -460,7 +462,7 @@ export function SOSManagement({
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
                     {[
                       { label: 'Gender', value: victimData.gender || 'FEMALE', icon: User },
-                      { label: 'Aadhaar UID', value: victimData.aadhar || victimData.aadhaar || 'UNLINKED', icon: Fingerprint },
+                      // { label: 'Aadhaar UID', value: victimData.aadhar || victimData.aadhaar || 'UNLINKED', icon: Fingerprint },
                       { label: 'Role', value: victimData.role || 'CITIZEN', icon: Shield },
                       { label: 'Phone', value: victimData.phoneNumber || victimData.phone || 'NO RECORD', icon: Phone },
                       { label: 'Email Address', value: victimData.email || 'NO EMAIL', icon: Mail },
@@ -606,8 +608,8 @@ export function SOSManagement({
                 <span className="text-[13px] font-black text-white tabular-nums">{victimData.phoneNumber || victimData.phone || 'NO RECORD'}</span>
               </div>
               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
-                <Fingerprint size={10} className="text-gray-500" />
-                <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData.aadhar || victimData.aadhaar || 'UNLINKED'}</span>
+                {/* <Fingerprint size={10} className="text-gray-500" /> */}
+                {/* <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData.aadhar || victimData.aadhaar || 'UNLINKED'}</span> */}
               </div>
               {victimData.email && (
                 <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
@@ -834,8 +836,8 @@ export function SOSManagement({
                               <span className="text-[13px] font-black text-white tabular-nums">{victimData?.phoneNumber || victimData?.phone || 'NO RECORD'}</span>
                            </div>
                            <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
-                              <Fingerprint size={10} className="text-gray-500" />
-                              <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}</span>
+                             {/* <Fingerprint size={10} className="text-gray-500" /> */}
+                              {/* <span className="text-[13px] font-black text-white tabular-nums tracking-widest">{victimData?.aadhar || victimData?.aadhaar || 'UNLINKED'}</span> */}
                            </div>
                            {victimData?.email && (
                               <div className="bg-[#1E293B] px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-1.5 shadow-lg">
@@ -1037,6 +1039,7 @@ export function SOSManagement({
 const EvidenceGallery = ({ alertId }: { alertId: string }) => {
   const [evidence, setEvidence] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const q = query(collection(db, 'alerts', alertId, 'evidence'), orderBy('timestamp', 'desc'));
@@ -1047,69 +1050,197 @@ const EvidenceGallery = ({ alertId }: { alertId: string }) => {
     return () => unsub();
   }, [alertId]);
 
+  const handleReview = async (item: any) => {
+    if (item.status === 'Reviewed') return;
+    try {
+      // 1. Delete actual file from Firebase Storage to save space (Cost: ₹0)
+      if (item.url && item.fileName) {
+         const fileRef = ref(storage, `kavach_evidence/${alertId}/${item.fileName}`);
+         await deleteObject(fileRef).catch(() => {});
+      }
+      
+      // 2. Update Firestore metadata (keeps the log, but removes the big file)
+      await updateDoc(doc(db, 'alerts', alertId, 'evidence', item.id), {
+        status: 'Reviewed',
+        url: '', // URL is now invalid
+        'metadata.reviewedBy': 'Command Center',
+        'metadata.reviewedAt': serverTimestamp()
+      });
+      
+      toast.success("Evidence Reviewed", {
+        description: "Cloud storage cleared to save space. Audit log preserved."
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update status");
+    }
+  };
+
+  // Load blobs from IndexedDB for video/audio (they have a vaultId, not a cloud URL)
+  useEffect(() => {
+    if (evidence.length === 0) return;
+    const loadBlobs = async () => {
+      const { getVaultEntry } = await import('../../lib/forensicVault');
+      const newUrls: Record<string, string> = {};
+      for (const item of evidence) {
+        if (!item.vaultId) continue;
+        try {
+          const entry = await getVaultEntry(item.vaultId);
+          if (entry) newUrls[item.vaultId] = URL.createObjectURL(entry.blob);
+        } catch (e) { /* vault entry may not exist on other devices */ }
+      }
+      setBlobUrls(prev => {
+        Object.values(prev).forEach(u => { try { URL.revokeObjectURL(u); } catch(e) {} });
+        return newUrls;
+      });
+    };
+    loadBlobs();
+    return () => setBlobUrls(prev => {
+      Object.values(prev).forEach(u => { try { URL.revokeObjectURL(u); } catch(e) {} });
+      return {};
+    });
+  }, [evidence]);
+
+  const handleDownload = (item: any) => {
+    const src = blobUrls[item.vaultId] || item.url;
+    if (!src) return;
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = item.fileName || `kavach_evidence_${item.id}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   if (loading) return <div className="py-10 text-center text-[12px] font-black uppercase text-gray-600 animate-pulse tracking-widest">Accessing Forensic Cache...</div>;
-  if (evidence.length === 0) return <div className="py-10 text-center text-[12px] font-black uppercase text-gray-600 italic tracking-widest">No Environmental Intel Received Yet.</div>;
+  if (evidence.length === 0) return (
+    <div className="py-10 text-center space-y-2 opacity-40">
+      <Shield size={32} className="mx-auto text-blue-500" />
+      <p className="text-[12px] font-black uppercase text-gray-500 italic tracking-widest">No Environmental Intel Yet.</p>
+      <p className="text-[10px] font-bold text-gray-600 uppercase">Evidence syncs every 8–10 sec during active SOS</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-      {evidence.map((item) => (
-        <div key={item.id} className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-3 group">
-          <div className="flex items-center justify-between">
-            <span className={cn(
-              "text-[11px] font-black uppercase px-2 py-0.5 rounded",
-              item.type === 'Snapshot' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
-            )}>
-              {item.type}
-            </span>
-            <span className="text-[14px] font-bold text-gray-500 uppercase">
-              {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleTimeString() : 'SYNCHRONIZING'}
-            </span>
-          </div>
+      {evidence.map((item) => {
+        const blobSrc = blobUrls[item.vaultId] || '';
+        const imgSrc = item.type === 'Snapshot' ? (item.url || blobSrc) : blobSrc;
+        const hasSrc = !!(blobSrc || item.url);
 
-          {item.type === 'CCTV_FEED' && (
-            <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-blue-500/30">
-              <video controls className="w-full h-full object-cover">
-                 <source src={item.url} type="video/webm" />
-              </video>
-              <div className="absolute top-3 left-3 flex items-center gap-2">
-                 <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-                 <span className="text-[14px] font-black text-white uppercase tracking-widest">TACTICAL CCTV FEED</span>
+        return (
+          <div key={item.id} className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-3 group">
+            <div className="flex items-center justify-between">
+              <span className={cn(
+                "text-[11px] font-black uppercase px-2 py-0.5 rounded",
+                item.type === 'Snapshot'  ? "bg-emerald-500/10 text-emerald-500" :
+                item.type === 'Audio Log' ? "bg-purple-500/10 text-purple-400"   :
+                                            "bg-blue-500/10 text-blue-500"
+              )}>
+                {item.type === 'CCTV_FEED' ? '🎥 CCTV Feed' : item.type === 'Audio Log' ? '🎙️ Audio' : '📸 Snapshot'}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-gray-500 uppercase">
+                  {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleTimeString() : 'SYNC...'}
+                </span>
+                
+                {item.status === 'Reviewed' ? (
+                  <span className="px-2 py-0.5 bg-gray-500/10 text-gray-400 border border-gray-500/20 rounded text-[9px] font-black uppercase flex items-center gap-1">
+                    <CheckCircle2 size={10} />
+                    Reviewed
+                  </span>
+                ) : (
+                  <>
+                    {hasSrc && (
+                      <button onClick={() => handleDownload(item)}
+                        className="px-2 py-0.5 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/20 rounded text-[10px] font-black uppercase transition-all">
+                        ↓ Save
+                      </button>
+                    )}
+                    <button onClick={() => handleReview(item)}
+                      className="px-2 py-0.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 rounded text-[10px] font-black uppercase transition-all flex items-center gap-1">
+                      <CheckCircle2 size={10} />
+                      Review & Clear
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-          )}
 
-          {item.type === 'Snapshot' && (
-            <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-white/5">
-              <img src={item.url} alt="Forensic" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-3">
-                 <p className="text-[14px] font-black text-white/50 uppercase tracking-tighter truncate w-full">
-                    HASH: {item.hash || 'NOT_VERIFIED'}
-                 </p>
+            {item.type === 'CCTV_FEED' && (
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-blue-500/30">
+                {blobSrc
+                  ? <video controls className="w-full h-full object-cover"><source src={blobSrc} type={item.mimeType || 'video/webm'} /></video>
+                  : <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-40">
+                      <Activity size={22} className="animate-pulse text-blue-400" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        {item.metadata?.storage === 'IndexedDB' ? 'Locally stored — open on recording device' : 'Loading...'}
+                      </p>
+                    </div>
+                }
+                <div className="absolute top-2 left-2 flex items-center gap-1.5 pointer-events-none">
+                  <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
+                  <span className="text-[9px] font-black text-white uppercase bg-black/60 px-1.5 py-0.5 rounded tracking-widest">TACTICAL CCTV</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {item.type === 'Audio Log' && (
-            <div className="bg-blue-500/5 p-3 rounded-xl border border-blue-500/10 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                 <Zap size={12} className="text-blue-500" />
+            {item.type === 'Snapshot' && (
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-white/5">
+                {item.status === 'Reviewed' ? (
+                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-40 bg-gray-900">
+                     <ShieldCheck size={28} className="text-emerald-500" />
+                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">File Cleared from Cloud</p>
+                   </div>
+                ) : imgSrc ? (
+                   <img src={imgSrc} alt="Forensic" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                ) : (
+                   <div className="absolute inset-0 flex items-center justify-center opacity-30"><Camera size={24} className="text-gray-400" /></div>
+                )}
+                
+                {item.status !== 'Reviewed' && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-3">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-tighter truncate w-full">
+                      HASH: {item.hash ? item.hash.slice(0, 20) + '...' : 'COMPUTING'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <audio controls className="h-6 flex-1 opacity-50 hover:opacity-100 transition-opacity scale-75 origin-left">
-                 <source src={item.url} type="audio/webm" />
-              </audio>
-            </div>
-          )}
+            )}
 
-          <div className="flex items-center gap-2">
-             <div className="h-0.5 flex-1 bg-white/5 rounded-full overflow-hidden">
+            {item.type === 'Audio Log' && (
+              <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                  <Mic size={12} className="text-purple-400" />
+                </div>
+                {item.status === 'Reviewed' ? (
+                   <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
+                     Audio Cleared (Reviewed)
+                   </span>
+                ) : blobSrc ? (
+                   <audio controls className="h-8 flex-1"><source src={blobSrc} type={item.mimeType || 'audio/webm'} /></audio>
+                ) : (
+                   <span className="text-[11px] font-bold text-purple-400/40 uppercase tracking-widest">
+                      {item.metadata?.storage === 'IndexedDB' ? 'Locally stored — play on recording device' : 'Loading...'}
+                   </span>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="h-0.5 flex-1 bg-white/5 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500/50 w-full" />
-             </div>
-             <p className="text-[5px] font-black text-gray-600 uppercase tracking-[1px]">Integrity Verified</p>
+              </div>
+              <p className="text-[9px] font-black text-gray-600 uppercase tracking-[1px]">
+                {item.metadata?.storage || 'Integrity Verified'}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
 
 export default SOSManagement;
+

@@ -4,6 +4,7 @@ import { ShieldX, AlertOctagon, Lock, Gavel, Info, LogOut, Send, Clock, CheckCir
 import { useKavachStore } from '../store/useKavachStore';
 import { cn } from '../lib/utils';
 import { auth, db } from '../firebase';
+import { signOut } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
 
@@ -34,7 +35,7 @@ export default function BanOverlay() {
   if (!isSOSBlocked) return null;
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await signOut(auth);
     window.location.reload();
   };
 

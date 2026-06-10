@@ -5,7 +5,7 @@ import { X, PhoneCall, Navigation, CheckCircle2, Crosshair, Zap, Activity, Layer
 import { useCall } from '../../contexts/CallContext';
 import { cn } from '../../lib/utils';
 
-const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
+const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
 
 export default function MapplsVictimMap({
   activeAlerts = [],
@@ -266,6 +266,7 @@ export default function MapplsVictimMap({
               strokeWidth: 6,
               routeColor: "#3B82F6",
               sPopup: "", dPopup: "", // Try to hide default popups
+              start_icon: "", end_icon: "", // 🔥 Prevent Mappls from duplicating markers
               profile: 'walking',         // 🚶‍♀️ Use walking/biking profile to avoid huge U-turn driving routes
               resource: 'route_eta',
               traffic: true,
@@ -295,24 +296,71 @@ export default function MapplsVictimMap({
 
     if (isRideModeActive && rideData?.targetCoords && userPos && Mappls?.direction) {
       if (!ridePolylineRef.current) {
-        console.log("🛰️ KAVACH: Initializing Native Mappls Tracking Plugin for RideSafe");
+        console.log("🛰️ KAVACH: Initializing Hybrid Routing (Mapbox Path + Mappls Bike)");
+        
+        // 1. Start Native Mappls Tracking INVISIBLE (Just for the Bike and ETA)
         Mappls.tracking({
           map: mapRef.current,
           start: { geoposition: `${userPos[0]},${userPos[1]}` },
           end: { geoposition: `${rideData.targetCoords[1]},${rideData.targetCoords[0]}` },
           fitBounds: false,
           ccpIconWidth: 70,
-          strokeWidth: 6,
-          routeColor: "#3B82F6",
-          sPopup: "", dPopup: "", // Hide popups
-          profile: 'walking',          // 🚶‍♀️ Change to walking to show true shortest distance instead of vehicle U-turns
+          strokeWidth: 0,              // 🚫 HIDE the ugly/wrong Mappls native line!
+          routeColor: "transparent",   // 🚫 Make it completely invisible
+          sPopup: "", dPopup: "",
+          start_icon: "", end_icon: "", // 🔥 Prevent Mappls from duplicating markers
+          profile: 'driving',
           resource: 'route_eta',
-          traffic: true,
-          incidents: true,
-          avoid: (window as any)._kavach_blocked_road || undefined,
+          traffic: false,
         }, function (data: any) {
           ridePolylineRef.current = data;
         });
+
+        // 2. Draw the FLAWLESS Mappls Native GeoJSON line underneath (Aligns perfectly with tiles)
+        fetchRouteMappls(userPos[1], userPos[0], rideData.targetCoords[0], rideData.targetCoords[1])
+          .then(coords => {
+            if (coords && coords.length > 0 && mapRef.current) {
+              const routeGeoJSON = {
+                type: 'LineString',
+                coordinates: coords // fetchRouteMappls already returns [[lng, lat]]
+              };
+              const map = mapRef.current;
+              const sourceId = 'hybrid-route-source';
+              const layerId = 'hybrid-route-layer';
+
+              if (map.getSource(sourceId)) {
+                map.getSource(sourceId).setData(routeGeoJSON);
+              } else {
+                map.addSource(sourceId, { type: 'geojson', data: routeGeoJSON });
+                
+                // Background outline for better visibility
+                map.addLayer({
+                  id: layerId + '-outline', type: 'line', source: sourceId,
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: { 'line-color': '#1E40AF', 'line-width': 8, 'line-opacity': 0.6 }
+                });
+                
+                // Main route line (Flawless road snapping)
+                map.addLayer({
+                  id: layerId, type: 'line', source: sourceId,
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: { 'line-color': '#3B82F6', 'line-width': 5, 'line-opacity': 1 }
+                });
+              }
+
+              // Custom Target Destination Marker (Red Ping)
+              if (!(window as any)._kavachTargetMarker) {
+                const Mappls = (window as any).mappls;
+                (window as any)._kavachTargetMarker = new Mappls.Marker({
+                  map: map,
+                  position: { lat: rideData.targetCoords[1], lng: rideData.targetCoords[0] },
+                  html: `<div style="width:20px;height:20px;background:#EF4444;border:3px solid white;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>`,
+                  width: 20, height: 20, offset: [10, 10]
+                });
+              }
+            }
+          })
+          .catch(err => console.warn("🚨 Hybrid Mappls Route failed:", err));
       } else if (ridePolylineRef.current.trackingCall) {
         ridePolylineRef.current.trackingCall({
           location: [userPos[1], userPos[0]],
@@ -328,6 +376,17 @@ export default function MapplsVictimMap({
       if (ridePolylineRef.current) {
         if (ridePolylineRef.current.remove) ridePolylineRef.current.remove();
         ridePolylineRef.current = null;
+      }
+      if (mapRef.current) {
+        try {
+          if (mapRef.current.getLayer('hybrid-route-layer')) mapRef.current.removeLayer('hybrid-route-layer');
+          if (mapRef.current.getLayer('hybrid-route-layer-outline')) mapRef.current.removeLayer('hybrid-route-layer-outline');
+          if (mapRef.current.getSource('hybrid-route-source')) mapRef.current.removeSource('hybrid-route-source');
+        } catch(e) {}
+      }
+      if ((window as any)._kavachTargetMarker) {
+        (window as any)._kavachTargetMarker.remove();
+        (window as any)._kavachTargetMarker = null;
       }
     }
   }, [userPos, activeAlerts, isLoaded, isNavigating, useKavachStore.getState().rideData?.targetCoords]);
@@ -376,36 +435,13 @@ export default function MapplsVictimMap({
           width: 20px; height: 20px;
           background: #EF4444; border: 3px solid white;
           border-radius: 50%; position: relative;
-          box-shadow: 0 0 10px rgba(239,68,68,0.8);
           margin: 15px; 
-        }
-        .pulse-marker-victim::after {
-          content: ''; position: absolute;
-          top: -15px; left: -15px; right: -15px; bottom: -15px;
-          border-radius: 50%; border: 2px solid rgba(239,68,68,0.8);
-          animation: radarPulse 1s ease-out infinite;
         }
         .pulse-marker-protector {
           width: 16px; height: 16px;
           background: #3B82F6; border: 3px solid white;
           border-radius: 50%; position: relative;
-          box-shadow: 0 0 15px rgba(59,130,246,0.8);
           margin: 10px;
-        }
-        .pulse-marker-protector::after {
-          content: ''; position: absolute;
-          top: -12px; left: -12px; right: -12px; bottom: -12px;
-          border-radius: 50%; border: 2px dashed rgba(59,130,246,0.6);
-          animation: spinPulse 4s linear infinite;
-        }
-        @keyframes radarPulse {
-          0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
-          100% { transform: scale(2); opacity: 0; border-width: 1px; }
-        }
-        @keyframes spinPulse {
-          0% { transform: rotate(0deg) scale(1); }
-          50% { transform: rotate(180deg) scale(1.1); }
-          100% { transform: rotate(360deg) scale(1); }
         }
         /* 🚫 Hide ONLY the ugly Green Start/End Markers via precise CSS, but keep the Bike! */
         div[title="Start"], div[title="End"], 
@@ -453,7 +489,7 @@ export default function MapplsVictimMap({
       {isInterceptMode && (
         <div className="absolute top-40 right-4 flex flex-col gap-3 z-[20] pointer-events-none">
           <div className="bg-black/80 backdrop-blur-md border border-red-500/30 p-3 rounded-2xl flex flex-col items-end shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-            <span className="text-[7px] text-red-500 font-black uppercase tracking-widest animate-pulse flex items-center gap-1.5"><Crosshair size={10} className="animate-spin-slow" /> TARGET LOCK</span>
+            <span className="text-[7px] text-red-500 font-black uppercase tracking-widest flex items-center gap-1.5"><Crosshair size={10} /> TARGET LOCK</span>
             <span className="text-2xl text-white font-black italic tracking-tighter tabular-nums leading-none mt-2">{distance}</span>
             <span className="text-[7px] text-gray-400 font-bold uppercase tracking-widest mt-1">Intercept Distance</span>
           </div>

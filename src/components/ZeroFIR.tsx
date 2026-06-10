@@ -213,7 +213,15 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
 
   useEffect(() => {
     setOverlayActive(showReviewModal);
-    return () => setOverlayActive(false);
+    if (showReviewModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      setOverlayActive(false);
+      document.body.style.overflow = '';
+    };
   }, [showReviewModal, setOverlayActive]);
 
   // ✍️ CANVAS HANDLERS FOR ELECTRONIC SIGNATURE
@@ -612,7 +620,7 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
                     {/* ✍️ DIGITAL HAND-DRAWN SIGNATURE BLOCK */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between ml-1">
-                        <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest">Aadhaar Certified Electronic Signature (e-Sign)</label>
+                        <label className="text-[8px] sm:text-[10px] font-black text-gray-800 uppercase tracking-widest">Electronic Signature (e-Sign)</label>
                         {hasSigned && (
                           <button onClick={clearSignature} className="text-[7px] font-black text-rose-500 uppercase tracking-widest hover:underline">Clear Canvas</button>
                         )}

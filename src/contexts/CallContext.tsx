@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
-import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
+// 🛡️ LAZY LOAD: Zego SDK is 5 MB — only load when a call is actually placed
+// import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useKavachStore } from '../store/useKavachStore';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
@@ -156,6 +157,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveCallUserId(targetUid);
       setActiveContextId(finalContextId);
 
+      // 🚀 LAZY LOAD: Only pull Zego's 5 MB SDK when a call is actually placed
+      const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, serverSecret, finalContextId, currentUser.uid, currentUser.name || "User"
       );
@@ -172,7 +176,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         showLeaveRoomConfirmDialog: false,
         showTextChat: false,
         showUserList: false,
-        onUserJoin: (user: any) => {
+        onUserJoin: (_user: any) => {
           setCallState('connected');
           if (Capacitor.isNativePlatform()) KavachSafe.triggerHapticPulse();
           toast.success("🛡️ PROTECTOR LINKED");
@@ -186,7 +190,6 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setZegoInstance(null);
           clearSignal(finalContextId);
           isJoiningRef.current = false;
-          // Force immediate UI reset
           window.dispatchEvent(new CustomEvent('kavach-call-ended'));
         }
       });
@@ -205,6 +208,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isJoiningRef.current = true;
       const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
       const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
+
+      // 🚀 LAZY LOAD: Only pull Zego's 5 MB SDK when answering a call
+      const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, serverSecret, contextId, profile.uid, profile.name || "Protector"
@@ -231,7 +237,6 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setZegoInstance(null);
           clearSignal(contextId);
           isJoiningRef.current = false;
-          // Force immediate UI reset
           window.dispatchEvent(new CustomEvent('kavach-call-ended'));
         }
       });

@@ -268,7 +268,7 @@ export function KavachDirectory({
                   <th style={{ width: '100px' }}>System Role</th>
                   <th style={{ width: '90px' }}>Occupation</th>
                   <th style={{ width: '80px' }}>Status</th>
-                  <th style={{ width: '110px' }}>Aadhaar / KYC</th>
+                  {/* <th style={{ width: '110px' }}>Aadhaar / KYC</th> */}
                   <th style={{ width: '150px' }}>Digital Contact</th>
                   <th style={{ width: '120px' }}>Guardian Network</th>
                   <th>Location</th>
@@ -296,7 +296,7 @@ export function KavachDirectory({
                         </div>
                      </td>
                      <td>
-                        <div style={{ fontWeight: 900 }}>{user.protectorVetting?.aadhaarNumber || user.aadhar || user.aadhaar || user.aadhaarMask}</div>
+                        {/* <div style={{ fontWeight: 900 }}>{user.protectorVetting?.aadhaarNumber || user.aadhar || user.aadhaar || user.aadhaarMask}</div> */}
                         <div style={{ fontSize: '5pt', color: '#16a34a', fontWeight: 900, marginTop: '2px' }}>VERIFIED DIGITAL ID</div>
                      </td>
                      <td>
@@ -448,7 +448,7 @@ export function KavachDirectory({
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">System Role</th>
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Occupation</th>
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
-              <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">AADHAAR / KYC</th>
+              {/* <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">AADHAAR / KYC</th> */}
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Digital Contact</th>
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Guardian Network</th>
               <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Location</th>
@@ -505,7 +505,7 @@ export function KavachDirectory({
                 </td>
                 <td className="px-6 py-5">
                    <div className="flex flex-col">
-                      <p className="text-[10px] font-black text-gray-900 leading-none">{user.aadhaar || user.aadhar || 'PENDING'}</p>
+                      {/* <p className="text-[10px] font-black text-gray-900 leading-none">{user.aadhaar || user.aadhar || 'PENDING'}</p> */}
                       <p className="text-[7px] text-green-600 font-black uppercase mt-1.5 flex items-center gap-1 status-badge">
                          <Fingerprint size={10} className="icon-container" /> Verified Digital ID
                       </p>

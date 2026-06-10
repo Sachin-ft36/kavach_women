@@ -44,16 +44,16 @@ export default function GenderStep({
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex-1 flex flex-col space-y-4"
+      className="flex-1 flex flex-col space-y-4 min-h-0"
     >
       {/* Header Section */}
       <div className="flex flex-col items-center space-y-2 pt-1">
-        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white border border-[#E5E7EB] rounded-xl sm:rounded-[20px] flex items-center justify-center shadow-lg shadow-gray-100">
-          <User className="text-[#2563EB] size-5 sm:size-6" />
+        <div className="w-12 h-12 bg-white border border-[#E5E7EB] rounded-2xl flex items-center justify-center shadow-md shadow-gray-100">
+          <User className="text-[#2563EB]" size={22} />
         </div>
 
         <div className="text-center space-y-0.5">
-          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">
             User Registration
           </h1>
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">

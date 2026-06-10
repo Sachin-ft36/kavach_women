@@ -404,11 +404,28 @@ public class KavachService extends Service implements SensorEventListener {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Android 14+ mandate for explicit types in startForeground
-            startForeground(1, notification, 
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE |
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION |
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE |
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
+            int fgsTypes = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE;
+            
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                fgsTypes |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
+            }
+            
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                fgsTypes |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+            }
+            
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                fgsTypes |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+            }
+
+            try {
+                startForeground(1, notification, fgsTypes);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start FGS with dynamic types: " + e.getMessage());
+                // Fallback to special use only if restricted by background rules
+                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            }
         } else {
             startForeground(1, notification);
         }
