@@ -5,6 +5,9 @@ service cloud.firestore {
     // --- 🏛️ AUTH & IDENTITY HELPERS (SAFE-GUARDED) ---
     function isAuthenticated() { return request.auth != null; }
     
+    // 🛡️ Play Integrity / App Check Enforcer
+    function hasAppCheck() { return request.app != null; }
+    
     function hasRole(role) {
       return isAuthenticated() && request.auth.token != null && request.auth.token.role == role;
     }
@@ -116,11 +119,26 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function isValidAlertTransition(oldStatus, newStatus) {
+      return (oldStatus == newStatus) ||
+             (oldStatus == 'active' && newStatus in ['responding', 'aborted', 'cancelled', 'rescued_pending_victim_clearance']) ||
+             (oldStatus == 'responding' && newStatus in ['arrived', 'aborted', 'rescued_pending_victim_clearance']) ||
+             (oldStatus == 'arrived' && newStatus in ['rescued_pending_victim_clearance', 'resolved']) ||
+             (oldStatus == 'rescued_pending_victim_clearance' && newStatus == 'resolved') ||
+             (oldStatus == 'resolved' && newStatus == 'closed');
+    }
+
     // --- 🚨 SOS ALERTS & JUSTICE ---
     match /alerts/{alertId} { 
       allow read: if isAuthenticated(); 
-      allow create: if isAuthenticated(); 
-      allow update: if isAuthenticated(); 
+      // 🛡️ PLAY INTEGRITY: Only devices verified by Google or Admins can trigger SOS
+      allow create: if isAuthenticated() && (hasAppCheck() || isAdmin()); 
+      // 🛡️ MATHEMATICAL STATE GUARD: Forbids illegal status jumps (e.g. active -> resolved directly)
+      allow update: if isAuthenticated() && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || 
+        isAdmin() || 
+        isValidAlertTransition(resource.data.status, request.resource.data.status)
+      ); 
       allow delete: if isAdmin();
       
       match /evidence/{evidenceId} {
@@ -131,12 +149,12 @@ service cloud.firestore {
 
     match /firs/{firId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && (hasAppCheck() || isAdmin());
       allow update, delete: if isAdmin();
     }
 
     match /zero_firs/{firId} {
-      allow create: if isAuthenticated(); 
+      allow create: if isAuthenticated() && (hasAppCheck() || isAdmin()); 
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'victimUid' in resource.data && request.auth.uid == resource.data.victimUid));
       allow update, delete: if isAdmin();
     }

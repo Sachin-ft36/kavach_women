@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { cryptoService } from './cryptoService';
+import { Preferences } from '@capacitor/preferences';
 
 export type SyncPayloadType = 'TELEMETRY' | 'EVIDENCE_NODE' | 'SOS_TRIGGER' | 'ACK_STATUS';
 
@@ -20,8 +21,8 @@ const IV_KEY = 'kavach_offline_queue_iv';
 export const offlineSyncService = {
   queuePayload: async (type: SyncPayloadType, data: any) => {
     try {
-      const existingCipher = localStorage.getItem(STORAGE_KEY);
-      const existingIv = localStorage.getItem(IV_KEY);
+      const { value: existingCipher } = await Preferences.get({ key: STORAGE_KEY });
+      const { value: existingIv } = await Preferences.get({ key: IV_KEY });
       let queue: OfflinePayload[] = [];
       
       if (existingCipher && existingIv) {
@@ -46,8 +47,8 @@ export const offlineSyncService = {
       queue.push(payload);
       
       const { ciphertext, iv } = await cryptoService.encryptData(JSON.stringify(queue));
-      localStorage.setItem(STORAGE_KEY, ciphertext);
-      localStorage.setItem(IV_KEY, iv);
+      await Preferences.set({ key: STORAGE_KEY, value: ciphertext });
+      await Preferences.set({ key: IV_KEY, value: iv });
       
       // Attempt to sync immediately
       offlineSyncService.processSyncQueue();
@@ -60,8 +61,8 @@ export const offlineSyncService = {
     if (!navigator.onLine) return; // Don't try if offline
 
     try {
-      const existingCipher = localStorage.getItem(STORAGE_KEY);
-      const existingIv = localStorage.getItem(IV_KEY);
+      const { value: existingCipher } = await Preferences.get({ key: STORAGE_KEY });
+      const { value: existingIv } = await Preferences.get({ key: IV_KEY });
       if (!existingCipher || !existingIv) return;
       
       let queue: OfflinePayload[] = [];
@@ -70,8 +71,8 @@ export const offlineSyncService = {
         queue = JSON.parse(decrypted);
       } catch (e) {
         console.error("Decryption of queue failed. Wiping corrupt queue.", e);
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(IV_KEY);
+        await Preferences.remove({ key: STORAGE_KEY });
+        await Preferences.remove({ key: IV_KEY });
         return;
       }
 
@@ -119,11 +120,11 @@ export const offlineSyncService = {
       // Save remaining items back to queue
       if (remainingQueue.length > 0) {
         const { ciphertext, iv } = await cryptoService.encryptData(JSON.stringify(remainingQueue));
-        localStorage.setItem(STORAGE_KEY, ciphertext);
-        localStorage.setItem(IV_KEY, iv);
+        await Preferences.set({ key: STORAGE_KEY, value: ciphertext });
+        await Preferences.set({ key: IV_KEY, value: iv });
       } else {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(IV_KEY);
+        await Preferences.remove({ key: STORAGE_KEY });
+        await Preferences.remove({ key: IV_KEY });
       }
 
     } catch (e) {

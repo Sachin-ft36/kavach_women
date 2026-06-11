@@ -20,6 +20,7 @@ import { cn } from '../lib/utils';
 import { db, auth, handleFirestoreError } from '../firebase';
 import { collection, query, onSnapshot, where, limit } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
+import { AuditExportService } from '../services/AuditExportService';
 
 import ZeroFIR from './ZeroFIR';
 
@@ -92,6 +93,7 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
               date: item.timestamp?.toDate().toLocaleString() || 'Recent',
               status: item.source === 'alert' ? (item.status === 'active' ? 'Recording...' : 'Logged') : 'Verified',
               hash: item.hash || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+              digitalSignature: item.digitalSignature || null,
               url: item.url || null,
               triggerMethod: item.triggerMethod || null
             }));
@@ -126,6 +128,7 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
         date: item.timestamp?.toDate().toLocaleString() || 'Recent',
         status: item.source === 'alert' ? (item.status === 'active' ? 'Recording...' : 'Logged') : 'Verified',
         hash: item.hash || `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        digitalSignature: item.digitalSignature || null,
         url: item.url || null,
         triggerMethod: item.triggerMethod || null
       }));
@@ -169,6 +172,21 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
         handleDownload(log.url, `KAVACH_RECORD_${log.hash}_${index}.${extension}`);
       }, index * 500);
     });
+  };
+
+  const generateLegalAudit = async () => {
+    try {
+      const dummyIncident = {
+        id: 'GLOBAL_VAULT_EXPORT',
+        victimUid: auth.currentUser?.uid || 'UNKNOWN',
+        status: 'Audit Export' as any,
+        location: { lat: 0, lng: 0 }
+      };
+      await AuditExportService.generatePDF(dummyIncident, logs);
+      alert('Legal Audit PDF generated securely.');
+    } catch (e) {
+      alert('Failed to generate Legal Audit. Ensure jspdf is installed.');
+    }
   };
 
   return (
@@ -312,6 +330,14 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
                 <Download size={18} /> Download Records
               </button>
             </div>
+            <div className="mt-4">
+              <button 
+                onClick={generateLegalAudit}
+                className="w-full flex items-center justify-center gap-3 py-4 sm:py-5 bg-red-50 text-red-600 border border-red-200 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-red-100 transition-all shadow-sm active:scale-95"
+              >
+                <FileText size={18} /> Generate Legal PDF Report
+              </button>
+            </div>
           </div>
         </div>
 
@@ -359,15 +385,23 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
                             <p className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                           {log.url && (
-                             <button 
-                               onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
-                               className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
-                             >
-                               <Download size={16} />
-                             </button>
-                           )}
+                        <div className="flex flex-col items-end justify-center gap-1">
+                           <div className="flex items-center gap-2">
+                             {log.digitalSignature && (
+                               <div className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100" title="ECDSA Cryptographic Signature Present">
+                                 <Shield size={10} />
+                                 <span className="text-[8px] font-black uppercase tracking-widest">Signed</span>
+                               </div>
+                             )}
+                             {log.url && (
+                               <button 
+                                 onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
+                                 className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
+                               >
+                                 <Download size={16} />
+                               </button>
+                             )}
+                           </div>
                            <span className="text-[10px] font-mono text-gray-400 font-bold pr-2">#{log.hash.slice(0,8)}</span>
                         </div>
                       </motion.div>
@@ -424,15 +458,23 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
                                 <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{log.date}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-all">
-                               {log.url && (
-                                 <button 
-                                   onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
-                                   className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
-                                 >
-                                   <Download size={14} />
-                                 </button>
-                               )}
+                            <div className="flex flex-col items-end justify-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all">
+                               <div className="flex items-center gap-2">
+                                 {log.digitalSignature && (
+                                   <div className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100" title="ECDSA Cryptographic Signature Present">
+                                     <Shield size={8} />
+                                     <span className="text-[7px] font-black uppercase tracking-widest">Signed</span>
+                                   </div>
+                                 )}
+                                 {log.url && (
+                                   <button 
+                                     onClick={() => handleDownload(log.url, `KAVACH_${log.hash}.webm`)}
+                                     className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-[#2563EB] transition-all"
+                                   >
+                                     <Download size={14} />
+                                   </button>
+                                 )}
+                               </div>
                                <span className="text-[8px] font-mono text-gray-300 font-bold pr-1">#{log.hash.slice(0,8)}</span>
                             </div>
                           </motion.div>

@@ -539,8 +539,21 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         if (lat !== undefined && lng !== undefined) {
           const userPos: GeoPoint = { lat, lng };
           set({ userPos, loading: false });
+          
+          const state = useKavachStore.getState();
 
           if (auth.currentUser) {
+            // 🚀 BATCH TELEMETRY (100k Scale Resilience: Cold Storage Routing)
+            import('../services/TelemetryBatcher').then(({ telemetryBatcher }) => {
+              telemetryBatcher.log({
+                type: 'LOCATION_PING',
+                lat,
+                lng,
+                uid: auth.currentUser!.uid,
+                context: state.isSOSActive ? 'SOS_VICTIM' : (state.respondingToAlertId ? 'RESPONDER' : 'BACKGROUND')
+              });
+            }).catch(console.error);
+
             try {
               const updates: any = {
                 lastLocation: { latitude: lat, longitude: lng },

@@ -139,9 +139,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       
+      const callerName = ('name' in currentUser ? (currentUser as any).name : undefined) || 
+                         ('displayName' in currentUser ? (currentUser as any).displayName : undefined) || 
+                         "Kavach Citizen";
+
       const signalData = {
         activeCall: {
-          callerName: currentUser.name || currentUser.displayName || "Kavach Citizen",
+          callerName: callerName,
           callerUid: currentUser.uid,
           targetUid: targetUid,
           timestamp: new Date()
@@ -156,7 +160,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await addDoc(collection(db, 'notifications'), {
           type: 'VOIP_CALL',
           targetUid: targetUid,
-          callerName: currentUser.name || currentUser.displayName || "Kavach Citizen",
+          callerName: callerName,
           contextId: finalContextId,
           timestamp: serverTimestamp(),
           status: 'pending',
@@ -176,7 +180,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const ZegoUIKitPrebuilt = await loadZegoScript();
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID, serverSecret, finalContextId, currentUser.uid, currentUser.name || "User"
+        appID, serverSecret, finalContextId, currentUser.uid, callerName || "User"
       );
 
       const zp = ZegoUIKitPrebuilt.create(kitToken);

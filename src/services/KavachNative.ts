@@ -28,6 +28,8 @@ export interface KavachPlugin {
   // 🔒 Platform Security & OS Settings Overrides
   isOverlayPermissionGranted(): Promise<{ granted: boolean }>;
   openOverlaySettings(): Promise<void>;
+  hasFullScreenIntentPermission(): Promise<{ granted: boolean }>;
+  openFullScreenIntentSettings(): Promise<void>;
   isIgnoringBatteryOptimizations(): Promise<{ isExempt: boolean }>;
   openBatterySettings(): Promise<void>;
   triggerHapticPulse(): Promise<void>;
@@ -240,6 +242,27 @@ export const KavachSafe = {
         return await KavachNative.openBatterySettings();
       } catch (error) {
         console.error("🚨 OS REDIRECT ERROR: Unable to display device battery configuration tray:", error);
+      }
+    }
+  },
+
+  hasFullScreenIntentPermission: async (): Promise<{ granted: boolean }> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.hasFullScreenIntentPermission();
+      } catch (error) {
+        return { granted: true };
+      }
+    }
+    return { granted: true };
+  },
+
+  openFullScreenIntentSettings: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.openFullScreenIntentSettings();
+      } catch (error) {
+        console.error("🚨 OS REDIRECT ERROR:", error);
       }
     }
   },
