@@ -10,6 +10,8 @@ import { db } from '../../firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { EvidenceViewerModal } from './EvidenceViewerModal';
+import { createPortal } from 'react-dom';
 
 interface MissionAuditModalProps {
   user: any;
@@ -22,6 +24,7 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
   const [guardians, setGuardians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isIssuingWarning, setIsIssuingWarning] = useState(false);
+  const [selectedEvidenceAlertId, setSelectedEvidenceAlertId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && user?.id) {
@@ -106,10 +109,10 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
   const falseAlertCount = history.filter(h => h.closureReason === 'Accidentally triggered SOS').length;
   const integrityScore = Math.max(0, 100 - (falseAlertCount * 25));
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[9999]">
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
@@ -117,10 +120,10 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
           />
           
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 50 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 50 }}
-            className="relative w-full max-w-6xl bg-[#0F172A] rounded-[3rem] shadow-[0_50px_150px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col max-h-[90vh]"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="absolute inset-0 w-full h-full bg-[#0F172A] border border-white/10 overflow-hidden flex flex-col"
           >
             {/* 🏛️ HIGH-FIDELITY AUDIT HEADER */}
             <div className="p-10 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-blue-600/10 to-transparent">
@@ -309,9 +312,12 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
                                       <Fingerprint size={14} className="text-blue-400/40" />
                                       <span className="text-[8px] font-black text-gray-600 uppercase tracking-[4px]">Neural Hash: 0x{alert.id.slice(0, 12)}...</span>
                                    </div>
-                                   <button className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2 hover:text-white transition-colors">
-                                      View Forensic Detail
-                                      <ArrowRight size={14} />
+                                   <button 
+                                      onClick={() => setSelectedEvidenceAlertId(alert.id)}
+                                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98]"
+                                   >
+                                      Open Evidence Vault
+                                      <ArrowRight size={12} />
                                    </button>
                                 </div>
                              </div>
@@ -347,6 +353,15 @@ export function MissionAuditModal({ user, isOpen, onClose }: MissionAuditModalPr
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+      
+      {selectedEvidenceAlertId && (
+        <EvidenceViewerModal
+          alertId={selectedEvidenceAlertId}
+          isOpen={!!selectedEvidenceAlertId}
+          onClose={() => setSelectedEvidenceAlertId(null)}
+        />
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }

@@ -61,6 +61,12 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
       }
     };
     document.body.appendChild(script);
+
+    return () => {
+      if (mapRef.current && typeof mapRef.current.remove === 'function') {
+        try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
+      }
+    };
   }, []);
 
   const initMap = () => {

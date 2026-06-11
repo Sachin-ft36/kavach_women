@@ -60,16 +60,22 @@ async function compressSnapshot(rawBlob: Blob): Promise<Blob> {
   });
 }
 
-// --- UPLOAD TO FIREBASE STORAGE (photos + audio only) ---
+// --- UPLOAD TO CLOUD (Bypass Firebase Storage -> Use Base64 in Firestore) ---
 async function uploadToCloud(blob: Blob, path: string): Promise<string> {
-  try {
-    const fileRef = ref(storage, path);
-    await uploadBytes(fileRef, blob, { contentType: blob.type });
-    return await getDownloadURL(fileRef);
-  } catch (e) {
-    console.warn('Firebase upload failed:', e);
-    return '';
-  }
+  // Since you don't have a Pro plan for Storage, we convert the small compressed
+  // audio (~50KB) and images (~8KB) directly into base64 Data URIs. 
+  // These will be saved directly inside the Firestore document (which allows up to 1MB).
+  return new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => {
+      console.warn('Base64 conversion failed');
+      resolve('');
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 // --- NATIVE BLACKBOX (Android/iOS) ---

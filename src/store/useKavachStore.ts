@@ -155,6 +155,13 @@ interface KavachState {
   setIsSafeTimerAlertActive: (active: boolean) => void;
   pendingNavigationTarget: { lat: number; lng: number; name: string } | null;
   setPendingNavigationTarget: (target: { lat: number; lng: number; name: string } | null) => void;
+  
+  // Phase 16: Dead Man Switch
+  deadManSwitchActive: boolean;
+  deadManSwitchTriggerTime: number | null;
+  startDeadManSwitch: (targetTimestamp: number) => void;
+  cancelDeadManSwitch: () => void;
+  checkDeadManSwitch: () => void;
 }
 
 const savedHandshake = localStorage.getItem('kavach_handshake_code');
@@ -228,6 +235,25 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setIsSafeTimerAlertActive: (isSafeTimerAlertActive) => set({ isSafeTimerAlertActive }),
   pendingNavigationTarget: null,
   setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target }),
+  
+  deadManSwitchActive: false,
+  deadManSwitchTriggerTime: null,
+  startDeadManSwitch: (targetTimestamp: number) => {
+    set({ deadManSwitchActive: true, deadManSwitchTriggerTime: targetTimestamp });
+    console.log(`⏱️ DEAD MAN SWITCH ARMED for: ${new Date(targetTimestamp).toLocaleTimeString()}`);
+  },
+  cancelDeadManSwitch: () => {
+    set({ deadManSwitchActive: false, deadManSwitchTriggerTime: null });
+    console.log('✅ DEAD MAN SWITCH DISARMED');
+  },
+  checkDeadManSwitch: () => {
+    const { deadManSwitchActive, deadManSwitchTriggerTime, setSOSActive } = get();
+    if (deadManSwitchActive && deadManSwitchTriggerTime && Date.now() >= deadManSwitchTriggerTime) {
+      console.warn('🚨 DEAD MAN SWITCH TRIGGERED! ETA EXPIRED WITHOUT ACKNOWLEDGEMENT.');
+      get().cancelDeadManSwitch();
+      setSOSActive(true, null, 'silent'); 
+    }
+  },
 
   setPendingSOS: (active, method = 'button') => {
     if (active) {

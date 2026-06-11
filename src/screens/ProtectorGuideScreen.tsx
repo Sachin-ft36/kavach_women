@@ -159,24 +159,24 @@ export default function ProtectorGuideScreen() {
   }
 
   return (
-    <div className="relative space-y-8 pb-20 font-sans text-[#1E293B]">
+    <div className="relative space-y-8 pt-8 pb-20 font-sans text-white">
       {/* Header */}
       <div className="space-y-3">
-        <div className="flex items-center gap-3 text-[#2563EB]">
+        <div className="flex items-center gap-3 text-blue-400">
           <Shield size={18} strokeWidth={2} />
-           <span className="text-[11px] font-bold tracking-[0.5px] text-[#2563EB]">Verified Community Safety Program</span>
+           <span className="text-[11px] font-bold tracking-[0.5px] text-blue-400">Verified Community Safety Program</span>
         </div>
-        <h1 className="text-4xl font-bold tracking-tight text-[#1E293B] leading-none">Safety Guidelines Center</h1>
+        <h1 className="text-4xl font-bold tracking-tight text-white leading-none">Safety Guidelines Center</h1>
       </div>
 
       {/* Warning Card */}
-      <div className="bg-[#F1F5F9] border border-[#E2E8F0] p-7 rounded-[32px] flex gap-5 shadow-sm">
-        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shrink-0 border border-[#E2E8F0] text-accent-red shadow-sm">
+      <div className="bg-[#1E293B] border border-white/10 p-7 rounded-[32px] flex gap-5 shadow-sm">
+        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 text-rose-400 shadow-sm">
           <AlertTriangle size={24} strokeWidth={2} />
         </div>
         <div>
-          <h4 className="text-[13px] font-bold tracking-tight text-[#1E293B] mb-1.5">Emergency Response Guidelines</h4>
-          <p className="text-[12px] font-medium text-[#64748B] leading-relaxed">
+          <h4 className="text-[13px] font-bold tracking-tight text-white mb-1.5">Emergency Response Guidelines</h4>
+          <p className="text-[12px] font-medium text-slate-400 leading-relaxed">
             Please respond responsibly and prioritize user safety during emergency situations. Follow these guidelines to ensure effective community support.
           </p>
         </div>
@@ -184,13 +184,13 @@ export default function ProtectorGuideScreen() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
         <input
           type="text"
           placeholder="Search safety guidelines and resources..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white border border-[#E2E8F0] rounded-2xl py-4.5 pl-14 pr-6 text-[13px] font-medium text-[#1E293B] outline-none focus:border-[#2563EB]/40 transition-all placeholder:text-[#94A3B8] shadow-sm"
+          className="w-full bg-[#1E293B] border border-white/10 rounded-2xl py-4.5 pl-14 pr-6 text-[13px] font-medium text-white outline-none focus:border-blue-500/40 transition-all placeholder:text-slate-500 shadow-sm"
         />
       </div>
 
@@ -202,31 +202,31 @@ export default function ProtectorGuideScreen() {
             whileTap={{ scale: 0.99 }}
             onClick={() => setSelectedGuide(guide)}
             className={cn(
-              "text-left p-8 rounded-[32px] border border-[#E2E8F0] bg-white transition-all duration-300 relative overflow-hidden group shadow-sm hover:shadow-md hover:border-[#2563EB]/20",
-              guide.priority === 'CRITICAL' && "border-l-4 border-l-[#2563EB]"
+              "text-left p-8 rounded-[32px] border border-white/10 bg-[#1E293B] transition-all duration-300 relative overflow-hidden group shadow-sm hover:shadow-md hover:border-blue-500/30",
+              guide.priority === 'CRITICAL' && "border-l-4 border-l-blue-500"
             )}
           >
             <div className="flex justify-between items-start mb-5">
                <div className={cn(
                  "w-11 h-11 rounded-2xl flex items-center justify-center border",
-                 guide.type === 'TACTICAL' ? "bg-[#2563EB]/5 border-[#2563EB]/10 text-[#2563EB]" : "bg-[#10B981]/5 border-[#10B981]/10 text-[#10B981]"
+                 guide.type === 'TACTICAL' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                )}>
                  {guide.type === 'TACTICAL' ? <Shield size={20} strokeWidth={2} /> : <FileText size={20} strokeWidth={2} />}
                </div>
-               <ChevronRight size={20} className="text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
+               <ChevronRight size={20} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
             </div>
 
             <div className="space-y-3">
-               <h3 className="font-bold text-xl text-[#1E293B] leading-tight tracking-tight">{guide.title}</h3>
-               <p className="text-[13px] text-[#64748B] font-medium leading-relaxed line-clamp-2">
+               <h3 className="font-bold text-xl text-white leading-tight tracking-tight">{guide.title}</h3>
+               <p className="text-[13px] text-slate-400 font-medium leading-relaxed line-clamp-2">
                  {guide.content}
                </p>
             </div>
 
             <div className="mt-6 flex items-center gap-4">
-              <span className="text-[9px] font-bold text-[#2563EB] uppercase tracking-widest bg-[#2563EB]/5 px-3.5 py-1.5 rounded-full border border-[#2563EB]/10">Type: {guide.type === 'TACTICAL' ? 'Response' : 'General'}</span>
-              <span className="w-1 h-1 rounded-full bg-[#E2E8F0]" />
-              <span className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-widest">Verified Resource</span>
+              <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-3.5 py-1.5 rounded-full border border-blue-500/20">Type: {guide.type === 'TACTICAL' ? 'Response' : 'General'}</span>
+              <span className="w-1 h-1 rounded-full bg-slate-700" />
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Verified Resource</span>
             </div>
           </motion.button>
         ))}
@@ -236,46 +236,46 @@ export default function ProtectorGuideScreen() {
       <AnimatePresence>
         {selectedGuide && (
           <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedGuide(null)} className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-md" />
-             <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-2xl bg-white border border-[#E2E8F0] rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div className="p-8 border-b border-[#F1F5F9] bg-[#F8FAFC] flex justify-between items-center">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedGuide(null)} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+             <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="relative w-full max-w-2xl bg-[#0F172A] border border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="p-8 border-b border-white/5 bg-[#1E293B] flex justify-between items-center">
                   <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-[#2563EB]/5 flex items-center justify-center text-[#2563EB] border border-[#2563EB]/10 shadow-sm">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
                       <FileText size={24} strokeWidth={2} />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-[#1E293B] leading-none tracking-tight">{selectedGuide.title}</h2>
-                      <span className="text-[10px] font-bold text-[#64748B] tracking-[2px] uppercase mt-2 block">Reference Code: {selectedGuide.id.toUpperCase()}</span>
+                      <h2 className="text-2xl font-bold text-white leading-none tracking-tight">{selectedGuide.title}</h2>
+                      <span className="text-[10px] font-bold text-slate-400 tracking-[2px] uppercase mt-2 block">Reference Code: {selectedGuide.id.toUpperCase()}</span>
                     </div>
                   </div>
-                  <button onClick={() => setSelectedGuide(null)} className="w-10 h-10 rounded-full hover:bg-[#F1F5F9] flex items-center justify-center text-[#64748B] transition-colors">
+                  <button onClick={() => setSelectedGuide(null)} className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-400 transition-colors">
                     <Search size={20} /> {/* Should be X icon but Search is already imported */}
                   </button>
                 </div>
 
                 <div className="p-10 flex-1 overflow-y-auto custom-scrollbar">
                    <div className="space-y-8">
-                      <div className="p-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[28px] flex gap-5">
-                         <Info className="text-[#2563EB] shrink-0" size={24} strokeWidth={2} />
-                         <p className="text-[12px] font-medium text-[#64748B] leading-relaxed">
+                      <div className="p-6 bg-white/5 border border-white/10 rounded-[28px] flex gap-5">
+                         <Info className="text-blue-400 shrink-0" size={24} strokeWidth={2} />
+                         <p className="text-[12px] font-medium text-slate-300 leading-relaxed">
                            Please follow these guidelines responsibly to ensure community safety and accountability. Your support saves lives.
                          </p>
                       </div>
 
                       <div className="space-y-6">
                         {selectedGuide.content.split('\n').map((para, i) => (
-                           <p key={i} className="text-[15px] font-medium text-[#334155] leading-relaxed">
+                           <p key={i} className="text-[15px] font-medium text-slate-300 leading-relaxed">
                              {para}
                            </p>
                         ))}
                       </div>
 
-                      <div className="pt-8 border-t border-[#F1F5F9] flex justify-between items-center">
-                         <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase text-[#94A3B8] tracking-[2px]">
-                           <CheckCircle2 size={16} className="text-[#10B981]" strokeWidth={2.5} />
+                      <div className="pt-8 border-t border-white/5 flex justify-between items-center">
+                         <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase text-slate-400 tracking-[2px]">
+                           <CheckCircle2 size={16} className="text-emerald-400" strokeWidth={2.5} />
                            Official Safety Resource
                          </div>
-                         <button onClick={() => setSelectedGuide(null)} className="px-8 py-4 bg-[#2563EB] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-lg shadow-[#2563EB]/10 hover:bg-[#1D4ED8] transition-all active:scale-95">Acknowledge</button>
+                         <button onClick={() => setSelectedGuide(null)} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95">Acknowledge</button>
                       </div>
                    </div>
                 </div>

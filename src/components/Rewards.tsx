@@ -3,14 +3,18 @@ import { Trophy, Star, Shield, Award, Download, Share2, CheckCircle2, Zap, Lock,
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth, db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export default function Rewards() {
   const { t } = useLanguage();
   const [points, setPoints] = useState(0);
   const [userData, setUserData] = useState<any>(null);
   const [showCertificate, setShowCertificate] = useState(false);
+  const [displayPhotoUrl, setDisplayPhotoUrl] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const user = auth.currentUser;
 
   useEffect(() => {
@@ -20,6 +24,7 @@ export default function Rewards() {
         const data = doc.data();
         setUserData(data);
         setPoints(data.xp || 0);
+        setDisplayPhotoUrl(prev => prev || data.displayPhotoUrl || data.photoUrl || '');
       }
     });
     return () => unsubscribe();
@@ -34,10 +39,105 @@ export default function Rewards() {
 
   const currentRank = badges.filter(b => points >= b.xp).pop() || { name: 'Probationary', label: 'Field Recruit' };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setDisplayPhotoUrl(compressedBase64);
+        
+        // Auto-save to Firestore
+        if (user) {
+          setIsSaving(true);
+          try {
+            await updateDoc(doc(db, 'users', user.uid), {
+              displayPhotoUrl: compressedBase64
+            });
+            toast.success("Profile Photo Updated", { icon: '📸' });
+          } catch (err) {
+            console.error(err);
+            toast.error("Failed to update photo.");
+          }
+          setIsSaving(false);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
-    <div className="space-y-8 pb-24">
+    <div className="min-h-screen bg-[#0F172A] p-4 sm:p-6 space-y-8 pb-24">
+      {/* Instagram-Style Profile Header */}
+      <section className="bg-[#1E293B] border border-white/10 p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm relative overflow-hidden flex flex-col items-center text-center">
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          accept="image/*" 
+          className="hidden" 
+          onChange={handlePhotoUpload} 
+        />
+        
+        <div className="relative group cursor-pointer mb-4" onClick={() => fileInputRef.current?.click()}>
+          <div className="w-28 h-28 rounded-full bg-slate-700 overflow-hidden border-4 border-slate-600 shadow-lg flex items-center justify-center">
+            {displayPhotoUrl ? (
+              <img src={displayPhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <User size={40} className="text-gray-400" />
+            )}
+          </div>
+          {isSaving ? (
+            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center backdrop-blur-[2px]">
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full flex flex-col items-center justify-center backdrop-blur-[2px]">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-1">
+                <Download size={14} className="text-white transform rotate-180" />
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="text-[#2563EB] font-bold text-sm hover:text-[#1D4ED8] transition-colors mb-2"
+        >
+          Change profile photo
+        </button>
+
+        <h1 className="text-2xl font-black text-white tracking-tight">{userData?.name || 'Authorized Protector'}</h1>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{currentRank.name}</p>
+      </section>
       {/* Safety Merit Score Hero */}
-      <section className="bg-white border border-[#E5E7EB] p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-lg relative overflow-hidden group">
+      <section className="bg-[#1E293B] border border-white/10 p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-lg relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-6 sm:p-10 text-[#2563EB]/5 pointer-events-none group-hover:scale-110 transition-transform">
           <Trophy size={100} className="sm:size-[140px]" />
         </div>
@@ -49,10 +149,10 @@ export default function Rewards() {
             <span className="text-[10px] font-bold uppercase tracking-[3px] text-[#2563EB]">Safety Merit Score</span>
           </div>
           <div className="flex items-end gap-2 sm:gap-3">
-            <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 leading-none tracking-tight">{points}</h1>
-            <span className="text-sm sm:text-lg font-bold text-gray-400 mb-1 uppercase tracking-widest">Points</span>
+            <h1 className="text-5xl sm:text-6xl font-bold text-white leading-none tracking-tight">{points}</h1>
+            <span className="text-sm sm:text-lg font-bold text-slate-400 mb-1 uppercase tracking-widest">Points</span>
           </div>
-          <div className="w-full h-3 bg-gray-50 rounded-full overflow-hidden border border-gray-100 shadow-inner">
+          <div className="w-full h-3 bg-slate-700 rounded-full overflow-hidden border border-slate-600 shadow-inner">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${Math.min((points / 10000) * 100, 100)}%` }}
@@ -60,7 +160,7 @@ export default function Rewards() {
             />
           </div>
           <div className="flex justify-between items-center">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               {10000 - points > 0 ? `${10000 - points} Points to National Legend` : 'Maximum Merit Achieved'}
             </p>
             <div className="px-3 py-1 bg-[#2563EB]/5 rounded-lg border border-[#2563EB]/10">
@@ -75,19 +175,19 @@ export default function Rewards() {
         {/* Official Certification Card */}
         <section 
           className={cn(
-            "bg-white border border-[#E5E7EB] p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm flex flex-col justify-between group cursor-pointer hover:shadow-md transition-all",
-            points < 1000 && "opacity-60 grayscale pointer-events-none"
+            "bg-[#1E293B] border border-white/10 p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm flex flex-col justify-between group cursor-pointer hover:shadow-md hover:border-white/20 transition-all",
+            points < 1000 && "pointer-events-none border-white/5 bg-[#1E293B]/50"
           )}
           onClick={() => setShowCertificate(true)}
         >
           <div>
-            <div className="w-14 h-14 bg-[#2563EB]/5 rounded-2xl flex items-center justify-center text-[#2563EB] mb-6 shadow-inner group-hover:bg-[#2563EB] group-hover:text-white transition-all">
+            <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center text-[#2563EB] mb-6 shadow-inner group-hover:bg-[#2563EB] group-hover:text-white transition-all">
               <Download size={28} />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">National Merit Certification</h3>
-            <p className="text-sm text-gray-500 font-medium leading-relaxed">Download your official government-authenticated safety certificate for your contributions.</p>
+            <h3 className="text-xl font-bold text-white mb-2">National Merit Certification</h3>
+            <p className="text-sm text-slate-300 font-medium leading-relaxed">Download your official government-authenticated safety certificate for your contributions.</p>
           </div>
-          <div className="mt-8 pt-6 border-t border-gray-50">
+          <div className="mt-8 pt-6 border-t border-slate-700">
             <p className="text-[10px] text-[#2563EB] font-bold uppercase tracking-[2px]">
               {points >= 1000 ? 'Verification Complete - Ready to Download' : 'Required Merit: 1000 Points'}
             </p>
@@ -96,24 +196,24 @@ export default function Rewards() {
 
         {/* Badges Collection */}
         <div className="space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-[2px] text-gray-400 ml-2">Safety Achievement Badges</h3>
+          <h3 className="text-xs font-bold uppercase tracking-[2px] text-white ml-2">Safety Achievement Badges</h3>
           <div className="grid grid-cols-2 gap-4">
             {badges.map((badge, i) => (
-              <motion.div 
-                key={i}
-                className={cn(
-                  "bg-white border p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col items-center text-center gap-3 sm:gap-4 transition-all shadow-sm",
-                  points >= badge.xp ? "border-[#E5E7EB] hover:shadow-md" : "border-gray-50 opacity-40 grayscale"
-                )}
-              >
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100 shadow-inner">
-                  {points >= badge.xp ? React.cloneElement(badge.icon as any, { size: 22 }) : <Lock size={18} className="text-gray-300" />}
-                </div>
-                <div>
-                  <h4 className="text-[10px] sm:text-xs font-bold text-gray-900 uppercase tracking-tight leading-tight mb-1">{badge.name}</h4>
-                  <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold uppercase tracking-widest">{badge.label}</p>
-                </div>
-              </motion.div>
+                <motion.div 
+                  key={i}
+                  className={cn(
+                    "bg-[#1E293B] border p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col items-center text-center gap-3 sm:gap-4 transition-all shadow-sm",
+                    points >= badge.xp ? "border-white/10 hover:border-white/20 hover:shadow-md" : "border-white/5 bg-[#1E293B]/50"
+                  )}
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
+                    {points >= badge.xp ? React.cloneElement(badge.icon as any, { size: 22 }) : <Lock size={18} className="text-slate-400" />}
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-tight leading-tight mb-1">{badge.name}</h4>
+                    <p className="text-[8px] sm:text-[9px] text-slate-300 font-bold uppercase tracking-widest">{badge.label}</p>
+                  </div>
+                </motion.div>
             ))}
           </div>
         </div>

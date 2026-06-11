@@ -110,7 +110,7 @@ export default function EmergencyContacts() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4 sm:pt-6 pb-24 px-4 sm:px-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Guardian Circle</h2>

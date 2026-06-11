@@ -58,6 +58,12 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
     };
     
     document.body.appendChild(script);
+
+    return () => {
+      if (mapRef.current && typeof mapRef.current.remove === 'function') {
+        try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
+      }
+    };
   }, []);
 
   const mapId = useRef(`mappls-radar-${Math.random().toString(36).substring(7)}`).current;
@@ -121,10 +127,10 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
          map: mapRef.current,
          center: { lat: centerLat, lng: centerLng },
          radius: activeRadius * 1000,
-         fillColor: '#0A84FF',
-         fillOpacity: 0.1,
-         strokeColor: '#0A84FF',
-         strokeOpacity: 0.8,
+         fillColor: '#3B82F6',
+         fillOpacity: 0.02,
+         strokeColor: '#3B82F6',
+         strokeOpacity: 0.4,
          strokeWeight: 2,
        });
     }

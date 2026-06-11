@@ -75,7 +75,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
           source: 'radar-radius',
           paint: {
             'fill-color': '#0A84FF',
-            'fill-opacity': 0.1
+            'fill-opacity': 0.02
           }
         });
 
@@ -155,7 +155,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
             source: sourceId,
             paint: {
               'fill-color': color,
-              'fill-opacity': isActive ? 0.1 : 0.02
+              'fill-opacity': isActive ? 0.02 : 0.005
             }
           });
 
@@ -176,7 +176,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
           const color = metrics.level === 'OPTIMAL' ? '#10B981' : metrics.level === 'CAUTION' ? '#F59E0B' : metrics.level === 'CRITICAL' ? '#EF4444' : '#0A84FF';
           
           m.setPaintProperty(`${sourceId}-fill`, 'fill-color', color);
-          m.setPaintProperty(`${sourceId}-fill`, 'fill-opacity', isActive ? 0.1 : 0.02);
+          m.setPaintProperty(`${sourceId}-fill`, 'fill-opacity', isActive ? 0.02 : 0.005);
           m.setPaintProperty(`${sourceId}-outline`, 'line-color', color);
           m.setPaintProperty(`${sourceId}-outline`, 'line-width', isActive ? 3 : 1);
           m.setPaintProperty(`${sourceId}-outline`, 'line-opacity', isActive ? 0.8 : 0.2);

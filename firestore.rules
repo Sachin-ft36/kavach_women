@@ -5,8 +5,15 @@ service cloud.firestore {
     // --- 🏛️ AUTH & IDENTITY HELPERS (SAFE-GUARDED) ---
     function isAuthenticated() { return request.auth != null; }
     
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token != null && request.auth.token.role == role;
+    }
+    
     function isAdmin() {
       return isAuthenticated() && (
+             hasRole('national_commander') ||
+             hasRole('admin') ||
+             hasRole('super_cell') ||
              request.auth.token.email == 'singh.sachin16559@gmail.com' ||
              request.auth.token.email.lower().matches('.*adminsachin.*') ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -26,6 +33,7 @@ service cloud.firestore {
 
     function isProtector() {
       return isAuthenticated() && (
+             hasRole('protector') ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'protector') ||
              (exists(/databases/$(database)/documents/male_users/$(request.auth.uid)) && get(/databases/$(database)/documents/male_users/$(request.auth.uid)).data.role == 'protector') ||
              (exists(/databases/$(database)/documents/women_users/$(request.auth.uid)) && get(/databases/$(database)/documents/women_users/$(request.auth.uid)).data.role == 'protector')
@@ -50,7 +58,7 @@ service cloud.firestore {
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified']) || request.resource.data.verified == false) &&
         (!('role' in request.resource.data) || !(request.resource.data.role in ['admin', 'super_cell', 'SuperCell']))
       ) || (
-        isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'livesSaved', 'successfulRescues', 'abortedAssists', 'missionHistory'])
+        isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'livesSaved', 'successfulRescues', 'abortedAssists', 'missionHistory', 'stats', 'rating', 'ratingCount'])
       );
       allow create: if isAdmin() || (
         isOwner(userId) &&
@@ -117,6 +125,7 @@ service cloud.firestore {
       
       match /evidence/{evidenceId} {
         allow read, create: if isAuthenticated();
+        allow update, delete: if isAdmin();
       }
     }
 
@@ -165,6 +174,14 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && 'userId' in resource.data && request.auth.uid == resource.data.userId));
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // --- 🚨 PHASE 20: IMMUTABLE AUDIT LEDGER (FORENSIC VAULT) ---
+    match /incident_audit_ledger/{docId} {
+      allow read: if isAuthenticated() && (isAdmin() || hasRole('super_cell') || hasRole('national_commander'));
+      allow create: if isAuthenticated();
+      // 🔒 FORENSIC LOCK: No edits or deletes allowed by ANYONE, even admins.
+      allow update, delete: if false;
     }
 
     // --- 🚨 FINAL SAFETY NET ---

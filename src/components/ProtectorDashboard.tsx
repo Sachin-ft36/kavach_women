@@ -4,7 +4,8 @@ import {
   Shield, MapPin, Bell, Activity, Clock, Phone, Navigation,
   CheckCircle2, Camera, User, ChevronRight, Info, Heart,
   ShieldCheck, MessageSquare, AlertCircle, RefreshCw, Layers,
-  LocateFixed, PhoneCall, Globe, Zap, Cpu, Car, Volume2, ShieldAlert, Award, Lock
+  LocateFixed, PhoneCall, Globe, Zap, Cpu, Car, Volume2, ShieldAlert, Award, Lock,
+  Eye, ChevronDown, BookOpen, AlertTriangle, Menu, Radio, Users, Siren
 } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 import { supabase } from '../lib/supabase';
@@ -24,7 +25,7 @@ import PCROfficerDashboard from './PCROfficerDashboard';
 export default function ProtectorDashboard() {
   const { language } = useLanguage();
   const { initiateCall } = useCall();
-  const { user, profile, userPos, isEmergencyOverrideRequested, activeTab } = useKavachStore();
+  const { user, profile, userPos, isEmergencyOverrideRequested, activeTab, setActiveTab } = useKavachStore();
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [rescuePhoto, setRescuePhoto] = useState<string | null>(null);
   const [resolvingAlert, setResolvingAlert] = useState<any | null>(null);
@@ -124,7 +125,7 @@ export default function ProtectorDashboard() {
   // Simulate Speed & Route progress in real-time on Car MDT (with real countdown and realistic fluctuations)
   useEffect(() => {
     if (!isCarScreenOpen) return;
-    
+
     // When responding starts, reset ETA if it was uninitialized
     if (respondingToId && etaRemainingMs === 108600) {
       setEtaRemainingMs(108600);
@@ -139,7 +140,7 @@ export default function ProtectorDashboard() {
             const nextSpeed = prev === 0 ? 79 : prev + delta;
             return Math.max(72, Math.min(86, nextSpeed));
           });
-          
+
           // 2. Countdown ETA in milliseconds
           setEtaRemainingMs(prev => {
             if (prev <= 100) return 0;
@@ -174,7 +175,7 @@ export default function ProtectorDashboard() {
       const minutes = Math.floor(totalTenths / 600);
       const seconds = Math.floor((totalTenths % 600) / 10);
       const tenths = totalTenths % 10;
-      
+
       const mm = String(minutes).padStart(2, '0');
       const ss = String(seconds).padStart(2, '0');
       setEtaTimer(`${mm}:${ss}.${tenths}`);
@@ -198,7 +199,7 @@ export default function ProtectorDashboard() {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
 
@@ -220,7 +221,7 @@ export default function ProtectorDashboard() {
       if (snap.exists()) {
         setActiveInterceptAlert({ id: snap.id, ...snap.data() as any });
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [respondingToId, activeAlerts]);
 
   // 🚨 INACTIVITY MONITOR: Escalation to District Command Cell on zero-motion deadlock
@@ -253,7 +254,7 @@ export default function ProtectorDashboard() {
           inactiveOfficerName: profile?.name || 'PCR Officer',
           inactiveOfficerVehicle: profile?.vehicleNo || 'PCR-TBD',
           inactivityTriggeredAt: serverTimestamp()
-        }).catch(() => {});
+        }).catch(() => { });
       }
       return;
     }
@@ -276,7 +277,7 @@ export default function ProtectorDashboard() {
         currentZone: targetState ? customJurisdiction : null,
         lastUpdated: serverTimestamp()
       });
-      
+
       if (targetState) {
         // SHIFT START
         setShiftStartTime(new Date());
@@ -336,14 +337,14 @@ export default function ProtectorDashboard() {
           }
           setAssignedDispatch(null);
         }
-        
+
         // Build shift summary from real data
         setShiftStats({
           duration: durationFormatted,
           responses: responses
         });
         setShowShiftCompleteModal(true);
-        
+
         if ('speechSynthesis' in window) {
           const msg = new SpeechSynthesisUtterance("Shift ended. Vehicle released. Stay safe.");
           window.speechSynthesis.speak(msg);
@@ -370,11 +371,11 @@ export default function ProtectorDashboard() {
       if (!snap.empty) {
         const dispatchDoc = snap.docs[0].data();
         const dispatchId = snap.docs[0].id;
-        
+
         // Find or map matching alert coordinates
         const alertId = dispatchDoc.alertId;
         setAssignedDispatch({ id: dispatchId, alertId, ...dispatchDoc });
-        
+
         // If not already responding, light up the intercept HUD!
         if (respondingToId !== alertId) {
           toast.success("🚨 HQ EMERGENCY DISPATCH ASSIGNED!");
@@ -412,13 +413,13 @@ export default function ProtectorDashboard() {
           setIsInterceptHUDOpen(false);
           setActiveInterceptAlert(null); // Clear active CarPlay alert tracking state
           setAssignedDispatch(null);     // Clear dispatch ticket state
-          
+
           // Complete dispatch record status
           if (assignedDispatch?.id) {
             updateDoc(doc(db, 'dispatches', assignedDispatch.id), {
               status: 'resolved',
               resolvedAt: serverTimestamp()
-            }).catch(() => {});
+            }).catch(() => { });
           }
 
           // Reset PCR user state
@@ -426,12 +427,12 @@ export default function ProtectorDashboard() {
             updateDoc(doc(db, 'users', user.uid), {
               currentDispatchStatus: 'idle',
               currentAlertId: null
-            }).catch(() => {});
+            }).catch(() => { });
           }
-          
+
           // 🎊 Haptic Victory Pulse
           if (Capacitor.isNativePlatform()) {
-             navigator.vibrate([100, 50, 100, 50, 200]);
+            navigator.vibrate([100, 50, 100, 50, 200]);
           }
         }
       }
@@ -452,7 +453,7 @@ export default function ProtectorDashboard() {
     const audioPath = '/voice/protectorenglish.mp3';
     const audio = new Audio(audioPath);
     audioRef.current = audio;
-    
+
     setIsBriefingPlaying(true);
 
     audio.onended = () => {
@@ -502,29 +503,29 @@ export default function ProtectorDashboard() {
           const vLat = alert.latitude || alert.location?.latitude || alert.location?.lat || (alert.coords && alert.coords[0]);
           const vLng = alert.longitude || alert.location?.longitude || alert.location?.lng || (alert.coords && alert.coords[1]);
           if (!vLat || !vLng) return false;
-          
+
           const dLat = (vLat - userPos[0]) * Math.PI / 180;
           const dLon = (vLng - userPos[1]) * Math.PI / 180;
           const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(userPos[0] * Math.PI / 180) * Math.cos(vLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           const dist = 6371 * c;
-          
+
           const isResponding = alert.responderUid === user.uid;
           if (isResponding && dist <= 20) return true;
-          
+
           // We keep the alert in the list even if it's assigned to someone else, 
           // so we can show "Assigned to PCR-01" instead of just making it disappear (unprofessional).
           // if (alert.status === 'responding' && alert.responderUid && alert.responderUid !== user.uid) {
           //   return false;
           // }
-          
+
           // Transit alerts or debug testing
           const isTransit = !!alert.isTransitSOS;
           const isDebug = localStorage.getItem('kavach_debug_mode') === 'true' || alert.type === 'TEST_ALERT' || alert.type?.includes('TEST');
           if (isTransit || isDebug) {
             return dist <= 1000;
           }
-          
+
           return dist <= 10;
         });
         setActiveAlerts(filtered);
@@ -576,13 +577,13 @@ export default function ProtectorDashboard() {
     if (!alertId || !user) return;
 
     setIsProcessingResponse(true);
-    
+
     // 🛡️ TACTICAL GUARD: Prevent duplicate responders
     const alertDoc = await getDoc(doc(db, 'alerts', alertId));
     if (!alertDoc.exists()) return;
-    
+
     const alertData = alertDoc.data();
-    
+
     // 🛑 EXCLUSIVE LOCK CHECK (Ola/Uber Logic Server-side validation)
     if (alertData.responderUid && alertData.responderUid !== user.uid) {
       toast.error("🚨 ALERT ALREADY INTERCEPTED! Another PCR unit is already en-route.");
@@ -592,7 +593,7 @@ export default function ProtectorDashboard() {
     }
 
     const isAlreadyResponding = (alertData.activeResponders || []).some((r: any) => r.uid === user.uid);
-    
+
     setRespondingToId(alertId);
     setShowTacticalPledge({ isOpen: false, alertId: null });
 
@@ -613,7 +614,7 @@ export default function ProtectorDashboard() {
           responderUid: user.uid,
           responderName: state.profile?.name || user.displayName || 'Protector Saathi'
         });
-        
+
         // ⚡ SUPABASE MISSION LOG
         supabase
           .from('missions')
@@ -636,8 +637,8 @@ export default function ProtectorDashboard() {
       });
 
       // 🛰️ UPDATE GLOBAL STATE
-      useKavachStore.setState({ 
-        respondingToAlertId: alertId 
+      useKavachStore.setState({
+        respondingToAlertId: alertId
       });
 
       const activeAlert = activeAlerts.find(a => a.id === alertId);
@@ -675,7 +676,7 @@ export default function ProtectorDashboard() {
       }
 
       setRespondingToId(alertId);
-      
+
       const responderData = {
         uid: user.uid,
         name: profile?.name || user.displayName || 'PCR Officer',
@@ -683,7 +684,7 @@ export default function ProtectorDashboard() {
         phone: profile?.phone || user.phoneNumber || '',
         joinedAt: Date.now()
       };
-      
+
       // Update Alert Document
       await updateDoc(doc(db, 'alerts', alertId), {
         status: 'responding',
@@ -691,7 +692,7 @@ export default function ProtectorDashboard() {
         responderUid: user.uid,
         responderName: profile?.name || user.displayName || 'PCR Officer'
       });
-      
+
       // Update User Document
       await updateDoc(doc(db, 'users', user.uid), {
         status: 'responding',
@@ -700,7 +701,7 @@ export default function ProtectorDashboard() {
         currentAlertId: alertId,
         lastUpdated: serverTimestamp()
       });
-      
+
       // Write Dispatch ticket to Firestore so HQ sees it
       const dispatchId = 'self_dispatch_' + Date.now();
       await addDoc(collection(db, 'dispatches'), {
@@ -719,29 +720,29 @@ export default function ProtectorDashboard() {
         isRealOfficer: true,
         isSelfDispatched: true
       });
-      
+
       // Update local state
       setAssignedDispatch({
         id: dispatchId,
         alertId,
         victimName: alertData.victimName || alertData.userName || 'Citizen'
       });
-      
+
       const activeAlert = { id: alertId, ...alertData };
-      useKavachStore.setState({ 
+      useKavachStore.setState({
         respondingToAlertId: alertId,
-        activeAlertId: alertId 
+        activeAlertId: alertId
       });
-      
+
       setActiveInterceptAlert(activeAlert);
       if (!isCarScreenOpen) {
         setIsInterceptHUDOpen(true);
       }
       setInterceptActive(true);
       setIsNavigating(true);
-      
+
       toast.success("🔴 DIRECT SOS BROADCAST LOCKED! INTERCEPTING IMMEDIATELY.");
-      
+
       if ('speechSynthesis' in window) {
         const msg = new SpeechSynthesisUtterance("Direct SOS locked. Commencing high-speed intercept.");
         window.speechSynthesis.speak(msg);
@@ -871,9 +872,9 @@ export default function ProtectorDashboard() {
                 <div className="text-center">
                   <p className="text-[8px] text-slate-500 uppercase tracking-widest mb-2">Victim Safety PIN</p>
                   <div className="flex gap-2 justify-center">
-                    {[0,1,2,3].map(i => (
+                    {[0, 1, 2, 3].map(i => (
                       <input key={i} type="text" maxLength={1} value={handshakeInput[i] || ''}
-                        onChange={e => { const v = e.target.value; if (v && handshakeInput.length < 4) setHandshakeInput(handshakeInput + v); else if (!v) setHandshakeInput(handshakeInput.slice(0,-1)); }}
+                        onChange={e => { const v = e.target.value; if (v && handshakeInput.length < 4) setHandshakeInput(handshakeInput + v); else if (!v) setHandshakeInput(handshakeInput.slice(0, -1)); }}
                         className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl text-center text-lg font-black text-blue-600 outline-none" placeholder="•" />
                     ))}
                   </div>
@@ -962,195 +963,359 @@ export default function ProtectorDashboard() {
   }
 
   // ----------------------------------------------------
-  // 👥 RENDER VIEW 2: STANDARD CIVILIAN PROTECTOR VIEW
+  // 👥 RENDER VIEW 2: STANDARD CIVILIAN PROTECTOR VIEW (EXACT DARK MATCH)
   // ----------------------------------------------------
+
+  const protectorStats = {
+    rating: profile?.stats?.rating || profile?.rating || 0.0,
+    ratingCount: profile?.stats?.ratingCount || profile?.ratingCount || 0,
+    level: profile?.stats?.level || profile?.level || 1,
+    xp: profile?.stats?.xp || profile?.xp || 0,
+    livesHelped: profile?.stats?.livesHelped || profile?.livesHelped || 0,
+    successRate: profile?.stats?.successRate || profile?.successRate || 0,
+    avgResponse: profile?.stats?.avgResponse || profile?.avgResponse || '--'
+  };
+
+  const xpNeededForNextLevel = protectorStats.level * 500;
+  const remainingXpToNextLevel = Math.max(0, xpNeededForNextLevel - protectorStats.xp);
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32 font-sans overflow-x-hidden relative animate-none">
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#1E40AF 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+    <div className="min-h-screen bg-[#0F172A] pb-6 font-sans overflow-x-hidden relative">
 
-      <div className="px-6 pt-10 flex justify-between items-end mb-6">
-        <div>
-          <h1 className="text-[22px] font-black text-slate-800 tracking-tighter uppercase italic leading-none">Protector</h1>
-          <p className="text-[8px] font-bold text-blue-600 uppercase tracking-[2px] mt-1.5">Mission Control Dashboard</p>
-        </div>
-      </div>
+      <div className="px-5 pt-2 space-y-4">
 
-      <div className="px-6">
-        <div className="relative h-[380px] w-full rounded-[40px] bg-white overflow-hidden shadow-sm border border-slate-200">
-          {!useMapboxFallback ? (
-            <MapplsVictimMap activeAlerts={activeAlerts} mapStyle={mapStyle === 'dark' ? 'streets' : mapStyle} onFallback={() => setUseMapboxFallback(true)} />
-          ) : (
-            <VictimMap activeAlerts={activeAlerts} mapStyle={mapStyle === 'dark' ? 'streets' : mapStyle} />
-          )}
-          <div className="absolute inset-x-6 top-6 flex justify-between pointer-events-none">
-            <div className="px-4 py-2 bg-white/90 backdrop-blur-xl rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center">
-              <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest">Network Online</span>
+        {/* PROFILE CARD */}
+        <div 
+          onClick={() => setActiveTab('rewards')}
+          className="bg-[#1E293B] rounded-2xl p-3 shadow-lg border border-white/10 relative overflow-hidden flex items-center justify-between cursor-pointer active:scale-95 transition-transform duration-200"
+        >
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full overflow-hidden shadow-md bg-slate-800 flex items-center justify-center">
+                {(profile?.displayPhotoUrl || profile?.photoUrl || profile?.photoURL || user?.photoURL) ? (
+                  <img src={profile?.displayPhotoUrl || profile?.photoUrl || profile?.photoURL || user?.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={20} className="text-slate-500" />
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border-2 border-[#151E32]">
+                <CheckCircle2 size={10} className="text-white" />
+              </div>
             </div>
-            <button 
-              onClick={() => {
-                const nextStyle = mapStyle === 'streets' ? 'satellite' : 'streets';
-                setMapStyle(nextStyle);
-                toast.success(`Map Mode: ${nextStyle.toUpperCase()}`);
-              }}
-              className="w-10 h-10 bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-slate-700 pointer-events-auto hover:bg-slate-50 active:scale-95 transition-all shadow-sm cursor-pointer"
-            >
-              <Layers size={18} />
-            </button>
+            <div>
+              <h2 className="text-[14px] font-bold text-white leading-tight">
+                {profile?.displayName || profile?.name || user?.displayName || 'Sachin Singh'}
+                {(profile?.gender?.toLowerCase() === 'male' || user?.gender?.toLowerCase() === 'male') && (
+                  <span className="text-emerald-400 font-extrabold text-[12px] ml-1.5 opacity-90">(Real Life Hero)</span>
+                )}
+              </h2>
+              <p className="text-[9px] font-medium text-blue-500 mb-0.5">Verified Protector</p>
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <svg key={star} className={`w-2.5 h-2.5 ${star <= Math.round(protectorStats.rating) ? 'text-amber-400' : 'text-white/30'}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                ))}
+                <span className="text-[8px] text-slate-400 ml-1">{protectorStats.rating.toFixed(1)} ({protectorStats.ratingCount})</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end relative z-10 mr-4">
+            <div className="flex items-center gap-1 bg-[#1A2642] px-1.5 py-0.5 rounded-lg border border-blue-500/20 mb-1">
+              <Shield size={8} className="text-blue-500" />
+              <span className="text-[9px] font-bold text-blue-400">Level {protectorStats.level}</span>
+            </div>
+            <p className="text-[8px] text-slate-400 mt-1.5 font-medium"><span className="text-white font-bold">{remainingXpToNextLevel} XP</span> to Lvl {protectorStats.level + 1}</p>
+          </div>
+          <ChevronRight size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 opacity-50" />
+        </div>
+
+        {/* DUTY STATUS CARD */}
+        <div className="bg-[#1E293B] rounded-3xl px-4 pt-4 pb-4 shadow-2xl border border-white/10 relative overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] text-center opacity-[0.02] pointer-events-none">
+            <h1 className="text-7xl font-black text-white tracking-tighter transform -rotate-12">KAVACH</h1>
+          </div>
+
+          <div className="flex justify-between items-start mb-4 relative z-10">
+            <div className="flex gap-3 items-start">
+              <div className="w-12 h-12 rounded-full bg-[#0F62FE]/20 border border-[#0F62FE]/50 shadow-[0_0_20px_rgba(15,98,254,0.3)] flex items-center justify-center shrink-0">
+                <Shield size={20} className="text-blue-500" fill="currentColor" />
+              </div>
+              <div className="pt-0.5">
+                <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">You Are</p>
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight leading-none mb-1">ON DUTY</h2>
+                <p className="text-[9px] text-slate-400 max-w-[140px] leading-snug">Thank you for keeping your community safe.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              <span className="text-[9px] font-bold text-emerald-400">Active</span>
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 relative z-10 bg-[#28354A] rounded-xl p-3 border border-white/5">
+            <div className="flex flex-col items-center">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center mb-1.5">
+                <Users size={14} className="text-blue-400" fill="currentColor" />
+              </div>
+              <p className="text-base font-black text-white leading-none">{protectorStats.livesHelped}</p>
+              <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wider">Lives Helped</p>
+            </div>
+            <div className="flex flex-col items-center border-l border-white/5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-1.5">
+                <ShieldCheck size={14} className="text-emerald-400" />
+              </div>
+              <p className="text-base font-black text-white leading-none">{protectorStats.successRate}%</p>
+              <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wider">Success Rate</p>
+            </div>
+            <div className="flex flex-col items-center border-l border-white/5">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center mb-1.5">
+                <Clock size={14} className="text-purple-400" />
+              </div>
+              <p className="text-base font-black text-white leading-none">{protectorStats.avgResponse}</p>
+              <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wider">Avg. Response</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 🛠️ TACTICAL RESOURCE HUB TRIGGERS */}
-      <div className="px-6 mt-4 grid grid-cols-2 gap-3">
-        <button 
-          onClick={() => setIsNearbyHubOpen(true)}
-          className="p-3.5 bg-white border border-slate-200 text-slate-850 rounded-[24px] flex flex-col items-center justify-center gap-1.5 shadow-sm hover:bg-slate-50 active:scale-95 transition-all group relative overflow-hidden cursor-pointer"
-        >
-          <div className="w-8 h-8 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-            <Shield size={16} />
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5 italic">Police Station</span>
-          <span className="text-[5px] text-slate-500 font-bold uppercase tracking-[1.5px] mt-0.5">HQ & Local Outposts</span>
-        </button>
+        {/* NEARBY AREA / ACTIVE ALERTS (WHITE CARD) */}
+        <div className="bg-white rounded-[24px] p-5 shadow-lg border border-slate-100 flex flex-col justify-between overflow-hidden relative">
+          {activeAlerts.length === 0 ? (
+            <div className="flex flex-col w-full">
+              <div className="flex justify-between items-center w-full">
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    SOS Reception Hub
+                  </p>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <ShieldCheck size={20} className="text-emerald-500" fill="currentColor" />
+                    <h3 className="text-lg font-black text-slate-800">Standby for SOS</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 max-w-[180px] leading-snug">Emergency distress alerts from nearby citizens will appear here.</p>
+                </div>
+                <div className="relative w-16 h-16 flex items-center justify-center mr-2 z-0">
+                  <div className="absolute inset-0 rounded-full border border-emerald-100 animate-[ping_3s_ease-in-out_infinite]" />
+                  <div className="absolute inset-3 rounded-full border border-emerald-200" />
+                  <div className="absolute inset-6 rounded-full border border-emerald-300" />
+                  <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] relative z-10 animate-pulse" />
+                </div>
+              </div>
 
-        <button 
-          onClick={() => setIsMedicalHubOpen(true)}
-          className="p-3.5 bg-white border border-slate-200 text-slate-850 rounded-[24px] flex flex-col items-center justify-center gap-1.5 shadow-sm hover:bg-slate-50 active:scale-95 transition-all group relative overflow-hidden cursor-pointer"
-        >
-          <div className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-xl flex items-center justify-center text-rose-600">
-            <Activity size={16} />
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5 italic">Medical Hub</span>
-          <span className="text-[5px] text-slate-500 font-bold uppercase tracking-[1.5px] mt-0.5">Ambulance & Trauma</span>
-        </button>
-      </div>
-
-      <div className="px-6 mt-6">
-        <div className="flex justify-between items-center mb-4 px-2">
-          <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-[2px] flex items-center gap-2"><Activity size={14} className="text-blue-600" /> Urgent Dispatch</h3>
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-705 px-2.5 py-1 rounded-full shadow-sm"><span className="text-[7px] font-black uppercase tracking-wider">{activeAlerts.length} Critical Units</span></div>
-        </div>
-        <div className="space-y-6">
-          {activeAlerts.length > 0 ? (
-            activeAlerts.map((alert) => {
-              const isMeResponding = (alert.activeResponders || []).some((r: any) => r.uid === user?.uid);
-              return (
-                <div key={alert.id} className="relative group animate-none">
-                  <div className="bg-white rounded-[24px] p-3.5 shadow-sm border border-slate-200 overflow-hidden transition-all duration-550">
-                    <div className="flex items-center justify-between mb-3.5">
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-full">
-                        <div className="w-1 h-1 bg-blue-600 rounded-full" />
-                        <span className="text-[6px] font-black text-blue-600 uppercase tracking-[1.5px]">Mission Active</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        <div className="w-0.5 h-0.5 bg-slate-200 rounded-full" />
-                        <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">#{alert.id.slice(-4).toUpperCase()}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 mb-4.5">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="relative w-10 h-10 bg-slate-100 rounded-[16px] flex items-center justify-center text-slate-600 border border-slate-200 shadow-sm overflow-hidden">
-                            <Shield size={16} strokeWidth={1} className="opacity-40" />
-                          </div>
-                        </div>
-                        <div className="space-y-0">
-                          <h4 className="text-md font-black text-slate-800 tracking-tighter uppercase italic leading-none">{maskName(alert.victimName)}</h4>
-                          <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 rounded-full bg-blue-50 flex items-center justify-center"><MapPin size={6} className="text-blue-500" /></div>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-[1px] truncate max-w-[100px]">{alert.isTransitSOS ? `Vehicle: ${alert.vehicleNo}` : (alert.locationName || 'Unidentified Sector')}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-[16px] shadow-sm">
-                          <p className="text-md font-black text-slate-850 tracking-tighter leading-none">{distanceToVictim[alert.id] || '---'}</p>
-                          <p className="text-[6px] font-black text-blue-600/40 uppercase tracking-widest mt-0.5 text-right">Distance</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <button 
-                          onClick={() => isMeResponding ? (setActiveInterceptAlert(alert), setIsInterceptHUDOpen(true), setInterceptActive(true)) : handleStartHelp(alert.id)} 
-                          className={cn(
-                            "py-2.5 rounded-[16px] text-[8px] font-black uppercase tracking-[2px] shadow-sm transition-all active:scale-[0.97] cursor-pointer", 
-                            isMeResponding ? "bg-blue-600 text-white" : "bg-slate-900 text-white hover:bg-slate-800"
-                          )}
-                        >
-                          {isMeResponding ? '✓ Intercept HUD' : 'Start Help'}
-                        </button>
-                        
-                        <button 
-                          onClick={() => initiateCall(alert.uid || alert.victimUid || '', alert.victimName || 'Citizen', alert.id)}
-                          className="py-2.5 bg-white border border-slate-200 text-slate-805 rounded-[16px] text-[8px] font-black uppercase tracking-[2px] shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Phone size={10} className="text-blue-600" />
-                          Call Victim
-                        </button>
-                      </div>
-                    </div>
+              {/* EMPTY PLACEHOLDER SLOT */}
+              <div className="w-full rounded-2xl border-2 border-dashed border-blue-100 bg-[#F8FAFC] flex flex-col items-center justify-center py-7 mt-5 relative overflow-hidden">
+                 <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center mb-2 shadow-inner">
+                   <Radio size={16} className="text-blue-400 animate-pulse" />
+                 </div>
+                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest z-10 text-center">Monitoring<br/>Sector Frequencies...</span>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full">
+              <div className="flex justify-between items-start mb-4">
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+                    Emergency Alert
+                  </p>
+                  <h3 className="text-lg font-black text-slate-800">{activeAlerts.length} Active SOS</h3>
+                  <p className="text-[11px] text-slate-500 max-w-[160px] leading-snug">Immediate assistance required nearby.</p>
+                </div>
+                <div className="relative w-16 h-16 flex items-center justify-center mr-2 z-0">
+                  <div className="absolute inset-0 rounded-full border border-rose-100 animate-ping" />
+                  <div className="absolute inset-2 rounded-full border border-rose-200" />
+                  <div className="w-8 h-8 bg-rose-50 rounded-full flex items-center justify-center relative z-10">
+                    <AlertTriangle size={14} className="text-rose-600" fill="currentColor" />
                   </div>
                 </div>
-              );
-            })
-          ) : (
-            <div className="py-12 bg-white rounded-[32px] border border-slate-200 text-center flex flex-col items-center justify-center p-8 space-y-4 shadow-sm">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500"><Shield size={20} /></div>
-              <div className="space-y-1">
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Standing By</h4>
-                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[2px]">No incoming distress signals in your coordinates.</p>
+              </div>
+
+              <div className="space-y-3 mt-2">
+                {activeAlerts.slice(0, 3).map((alert: any) => (
+                  <div key={alert.id} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-rose-100 transition-colors" onClick={() => setActiveInterceptAlert(alert)}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-rose-200/50 flex items-center justify-center text-rose-600 font-black text-xs">
+                        {alert.userName ? alert.userName.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800">{alert.userName || 'Unknown Victim'}</p>
+                        <p className="text-[9px] font-bold text-rose-600 uppercase mt-0.5">{alert.type || 'EMERGENCY'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-600">{alert.distance ? `${Number(alert.distance).toFixed(1)} km` : 'Nearby'}</p>
+                      <button className="text-[9px] font-black text-white bg-rose-600 px-3 py-1.5 rounded-lg mt-1 shadow-sm">RESPOND</button>
+                    </div>
+                  </div>
+                ))}
+                {activeAlerts.length > 3 && (
+                  <p className="text-center text-[10px] font-bold text-slate-500 mt-2 cursor-pointer">+{activeAlerts.length - 3} more alerts...</p>
+                )}
               </div>
             </div>
           )}
         </div>
+
+        {/* LIVE AREA MAP (WHITE CARD) */}
+        <div className="bg-white rounded-[24px] shadow-lg border border-slate-100 overflow-hidden relative mb-4">
+          <div className="w-full h-[350px]">
+            <MapplsVictimMap />
+          </div>
+        </div>
+
+        {/* QUICK ACTIONS (EXACT ICONS) */}
+        <div className="bg-white rounded-[24px] p-5 shadow-lg border border-slate-100 flex justify-between items-center">
+          <div className="flex flex-col items-center gap-2 cursor-pointer w-1/4" onClick={() => setIsNearbyHubOpen(true)}>
+            <div className="text-blue-600 mb-1">
+              {/* Police Hat SVG */}
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l1 2h18l1-2-10-5z" />
+                <path d="M4 10v4c0 4.4 3.6 8 8 8s8-3.6 8-8v-4H4zm8 9c-2.8 0-5-2.2-5-5v-2h10v2c0 2.8-2.2 5-5 5z" fillOpacity="0.8" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <span className="block text-xs font-black text-slate-800">Police</span>
+              <span className="block text-[9px] text-slate-500">Request</span>
+            </div>
+          </div>
+
+          <div className="w-px h-10 bg-slate-200" />
+
+          <div className="flex flex-col items-center gap-2 cursor-pointer w-1/4" onClick={() => setIsMedicalHubOpen(true)}>
+            <div className="text-rose-500 mb-1">
+              {/* Medical Bag SVG */}
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="7" width="20" height="14" rx="3" fillOpacity="0.9" />
+                <path d="M8 7V5c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v2" stroke="currentColor" strokeWidth="2" fill="none" />
+                <path d="M12 10v8M8 14h8" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <span className="block text-xs font-black text-slate-800">Medical</span>
+              <span className="block text-[9px] text-slate-500">Request</span>
+            </div>
+          </div>
+
+          <div className="w-px h-10 bg-slate-200" />
+
+          <div className="flex flex-col items-center gap-2 cursor-pointer w-1/4" onClick={() => setActiveTab('radar')}>
+            <div className="text-purple-500 mb-1">
+              <Users size={32} fill="currentColor" className="opacity-90" />
+            </div>
+            <div className="text-center">
+              <span className="block text-xs font-black text-slate-800">Nearby</span>
+              <span className="block text-[9px] text-slate-500">Protectors</span>
+            </div>
+          </div>
+
+          <div className="w-px h-10 bg-slate-200" />
+
+          <div className="flex flex-col items-center gap-2 cursor-pointer w-1/4" onClick={() => toast.success("Alert Broadcasted!")}>
+            <div className="text-orange-500 mb-1">
+              {/* Siren SVG */}
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2a6 6 0 0 0-6 6v4l-2 3v2h16v-2l-2-3V8a6 6 0 0 0-6-6z" fillOpacity="0.9" />
+                <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z" />
+                <path d="M12 2v2" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <path d="M9 4l1 1" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <path d="M15 4l-1 1" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <span className="block text-xs font-black text-slate-800">Raise</span>
+              <span className="block text-[9px] text-slate-500">Alert</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RECENT ACTIVITY */}
+        <div className="bg-white rounded-[24px] p-5 shadow-lg border border-slate-100 mb-6">
+          <div className="flex justify-between items-center mb-5">
+            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Recent Activity</p>
+            {((profile?.recentActivity?.length > 0) || (profile?.activities?.length > 0)) && (
+              <p className="text-[10px] font-bold text-blue-600 cursor-pointer">View All</p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {(() => {
+              const activities = profile?.recentActivity || profile?.activities || [];
+              if (activities.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                      <Clock size={20} className="text-slate-300" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-400">No Recent Activity</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Your response history will appear here.</p>
+                  </div>
+                );
+              }
+
+              return activities.map((activity: any, index: number) => (
+                <div key={activity.id || index} className={`flex justify-between items-center ${index !== activities.length - 1 ? 'border-b border-slate-50 pb-4' : ''}`}>
+                  <div className="flex gap-3 items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${activity.status === 'Failed' ? 'bg-rose-50 text-rose-500 border-rose-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
+                      {activity.status === 'Failed' ? <AlertTriangle size={16} fill="currentColor" className="text-rose-500" /> : <CheckCircle2 size={16} fill="currentColor" className="text-emerald-500" />}
+                    </div>
+                    <div>
+                      <h4 className="text-[13px] font-bold text-slate-800">{activity.type || 'Assistance'}</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{activity.location || 'Unknown'} • <span className={`font-medium ${activity.status === 'Failed' ? 'text-rose-600' : 'text-emerald-600'}`}>{activity.status || 'Successful'}</span></p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">{activity.timestamp || activity.time || 'Recently'}</p>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
       </div>
 
-      {/* Vetting Overlay Confirmation */}
+      <NearbyHubModal isOpen={isNearbyHubOpen} onClose={() => setIsNearbyHubOpen(false)} />
+      <MedicalHubModal isOpen={isMedicalHubOpen} onClose={() => setIsMedicalHubOpen(false)} />
+
+      {/* MODALS */}
       <TacticalModal isOpen={showTacticalPledge.isOpen} onClose={() => setShowTacticalPledge({ isOpen: false, alertId: null })} onConfirm={confirmTacticalResponse} type="info" title="Emergency Response Activated" description="Your live activity and route will now be monitored securely while you assist the victim." confirmText="START RESPONSE" />
 
       {/* Handshake Closure modal */}
       {resolvingAlert && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 animate-none">
           <div onClick={() => setResolvingAlert(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[340px] bg-white rounded-[40px] p-6 shadow-2xl border border-slate-200 text-slate-800 animate-none">
+          <div className="relative w-full max-w-[340px] bg-white rounded-[32px] p-6 shadow-2xl border border-slate-200 text-slate-800 animate-none">
             <div className="flex flex-col items-center mb-6">
-              <div className="w-12 h-1 bg-emerald-500 rounded-full mb-4" />
-              <h2 className="text-lg font-black text-slate-900 tracking-tighter uppercase italic">Safety Confirmation</h2>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1 text-center">Capture a verification photo and confirm safe status.</p>
+              <div className="w-12 h-1.5 bg-emerald-500 rounded-full mb-4" />
+              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">Safety Confirmation</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 text-center">Capture verification photo and confirm.</p>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
-                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest flex justify-between"><span>Capture Verification Photo</span><span className="text-emerald-600">VERIFIED</span></p>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex justify-between"><span>Verification Photo</span><span className="text-emerald-500">VERIFIED</span></p>
                 <input type="file" ref={fileInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) setRescuePhoto(URL.createObjectURL(file));
                 }} />
-                <div onClick={() => fileInputRef.current?.click()} className="relative w-full h-32 rounded-[24px] bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all hover:bg-slate-100">
-                  {rescuePhoto ? <img src={rescuePhoto} className="w-full h-full object-cover" alt="Safety Proof" /> : <div className="flex flex-col items-center text-slate-400"><Camera size={32} strokeWidth={1} /><span className="text-[8px] font-black uppercase mt-2 tracking-[3px]">Capture Photo</span></div>}
+                <div onClick={() => fileInputRef.current?.click()} className="relative w-full h-32 rounded-[20px] bg-slate-50 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all hover:bg-slate-100">
+                  {rescuePhoto ? <img src={rescuePhoto} className="w-full h-full object-cover" alt="Safety Proof" /> : <div className="flex flex-col items-center text-slate-400"><Camera size={32} strokeWidth={1.5} /><span className="text-[10px] font-black uppercase mt-2 tracking-widest">Capture</span></div>}
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Tactical Summary (Closure Reason)</p>
-                <textarea value={resolutionSummary} onChange={(e) => setResolutionSummary(e.target.value)} placeholder="e.g. Victim safe, suspect fled..." className="w-full h-20 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-[10px] font-bold text-slate-900 outline-none focus:border-blue-500 transition-all resize-none" />
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Closure Reason</p>
+                <textarea value={resolutionSummary} onChange={(e) => setResolutionSummary(e.target.value)} placeholder="e.g. Victim safe, suspect fled..." className="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 transition-all resize-none shadow-sm" />
               </div>
               <div className="space-y-2 text-center">
-                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Victim Safety Code</p>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Victim Safety Code</p>
                 <div className="flex gap-2 justify-center">
                   {[0, 1, 2, 3].map(i => (
                     <input key={i} type="text" maxLength={1} value={handshakeInput[i] || ''} onChange={(e) => {
                       const val = e.target.value;
                       if (val && handshakeInput.length < 4) setHandshakeInput(handshakeInput + val);
                       else if (!val) setHandshakeInput(handshakeInput.slice(0, -1));
-                    }} className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xl font-black text-blue-600 outline-none focus:border-blue-500 transition-all" placeholder="•" />
+                    }} className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-xl text-center text-xl font-black text-blue-600 outline-none focus:border-blue-500 transition-all shadow-sm" placeholder="•" />
                   ))}
                 </div>
               </div>
-              <div className="pt-2 space-y-2">
-                <button onClick={handleResolveAlert} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-[20px] text-[11px] font-black uppercase tracking-[2px] shadow-md cursor-pointer">CONFIRM SAFE STATUS</button>
-                <button onClick={() => setResolvingAlert(null)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-[20px] text-[11px] font-black uppercase tracking-[2px] cursor-pointer">Cancel</button>
+              <div className="pt-3 space-y-3">
+                <button onClick={handleResolveAlert} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer">CONFIRM SAFE STATUS</button>
+                <button onClick={() => setResolvingAlert(null)} className="w-full py-4 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer shadow-sm">Cancel</button>
               </div>
             </div>
           </div>
@@ -1168,14 +1333,14 @@ export default function ProtectorDashboard() {
             )}
           </div>
           <div className="absolute inset-x-0 top-0 pt-16 px-6 pointer-events-none">
-            <div className={cn("backdrop-blur-xl rounded-3xl p-4 border shadow-lg flex items-center justify-between transition-all duration-700", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-50/95 border-emerald-200" : "bg-white/95 border-slate-200")}>
+            <div className={cn("backdrop-blur-xl rounded-[24px] p-5 border shadow-2xl flex items-center justify-between transition-all duration-700", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-50/95 border-emerald-200" : "bg-white/95 border-slate-200")}>
               <div className="flex items-center gap-4">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all shadow-sm", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-600" : "bg-blue-600")}>
-                  {(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? <CheckCircle2 size={20} /> : <Navigation size={20} />}
+                <div className={cn("w-14 h-14 rounded-xl flex items-center justify-center text-white transition-all shadow-md", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-600" : "bg-blue-600")}>
+                  {(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? <CheckCircle2 size={28} /> : <Navigation size={28} />}
                 </div>
                 <div>
-                  <p className={cn("text-[8px] font-black uppercase tracking-[2px]", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "text-emerald-700" : "text-blue-600")}>{(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "TARGET REACHED" : "Tactical Intercept Active"}</p>
-                  <h2 className="text-lg font-black text-slate-800 uppercase italic tracking-tighter leading-none mt-1">{(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "INITIATE CLEARANCE" : "LIVE TARGET LOCK"}</h2>
+                  <p className={cn("text-[10px] font-black uppercase tracking-widest", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "text-emerald-600" : "text-blue-600")}>{(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "TARGET REACHED" : "Tactical Intercept Active"}</p>
+                  <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none mt-1">{(parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "INITIATE CLEARANCE" : "LIVE TARGET LOCK"}</h2>
                 </div>
               </div>
             </div>
@@ -1183,33 +1348,30 @@ export default function ProtectorDashboard() {
         </div>
       )}
 
-      <NearbyHubModal isOpen={isNearbyHubOpen} onClose={() => setIsNearbyHubOpen(false)} />
-      <MedicalHubModal isOpen={isMedicalHubOpen} onClose={() => setIsMedicalHubOpen(false)} />
-
       {/* Success / Mission Complete celebration */}
       {showSuccessMotivation && (
-        <div className="fixed inset-0 z-[3000000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-8 text-center text-slate-800 animate-none">
-          <div className="bg-white border border-slate-200 rounded-[40px] p-10 max-w-md w-full space-y-8 shadow-2xl relative animate-none">
-            <div className="relative mx-auto w-40 h-40">
-              <div className="relative w-full h-full rounded-full border border-slate-200 flex items-center justify-center bg-slate-50">
-                <ShieldCheck size={80} className="text-amber-500" strokeWidth={1} />
+        <div className="fixed inset-0 z-[3000000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 text-center text-slate-800 animate-none">
+          <div className="bg-white border border-slate-200 rounded-[32px] p-10 max-w-md w-full space-y-8 shadow-2xl relative animate-none">
+            <div className="relative mx-auto w-32 h-32">
+              <div className="relative w-full h-full rounded-full border border-slate-100 flex items-center justify-center bg-emerald-50 shadow-inner">
+                <ShieldCheck size={64} className="text-emerald-500" strokeWidth={1.5} />
               </div>
             </div>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <p className="text-amber-600 text-[10px] font-black uppercase tracking-[6px]">Grid Victory Secured</p>
-                <h2 className="text-5xl font-black uppercase italic tracking-tighter leading-none text-slate-900">Mission Accomplished</h2>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest">Grid Victory Secured</p>
+                <h2 className="text-3xl font-black uppercase tracking-tight leading-none text-slate-900">Mission Complete</h2>
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-[32px] p-8 space-y-4">
-                <p className="text-sm font-bold text-slate-700 uppercase leading-relaxed tracking-tight italic">
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 space-y-4 shadow-sm">
+                <p className="text-sm font-bold text-slate-600 uppercase leading-relaxed tracking-wider">
                   "The citizen {lastResolvedVictim} is safe. Your tactical response ensured the safety grid remained unbroken."
                 </p>
                 <div className="h-px w-12 bg-slate-200 mx-auto" />
-                <p className="text-[9px] font-black text-amber-600 uppercase tracking-[4px]">Kavach Honor: Unblemished</p>
+                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Kavach Honor: Unblemished</p>
               </div>
             </div>
-            <button onClick={() => setShowSuccessMotivation(false)} className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-[24px] text-[11px] font-black uppercase tracking-[4px] shadow-md active:scale-95 transition-all cursor-pointer">
-              Return to Grid
+            <button onClick={() => setShowSuccessMotivation(false)} className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all cursor-pointer">
+              Return to Duty
             </button>
           </div>
         </div>

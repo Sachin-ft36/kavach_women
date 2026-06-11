@@ -6,11 +6,11 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useKavachStore } from '../store/useKavachStore';
 import { useCall } from '../contexts/CallContext';
 import { cn } from '../lib/utils';
-import SecurityRadarMap from '../components/maps/SecurityRadarMap';
-import MapplsSecurityRadarMap from '../components/maps/MapplsSecurityRadarMap';
+import KavachMap from '../components/maps/KavachMap';
 
 export default function ProtectorsRadarScreen() {
-  const { userPos, setActiveTab, activeAlertId } = useKavachStore();
+  const { role, user, userPos, setActiveTab, activeAlertId } = useKavachStore();
+  const isCitizen = role === 'citizen';
   const { initiateCall } = useCall();
   const [nearbyProtectors, setNearbyProtectors] = useState<any[]>([]);
   const [useMapboxFallback, setUseMapboxFallback] = useState(false);
@@ -72,7 +72,7 @@ export default function ProtectorsRadarScreen() {
     });
 
     foundProtectors = allWithDistance
-      .filter(p => p.distanceKm !== null && p.distanceKm <= currentRadius)
+      .filter(p => p.distanceKm !== null && p.distanceKm <= currentRadius && p.id !== user?.uid && p.uid !== user?.uid)
       .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
 
     setNearbyProtectors(foundProtectors);
@@ -80,24 +80,24 @@ export default function ProtectorsRadarScreen() {
   }, [userPos, allProtectors]);
 
   return (
-    <div className="flex flex-col h-screen bg-[#F8FAFC] text-[#1E293B] overflow-hidden">
+    <div className={cn("flex flex-col h-screen overflow-hidden", isCitizen ? "bg-[#F8FAFC] text-slate-800" : "bg-[#0F172A] text-white")}>
       {/* 📡 HEADER: TACTICAL CONTROL */}
-      <header className="px-3 sm:px-6 py-3 sm:py-5 border-b border-[#E5E7EB] bg-white flex items-center gap-2 sm:gap-5 z-30 shadow-sm">
+      <header className={cn("px-3 sm:px-6 py-3 sm:py-5 border-b flex items-center gap-2 sm:gap-5 z-30 shadow-sm", isCitizen ? "bg-white border-slate-200" : "bg-[#1E293B] border-white/10")}>
         <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white border border-[#E5E7EB] flex items-center justify-center hover:bg-gray-50 transition-all text-[#1E293B] shrink-0 shadow-sm active:scale-95"
+            className={cn("w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl border flex items-center justify-center transition-all shrink-0 shadow-sm active:scale-95", isCitizen ? "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100" : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10")}
           >
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm sm:text-lg font-bold tracking-tight flex items-center gap-1.5 leading-none text-[#1E293B]">
-              <Shield size={16} className="text-[#2563EB] shrink-0" />
+            <h2 className={cn("text-sm sm:text-lg font-bold tracking-tight flex items-center gap-1.5 leading-none", isCitizen ? "text-slate-800" : "text-white")}>
+              <Shield size={16} className="text-blue-400 shrink-0" />
               <span className="truncate">Protector Radar</span>
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
-               <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-[#22C55E] rounded-full animate-pulse" />
-               <p className="text-[7px] sm:text-[9px] text-[#64748B] font-bold uppercase tracking-widest leading-none truncate">5KM Perimeter // Live</p>
+               <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+               <p className={cn("text-[7px] sm:text-[9px] font-bold uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>5KM Perimeter // Live</p>
             </div>
           </div>
         </div>
@@ -108,45 +108,49 @@ export default function ProtectorsRadarScreen() {
       </header>
 
       {/* 🗺️ MAP: PRIMARY VISUALIZATION */}
-      <main className="flex-1 relative min-h-0 bg-[#F1F5F9]">
-        {!useMapboxFallback ? (
-          <MapplsSecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} onFallback={() => setUseMapboxFallback(true)} />
-        ) : (
-          <SecurityRadarMap protectors={nearbyProtectors} activeRadius={activeRadius} />
-        )}
-        
-        {/* Radar Overlay Controls */}
-        <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
-           <button className="p-3 bg-white rounded-xl border border-[#E5E7EB] text-[#1E293B] shadow-xl active:scale-90 transition-all">
-             <Navigation size={18} />
-           </button>
+      <main className="flex-1 relative min-h-0 bg-[#F1F5F9] pt-3 px-3 sm:pt-4 sm:px-4 pb-0">
+        <div className="w-full h-full relative rounded-t-[24px] sm:rounded-2xl overflow-hidden shadow-sm border border-slate-200/50 bg-[#0F172A]">
+          <KavachMap 
+            mode="radar" 
+            activeProtectors={nearbyProtectors} 
+            {...{protectors: nearbyProtectors, activeRadius}}
+            useMapboxFallback={useMapboxFallback} 
+            onFallback={() => setUseMapboxFallback(true)} 
+          />
+          
+          {/* Radar Overlay Controls */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
+             <button className={cn("p-3 rounded-xl border shadow-xl active:scale-90 transition-all", isCitizen ? "bg-white border-slate-200 text-slate-600" : "bg-[#1E293B] border-white/10 text-slate-300")}>
+               <Navigation size={18} />
+             </button>
+          </div>
         </div>
       </main>
 
       {/* 📊 TACTICAL INTEL PANEL: PROTECTOR ROSTER */}
-      <section className="h-[40vh] sm:h-[45vh] bg-white border-t border-[#E5E7EB] flex flex-col shadow-[0_-10px_30px_rgba(0,0,0,0.02)] z-30">
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-[#E5E7EB] flex items-center justify-between shrink-0 bg-[#F8FAFC]">
+      <section className={cn("h-[40vh] sm:h-[45vh] border-t flex flex-col shadow-[0_-10px_30px_rgba(0,0,0,0.2)] z-30", isCitizen ? "bg-[#F8FAFC] border-slate-200" : "bg-[#0F172A] border-white/10")}>
+        <div className={cn("px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between shrink-0", isCitizen ? "bg-white border-slate-200" : "bg-[#1E293B] border-white/5")}>
           <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-[#2563EB] uppercase tracking-[2px]">Mission Assets</span>
-            <span className="text-[8px] text-[#64748B] font-medium mt-0.5">Real-time Tactical Intercept</span>
+            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-[2px]">Mission Assets</span>
+            <span className="text-[8px] text-slate-400 font-medium mt-0.5">Real-time Tactical Intercept</span>
           </div>
-          <div className="flex items-center gap-2 text-[9px] font-bold text-[#94A3B8] uppercase tracking-widest">
-            <span className="w-1.5 h-1.5 bg-[#2563EB] rounded-full animate-ping" /> Scanning
+          <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" /> Scanning
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 pb-24 space-y-3 custom-scrollbar">
           <AnimatePresence mode="popLayout">
             {nearbyProtectors.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="h-full flex flex-col items-center justify-center text-center py-12"
               >
-                <div className="w-12 h-12 border border-dashed border-[#E5E7EB] rounded-full flex items-center justify-center mb-4">
-                   <Shield size={24} className="text-[#94A3B8]" />
+                <div className="w-12 h-12 border border-dashed border-white/20 rounded-full flex items-center justify-center mb-4">
+                   <Shield size={24} className="text-slate-600" />
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#64748B]">Zero Tactical Units in Radius</p>
-                <p className="text-[8px] mt-2 italic text-[#94A3B8]">Waiting for Handshake...</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Zero Tactical Units in Radius</p>
+                <p className="text-[8px] mt-2 italic text-slate-600">Waiting for Handshake...</p>
               </motion.div>
             ) : (
               nearbyProtectors.map((protector, idx) => {
@@ -162,10 +166,11 @@ export default function ProtectorsRadarScreen() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
                     className={cn(
-                      "group relative bg-white border rounded-2xl p-4 flex items-center justify-between gap-4 transition-all shadow-sm overflow-hidden",
+                      "group relative border rounded-2xl p-4 flex items-center justify-between gap-4 transition-all shadow-sm overflow-hidden",
+                      isCitizen ? "bg-white" : "bg-[#1E293B]",
                       isElite 
-                        ? "border-amber-400 bg-amber-50/20 shadow-[0_4px_20px_rgba(245,158,11,0.15)]" 
-                        : (isInRadius ? "border-[#2563EB]/10" : "border-[#E5E7EB]")
+                        ? "border-amber-500/50 bg-amber-500/10 shadow-[0_4px_20px_rgba(245,158,11,0.1)]" 
+                        : (isInRadius ? (isCitizen ? "border-blue-300" : "border-blue-500/20") : (isCitizen ? "border-slate-200" : "border-white/10"))
                     )}
                   >
                     {isElite && (
@@ -178,10 +183,10 @@ export default function ProtectorsRadarScreen() {
                         <div className={cn(
                           "w-11 h-11 rounded-xl flex items-center justify-center transition-all border",
                            isElite 
-                             ? "bg-amber-100 border-amber-200" 
-                             : (isOnline ? "bg-[#EFF6FF] border-[#2563EB]/10" : "bg-gray-50 border-[#E5E7EB]")
+                             ? (isCitizen ? "bg-amber-50 border-amber-200" : "bg-amber-500/20 border-amber-500/30") 
+                             : (isOnline ? (isCitizen ? "bg-blue-50 border-blue-200" : "bg-blue-500/10 border-blue-500/20") : (isCitizen ? "bg-slate-50 border-slate-200" : "bg-white/5 border-white/10"))
                         )}>
-                          <UserIcon size={20} className={isElite ? "text-amber-600" : (isOnline ? "text-[#2563EB]" : "text-[#94A3B8]")} />
+                          <UserIcon size={20} className={isElite ? "text-amber-400" : (isOnline ? "text-blue-400" : "text-slate-500")} />
                         </div>
                         {isOnline && (
                            <div className={cn(
@@ -194,26 +199,29 @@ export default function ProtectorsRadarScreen() {
                       <div className="min-w-0">
                         <h4 className={cn(
                           "text-sm font-bold flex items-center gap-1.5 truncate",
-                          isElite ? "text-amber-900" : "text-[#1E293B]"
+                          isElite ? "text-amber-500" : (isCitizen ? "text-slate-800" : "text-white")
                         )}>
                           {protector.role === 'pcr_officer' 
                             ? (protector.vehicleNo || `PCR Patrol Unit`) 
                             : (protector.name || 'Unit')}
-                          {(protector.isVerified || protector.role === 'pcr_officer') && <CheckCircle2 size={12} className={isElite ? "text-amber-500" : "text-[#2563EB]"} />}
+                          {(protector.isVerified || protector.role === 'pcr_officer') && <CheckCircle2 size={12} className={isElite ? "text-amber-400" : "text-blue-400"} />}
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={cn(
                             "text-[9px] font-bold uppercase tracking-wide truncate max-w-[120px]",
-                            isElite ? "text-amber-600" : "text-[#64748B]"
+                            isElite ? "text-amber-600" : (isCitizen ? "text-slate-500" : "text-slate-400")
                           )}>
                              {protector.role === 'pcr_officer' 
                                ? "🚨 ACTIVE MOBILE PATROL" 
                                : (protector.protectorVetting?.occupation || protector.profession || 'RESPONDER')}
                           </span>
-                          <span className="w-1 h-1 bg-[#E5E7EB] rounded-full shrink-0" />
+                          <span className={cn(
+                            "text-[9px] font-bold shrink-0",
+                            isCitizen ? "text-slate-400" : "text-slate-500"
+                          )}>•</span>
                           <span className={cn(
                             "text-[10px] font-bold tracking-tight",
-                            isElite ? "text-amber-700" : "text-[#1E293B]"
+                            isElite ? "text-amber-400" : (isCitizen ? "text-slate-600" : "text-slate-300")
                           )}>{distanceM}m</span>
                         </div>
                       </div>
@@ -240,16 +248,7 @@ export default function ProtectorsRadarScreen() {
           </AnimatePresence>
         </div>
 
-        {/* 🛡️ SECURITY FOOTER */}
-        <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E5E7EB] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 opacity-60">
-             <Lock size={10} className="text-[#2563EB]" />
-             <span className="text-[8px] font-bold uppercase tracking-widest text-[#64748B]">Tactical Encrypted Intercept Active</span>
-          </div>
-          <div className="flex gap-1">
-             {[1,2,3].map(i => <div key={i} className="w-1 h-1 bg-[#2563EB] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />)}
-          </div>
-        </div>
+
       </section>
     </div>
   );

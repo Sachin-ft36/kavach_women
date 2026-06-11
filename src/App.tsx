@@ -61,7 +61,8 @@ import {
   Trophy,
   Shield,
   Volume2,
-  VolumeX
+  VolumeX,
+  User
 } from 'lucide-react';
 import KavachAIChat from './components/KavachAIChat';
 import StealthOverlay from './components/StealthOverlay';
@@ -410,7 +411,7 @@ export default function App() {
     // 🛡️ INSTANT STARTUP FAILSAFE: Guarantee an instant responsive cold start
     const cachedUid = localStorage.getItem('kavach_user_uid');
     // Increased delay to 5 seconds to give Firebase Auth enough time to fetch tokens
-    const delay = cachedUid ? 5000 : 3000; 
+    const delay = cachedUid ? 5000 : 3000;
 
     const loadingTimeout = setTimeout(() => {
       if (useKavachStore.getState().loading) {
@@ -474,7 +475,7 @@ export default function App() {
         unsubProfile = onSnapshot(docRef, async (snap) => {
           if (snap.exists()) {
             const data = snap.data();
-            
+
             // 🛡️ TERMINAL LOCKOUT PROTOCOL: Instantly eject banned users
             if (data.isPermanentlyBlocked) {
               console.warn("🚨 KAVACH: Terminal lockout active. Session revoked.");
@@ -619,7 +620,7 @@ export default function App() {
       <div className="flex flex-col items-center justify-center flex-1">
         <h1 className="text-6xl font-black tracking-tight mb-2 bg-gradient-to-b from-[#FF9933] via-white to-[#138808] text-transparent bg-clip-text">KAVACH</h1>
         <p className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Loading...</p>
-        
+
         {/* Failsafe Button */}
         {showFailSafe && (
           <button
@@ -701,7 +702,7 @@ export default function App() {
                     className="flex items-center gap-2.5 px-4 py-2 bg-black/40 hover:bg-black/60 border border-white/10 backdrop-blur-xl rounded-2xl text-white transition-all active:scale-95 shadow-lg group relative overflow-hidden"
                   >
                     <div className="absolute inset-0 bg-white/[0.02] group-hover:opacity-100 transition-opacity" />
-                    
+
                     {/* Pulsing indicator */}
                     <span className="relative flex h-2 w-2">
                       <span className={cn(
@@ -815,7 +816,10 @@ export default function App() {
               pointerEvents: 'none'
             }}
           >
-            <div className="w-full max-w-md bg-white/80 backdrop-blur-2xl border border-white/20 rounded-[40px] p-2 flex justify-between items-center shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] pointer-events-auto">
+            <div className={cn(
+              "w-full max-w-md border rounded-[40px] p-2 flex justify-between items-center shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] pointer-events-auto",
+              role === 'citizen' ? "bg-white border-white/80" : "bg-white border-white/40"
+            )}>
               {role === 'citizen' && (
                 <>
                   <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Home" />
@@ -827,9 +831,9 @@ export default function App() {
               {role === 'protector' && (
                 <>
                   <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<MapPin size={20} />} label="Response" />
-                  <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Users size={20} />} label="Community" />
                   <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={20} />} label="Safety Tips" />
                   <NavButton active={activeTab === 'grievance'} onClick={() => setActiveTab('grievance')} icon={<AlertTriangle size={20} />} label="Reports" />
+                  <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<User size={20} />} label="Profile" />
                 </>
               )}
             </div>
@@ -917,8 +921,8 @@ function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onTo
       case 'sos': return (isVisible && role === 'citizen') ? <SOSScreen key="sos" isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} /> : null;
       case 'vault': return isVisible ? <div key="vault" className="max-w-2xl mx-auto"><EvidenceVault /></div> : null;
       case 'contacts': return isVisible ? <div key="contacts" className="max-w-2xl mx-auto"><EmergencyContacts /></div> : null;
-      case 'radar': return isVisible ? <div key="radar" className="max-w-4xl mx-auto px-4"><ProtectorsRadarScreen /></div> : null;
-      case 'rewards': return isVisible ? <div key="rewards" className="max-w-2xl mx-auto"><Rewards /></div> : null;
+      case 'radar': return isVisible ? <div key="radar" className="w-full"><ProtectorsRadarScreen /></div> : null;
+      case 'rewards': return isVisible ? <div key="rewards" className="w-full min-h-screen bg-[#0F172A]"><div className="max-w-2xl mx-auto"><Rewards /></div></div> : null;
       case 'history': return isVisible ? <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div> : null;
       case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{(role === 'protector' || role === 'pcr_officer') ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
       case 'grievance': return isVisible ? <div key="grievance" className="max-w-4xl mx-auto px-4"><ProtectorGrievanceScreen /></div> : null;

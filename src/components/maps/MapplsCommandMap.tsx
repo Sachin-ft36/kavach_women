@@ -133,6 +133,12 @@ export default function MapplsCommandMap({
     };
 
     document.body.appendChild(script);
+
+    return () => {
+      if (mapRef.current && typeof mapRef.current.remove === 'function') {
+        try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
+      }
+    };
   }, []);
 
   const mapId = useRef(`mappls-command-${Math.random().toString(36).substring(7)}`).current;

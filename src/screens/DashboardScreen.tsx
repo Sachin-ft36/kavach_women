@@ -25,7 +25,8 @@ import SafeHavenMap from '../components/maps/SafeHavenMap';
 
 
 import { db, auth } from '../firebase';
-import { setDoc, doc, getDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { setDoc, doc, getDoc, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import ProtectorRatingModal from '../components/ProtectorRatingModal';
 
 import { useVoiceTrigger } from '../hooks/useVoiceTrigger';
 import { useRideProtocol } from '../hooks/useRideProtocol';
@@ -127,6 +128,42 @@ export default function DashboardScreen() {
   const [vehicleNo, setVehicleNo] = React.useState(rideData?.vehicleNo || '');
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [isBriefingPlaying, setIsBriefingPlaying] = React.useState(false);
+
+  // Rating Modal State
+  const [ratingAlert, setRatingAlert] = React.useState<{ id: string, responders: string[] } | null>(null);
+
+  React.useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, 'alerts'),
+      where('userId', '==', currentUser.uid),
+      where('status', '==', 'resolved'),
+      where('isRated', '!=', true),
+      orderBy('isRated'), // required for != query
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const alertData = snapshot.docs[0].data();
+        const alertId = snapshot.docs[0].id;
+        
+        // Ensure there are responders to rate
+        const responders = alertData.responders || alertData.acceptedBy || [];
+        
+        if (responders.length > 0) {
+          setRatingAlert({ id: alertId, responders });
+        }
+      } else {
+        setRatingAlert(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // 🛡️ TACTICAL OVERLAY HANDSHAKE
   const toggleOverlay = (setter: (val: boolean) => void, val: boolean) => {
@@ -251,10 +288,10 @@ export default function DashboardScreen() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans selection:bg-[#2563EB]/10 text-[#1E293B]">
-      <main className="max-w-md mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 pb-10">
+      <main className="max-w-md mx-auto px-4 sm:px-6 pt-0 pb-10 sm:pt-1 space-y-3 sm:space-y-4">
 
         {/* 🔊 BRIEFING TOGGLE BUTTON */}
-        <div className="w-full flex justify-end px-2 mb-2">
+        <div className="w-full flex justify-end px-2 mb-3">
           <button
             id="voice-toggle-btn"
             onClick={() => handleVoiceBriefing(true)}
@@ -366,6 +403,13 @@ export default function DashboardScreen() {
 
       <WarningOverlay />
       <BannedOverlay />
+
+      <ProtectorRatingModal 
+        isOpen={ratingAlert !== null} 
+        onClose={() => setRatingAlert(null)}
+        alertId={ratingAlert?.id || ''}
+        responders={ratingAlert?.responders || []}
+      />
     </div>
   );
 }

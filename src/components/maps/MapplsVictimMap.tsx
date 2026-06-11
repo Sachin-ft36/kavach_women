@@ -26,6 +26,7 @@ export default function MapplsVictimMap({
   const directionPluginRef = useRef<any>(null);
   const ridePolylineRef = useRef<any>(null);
   const polygonRef = useRef<any>(null);
+  const userCircleRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const activeAlert = activeAlerts.find((a: any) => a.status === 'active' || a.status === 'responding');
@@ -75,6 +76,12 @@ export default function MapplsVictimMap({
     };
 
     document.body.appendChild(script);
+
+    return () => {
+      if (mapRef.current && typeof mapRef.current.remove === 'function') {
+        try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
+      }
+    };
   }, []);
 
   const mapId = useRef(`mappls-map-${Math.random().toString(36).substring(7)}`).current;
@@ -84,7 +91,7 @@ export default function MapplsVictimMap({
     if (Mappls && !mapRef.current) {
       mapRef.current = new Mappls.Map(mapId, {
         center: [userPos?.[0] || 28.61, userPos?.[1] || 77.23],
-        zoom: 15,
+        zoom: 11,
         mapType: 'standard', // 🗺️ EXPLICITLY TELL MAPPLS TO LOAD NORMAL MAP
         zoomControl: false,
         location: false,
@@ -124,8 +131,66 @@ export default function MapplsVictimMap({
         width: 36, height: 36,
         offset: [18, 18]
       });
+
+      setTimeout(() => {
+        if (mapRef.current) {
+          if (typeof mapRef.current.resize === 'function') mapRef.current.resize();
+          mapRef.current.setCenter(uCoords);
+          mapRef.current.setZoom(11);
+        }
+      }, 300);
     } else {
       userMarkerRef.current.setPosition(uCoords);
+      // Continuously keep the live location in the center
+      if (mapRef.current) {
+        mapRef.current.setCenter(uCoords);
+      }
+    }
+
+    // ✨ 5KM RADIUS CIRCLE (Flawless GeoJSON Method)
+    if (mapRef.current && mapRef.current.getSource) {
+      const getCircleData = (lat: number, lng: number, radiusKm: number) => {
+        const points = 64;
+        const distanceX = radiusKm / (111.320 * Math.cos(lat * Math.PI / 180));
+        const distanceY = radiusKm / 110.574;
+        const ret = [];
+        for (let i = 0; i < points; i++) {
+          const theta = (i / points) * (2 * Math.PI);
+          const x = distanceX * Math.cos(theta);
+          const y = distanceY * Math.sin(theta);
+          ret.push([lng + x, lat + y]);
+        }
+        ret.push(ret[0]);
+        return {
+          type: "FeatureCollection",
+          features: [{
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [ret] },
+            properties: {}
+          }]
+        };
+      };
+
+      const sourceId = 'user-radius-source';
+      const circleData = getCircleData(userPos[0], userPos[1], 5);
+
+      if (mapRef.current.getSource(sourceId)) {
+        mapRef.current.getSource(sourceId).setData(circleData);
+      } else {
+        mapRef.current.addSource(sourceId, { type: 'geojson', data: circleData });
+        mapRef.current.addLayer({
+          id: 'user-radius-fill',
+          type: 'fill',
+          source: sourceId,
+          paint: { 'fill-color': '#3B82F6', 'fill-opacity': 0.05 }
+        });
+        mapRef.current.addLayer({
+          id: 'user-radius-line',
+          type: 'line',
+          source: sourceId,
+          paint: { 'line-color': '#3B82F6', 'line-width': 1, 'line-opacity': 0.3 }
+        });
+      }
     }
 
     if (isNavigating) {
@@ -261,7 +326,7 @@ export default function MapplsVictimMap({
               map: mapRef.current,
               start: { geoposition: `${userPos[0]},${userPos[1]}` },
               end: { geoposition: `${routingLat},${routingLng}` },
-              fitBounds: !isNavigating,
+              fitBounds: false,
               ccpIconWidth: 70,
               strokeWidth: 6,
               routeColor: "#3B82F6",
@@ -417,7 +482,7 @@ export default function MapplsVictimMap({
   const handleRecenter = () => {
     if (mapRef.current && userPos) {
       mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
-      mapRef.current.setZoom(17);
+      mapRef.current.setZoom(14);
     }
   };
 

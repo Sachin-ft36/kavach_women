@@ -11,7 +11,9 @@ import {
   Clock, 
   History, 
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Folder,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -170,7 +172,7 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
   };
 
   return (
-    <div className="space-y-6 sm:space-y-10 h-full flex flex-col relative font-sans selection:bg-[#2563EB]/10">
+    <div className="space-y-6 sm:space-y-10 pt-4 sm:pt-6 pb-24 px-4 sm:px-6 h-full flex flex-col relative font-sans selection:bg-[#2563EB]/10">
       
       {/* 🏛️ BACKGROUND WATERMARK (Extremely Subtle) */}
       <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden opacity-[0.008]">
@@ -373,16 +375,23 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
                   })}
                 </div>
 
-                {/* 🕰️ HISTORY RECORDS */}
+                {/* 🕰️ HISTORY RECORDS FOLDER */}
                 {logs.length > 1 && (
-                  <details className="group">
-                    <summary className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl cursor-pointer list-none select-none hover:bg-gray-100 transition-colors">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                        View Past Evidence History ({logs.length - 1})
-                      </span>
-                      <span className="text-gray-400 group-open:rotate-180 transition-transform duration-300">▼</span>
+                  <details className="group mt-6">
+                    <summary className="flex items-center gap-4 px-5 py-4 bg-white border border-[#E2E8F0] rounded-[24px] cursor-pointer list-none select-none hover:bg-gray-50 hover:shadow-md transition-all">
+                      <div className="w-12 h-12 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center text-gray-400 group-hover:bg-blue-50 group-hover:text-[#2563EB] group-hover:border-blue-100 transition-all shrink-0">
+                        <Folder size={22} className="fill-current opacity-20" />
+                        <Folder size={22} className="absolute" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-[#1E293B] text-sm truncate">Past Evidence Archive</h4>
+                        <p className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest mt-0.5">{logs.length - 1} Records Stored</p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-open:rotate-180 transition-transform duration-300 shrink-0">
+                        <ChevronDown size={16} strokeWidth={3} />
+                      </div>
                     </summary>
-                    <div className="grid gap-3 mt-4 pl-2 border-l-2 border-gray-100">
+                    <div className="grid gap-3 mt-4 max-h-[45vh] overflow-y-auto custom-scrollbar p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[24px]">
                       {logs.slice(1).map((log) => {
                         const firsWithThisEvidence = firs.filter(f => 
                           f.evidence?.some((ev: any) => ev.id === log.id || ev.hash === log.hash)

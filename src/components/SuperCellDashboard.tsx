@@ -49,8 +49,7 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
 // High-Fidelity Tactical Modules
-import CommandMap from './maps/CommandMap';
-import MapplsCommandMap from './maps/MapplsCommandMap';
+import KavachMap from './maps/KavachMap';
 import { TransitIntelligence } from './supercell/TransitIntelligence';
 import { KavachDirectory } from './supercell/KavachDirectory';
 import { TacticalComms } from './supercell/TacticalComms';
@@ -733,32 +732,16 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
       case 'MAP':
         return (
           <div className="flex-1 bg-[#0F172A] rounded-[40px] overflow-hidden m-8">
-            {!useMapboxFallback ? (
-              <MapplsCommandMap
-                activeAlerts={filteredActiveAlerts}
-                activeProtectors={filteredVerifiedProtectors}
-                activeJourneys={filteredActiveJourneys}
-                activeFirs={filteredActiveFirs}
-                pendingProtectors={[]}
-                selectedAlertId={selectedAlertId}
-                isSovereignActive={isSovereignActive}
-                showHeatmap={showHeatmap}
-                selectedState={selectedState}
-                onFallback={() => setUseMapboxFallback(true)}
-              />
-            ) : (
-              <CommandMap
-                activeAlerts={filteredActiveAlerts}
-                activeProtectors={filteredVerifiedProtectors}
-                activeJourneys={filteredActiveJourneys}
-                activeFirs={filteredActiveFirs}
-                pendingProtectors={[]}
-                selectedAlertId={selectedAlertId}
-                isSovereignActive={isSovereignActive}
-                showHeatmap={showHeatmap}
-                selectedState={selectedState}
-              />
-            )}
+            <KavachMap
+              mode="command"
+              activeAlerts={filteredActiveAlerts}
+              activeProtectors={filteredVerifiedProtectors}
+              activeJourneys={filteredActiveJourneys}
+              // Command mode in KavachMap will route to MapplsCommandMap/CommandMap and pass these props down
+              {...{activeFirs: filteredActiveFirs, pendingProtectors: [], selectedAlertId, isSovereignActive, showHeatmap, selectedState}}
+              useMapboxFallback={useMapboxFallback}
+              onFallback={() => setUseMapboxFallback(true)}
+            />
           </div>
         );
       case 'SHIFTS':

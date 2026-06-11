@@ -268,6 +268,23 @@ export function ProtectorManagement({
                                       </div>
 
                                       <div className="flex items-center gap-12">
+                                         {/* ⭐ RATING INTEL */}
+                                         <div className="text-right max-w-[180px]">
+                                            <div className="flex items-center gap-2 justify-end mb-1">
+                                               <Star size={12} className={mission.ratingsProvided?.[selectedProt.id] ? "text-amber-400" : "text-gray-600"} />
+                                               <span className="text-[14px] font-black text-white italic">
+                                                 {mission.ratingsProvided?.[selectedProt.id] ? `${mission.ratingsProvided[selectedProt.id]}/5` : 'Unrated'}
+                                               </span>
+                                            </div>
+                                            {mission.feedbacksProvided?.[selectedProt.id] ? (
+                                              <p className="text-[10px] font-bold text-gray-400 truncate" title={mission.feedbacksProvided[selectedProt.id]}>
+                                                "{mission.feedbacksProvided[selectedProt.id]}"
+                                              </p>
+                                            ) : (
+                                              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Citizen Feedback</p>
+                                            )}
+                                         </div>
+
                                          {/* 📞 CALL LOG INTEL */}
                                          <div className="text-right">
                                             <div className="flex items-center gap-2 justify-end mb-1">

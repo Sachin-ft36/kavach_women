@@ -136,32 +136,32 @@ export default function ProtectorGrievanceScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] text-gray-900 px-3 xs:px-6 py-4 xs:py-6 font-sans pb-32 overflow-y-auto">
+    <div className="relative space-y-8 pt-8 pb-32 font-sans text-white">
       {/* HEADER */}
       <header className="mb-10 flex items-center justify-between">
         <div className="flex items-center gap-3 sm:gap-5">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-[22px] bg-accent-red/5 border-2 border-accent-red/10 flex items-center justify-center shadow-sm">
-            <Shield size={20} className="text-accent-red sm:hidden" />
-            <Shield size={28} className="text-accent-red hidden sm:block" />
+          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-[22px] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-sm">
+            <Shield size={20} className="text-rose-400 sm:hidden" />
+            <Shield size={28} className="text-rose-400 hidden sm:block" />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-1.5 h-1.5 bg-accent-red rounded-full" />
-              <span className="text-[10px] font-bold text-accent-red tracking-[1px]">Verified Safety Network</span>
+              <div className="w-1.5 h-1.5 bg-rose-400 rounded-full" />
+              <span className="text-[10px] font-bold text-rose-400 tracking-[1px]">Verified Safety Network</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tighter italic leading-none text-gray-900">Safety Report Center</h1>
-            <p className="text-[8px] sm:text-[10px] text-gray-500 font-bold tracking-[0.5px] mt-1 sm:mt-1.5 italic">Secure Emergency Reporting</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tighter italic leading-none text-white">Safety Report Center</h1>
+            <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold tracking-[0.5px] mt-1 sm:mt-1.5 italic">Secure Emergency Reporting</p>
           </div>
         </div>
       </header>
 
       {/* TABS */}
-      <div className="flex gap-3 mb-10 bg-white p-1.5 rounded-[24px] border border-[#E5E7EB] shadow-sm">
+      <div className="flex gap-3 mb-10 bg-[#1E293B] p-1.5 rounded-[24px] border border-white/10 shadow-sm">
         <button
           onClick={() => setActiveTab('NEW')}
           className={cn(
             "flex-1 py-3 sm:py-4 rounded-xl sm:rounded-[18px] text-[11px] sm:text-[12px] font-bold tracking-tight transition-all flex items-center justify-center gap-2 sm:gap-3",
-            activeTab === 'NEW' ? "bg-accent-red text-white shadow-xl shadow-accent-red/20 scale-[1.02]" : "text-gray-400"
+            activeTab === 'NEW' ? "bg-rose-500 text-white shadow-xl shadow-rose-500/20 scale-[1.02]" : "text-slate-400 hover:text-white"
           )}
         >
           <MessageSquare size={14} className="sm:size-[16px]" /> New Report
@@ -170,7 +170,7 @@ export default function ProtectorGrievanceScreen() {
           onClick={() => setActiveTab('HISTORY')}
           className={cn(
             "flex-1 py-4 rounded-[18px] text-[11px] sm:text-[12px] font-bold tracking-tight transition-all flex items-center justify-center gap-3",
-            activeTab === 'HISTORY' ? "bg-gray-100 text-gray-900 shadow-sm" : "text-gray-400"
+            activeTab === 'HISTORY' ? "bg-white/10 text-white shadow-sm" : "text-slate-400 hover:text-white"
           )}
         >
           <History size={16} /> Report History
@@ -180,25 +180,25 @@ export default function ProtectorGrievanceScreen() {
       <AnimatePresence mode="wait">
         {activeTab === 'NEW' ? (
           <motion.div key="new" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6 sm:space-y-8">
-            <div className="bg-white border-2 border-[#E5E7EB] rounded-[32px] sm:rounded-[48px] p-6 sm:p-10 space-y-6 sm:space-y-8 shadow-soft relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-6 sm:p-10 text-gray-400/[0.008] pointer-events-none"><Shield size={120} className="sm:size-[180px]" /></div>
+            <div className="bg-[#1E293B] border border-white/10 rounded-[32px] sm:rounded-[48px] p-6 sm:p-10 space-y-6 sm:space-y-8 shadow-soft relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-6 sm:p-10 text-white/[0.02] pointer-events-none"><Shield size={120} className="sm:size-[180px]" /></div>
               
               <div className="space-y-4 relative z-10">
-                <label className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-[0.5px] ml-1 flex items-center gap-2 sm:gap-3">
-                  <AlertTriangle size={12} className="text-accent-red sm:size-[14px]" />
+                <label className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-[0.5px] ml-1 flex items-center gap-2 sm:gap-3">
+                  <AlertTriangle size={12} className="text-rose-400 sm:size-[14px]" />
                   Describe the incident and location details
                 </label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Please describe the incident..."
-                  className="w-full h-48 sm:h-56 bg-gray-50 border-2 border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 text-sm sm:text-base font-medium text-gray-900 focus:bg-white transition-all outline-none resize-none shadow-inner"
+                  className="w-full h-48 sm:h-56 bg-white/5 border border-white/10 rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 text-sm sm:text-base font-medium text-white focus:bg-white/10 transition-all outline-none resize-none shadow-inner placeholder:text-slate-500"
                 />
-                <p className="text-[10px] text-gray-400 font-medium ml-2">Include location, vehicle number, or important details if possible.</p>
+                <p className="text-[10px] text-slate-500 font-medium ml-2">Include location, vehicle number, or important details if possible.</p>
               </div>
 
-              <div className="p-4 sm:p-6 bg-accent-red/5 border border-accent-red/10 rounded-2xl sm:rounded-[28px] relative z-10">
-                <p className="text-[9px] sm:text-[10px] text-accent-red font-bold leading-relaxed tracking-[1px] text-center">
+              <div className="p-4 sm:p-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl sm:rounded-[28px] relative z-10">
+                <p className="text-[9px] sm:text-[10px] text-rose-400 font-bold leading-relaxed tracking-[1px] text-center">
                   Your location and safety details will be securely attached to this report.
                 </p>
               </div>
@@ -206,7 +206,7 @@ export default function ProtectorGrievanceScreen() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !message.trim()}
-                className="w-full py-5 sm:py-6 bg-gray-900 text-white rounded-2xl sm:rounded-[28px] text-[11px] sm:text-[13px] font-bold tracking-tight shadow-[0_15px_35px_rgba(0,0,0,0.1)] hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-3 sm:gap-4 disabled:opacity-30 relative z-10"
+                className="w-full py-5 sm:py-6 bg-rose-600 text-white rounded-2xl sm:rounded-[28px] text-[11px] sm:text-[13px] font-bold tracking-tight shadow-[0_15px_35px_rgba(225,29,72,0.2)] hover:bg-rose-700 active:scale-95 transition-all flex items-center justify-center gap-3 sm:gap-4 disabled:opacity-30 relative z-10"
               >
                 {isSubmitting ? "Transmitting..." : <><Send size={16} className="sm:size-[18px]" /> Submit Report</>}
               </button>
@@ -215,29 +215,29 @@ export default function ProtectorGrievanceScreen() {
         ) : (
           <motion.div key="history" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
             {history.length === 0 ? (
-              <div className="py-32 flex flex-col items-center justify-center text-center bg-white border-2 border-dashed border-[#E5E7EB] rounded-[48px]">
-                <History size={40} className="text-gray-300 mb-4" />
-                <p className="text-sm font-bold tracking-[1px] text-gray-400">No historical records found</p>
+              <div className="py-32 flex flex-col items-center justify-center text-center bg-[#1E293B] border border-dashed border-white/20 rounded-[48px]">
+                <History size={40} className="text-slate-600 mb-4" />
+                <p className="text-sm font-bold tracking-[1px] text-slate-500">No historical records found</p>
               </div>
             ) : (
               history.map((item) => (
-                <div key={item.id} className="bg-white border border-[#E5E7EB] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 space-y-4 sm:space-y-5 relative group shadow-sm">
-                  <button onClick={() => deleteReport(item.id, item.channel)} className="absolute top-6 right-6 p-2 text-gray-300 hover:text-accent-red opacity-0 group-hover:opacity-100 transition-all">
+                <div key={item.id} className="bg-[#1E293B] border border-white/10 rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 space-y-4 sm:space-y-5 relative group shadow-sm">
+                  <button onClick={() => deleteReport(item.id, item.channel)} className="absolute top-6 right-6 p-2 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all">
                     <Trash2 size={16} />
                   </button>
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-2 h-2 rounded-full", item.status === 'pending' ? "bg-amber-500" : "bg-accent-green")} />
-                      <span className="text-[10px] font-bold text-gray-400">
+                      <div className={cn("w-2 h-2 rounded-full", item.status === 'pending' ? "bg-amber-400" : "bg-emerald-400")} />
+                      <span className="text-[10px] font-bold text-slate-400">
                         {item.status === 'pending' ? 'Under Review' : 'Resolved'}
                       </span>
                     </div>
                   </div>
-                  <p className="text-base text-gray-900 font-medium italic pr-12">"{item.message}"</p>
+                  <p className="text-base text-white font-medium italic pr-12">"{item.message}"</p>
                   {item.reply && (
-                    <div className="mt-4 p-6 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-[24px]">
-                      <p className="text-[9px] font-bold text-[#2563EB] uppercase tracking-[1px] mb-2 italic">Official Response:</p>
-                      <p className="text-sm text-gray-900 font-bold italic">"{item.reply}"</p>
+                    <div className="mt-4 p-6 bg-blue-500/10 border border-blue-500/20 rounded-[24px]">
+                      <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[1px] mb-2 italic">Official Response:</p>
+                      <p className="text-sm text-white font-bold italic">"{item.reply}"</p>
                     </div>
                   )}
                 </div>

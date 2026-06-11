@@ -6,6 +6,21 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
 
+const loadZegoScript = (): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if ((window as any).ZegoUIKitPrebuilt) {
+      resolve((window as any).ZegoUIKitPrebuilt);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = "https://unpkg.com/@zegocloud/zego-uikit-prebuilt/zego-uikit-prebuilt.js";
+    script.async = true;
+    script.onload = () => resolve((window as any).ZegoUIKitPrebuilt);
+    script.onerror = () => reject(new Error("Failed to load ZegoCloud SDK from CDN"));
+    document.body.appendChild(script);
+  });
+};
+
 interface CallContextType {
   initiateCall: (targetUserId: string, targetName: string, contextId?: string) => Promise<void>;
   answerCall: () => void;
@@ -157,8 +172,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveCallUserId(targetUid);
       setActiveContextId(finalContextId);
 
-      // 🚀 LAZY LOAD: Only pull Zego's 5 MB SDK when a call is actually placed
-      const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+      // 🚀 CLOUD CDN: Download Zego's SDK dynamically on-demand from the cloud
+      const ZegoUIKitPrebuilt = await loadZegoScript();
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, serverSecret, finalContextId, currentUser.uid, currentUser.name || "User"
@@ -209,8 +224,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
       const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
 
-      // 🚀 LAZY LOAD: Only pull Zego's 5 MB SDK when answering a call
-      const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+      // 🚀 CLOUD CDN: Download Zego's SDK dynamically on-demand from the cloud
+      const ZegoUIKitPrebuilt = await loadZegoScript();
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, serverSecret, contextId, profile.uid, profile.name || "Protector"

@@ -26,7 +26,7 @@ export function NavButton({ active, onClick, icon, label }: NavButtonProps) {
       </div>
       <span className={cn(
         "text-[5px] sm:text-[6px] font-black uppercase tracking-[0.3px] transition-all mt-0.5 truncate w-full text-center leading-none px-0.5 max-w-full block", 
-        active ? "opacity-100 translate-y-0" : "opacity-40 translate-y-1"
+        active ? "opacity-100 translate-y-0 text-[#2563EB]" : "opacity-80 translate-y-0 text-slate-600"
       )}>
         {label}
       </span>

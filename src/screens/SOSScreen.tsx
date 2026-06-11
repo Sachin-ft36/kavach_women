@@ -12,8 +12,7 @@ import { toast } from 'sonner';
 import { KavachSafe } from '../services/KavachNative';
 import { stopVoiceSentinel, startVoiceSentinel } from '../hooks/KavachVoiceEngine';
 import KavachAIChat from '../components/KavachAIChat';
-import SecurityRadarMap from '../components/maps/SecurityRadarMap';
-import SafeHavenMap from '../components/maps/SafeHavenMap';
+import KavachMap from '../components/maps/KavachMap';
 import { useCall } from '../contexts/CallContext';
 import { fetchNearbyPoliceMappls, isOfficialPoliceStation } from '../services/MapplsService';
 
@@ -1695,9 +1694,11 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
       {/* Map */}
       <div className="flex-1 relative">
-        <SecurityRadarMap
-          protectors={protectors}
-          activeRadius={activeRadius}
+        <KavachMap
+          mode="radar"
+          activeProtectors={protectors}
+          // The old radar map used 'protectors', KavachMap uses 'activeProtectors' (we can pass it as protectors if we want, let's pass both)
+          {...{protectors, activeRadius}}
         />
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
@@ -1720,7 +1721,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
 
 {/* SAFE HAVEN MAP */}
 {isSafeHavenMapOpen && (
-  <SafeHavenMap
+  <KavachMap
+    mode="safehaven"
     onClose={() => {
       setIsSafeHavenMapOpen(false);
       setSafeHavenTarget(null);
