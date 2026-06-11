@@ -63,22 +63,22 @@ export default function KavachMap(props: KavachMapProps) {
   switch (props.mode) {
     case 'victim':
       return shouldUseMapbox 
-        ? <VictimMap {...props} /> 
-        : <MapplsVictimMap {...props} onFallback={handleFallback} />;
+        ? <VictimMap {...(props as any)} /> 
+        : <MapplsVictimMap {...(props as any)} onFallback={handleFallback} />;
         
     case 'command':
       return shouldUseMapbox 
-        ? <CommandMap {...props} /> 
-        : <MapplsCommandMap {...props} onFallback={handleFallback} />;
+        ? <CommandMap {...(props as any)} /> 
+        : <MapplsCommandMap {...(props as any)} onFallback={handleFallback} />;
         
     case 'radar':
       return shouldUseMapbox 
-        ? <SecurityRadarMap {...props} /> 
-        : <MapplsSecurityRadarMap {...props} onFallback={handleFallback} />;
+        ? <SecurityRadarMap {...(props as any)} /> 
+        : <MapplsSecurityRadarMap {...(props as any)} onFallback={handleFallback} />;
         
     case 'safehaven':
       // SafeHaven map doesn't currently have a Mapbox equivalent built-in
-      return <SafeHavenMap {...props} />;
+      return <SafeHavenMap {...(props as any)} />;
       
     default:
       return <div className="p-4 text-white">Invalid Map Mode</div>;

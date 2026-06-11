@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import VictimMap from './maps/VictimMap';
 import MapplsVictimMap from './maps/MapplsVictimMap';
+import { GeoPoint } from '../types';
 
 // ─────────────────────────────────────────────
 //  PCR Officer Dashboard — Professional MDT
@@ -18,7 +19,7 @@ import MapplsVictimMap from './maps/MapplsVictimMap';
 interface Props {
   user: any;
   profile: any;
-  userPos: [number, number] | null;
+  userPos: GeoPoint | null;
   activeAlerts: any[];
   assignedDispatch: any | null;
   activeInterceptAlert: any | null;

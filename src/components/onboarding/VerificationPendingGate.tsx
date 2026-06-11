@@ -57,7 +57,7 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
-        useKavachStore.getState().setProfile(data);
+        useKavachStore.getState().setProfile(data as any);
         useKavachStore.getState().setVerified(data.isVerified || data.verified || false);
         
         if (data.isVerified || data.verified) {

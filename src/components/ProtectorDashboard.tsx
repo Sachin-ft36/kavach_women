@@ -311,8 +311,8 @@ export default function ProtectorDashboard() {
             duration: durationFormatted,
             durationSeconds: elapsed,
             responsesCount: responses,
-            state: profile?.state || 'Uttar Pradesh',
-            city: profile?.city || 'Rewa',
+            state: (profile as any)?.state || 'Uttar Pradesh',
+            city: (profile as any)?.city || 'Rewa',
             timestamp: serverTimestamp()
           });
         } catch (err) {
@@ -967,13 +967,13 @@ export default function ProtectorDashboard() {
   // ----------------------------------------------------
 
   const protectorStats = {
-    rating: profile?.stats?.rating || profile?.rating || 0.0,
-    ratingCount: profile?.stats?.ratingCount || profile?.ratingCount || 0,
-    level: profile?.stats?.level || profile?.level || 1,
-    xp: profile?.stats?.xp || profile?.xp || 0,
-    livesHelped: profile?.stats?.livesHelped || profile?.livesHelped || 0,
-    successRate: profile?.stats?.successRate || profile?.successRate || 0,
-    avgResponse: profile?.stats?.avgResponse || profile?.avgResponse || '--'
+    rating: (profile as any)?.stats?.rating || (profile as any)?.rating || 0.0,
+    ratingCount: (profile as any)?.stats?.ratingCount || (profile as any)?.ratingCount || 0,
+    level: (profile as any)?.stats?.level || (profile as any)?.level || 1,
+    xp: (profile as any)?.stats?.xp || (profile as any)?.xp || 0,
+    livesHelped: (profile as any)?.stats?.livesHelped || (profile as any)?.livesHelped || 0,
+    successRate: (profile as any)?.stats?.successRate || (profile as any)?.successRate || 0,
+    avgResponse: (profile as any)?.stats?.avgResponse || (profile as any)?.avgResponse || '--'
   };
 
   const xpNeededForNextLevel = protectorStats.level * 500;
@@ -1005,7 +1005,7 @@ export default function ProtectorDashboard() {
             <div>
               <h2 className="text-[14px] font-bold text-white leading-tight">
                 {profile?.displayName || profile?.name || user?.displayName || 'Sachin Singh'}
-                {(profile?.gender?.toLowerCase() === 'male' || user?.gender?.toLowerCase() === 'male') && (
+                {((profile as any)?.gender?.toLowerCase() === 'male' || (user as any)?.gender?.toLowerCase() === 'male') && (
                   <span className="text-emerald-400 font-extrabold text-[12px] ml-1.5 opacity-90">(Real Life Hero)</span>
                 )}
               </h2>

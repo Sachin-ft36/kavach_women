@@ -246,7 +246,7 @@ export default function MapplsCommandMap({
     } else {
       // 4. Ultimate fallback to live location or default
       const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
-      if (userPos && userPos.length === 2 && !isDefaultPos) {
+      if (userPos && userPos.lat !== undefined && !isDefaultPos) {
         startTracking(userPos.lat, userPos.lng);
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -317,7 +317,7 @@ export default function MapplsCommandMap({
                     currentHeading = (90 - angle * 180 / Math.PI + 360) % 360;
                     headingRef.current = currentHeading;
                   }
-                  if (userPos) lastUserPosRef.current = userPos;
+                  if (userPos) lastUserPosRef.current = [userPos.lat, userPos.lng];
 
                   // 1. Render Command Center Base Marker IMMEDIATELY (As a Police Car)
                   const policeCarHtml = `
@@ -475,7 +475,7 @@ export default function MapplsCommandMap({
               };
 
               const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
-              if (userPos && userPos.length === 2 && !isDefaultPos) {
+              if (userPos && userPos.lat !== undefined && !isDefaultPos) {
                 executeTacticalNavigation(userPos.lat, userPos.lng);
               } else if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -891,7 +891,7 @@ export default function MapplsCommandMap({
     } else {
       // 4. Ultimate fallback to live location or default
       const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
-      if (userPos && userPos.length === 2 && !isDefaultPos) {
+      if (userPos && userPos.lat !== undefined && !isDefaultPos) {
         flyToTarget(userPos.lat, userPos.lng);
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(

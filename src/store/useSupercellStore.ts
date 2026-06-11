@@ -61,6 +61,8 @@ export interface IncidentCluster {
   
   // Phase 13: Evidence Vault (Chain of Custody)
   evidenceChain: EvidenceNode[];
+  incidentTampered?: boolean;
+  tamperLevel?: string;
 }
 
 async function generateSHA256(data: string) {
@@ -73,17 +75,18 @@ async function generateSHA256(data: string) {
 }
 
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 
 interface SupercellCommandState {
   activeIncidents: Record<string, IncidentCluster>;
   globalAuditLogs: string[];
   realtimeChannel: RealtimeChannel | null; // Prevent React 18 StrictMode duplicate subscription crashes
   initCommandCenterStreams: () => void;
-  addAuditLog: (log: string) => void;
+  addAuditLog: (log: string, type?: string) => void;
   addLogToIncident: (incidentId: string, log: string) => void;
   updateTelemetry: (nodeId: string, lat: number, lng: number, decibel?: number, transcript?: string) => void;
   dispatchOfficialReport: (incidentId: string) => Promise<boolean>;
-  escalateIncident: (incidentId: string, level: 'PCR' | 'HQ' | 'STATE') => void;
+  escalateIncident: (incidentId: string, level: 'PCR' | 'HQ' | 'STATE', reason?: string) => void;
   startEscalationEngine: (incidentId: string) => void;
   updateIncidentStatus: (incidentId: string, status: IncidentStatus, responderId?: string) => Promise<void>;
   calculateReliabilityScore: (protectorId: string) => { score: number, rank: 'Gold' | 'Silver' | 'Bronze' | 'Unranked' };
@@ -105,7 +108,7 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
   ],
   realtimeChannel: null,
 
-  addAuditLog: (log: string) => {
+  addAuditLog: (log: string, type?: string) => {
     const timestamp = new Date().toLocaleTimeString();
     set(state => ({
       globalAuditLogs: [`[${timestamp}] ${log}`, ...state.globalAuditLogs].slice(0, 100)
@@ -185,7 +188,7 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     
     // Generate PDF Audit Trail
     try {
-      await AuditExportService.generateAuditPDF(incidentId);
+      await (AuditExportService as any).generatePDF(incident as any);
       toast.success("Official PDF Audit Report Generated!");
     } catch (error) {
       console.error("PDF Export Failed", error);
@@ -273,7 +276,7 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     incident.sha256Seal = sealedHash;
 
     // Phase B: Audit Event Stream Dispatch
-    let eventType = newStatus;
+    let eventType: string = newStatus;
     if (newStatus === 'ACKNOWLEDGED') eventType = 'ACK';
     else if (newStatus === 'ASSIGNED') eventType = 'Assign';
     else if (newStatus === 'RESOLVED') eventType = 'Resolve';

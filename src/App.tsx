@@ -234,7 +234,7 @@ export default function App() {
     const storedRole = localStorage.getItem('kavach_user_role');
     const effectiveRole = role || storedRole;
 
-    if (isSOSActive && (effectiveRole === 'citizen' || user?.role === 'admin' || user?.role === 'super_cell')) {
+    if (isSOSActive && (effectiveRole === 'citizen' || (user as any)?.role === 'admin' || (user as any)?.role === 'super_cell')) {
       if (activeTab !== 'sos') {
         setActiveTab('sos');
       }
@@ -285,7 +285,7 @@ export default function App() {
 
   // 🛡️ ROLE-AWARE SNAPBACK: Ensure Protectors never stay on the SOS interface
   useEffect(() => {
-    if (activeTab === 'sos' && role === 'protector' && user?.role !== 'admin' && user?.role !== 'super_cell') {
+    if (activeTab === 'sos' && role === 'protector' && (user as any)?.role !== 'admin' && (user as any)?.role !== 'super_cell') {
       console.log("🛡️ KAVACH NAV: Protector detected on Victim interface. Snapping back to Command...");
       setActiveTab('dashboard');
     }
@@ -462,7 +462,7 @@ export default function App() {
 
         // 🏛️ ADMIN AUTO-PROVISIONING: Auto-promote to admin role if logged in with admin email
         const userEmail = firebaseUser.email || '';
-        const isAdminEmail = user?.role === 'admin' || user?.role === 'super_cell';
+        const isAdminEmail = (user as any)?.role === 'admin' || (user as any)?.role === 'super_cell';
         if (isAdminEmail) {
           // Instantly set store state to bypass onboarding
           setRole('admin');
@@ -769,7 +769,7 @@ export default function App() {
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
             ) : isSOSActive ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
-            ) : (role === 'admin' || role === 'super_cell') ? (
+            ) : ((role as any) === 'admin' || (role as any) === 'super_cell') ? (
               <Layout
                 isGhostMode={isGhostMode}
                 onToggleGhost={onToggleGhost}
@@ -789,7 +789,7 @@ export default function App() {
                   isReturningUser={isRegistered && !isHardwareSynced}
                 />
               </div>
-            ) : (!isVerified && role !== 'admin' && role !== 'super_cell') ? (
+            ) : (!isVerified && (role as any) !== 'admin' && (role as any) !== 'super_cell') ? (
               <VerificationPendingGate user={user} profile={profile} />
             ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
@@ -802,7 +802,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && role !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || role === 'admin' || role === 'super_cell')) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (role as any) !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || (role as any) === 'admin' || (role as any) === 'super_cell')) && createPortal(
         <>
           <motion.nav
             initial={{ y: 120, opacity: 0 }}

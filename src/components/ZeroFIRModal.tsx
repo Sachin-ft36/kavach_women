@@ -90,7 +90,7 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
             <div class="section">
               <div class="section-title">Incident Details</div>
               <div class="row"><div class="label">Category:</div><div class="value">${incidentType}</div></div>
-              <div class="row"><div class="label">Location:</div><div class="value">${userPos ? userPos.join(', ') : 'Logged GPS'}</div></div>
+              <div class="row"><div class="label">Location:</div><div class="value">${userPos ? `${userPos.lat}, ${userPos.lng}` : 'Logged GPS'}</div></div>
             </div>
             <div class="section">
               <div class="section-title">Narrative</div>

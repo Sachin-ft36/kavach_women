@@ -45,7 +45,7 @@ export function useProtectorSentinel() {
     }
 
     // 🎖️ PROTECTOR ELITE STATUS DETERMINATION
-    const occupation = currentProfile?.protectorVetting?.occupation || '';
+    const occupation = (currentProfile as any)?.protectorVetting?.occupation || '';
     const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police'].some(r => 
       occupation.toLowerCase().includes(r.toLowerCase())
     );

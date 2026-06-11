@@ -254,7 +254,7 @@ PIN: ${data?.handshakeCode || 'N/A'}`;
   return tacticalMission();
 };
 
-export const archiveIncident = async (incidentId: string) => {
+export const archiveIncident = async (incidentId: string, closureReason?: string) => {
   try {
     const { doc, getDoc, setDoc, deleteDoc } = await import('firebase/firestore');
     
