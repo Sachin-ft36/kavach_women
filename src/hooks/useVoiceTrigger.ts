@@ -46,7 +46,7 @@ export const useVoiceTrigger = () => {
       role === 'protector' || 
       role === 'super_cell' || 
       role === 'admin' || 
-      user?.email === 'singh.sachin16559@gmail.com';
+      user?.role === 'admin' || user?.role === 'super_cell';
 
     if (isResponder) {
       if (isVoiceTriggerActive) {

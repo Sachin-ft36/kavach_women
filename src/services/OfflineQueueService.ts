@@ -1,6 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import { Network } from '@capacitor/network';
 import { executeEmergencyBlast } from './sosService';
+import { logTelemetryEvent } from '../firebase';
 
 const QUEUE_KEY = 'kavach_offline_sos_queue';
 
@@ -78,6 +79,7 @@ export const OfflineQueueService = {
           if (results) {
              item.status = 'acknowledged';
              console.log(`✅ OFFLINE QUEUE: Successfully acknowledged payload ${item.id}`);
+             logTelemetryEvent('queue_replay_success', { alertId: item.id });
              // Add audit event in Phase B
           } else {
              throw new Error("Server did not return a valid ACK");
@@ -87,10 +89,12 @@ export const OfflineQueueService = {
           item.retryCount += 1;
           item.lastError = dispatchErr.message || String(dispatchErr);
           item.status = 'retrying';
+          logTelemetryEvent('queue_replay_failure', { alertId: item.id, reason: item.lastError, retryCount: item.retryCount });
 
           if (item.retryCount > 3) {
             item.status = 'dead_letter';
             console.error(`💀 DLQ Triggered for ${item.id}`);
+            logTelemetryEvent('queue_failure_dlq', { alertId: item.id, reason: item.lastError });
             // Pushing to Firestore DLQ asynchronously
             import('../config/firebase').then(({ db }) => {
               import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {

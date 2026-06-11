@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { db, auth } from '../firebase';
+import { db, auth, logTelemetryEvent } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { getReverseMetadata } from './locationService';
 import { fetchNearbyPoliceMappls } from './MapplsService';
@@ -125,10 +125,12 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
 
           if (data?.alertId) {
             await setDoc(doc(db, 'alerts', data.alertId), alertData, { merge: true });
+            logTelemetryEvent('sos_trigger_success_firestore', { method: data?.type });
             return { id: data.alertId };
           }
 
           const newDoc = await addDoc(collection(db, 'alerts'), alertData);
+          logTelemetryEvent('sos_trigger_success_firestore', { method: data?.type });
           return newDoc;
         } catch (error: any) {
           console.error("❌ KAVACH: Alert Dispatch Error (Network/Auth):", error);
@@ -136,6 +138,7 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
           // 📦 If offline, queue it!
           if (error?.message?.includes("offline") || error?.code === 'unavailable' || !navigator.onLine) {
             console.warn("⚠️ NETWORK DROPPED: Queuing dispatch payload...");
+            logTelemetryEvent('sos_failure_offline_fallback', { method: data?.type, reason: error.message });
             await OfflineQueueService.enqueueSOS(userPos, data);
             return null; // Acknowledge it failed but was queued
           }

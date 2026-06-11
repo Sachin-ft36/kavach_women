@@ -122,7 +122,7 @@ export const VettingDesk: React.FC<VettingDeskProps> = ({
 
     // 5. Verification status subtabs
     if (activeSubTab === 'pending') {
-      return !u.isVerified && u.verificationStatus !== 'rejected' && u.email !== 'singh.sachin16559@gmail.com';
+      return !u.isVerified && u.verificationStatus !== 'rejected' && u.role !== 'admin';
     } else if (activeSubTab === 'approved') {
       return !!u.isVerified;
     } else if (activeSubTab === 'rejected') {
@@ -134,7 +134,7 @@ export const VettingDesk: React.FC<VettingDeskProps> = ({
   const selectedUser = allUsers.find(u => u.id === selectedUserId) as any;
 
   // Stats calculation based on state/district filtered users
-  const pendingCount = baseFilteredUsers.filter((u: any) => !u.isVerified && u.verificationStatus !== 'rejected' && u.email !== 'singh.sachin16559@gmail.com').length;
+  const pendingCount = baseFilteredUsers.filter((u: any) => !u.isVerified && u.verificationStatus !== 'rejected' && u.role !== 'admin').length;
   const approvedCount = baseFilteredUsers.filter((u: any) => !!u.isVerified).length;
   const rejectedCount = baseFilteredUsers.filter((u: any) => u.verificationStatus === 'rejected').length;
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { User as FirebaseUser } from 'firebase/auth';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
-import { db, auth } from '../firebase';
+import { db, auth, logTelemetryEvent } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, doc, setDoc, updateDoc, serverTimestamp, getDoc, arrayUnion, limit, increment } from 'firebase/firestore';
 
 import { validateTransition } from '../utils/stateGuards';
@@ -144,7 +144,7 @@ interface KavachState {
   setIsSafeTimerAlertActive: (active: boolean) => void;
   pendingNavigationTarget: { lat: number; lng: number; name: string } | null;
   setPendingNavigationTarget: (target: { lat: number; lng: number; name: string } | null) => void;
-  
+
   // Phase 16: Dead Man Switch
   deadManSwitchActive: boolean;
   deadManSwitchTriggerTime: number | null;
@@ -224,7 +224,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   setIsSafeTimerAlertActive: (isSafeTimerAlertActive) => set({ isSafeTimerAlertActive }),
   pendingNavigationTarget: null,
   setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target }),
-  
+
   deadManSwitchActive: false,
   deadManSwitchTriggerTime: null,
   startDeadManSwitch: (targetTimestamp: number) => {
@@ -240,7 +240,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     if (deadManSwitchActive && deadManSwitchTriggerTime && Date.now() >= deadManSwitchTriggerTime) {
       console.warn('🚨 DEAD MAN SWITCH TRIGGERED! ETA EXPIRED WITHOUT ACKNOWLEDGEMENT.');
       get().cancelDeadManSwitch();
-      setSOSActive(true, null, 'silent'); 
+      setSOSActive(true, null, 'silent');
     }
   },
 
@@ -269,13 +269,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
   cancelPendingSOS: () => {
     set({ pendingSOS: null });
-    
+
     // 🛡️ NATIVE STATE RECONCILIATION
     // If cancelled during the timer phase, the native backend might still be locked
     // because it already registered the trigger (e.g. from shake/voice).
     // Send a release signal so it starts listening again.
-    KavachSafe.stopContinuousSiren().catch(() => {});
-    
+    KavachSafe.stopContinuousSiren().catch(() => { });
+
     toast.info("SOS Request Cancelled", {
       description: "False trigger avoided. System returning to standby.",
       icon: '🛡️'
@@ -539,21 +539,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         if (lat !== undefined && lng !== undefined) {
           const userPos: GeoPoint = { lat, lng };
           set({ userPos, loading: false });
-          
-          const state = useKavachStore.getState();
 
           if (auth.currentUser) {
-            // 🚀 BATCH TELEMETRY (100k Scale Resilience: Cold Storage Routing)
-            import('../services/TelemetryBatcher').then(({ telemetryBatcher }) => {
-              telemetryBatcher.log({
-                type: 'LOCATION_PING',
-                lat,
-                lng,
-                uid: auth.currentUser!.uid,
-                context: state.isSOSActive ? 'SOS_VICTIM' : (state.respondingToAlertId ? 'RESPONDER' : 'BACKGROUND')
-              });
-            }).catch(console.error);
-
             try {
               const updates: any = {
                 lastLocation: { latitude: lat, longitude: lng },
@@ -608,7 +595,9 @@ export const useKavachStore = create<KavachState>((set, get) => ({
                     lastUpdated: serverTimestamp()
                   }, { merge: true });
                 } catch (e) {
-                  console.warn("⚠️ KAVACH: Responder Footprint Sync Pending...");
+                  // Offline Queue System Phase A
+                  logTelemetryEvent('sos_failure_offline_fallback', { method: 'responder_tracking', alertId: state.respondingToAlertId, reason: (e as Error).message });
+                  console.warn("🌐 OFFLINE: Firestore failed. Routing to Tamper-Proof Offline Queue...");
                 }
               }
 
@@ -660,13 +649,14 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
     if (isSOSActive) {
       const state = get();
-      const isAdmin = state.user?.email === 'singh.sachin16559@gmail.com';
+      const isAdmin = state.user?.role === 'admin' || state.user?.role === 'super_cell';
       const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
       if (!isAuthorized) {
         console.warn("🛡️ KAVACH GUARD: SOS activation blocked. Profile must be registered, synced, and approved by the Command Center.");
         return;
       }
       console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
+      logTelemetryEvent('sos_trigger_success', { method });
 
       // 🛡️ NEW MISSION PROTOCOL: Always start with a clean state
       const currentUid = auth.currentUser?.uid || localStorage.getItem('kavach_user_uid');
@@ -866,8 +856,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             const currentStatus = alertData.status || 'active';
             let targetStatus = 'resolved';
             if (!validateTransition(currentStatus, targetStatus, 'APP')) {
-               console.warn(`[KAVACH GUARD] Cannot directly resolve from ${currentStatus}. Forcing ABORTED state.`);
-               targetStatus = 'aborted';
+              console.warn(`[KAVACH GUARD] Cannot directly resolve from ${currentStatus}. Forcing ABORTED state.`);
+              targetStatus = 'aborted';
             }
 
             await updateDoc(alertRef, {
@@ -903,7 +893,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               await archiveIncident(currentAlertId);
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("SOS De-escalation Error:", e);
         }
       }

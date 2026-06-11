@@ -191,8 +191,8 @@ export const SuperCellShell = ({ viewMode = 'COMMAND', onTabChange }: { viewMode
 
     const email = currentUserEmail.toLowerCase().trim();
 
-    // 1. Home Ministry Check (ONLY singh.sachin16559@gmail.com can view ALL)
-    if (email === 'singh.sachin16559@gmail.com') {
+    // 1. Home Ministry Check (ONLY admin role can view ALL)
+    if (useKavachStore.getState().user?.role === 'admin') {
       return 'ALL';
     }
 
@@ -247,7 +247,7 @@ export const SuperCellShell = ({ viewMode = 'COMMAND', onTabChange }: { viewMode
   useEffect(() => {
     if (detectedAdminState) {
       setSelectedState(detectedAdminState);
-    } else if (currentUserEmail && currentUserEmail !== 'singh.sachin16559@gmail.com') {
+    } else if (currentUserEmail && useKavachStore.getState().user?.role !== 'admin') {
       // If NOT sachin, they must never see 'ALL'. So if selectedState is 'ALL', fallback immediately.
       setSelectedState(prev => prev === 'ALL' ? 'Uttar Pradesh' : prev);
     }

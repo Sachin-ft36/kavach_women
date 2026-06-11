@@ -22,10 +22,19 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
+import { getAnalytics, logEvent } from 'firebase/analytics';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
+// Helper function to log critical telemetry
+export const logTelemetryEvent = (eventName: string, params?: Record<string, any>) => {
+  if (analytics) {
+    logEvent(analytics, eventName, params);
+  }
+};
 
 // 🛡️ TACTICAL STABILITY FIX: Force Long Polling and Disable Persistence to bypass SDK crashes (b815/ca9)
 export const db = initializeFirestore(app, {

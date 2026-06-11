@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, 
 
 export default function ProtectorVerify() {
   const { t } = useLanguage();
-  const isAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
+  const isAdmin = auth.currentUser && (useKavachStore.getState().user?.role === 'admin' || useKavachStore.getState().user?.role === 'super_cell');
   const [protectors, setProtectors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'pending' | 'verified'>('pending');
