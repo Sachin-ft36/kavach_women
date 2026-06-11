@@ -23,12 +23,13 @@ import { OperationsGrid } from './national/OperationsGrid';
 import { ProtectorControl } from './national/ProtectorControl';
 import { DispatchPanel } from './national/DispatchPanel';
 import { useNationalCommand } from './national/useNationalCommand';
+import { IncidentRecord, UserProfile, ZeroFIRRecord } from '../../domain/types';
 
 interface NationalOverviewProps {
-  activeAlerts: any[];
-  verifiedProtectors: any[];
-  pendingProtectors: any[];
-  zeroFirs: any[];
+  activeAlerts: IncidentRecord[];
+  verifiedProtectors: UserProfile[];
+  pendingProtectors: UserProfile[];
+  zeroFirs: ZeroFIRRecord[];
   selectedState: string;
   isSovereignActive?: boolean;
   onNavigate?: (tab: string, id?: string) => void;

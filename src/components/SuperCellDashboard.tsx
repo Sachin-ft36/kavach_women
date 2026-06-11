@@ -47,6 +47,7 @@ import {
 import { db, auth } from '../firebase';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { IncidentRecord, UserProfile, ZeroFIRRecord, JourneyRecord } from '../domain/types';
 
 // High-Fidelity Tactical Modules
 import KavachMap from './maps/KavachMap';
@@ -150,15 +151,15 @@ const matchesState = (selectedState: string, text: string) => {
   });
 };
 
-const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: string, onTabChange?: (m: any) => void }) => {
-  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-  const [missionHistory, setMissionHistory] = useState<any[]>([]);
-  const [activeJourneys, setActiveJourneys] = useState<any[]>([]);
+const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: string, onTabChange?: (m: string) => void }) => {
+  const [activeAlerts, setActiveAlerts] = useState<IncidentRecord[]>([]);
+  const [missionHistory, setMissionHistory] = useState<IncidentRecord[]>([]);
+  const [activeJourneys, setActiveJourneys] = useState<JourneyRecord[]>([]);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
-  const [verifiedProtectors, setVerifiedProtectors] = useState<any[]>([]);
-  const [pendingProtectors, setPendingProtectors] = useState<any[]>([]);
-  const [activeFirs, setActiveFirs] = useState<any[]>([]);
-  const [userStatusMap, setUserStatusMap] = useState<Record<string, any>>({});
+  const [verifiedProtectors, setVerifiedProtectors] = useState<UserProfile[]>([]);
+  const [pendingProtectors, setPendingProtectors] = useState<UserProfile[]>([]);
+  const [activeFirs, setActiveFirs] = useState<ZeroFIRRecord[]>([]);
+  const [userStatusMap, setUserStatusMap] = useState<Record<string, UserProfile>>({});
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [isSovereignActive, setIsSovereignActive] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -166,9 +167,9 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   const [useMapboxFallback, setUseMapboxFallback] = useState(false);
 
   const [selectedProtectorId, setSelectedProtectorId] = useState<string | null>(null);
-  const [selectedFir, setSelectedFir] = useState<any>(null);
+  const [selectedFir, setSelectedFir] = useState<ZeroFIRRecord | null>(null);
   const [isFirModalOpen, setIsFirModalOpen] = useState(false);
-  const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => { } });
+  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, type: string, title: string, description: string, confirmText?: string, onConfirm?: () => void}>({ isOpen: false, type: 'info', title: '', description: '', confirmText: '', onConfirm: () => { } });
   const [selectedVettingUserId, setSelectedVettingUserId] = useState<string | null>(null);
 
   // 🗺️ STATE SHARD FILTERING ENGINE
@@ -255,7 +256,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
     localStorage.setItem('kavach_selected_state', selectedState);
   }, [selectedState]);
 
-  const filterByState = (item: any) => {
+  const filterByState = (item: IncidentRecord | UserProfile | ZeroFIRRecord | JourneyRecord) => {
     if (!item) return false;
     if (selectedState === 'ALL') return true;
 
@@ -313,7 +314,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
   };
 
   const filteredUserStatusMap = React.useMemo(() => {
-    const filtered: Record<string, any> = {};
+    const filtered: Record<string, UserProfile> = {};
 
     // 1. Find all user IDs who have matched alerts/FIRs in selectedState
     const userIdsWithAlertsInSelectedState = new Set<string>();
@@ -347,7 +348,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
     // 3. Inject high-fidelity fallback profiles for active/resolved alerts or FIRs if they don't exist in userStatusMap
     if (selectedState !== 'ALL') {
-      const injectFromList = (list: any[], role: string) => {
+      const injectFromList = (list: (IncidentRecord | ZeroFIRRecord)[], role: string) => {
         list.forEach(item => {
           if (!filterByState(item)) return;
           const uid = item.victimUid || item.userId || item.uid;
@@ -430,7 +431,7 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
         setUserStatusMap(prev => {
           const newMap = { ...prev };
           snapshot.forEach(doc => {
-            const data = { id: doc.id, ...doc.data() };
+            const data = { id: doc.id, ...doc.data() } as UserProfile;
             newMap[doc.id] = data;
           });
           return newMap;
@@ -438,10 +439,10 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
         // Update lists for protectors specifically
         if (collName === 'users' || collName === 'male_users' || collName === 'women_users') {
-          const vProts: any[] = [];
-          const pProts: any[] = [];
+          const vProts: UserProfile[] = [];
+          const pProts: UserProfile[] = [];
           snapshot.forEach(doc => {
-            const data = { id: doc.id, ...(doc.data() as any), originCollection: collName };
+            const data = { id: doc.id, ...(doc.data() as UserProfile), originCollection: collName };
             if (data.role?.toLowerCase() === 'protector') {
               if (data.isVerified || data.verified) vProts.push(data);
               else pProts.push(data);
@@ -470,18 +471,18 @@ const SuperCellDashboard = ({ viewMode = 'COMMAND', onTabChange }: { viewMode?: 
 
     // 🔴 RE-LINKED TO OFFICIAL 'alerts' REGISTRY
     const unsubscribeAlerts = onSnapshot(query(collection(db, 'alerts'), orderBy('timestamp', 'desc')), (snapshot) => {
-      const alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-      setActiveAlerts(alerts.filter(a => ['active', 'Active', 'ACTIVE', 'responding', 'Responding'].includes(a.status)));
-      setMissionHistory(alerts.filter(a => !['active', 'Active', 'ACTIVE', 'responding', 'Responding'].includes(a.status)));
+      const alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncidentRecord));
+      setActiveAlerts(alerts.filter(a => a.status && ['active', 'Active', 'ACTIVE', 'responding', 'Responding'].includes(a.status)));
+      setMissionHistory(alerts.filter(a => a.status && !['active', 'Active', 'ACTIVE', 'responding', 'Responding'].includes(a.status)));
     });
 
     // 🏛️ JUSTICE LEDGER SYNC (Unified to zero_firs)
     const unsubscribeFirs = onSnapshot(query(collection(db, 'zero_firs'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setActiveFirs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setActiveFirs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ZeroFIRRecord)));
     });
 
     const unsubJourneys = onSnapshot(query(collection(db, 'journeys'), where('status', 'in', ['active', 'emergency'])), (snapshot) => {
-      setActiveJourneys(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setActiveJourneys(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JourneyRecord)));
     });
 
     return () => { unsubUsers(); unsubWomen(); unsubMales(); unsubscribeAlerts(); unsubscribeFirs(); unsubJourneys(); };

@@ -14,6 +14,7 @@ import { ref, deleteObject } from 'firebase/storage';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { IncidentRecord, UserProfile } from '../../domain/types';
 
 // 🏛️ UHD Strategic Map
 import CommandMap from '../maps/CommandMap';
@@ -41,10 +42,10 @@ export function SOSManagement({
   onViewReplay
 }: { 
   externalSelectedId?: string | null, 
-  verifiedProtectors?: any[],
-  activeAlerts?: any[],
-  historicalAlerts?: any[],
-  userStatusMap?: Record<string, any>,
+  verifiedProtectors?: UserProfile[],
+  activeAlerts?: IncidentRecord[],
+  historicalAlerts?: IncidentRecord[],
+  userStatusMap?: Record<string, UserProfile>,
   onViewReplay?: (alertId: string) => void
 }) {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
