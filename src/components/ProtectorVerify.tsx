@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { useKavachStore } from '../store/useKavachStore';
 
 export default function ProtectorVerify() {
   const { t } = useLanguage();
