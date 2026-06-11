@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { offlineSyncService } from '../services/offlineSyncService';
+import { cryptoService } from '../services/cryptoService';
+import { validateTransition, StateTransitionError } from '../utils/stateGuards';
+import { archiveIncident } from '../services/sosService';
+import { AuditExportService } from '../services/AuditExportService';
 
 export type IncidentStatus =
   | "CREATED"
@@ -67,10 +71,12 @@ async function generateSHA256(data: string) {
     .join("");
 }
 
+import { RealtimeChannel } from '@supabase/supabase-js';
+
 interface SupercellCommandState {
   activeIncidents: Record<string, IncidentCluster>;
   globalAuditLogs: string[];
-  realtimeChannel: any | null; // Prevent React 18 StrictMode duplicate subscription crashes
+  realtimeChannel: RealtimeChannel | null; // Prevent React 18 StrictMode duplicate subscription crashes
   initCommandCenterStreams: () => void;
   addAuditLog: (log: string) => void;
   addLogToIncident: (incidentId: string, log: string) => void;
@@ -149,7 +155,8 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
         hash: sealedHash,
         deviceId: nodeId,
         previousHash: prevHash,
-        digitalSignature: `SIG_${await generateSHA256(sealedHash + "PRIVATE_KEY")}`
+        digitalSignature: await cryptoService.signPayload(sealedHash),
+        publicKey: await cryptoService.getPublicKeyBase64()
       };
       current[nodeId].evidenceChain = [evidenceNode, ...current[nodeId].evidenceChain].slice(0, 50);
       
@@ -174,6 +181,16 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
 
     // Realtime broadcast simulation to police console servers
     console.log("🏛️ GOVERNMENT DISPATCH PIPELINE ENGAGED:", incident);
+    
+    // Generate PDF Audit Trail
+    try {
+      await AuditExportService.generateAuditPDF(incidentId);
+      toast.success("Official PDF Audit Report Generated!");
+    } catch (error) {
+      console.error("PDF Export Failed", error);
+      toast.error("Failed to generate PDF Report.");
+    }
+
     return true;
   },
 
@@ -183,6 +200,14 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     if (!nodeId || !current[nodeId]) return;
 
     const incident = current[nodeId];
+    
+    // Phase 6: Validate State Transition
+    if (!validateTransition(incident.status, newStatus, 'COMMAND')) {
+      console.error(new StateTransitionError(incident.status, newStatus));
+      get().addAuditLog(`⛔ SECURITY AUDIT: Blocked invalid transition from ${incident.status} to ${newStatus} for ${incidentId}`);
+      return;
+    }
+
     const now = Date.now();
     const creationTime = incident.evidenceChain.length > 0 
       ? incident.evidenceChain[incident.evidenceChain.length - 1].capturedAt 
@@ -219,7 +244,8 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
       hash: sealedHash,
       deviceId: nodeId,
       previousHash: prevHash,
-      digitalSignature: `SIG_${await generateSHA256(sealedHash + "PRIVATE_KEY")}`
+      digitalSignature: await cryptoService.signPayload(sealedHash),
+      publicKey: await cryptoService.getPublicKeyBase64()
     };
     
     incident.evidenceChain = [evidenceNode, ...incident.evidenceChain].slice(0, 50);
@@ -232,6 +258,11 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     offlineSyncService.queuePayload('EVIDENCE_NODE', evidenceNode);
     
     set({ activeIncidents: current });
+
+    // Phase 7: Telemetry Scaling (Hot Data -> Cold Archive)
+    if (newStatus === 'RESOLVED' || newStatus === 'CLOSED') {
+      await archiveIncident(incidentId);
+    }
   },
 
   calculateReliabilityScore: (protectorId: string) => {

@@ -184,6 +184,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // --- 🗄️ TELEMETRY SCALING: COLD ARCHIVE (PHASE 7) ---
+    match /incident_archive/{docId} {
+      // Allow read for auditing, but prevent high-cost unconstrained querying
+      allow read: if isAuthenticated() && (isAdmin() || hasRole('super_cell') || hasRole('national_commander'));
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    match /telemetry_archive/{docId} {
+      allow read: if isAuthenticated() && (isAdmin() || hasRole('super_cell') || hasRole('national_commander'));
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
     // --- 🚨 FINAL SAFETY NET ---
     match /{document=**} { 
       allow read, write: if isAdmin(); 

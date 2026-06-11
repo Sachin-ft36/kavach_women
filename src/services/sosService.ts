@@ -1,9 +1,10 @@
 import { Capacitor } from '@capacitor/core';
 import { db, auth } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orderBy, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { getReverseMetadata } from './locationService';
 import { fetchNearbyPoliceMappls } from './MapplsService';
 import { KavachSafe } from './KavachNative';
+import { DeviceIntegrityService } from './deviceIntegrityService';
 import { GeoPoint } from '../types';
 
 let lastTriggerTime = 0;
@@ -56,6 +57,9 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
           const meta = await getReverseMetadata(userPos.lat, userPos.lng);
           const battery = (window as any).kavachBatteryLevel || 0;
           
+          // PHASE 8: Device Trust Validation
+          const trustReport = await DeviceIntegrityService.calculateTrustScore();
+          
           const alertData: any = {
             victimUid: victimId,
             victimName: finalUser.displayName || finalUser.name || 'Kavach Citizen',
@@ -76,7 +80,10 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
             },
             telemetry: {
               battery: battery,
-              signal: 'HIGH'
+              signal: 'HIGH',
+              trustScore: trustReport.score,
+              trustFlags: trustReport.flags,
+              isEmulator: trustReport.isEmulator
             },
             state: meta.state || 'National',
             country: "India",
@@ -227,4 +234,42 @@ PIN: ${data?.handshakeCode || 'N/A'}`;
   };
 
   return tacticalMission();
+};
+
+export const archiveIncident = async (incidentId: string) => {
+  try {
+    const { doc, getDoc, setDoc, deleteDoc } = await import('firebase/firestore');
+    
+    // 1. Fetch Hot Data
+    const alertRef = doc(db, 'alerts', incidentId);
+    const alertSnap = await getDoc(alertRef);
+    
+    if (!alertSnap.exists()) {
+      console.warn(`[ARCHIVE] Incident ${incidentId} not found in Hot Data.`);
+      return false;
+    }
+    
+    const incidentData = alertSnap.data();
+    
+    // 2. Only archive if closed or resolved
+    if (incidentData.status !== 'resolved' && incidentData.status !== 'closed' && incidentData.status !== 'aborted') {
+      console.warn(`[ARCHIVE] Cannot archive active incident ${incidentId}. Current status: ${incidentData.status}`);
+      return false;
+    }
+    
+    // 3. Move to Cold Archive Collection
+    const archiveRef = doc(db, 'incident_archive', incidentId);
+    await setDoc(archiveRef, {
+      ...incidentData,
+      archivedAt: serverTimestamp()
+    });
+    
+    // 4. Delete from Hot Data
+    await deleteDoc(alertRef);
+    console.log(`🗄️ [ARCHIVE] Successfully moved incident ${incidentId} to Cold Archive.`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [ARCHIVE] Failed to archive incident ${incidentId}:`, error);
+    return false;
+  }
 };

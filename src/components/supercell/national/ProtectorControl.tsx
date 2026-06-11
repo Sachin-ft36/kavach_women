@@ -4,8 +4,8 @@ import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
 interface ProtectorControlProps {
-  protectorTab: string;
-  setProtectorTab: (tab: string) => void;
+  protectorTab: 'PENDING' | 'ACTIVE';
+  setProtectorTab: (tab: 'PENDING' | 'ACTIVE') => void;
   pendingProtectors: any[];
   verifiedProtectors: any[];
   onNavigate?: (tab: string, id?: string) => void;

@@ -22,6 +22,7 @@ import { IncidentWarRoom } from './national/IncidentWarRoom';
 import { OperationsGrid } from './national/OperationsGrid';
 import { ProtectorControl } from './national/ProtectorControl';
 import { DispatchPanel } from './national/DispatchPanel';
+import { useNationalCommand } from './national/useNationalCommand';
 
 interface NationalOverviewProps {
   activeAlerts: any[];
@@ -47,64 +48,25 @@ export function NationalOverview({
   onDispatchSpecial
 }: NationalOverviewProps) {
   
-  const [protectorTab, setProtectorTab] = useState<'PENDING' | 'ACTIVE'>('PENDING');
-  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
-  const [selectedProtectorId, setSelectedProtectorId] = useState<string | null>(null);
-  const [isDispatching, setIsDispatching] = useState(false);
-  const [useMapboxFallback, setUseMapboxFallback] = useState(false);
-
-  // 🎙️ TACTICAL COMMAND & CONTROL STATE VARIABLES
-  const [isSynthPlaying, setIsSynthPlaying] = useState(false);
-  const [audioSynth, setAudioSynth] = useState<{ stop: () => void } | null>(null);
-
-  // 🎧 AGORA WEBRTC LIVE STREAMING ENGINE
-  const { 
-    isLiveStreamActive, 
-    connectionState: agoraConnectionState, 
-    startStealthStream, 
-    stopStealthStream 
-  } = useStealthAudio(selectedAlertId ? `channel-${selectedAlertId}` : null);
-
-  const isAudioPlaying = isSynthPlaying || isLiveStreamActive;
-  const [activePcoRadio, setActivePcoRadio] = useState<string | null>(null);
-  const [pcrDispatched, setPcrDispatched] = useState<Record<string, boolean>>({});
-  const [customLogs, setCustomLogs] = useState<string[]>([]);
-  const [syncSectors, setSyncSectors] = useState<Record<string, boolean>>({});
-
-  const selectedAlert = useMemo(() => activeAlerts.find(a => a.id === selectedAlertId), [activeAlerts, selectedAlertId]);
-  const isSimulatingRun = selectedAlert?.escapeVectorActive || false;
-  const isNakabandiDeployed = selectedAlert?.nakabandiDeployed || false;
-
-  // 🚔 REAL PCR OFFICERS FROM FIRESTORE
-  const [livePcrOfficers, setLivePcrOfficers] = useState<any[]>([]);
-
-  useEffect(() => {
-    // Listen to all pcr_officer users who are on duty
-    const q = query(
-      collection(db, 'users'),
-      where('role', '==', 'pcr_officer'),
-      where('isOnDuty', '==', true)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setLivePcrOfficers(snap.docs.map(d => ({ id: d.id, ...d.data() as any })));
-    }, () => {
-      // Firestore error — keep simulated fallback
-      setLivePcrOfficers([]);
-    });
-    return () => unsub();
-  }, []);
-
-  // 🛰️ TACTICAL PROXIMITY CALCULATOR
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  const {
+    protectorTab, setProtectorTab,
+    selectedAlertId, setSelectedAlertId,
+    selectedProtectorId, setSelectedProtectorId,
+    isDispatching, setIsDispatching,
+    useMapboxFallback, setUseMapboxFallback,
+    isSynthPlaying, setIsSynthPlaying,
+    audioSynth, setAudioSynth,
+    isLiveStreamActive, startStealthStream, stopStealthStream,
+    isAudioPlaying,
+    activePcoRadio, setActivePcoRadio,
+    pcrDispatched, setPcrDispatched,
+    customLogs, setCustomLogs,
+    syncSectors, setSyncSectors,
+    isSimulatingRun, isNakabandiDeployed,
+    livePcrOfficers,
+    incidentData, simulatedPcrVans, sortedAlerts,
+    calculateDistance
+  } = useNationalCommand(activeAlerts, selectedState);
 
   const protectorsInRange = useMemo(() => {
     if (!selectedAlertId) return [];
@@ -121,9 +83,8 @@ export function NationalOverview({
       if (!pLat || !pLng) return false;
       return calculateDistance(aLat, aLng, pLat, pLng) <= 2; // 2km Radius
     });
-  }, [selectedAlertId, activeAlerts, verifiedProtectors]);
+  }, [selectedAlertId, activeAlerts, verifiedProtectors, calculateDistance]);
 
-  // 🎧 REAL-WORLD STEALTH VOIP AUDIO SYNTHESIZER
   const toggleLiveMicSynth = async () => {
     if (isAudioPlaying) {
       if (audioSynth) {
@@ -140,120 +101,12 @@ export function NationalOverview({
 
     const alert = activeAlerts.find(a => a.id === selectedAlertId);
     
-    // 1. 🌐 ATTEMPT WEBRTC LIVE STREAMING FIRST (Production Mode)
     if (selectedAlertId) {
        await startStealthStream();
        toast.success("Connecting to secure WebRTC frequency...");
        return;
     }
-    
-    // 🎙️ If real audio payload exists from Cloud Storage (From ShakeTrigger/Audio API)
-    if (alert?.audioUrl) {
-      try {
-        const audioObj = new Audio(alert.audioUrl);
-        audioObj.play().catch(e => {
-           console.warn("Audio play failed:", e);
-           toast.error("Decryption failed. Stream format unsupported.");
-        });
-        setAudioSynth({
-          stop: () => {
-            audioObj.pause();
-            audioObj.currentTime = 0;
-          }
-        });
-        setIsSynthPlaying(true);
-        toast.success("Real audio stream locked. Playing decrypted voice payload.");
-        return;
-      } catch (e) {
-        console.warn("Failed to mount HTMLAudioElement", e);
-      }
-    }
-
-    // 📻 Fallback: Simulated Ambient Radio tracking hum
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) {
-        toast.error("Web Audio API not supported in this environment.");
-        return;
-      }
-
-      const ctx = new AudioCtx();
-      
-      // Node 1: Oscillator (Sine wave distress beep)
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // high pitched tone
-
-      // Node 2: Low-pass filter for ambient radio hum
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(350, ctx.currentTime);
-
-      // Node 3: Static hum white noise generator
-      const bufferSize = ctx.sampleRate * 2;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      noise.loop = true;
-
-      // Node 4: Gain node for noise static volume
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.04, ctx.currentTime);
-
-      // Node 5: Gain node for distress beep volume
-      const oscGain = ctx.createGain();
-      oscGain.gain.setValueAtTime(0.015, ctx.currentTime);
-
-      // Connections
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-
-      osc.connect(oscGain);
-      oscGain.connect(ctx.destination);
-
-      // Start Synthesizer audio stream
-      noise.start(0);
-      osc.start(0);
-
-      // Create an interval beep pattern (Stealth radar tracking distress beep)
-      let isBeeping = true;
-      const interval = setInterval(() => {
-        if (ctx.state === 'suspended') return;
-        isBeeping = !isBeeping;
-        oscGain.gain.setValueAtTime(isBeeping ? 0.015 : 0.0, ctx.currentTime);
-      }, 700);
-
-      setAudioSynth({
-        stop: () => {
-          clearInterval(interval);
-          try {
-            osc.stop();
-            noise.stop();
-          } catch(e) {}
-          ctx.close();
-        }
-      });
-      setIsSynthPlaying(true);
-      toast.success("Active stealth mic frequency locked.");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to initialize tactical audio synthesizers.");
-    }
   };
-
-  // Clean up synthesizers on unmount
-  useEffect(() => {
-    return () => {
-      if (audioSynth) {
-        audioSynth.stop();
-      }
-    };
-  }, [audioSynth]);
 
   // 🚨 REAL FIRESTORE PCR DISPATCH HANDLER
   const handlePcrDispatch = async (pcrId: string, pcrName: string, isReal = false, officerUid?: string) => {
@@ -540,126 +393,7 @@ export function NationalOverview({
     }, 2000);
   };
 
-  // ─── Dynamic incident metadata from actual alert data ───────────────────
-  const incidentData = useMemo(() => {
-    if (!selectedAlertId) return null;
-    const alert = activeAlerts.find(a => a.id === selectedAlertId);
-    if (!alert) return null;
 
-    // Resolve location fields from any Firestore schema variant
-    const aLat = alert.latitude || alert.location?.lat;
-    const aLng = alert.longitude || alert.location?.lng;
-    const cityFallback = aLat ? `Grid Sector [${aLat.toFixed(2)}, ${aLng.toFixed(2)}]` : 'Classified Zone';
-    
-    // Invalidate dummy strings like 'Unknown' or 'Neutral Zone Location' so fallback triggers
-    const isValid = (val: any) => val && typeof val === 'string' && !val.includes('Unknown') && !val.includes('Neutral Zone');
-
-    const city: string =
-      (isValid(alert.city) && alert.city) ||
-      (isValid(alert.district) && alert.district) ||
-      (isValid(alert.locationCity) && alert.locationCity) ||
-      (isValid(alert.victimCity) && alert.victimCity) ||
-      (isValid(alert.address?.split(',')[0]?.trim()) && alert.address?.split(',')[0]?.trim()) ||
-      (isValid(alert.locationName?.split(',')[0]?.trim()) && alert.locationName?.split(',')[0]?.trim()) ||
-      cityFallback;
-
-    const stateName: string =
-      alert.state ||
-      alert.locationState ||
-      alert.victimState ||
-      selectedState !== 'ALL' ? selectedState : 'Unknown State';
-
-    const stateCode: string = stateName
-      .split(' ')
-      .map((w: string) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 3);
-
-    const year = new Date().getFullYear();
-    // Deterministic case ID seeded from alert id so it's stable
-    const seed = alert.id?.slice(-4)?.toUpperCase() || '0000';
-    const caseId = `CASE-${stateCode}-${year}-${city.slice(0, 3).toUpperCase()}-${seed}`;
-
-    const victimName: string =
-      alert.victimName || alert.userName || alert.name || 'Distress Node';
-
-    // 1. Genuine System Logs generated from the alert's actual state
-    const baselineLogs: string[] = [];
-    if (alert.timestamp) baselineLogs.push(`[${new Date(alert.timestamp.seconds * 1000).toLocaleTimeString()}] SOS Signal registered at ${city} coordinates.`);
-    if (alert.audioUrl || alert.stealthAudio) baselineLogs.push(`[${new Date().toLocaleTimeString()}] STEALTH MIC ACTIVE: Audio uplink established for ${victimName}.`);
-    if (alert.escapeVectorActive) baselineLogs.push(`[${new Date().toLocaleTimeString()}] ALERT: Target crossing ${city} boundaries. State escalation triggered.`);
-    if (alert.nakabandiDeployed) baselineLogs.push(`[${new Date().toLocaleTimeString()}] NHAI TOLL LOCKDOWN: Physical boom barriers disabled by command.`);
-    
-    // Add default init log if empty to prevent completely blank console
-    if (baselineLogs.length === 0) baselineLogs.push(`> Listening for live telemetry on port 8080...`);
-
-    const allLogs = [...customLogs, ...baselineLogs].slice(0, 20); // Keep terminal clean
-
-    return {
-      caseId,
-      city,
-      stateName,
-      victimName,
-      incidentId: caseId,
-      address: isValid(alert.address) ? alert.address : (isValid(alert.locationName) ? alert.locationName : (aLat ? `GPS: ${aLat}, ${aLng}` : 'Classified Geo-Grid')),
-      forensicTranscript: alert.audioTranscript 
-        ? `[TRANSCRIPT] ${alert.audioTranscript}`
-        : (alert.audioUrl || alert.stealthAudio) 
-          ? "Live audio stream locked. Decrypting voice telemetry..." 
-          : "No active audio uplink detected from the primary device.",
-      nearestThanaName: alert.nearestPoliceStation || alert.policeStation || `${city} HQ Precinct (Awaiting API Sync)`,
-      bnsOffenseCategory: 'BNSS Sec 63 Chain (Immediate Cognizance)',
-      systemLogs: allLogs,
-      nearbyTolls: alert.nearbyTolls || null
-    };
-  }, [selectedAlertId, activeAlerts, customLogs, selectedState]);
-
-  // 🚔 Real Firestore PCR officers merged with simulated fallback
-  const simulatedPcrVans = useMemo(() => {
-    const city = incidentData?.city || 'Local';
-    const alert = activeAlerts.find(a => a.id === selectedAlertId);
-    const aLat = alert?.latitude || alert?.location?.lat || 0;
-    const aLng = alert?.longitude || alert?.location?.lng || 0;
-
-    // Build list from real Firestore PCR officers
-    const realVans = livePcrOfficers.map(officer => {
-      const pLat = officer.lastLocation?.lat || officer.latitude || 0;
-      const pLng = officer.lastLocation?.lng || officer.longitude || 0;
-      const distKm = (aLat && aLng && pLat && pLng)
-        ? calculateDistance(aLat, aLng, pLat, pLng)
-        : null;
-      const etaMins = distKm ? Math.ceil(distKm / 0.5) : null; // ~30km/h avg city speed
-      return {
-        id: officer.id,
-        name: officer.vehicleNo || `${city} PCR Unit`,
-        officer: `${officer.rank || 'Officer'} ${officer.name || officer.displayName || 'On Duty'}`,
-        distance: distKm ? `${distKm.toFixed(1)} km` : 'Unknown',
-        delay: etaMins ? `${etaMins} mins` : '—',
-        uid: officer.id,
-        isReal: true
-      };
-    }).sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
-
-    // If no real officers online, show simulated fallback
-    if (realVans.length === 0) {
-      return [
-        { id: 'PCR-01', name: `${city} PCR Van 01`, officer: 'Sub-Inspector A. Yadav',   distance: '0.6 km', delay: '2 mins', isReal: false },
-        { id: 'PCR-02', name: `${city} PCR Van 02`, officer: 'Head Constable R. Sharma', distance: '1.2 km', delay: '4 mins', isReal: false },
-        { id: 'PCR-03', name: `${city} Interceptor 03`, officer: 'Constable S. Pathak',  distance: '1.8 km', delay: '7 mins', isReal: false }
-      ];
-    }
-    return realVans;
-  }, [incidentData?.city, livePcrOfficers, selectedAlertId, activeAlerts]);
-
-  // Sorting active alerts by priority
-  const sortedAlerts = useMemo(() => {
-    return [...activeAlerts].sort((a, b) => {
-      const priorityA = a.priority || 0;
-      const priorityB = b.priority || 0;
-      return priorityB - priorityA;
-    });
-  }, [activeAlerts]);
 
   return (
     <div className="h-full flex flex-col bg-[#020617] overflow-hidden">

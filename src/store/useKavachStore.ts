@@ -2,25 +2,13 @@ import { create } from 'zustand';
 import { User as FirebaseUser } from 'firebase/auth';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { db, auth } from '../firebase';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-  doc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  getDoc,
-  arrayUnion,
-  limit,
-  increment
-} from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, setDoc, updateDoc, serverTimestamp, getDoc, arrayUnion, limit, increment } from 'firebase/firestore';
+
+import { validateTransition } from '../utils/stateGuards';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
-import { executeEmergencyBlast } from '../services/sosService';
+import { executeEmergencyBlast, archiveIncident } from '../services/sosService';
 import { supabase } from '../lib/supabase';
 import { GeoPoint, UserProfile } from '../types';
 
@@ -856,8 +844,15 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               });
             }
 
+            const currentStatus = alertData.status || 'active';
+            let targetStatus = 'resolved';
+            if (!validateTransition(currentStatus, targetStatus, 'APP')) {
+               console.warn(`[KAVACH GUARD] Cannot directly resolve from ${currentStatus}. Forcing ABORTED state.`);
+               targetStatus = 'aborted';
+            }
+
             await updateDoc(alertRef, {
-              status: 'resolved',
+              status: targetStatus,
               victimSafetyStatus: 'safe',
               victimClearedAt: serverTimestamp(),
               'verification.closureReason': closureReason || 'Manual Deactivation',
@@ -869,7 +864,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             await supabase
               .from('alerts')
               .update({
-                status: 'resolved',
+                status: targetStatus,
                 created_at: new Date().toISOString() // Or resolution_at if added
               })
               .eq('id', currentAlertId);
@@ -882,6 +877,11 @@ export const useKavachStore = create<KavachState>((set, get) => ({
               } else {
                 await updateDoc(journeyRef, { status: 'completed', endedAt: serverTimestamp(), alertId: null, isTransitSOS: false }).catch(() => { });
               }
+            }
+
+            // Phase 7: Telemetry Scaling (Hot -> Cold)
+            if (targetStatus === 'resolved' || targetStatus === 'aborted' || targetStatus === 'closed') {
+              await archiveIncident(currentAlertId);
             }
           }
         } catch (e) {
