@@ -289,7 +289,13 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
   setHubReady: (isHubReady) => set({ isHubReady }),
   logIncidentToBlackBox: (data) => set((state) => {
-    const updated = [...state.blackBox, { ...data, localTimestamp: Date.now() }];
+    // 🥶 COLD STORAGE (GCS via Batcher): Send EVERYTHING to the batcher to prevent Firestore explosion
+    import('../services/TelemetryBatcher').then(({ telemetryBatcher }) => {
+      telemetryBatcher.log({ type: 'blackbox', message: 'Telemetry ping', ...data });
+    });
+
+    // 🔥 HOT STORAGE (Local State/Storage): Only keep the last 50 telemetry points (~15 mins) for immediate rendering
+    const updated = [...state.blackBox, { ...data, localTimestamp: Date.now() }].slice(-50);
     localStorage.setItem('kavach_blackbox', JSON.stringify(updated));
     return { blackBox: updated };
   }),

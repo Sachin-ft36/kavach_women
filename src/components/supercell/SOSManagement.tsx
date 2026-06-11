@@ -23,6 +23,7 @@ import { SOSHistoryPanel } from './panels/SOSHistoryPanel';
 import { EvidenceViewerModal } from './EvidenceViewerModal';
 import { SOSQueueSidebar } from './sos/SOSQueueSidebar';
 import { SOSLiveView } from './sos/SOSLiveView';
+import { SOSAuditPanel } from './sos/SOSAuditPanel';
 
 const WARNING_REASONS = [
   "Accidental SOS trigger without emergency.",
@@ -65,9 +66,6 @@ export function SOSManagement({
   const [isWarnModalOpen, setIsWarnModalOpen] = useState(false);
   const [evidenceVaultAlertId, setEvidenceVaultAlertId] = useState<string | null>(null);
   const [isEvidenceViewerOpen, setIsEvidenceViewerOpen] = useState(false);
-  const [selectedReason, setSelectedReason] = useState(WARNING_REASONS[0]);
-  const [customMsg, setCustomMsg] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const lastQueriedCoords = React.useRef<{ id: string | null; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -320,22 +318,6 @@ export function SOSManagement({
     }
   };
 
-  const submitWarning = async () => {
-    if (!victimData) return;
-    setIsSubmitting(true);
-    const finalMsg = selectedReason.includes("Other") ? customMsg : selectedReason;
-    try {
-      await updateDoc(doc(db, 'users', victimData.id), {
-        hasPendingWarning: true,
-        warningMessage: finalMsg,
-        sosStrikeCount: (victimData.sosStrikeCount || 0) + 1
-      });
-      toast.warning("Warning Issued");
-      setIsWarnModalOpen(false);
-    } catch (e) { toast.error("Citation Failed"); }
-    finally { setIsSubmitting(false); }
-  };
-
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [isOverriding, setIsOverriding] = useState(false);
 
@@ -459,20 +441,12 @@ export function SOSManagement({
           )}
       </main>
 
-      <AnimatePresence>
-         {isWarnModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsWarnModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-xl bg-[#1E293B]/40 border border-white/5 rounded-[2rem]  p-10">
-                  <h3 className="text-xl font-black text-white uppercase  mb-8">Issue Misuse Warning</h3>
-                  <div className="space-y-6">
-                     <select value={selectedReason} onChange={(e) => setSelectedReason(e.target.value)} className="w-full bg-[#0F172A] border border-white/5 rounded-xl py-4 px-6 text-xs font-bold text-white appearance-none outline-none">{WARNING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}</select>
-                     <button disabled={isSubmitting} onClick={submitWarning} className="w-full py-4 bg-amber-500 text-black rounded-xl text-[14px] font-black uppercase  flex items-center justify-center gap-3">{isSubmitting ? <Activity className="animate-spin" size={14} /> : <ShieldAlert size={14} />} Finalize Citation</button>
-                  </div>
-               </motion.div>
-            </div>
-         )}
-      </AnimatePresence>
+      <SOSAuditPanel 
+        isOpen={isWarnModalOpen} 
+        onClose={() => setIsWarnModalOpen(false)} 
+        victimData={victimData} 
+        pendingAppeal={pendingAppeal} 
+      />
 
         {(selectedAlert || evidenceVaultAlertId) && (
           <EvidenceViewerModal 

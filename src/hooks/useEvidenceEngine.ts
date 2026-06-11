@@ -18,6 +18,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { saveToVault } from '../lib/forensicVault';
+import { cryptoService } from '../services/cryptoService';
 
 const EVIDENCE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -208,6 +209,8 @@ export const useEvidenceEngine = () => {
 
               try {
                 const forensicHash = await generateForensicHash(audioBlob);
+                const digitalSignature = await cryptoService.signPayload(forensicHash);
+                
                 // ☁️ Upload to Firebase Storage (compressed audio ~40-60KB)
                 const cloudUrl = await uploadToCloud(audioBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
 
@@ -217,6 +220,7 @@ export const useEvidenceEngine = () => {
                   url: cloudUrl,
                   fileName,
                   hash: forensicHash,
+                  digitalSignature,
                   sizeBytes: audioBlob.size,
                   coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
                   metadata: { mode: 'TACTICAL_AUDIO', storage: 'Firebase', compressed: true },
@@ -259,7 +263,10 @@ export const useEvidenceEngine = () => {
             const timestamp = Date.now();
             const fileName = `KAVACH_VIDEO_${timestamp}.webm`;
 
-            try {
+              try {
+              const forensicHash = await generateForensicHash(videoBlob);
+              const digitalSignature = await cryptoService.signPayload(forensicHash);
+              
               // 💾 1. Local IndexedDB (for browser Command Center playback)
               await saveToVault({
                 id: `vid_${activeAlertId}_${timestamp}`,
@@ -268,7 +275,8 @@ export const useEvidenceEngine = () => {
                 blob: videoBlob,
                 fileName,
                 mimeType: videoMime || 'video/webm',
-                hash: '',
+                hash: forensicHash,
+                digitalSignature,
                 timestamp,
                 status: 'Local'
               });
@@ -315,6 +323,7 @@ export const useEvidenceEngine = () => {
                 const compressedBlob = await compressSnapshot(rawBlob);
                 const fileName = `snap_${timestamp}.jpg`;
                 const forensicHash = await generateForensicHash(compressedBlob);
+                const digitalSignature = await cryptoService.signPayload(forensicHash);
 
                 // ☁️ Upload compressed snapshot to Firebase Storage
                 const cloudUrl = await uploadToCloud(compressedBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
@@ -325,6 +334,7 @@ export const useEvidenceEngine = () => {
                   url: cloudUrl,
                   fileName,
                   hash: forensicHash,
+                  digitalSignature,
                   sizeBytes: compressedBlob.size,
                   coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
                   metadata: {
