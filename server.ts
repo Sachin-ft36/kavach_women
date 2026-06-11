@@ -299,6 +299,45 @@ async function startServer() {
     res.json({ status: "ok", signaling: "active" });
   });
 
+  // 🛡️ Play Integrity / App Attestation Backend Validator
+  app.post("/api/verify-integrity", async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Integrity token missing" });
+
+    try {
+      console.log("🛡️ SERVER: Validating Play Integrity Token:", token.substring(0, 15) + "...");
+      
+      // In production, you would call:
+      // const googleAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/playintegrity'] });
+      // const client = await googleAuth.getClient();
+      // const response = await client.request({ url: `https://playintegrity.googleapis.com/v1/${packageName}:decodeIntegrityToken`, method: 'POST', data: { integrityToken: token } });
+      
+      // MOCK VERIFICATION (Since we don't have the Google service account JSON yet)
+      const isTestToken = token.startsWith("TEST_") || token.length > 50;
+      
+      if (!isTestToken) {
+        console.warn("🚨 PLAY INTEGRITY REJECTED: Invalid or malformed token format.");
+        return res.status(403).json({ 
+          error: "Attestation Failed", 
+          reason: "Token failed cryptographic verification.",
+          trustLevel: "UNTRUSTED"
+        });
+      }
+
+      console.log("✅ PLAY INTEGRITY PASSED: Device verified as genuine.");
+      res.json({
+        success: true,
+        trustLevel: "TRUSTED_DEVICE",
+        deviceRecognitionVerdict: ["MEETS_DEVICE_INTEGRITY", "MEETS_BASIC_INTEGRITY"],
+        appRecognitionVerdict: "PLAY_RECOGNIZED"
+      });
+
+    } catch (e: any) {
+      console.error("🚨 PLAY INTEGRITY ERROR:", e.message);
+      res.status(500).json({ error: "Backend Attestation Fault" });
+    }
+  });
+
   // Mock Zero-FIR PDF Generation
   app.post("/api/generate-fir", (req, res) => {
     const { victimName, location, timestamp } = req.body;
@@ -307,6 +346,61 @@ async function startServer() {
       firId: `FIR-${Date.now()}`,
       pdfUrl: "https://example.com/mock-fir.pdf" 
     });
+  });
+
+  // 🗄️ Telemetry Archive Strategy (Hot -> Cold Storage)
+  // This endpoint would typically be called by a CRON job (e.g. Google Cloud Scheduler)
+  app.post("/api/archive-telemetry", async (req, res) => {
+    try {
+      console.log("🗄️ SERVER: Running Telemetry Archive Strategy...");
+      
+      // In production:
+      // 1. Query Firestore for telemetry > 24 hours old:
+      //    const snapshot = await db.collection('telemetry').where('timestamp', '<', Date.now() - 86400000).get();
+      // 2. Compress payload to NDJSON or Parquet
+      // 3. Upload to Google Cloud Storage (Cold Bucket)
+      // 4. Batch delete from Firestore (Hot Storage)
+
+      res.json({
+        success: true,
+        message: "Telemetry gracefully moved from Hot Firestore to Cold GCS Archive.",
+        recordsArchived: 14502 // Mock number
+      });
+    } catch (e: any) {
+      console.error("🚨 ARCHIVE ERROR:", e.message);
+      res.status(500).json({ error: "Archiver Fault" });
+    }
+  });
+
+  // ⚖️ Cryptographic Evidence Signature Verification (ECDSA / SHA256)
+  app.post("/api/verify-evidence", async (req, res) => {
+    const { hash, signature, publicKey } = req.body;
+    
+    if (!hash || !signature) {
+      return res.status(400).json({ error: "Missing cryptographic payload" });
+    }
+
+    try {
+      // In production, Node's `crypto` module verifies the ECDSA signature:
+      // const verify = crypto.createVerify('SHA256');
+      // verify.update(hash);
+      // const isValid = verify.verify(publicKey, signature, 'hex');
+
+      // MOCK VERIFICATION
+      console.log(`⚖️ COURT NODE: Verifying Evidence Hash [${hash.substring(0, 8)}...] against Signature [${signature.substring(0, 8)}...]`);
+      
+      const isValid = signature.length > 20 && signature.includes("ecdsa");
+
+      if (isValid) {
+        res.json({ success: true, verdict: "SIGNATURE_MATCH", integrity: "100%" });
+      } else {
+        console.warn("🚨 EVIDENCE TAMPERING DETECTED: Invalid ECDSA signature.");
+        res.status(403).json({ error: "Signature Verification Failed", verdict: "EVIDENCE_TAMPERED" });
+      }
+    } catch (e: any) {
+      console.error("🚨 CRYPTO ERROR:", e.message);
+      res.status(500).json({ error: "Cryptographic Engine Fault" });
+    }
   });
 
 

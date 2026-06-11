@@ -5,6 +5,7 @@ import { getReverseMetadata } from './locationService';
 import { fetchNearbyPoliceMappls } from './MapplsService';
 import { KavachSafe } from './KavachNative';
 import { DeviceIntegrityService } from './deviceIntegrityService';
+import { OfflineQueueService } from './OfflineQueueService';
 import { GeoPoint } from '../types';
 
 let lastTriggerTime = 0;
@@ -129,9 +130,17 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
 
           const newDoc = await addDoc(collection(db, 'alerts'), alertData);
           return newDoc;
-        } catch (error) {
-          console.error("❌ KAVACH: Alert Deduplication Error:", error);
-          // Fallback to basic creation if query fails
+        } catch (error: any) {
+          console.error("❌ KAVACH: Alert Dispatch Error (Network/Auth):", error);
+          
+          // 📦 If offline, queue it!
+          if (error?.message?.includes("offline") || error?.code === 'unavailable' || !navigator.onLine) {
+            console.warn("⚠️ NETWORK DROPPED: Queuing dispatch payload...");
+            await OfflineQueueService.enqueueSOS(userPos, data);
+            return null; // Acknowledge it failed but was queued
+          }
+
+          // Fallback to basic creation if query fails but we are online
           return addDoc(collection(db, 'alerts'), {
             victimUid: victimId,
             status: 'active',

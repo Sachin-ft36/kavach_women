@@ -21,6 +21,7 @@ import RemoteCommandListener from './components/RemoteCommandListener';
 import { TacticalCallOverlay } from './components/TacticalCallOverlay';
 import SafeTimerPopup from './components/SafeTimerPopup';
 import RideDeviationPopup from './components/RideDeviationPopup';
+import { OfflineQueueService } from './services/OfflineQueueService';
 
 const SOSButton = React.lazy(() => import('./components/SOSButton'));
 const VictimMap = React.lazy(() => import('./components/maps/VictimMap'));
@@ -104,6 +105,13 @@ export default function App() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
+
+  // 🛡️ SYSTEM BOOT: Initialize Offline Mission Queue
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      OfflineQueueService.init();
+    }
+  }, []);
 
   const [trackId, setTrackId] = useState<string | null>(null);
   const [showFailSafe, setShowFailSafe] = useState(false);
