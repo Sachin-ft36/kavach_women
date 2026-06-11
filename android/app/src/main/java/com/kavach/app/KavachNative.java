@@ -726,4 +726,87 @@ public class KavachNative extends Plugin {
             }
         }
     }
+    @PluginMethod
+    public void encryptQueue(PluginCall call) {
+        try {
+            String plainText = call.getString("data");
+            if (plainText == null) {
+                call.reject("Must provide data to encrypt");
+                return;
+            }
+
+            java.security.KeyStore keyStore = java.security.KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            
+            String alias = "kavach_queue_key";
+            if (!keyStore.containsAlias(alias)) {
+                android.security.keystore.KeyGenParameterSpec keyGenParameterSpec = new android.security.keystore.KeyGenParameterSpec.Builder(
+                        alias,
+                        android.security.keystore.KeyProperties.PURPOSE_ENCRYPT | android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+                        .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .build();
+
+                javax.crypto.KeyGenerator keyGenerator = javax.crypto.KeyGenerator.getInstance(
+                        android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                keyGenerator.init(keyGenParameterSpec);
+                keyGenerator.generateKey();
+            }
+
+            java.security.Key secretKey = keyStore.getKey(alias, null);
+            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey);
+
+            byte[] iv = cipher.getIV();
+            byte[] encryption = cipher.doFinal(plainText.getBytes("UTF-8"));
+
+            JSObject ret = new JSObject();
+            ret.put("ciphertext", android.util.Base64.encodeToString(encryption, android.util.Base64.NO_WRAP));
+            ret.put("iv", android.util.Base64.encodeToString(iv, android.util.Base64.NO_WRAP));
+            ret.put("version", 1);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Queue Encryption Failed", e);
+            call.reject("Queue Encryption Failed", e);
+        }
+    }
+
+    @PluginMethod
+    public void decryptQueue(PluginCall call) {
+        try {
+            String cipherTextBase64 = call.getString("ciphertext");
+            String ivBase64 = call.getString("iv");
+            if (cipherTextBase64 == null || ivBase64 == null) {
+                call.reject("Must provide ciphertext and iv");
+                return;
+            }
+
+            java.security.KeyStore keyStore = java.security.KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            
+            String alias = "kavach_queue_key";
+            if (!keyStore.containsAlias(alias)) {
+                call.reject("Key not found");
+                return;
+            }
+
+            java.security.Key secretKey = keyStore.getKey(alias, null);
+            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+            
+            byte[] iv = android.util.Base64.decode(ivBase64, android.util.Base64.NO_WRAP);
+            android.security.keystore.KeyGenParameterSpec spec; // we use GCMParameterSpec instead
+            javax.crypto.spec.GCMParameterSpec gcmSpec = new javax.crypto.spec.GCMParameterSpec(128, iv);
+            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+
+            byte[] cipherTextBytes = android.util.Base64.decode(cipherTextBase64, android.util.Base64.NO_WRAP);
+            byte[] decrypted = cipher.doFinal(cipherTextBytes);
+
+            JSObject ret = new JSObject();
+            ret.put("data", new String(decrypted, "UTF-8"));
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Queue Decryption Failed", e);
+            call.reject("Queue Decryption Failed", e);
+        }
+    }
 }

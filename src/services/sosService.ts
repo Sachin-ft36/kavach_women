@@ -6,6 +6,7 @@ import { fetchNearbyPoliceMappls } from './MapplsService';
 import { KavachSafe } from './KavachNative';
 import { DeviceIntegrityService } from './deviceIntegrityService';
 import { OfflineQueueService } from './OfflineQueueService';
+import { cryptoService } from './cryptoService';
 import { GeoPoint } from '../types';
 
 let lastTriggerTime = 0;
@@ -61,6 +62,10 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
           // PHASE 8: Device Trust Validation
           const trustReport = await DeviceIntegrityService.calculateTrustScore();
           
+          // PHASE 9: Hash Chain Digital Signature Validation
+          const payloadString = `${victimId}:${userPos.lat}:${userPos.lng}:${Date.now()}`;
+          const digitalSignature = await cryptoService.signPayload(payloadString);
+          
           const alertData: any = {
             victimUid: victimId,
             victimName: finalUser.displayName || finalUser.name || 'Kavach Citizen',
@@ -93,6 +98,7 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
             dispatch_status: 'ACTIVE_UPLINK',
             handshakeCode: data?.handshakeCode || Math.floor(1000 + Math.random() * 9000).toString(),
             mapplsId: data?.mapplsId || null,
+            digitalSignature: digitalSignature,
             guardianContacts: (() => {
               try {
                 const gStr = localStorage.getItem('kavach_guardian_cache');

@@ -6,11 +6,11 @@ import com.scottyab.rootbeer.RootBeer;
 import okhttp3.CertificatePinner;
 import okhttp3.OkHttpClient;
 
-// Play Integrity API Imports (Requires implementation in build.gradle)
-// import com.google.android.play.core.integrity.IntegrityManager;
-// import com.google.android.play.core.integrity.IntegrityManagerFactory;
-// import com.google.android.play.core.integrity.IntegrityTokenRequest;
-// import com.google.android.play.core.integrity.IntegrityTokenResponse;
+import com.google.android.play.core.integrity.IntegrityManager;
+import com.google.android.play.core.integrity.IntegrityManagerFactory;
+import com.google.android.play.core.integrity.IntegrityTokenRequest;
+import com.google.android.play.core.integrity.IntegrityTokenResponse;
+import com.google.android.gms.tasks.Task;
 
 public class SecuritySentinel {
     private static final String TAG = "SecuritySentinel";
@@ -51,20 +51,20 @@ public class SecuritySentinel {
      */
     public static void verifyPlayIntegrity(Context context, String nonce) {
         // PRODUCTION TO-DO: Implement Play Integrity API request here
-        /*
         IntegrityManager integrityManager = IntegrityManagerFactory.create(context);
         Task<IntegrityTokenResponse> integrityTokenResponse = integrityManager.requestIntegrityToken(
             IntegrityTokenRequest.builder()
+                .setCloudProjectNumber(10000000000L) // TODO: Phase C Replace with real GCP project number
                 .setNonce(nonce)
                 .build());
 
         integrityTokenResponse.addOnSuccessListener(response -> {
             String integrityToken = response.token();
             Log.d(TAG, "Play Integrity Token retrieved. Send to backend for verification.");
+            // TODO: Send to Cloud Function for Verification (Sprint 2 implementation node)
         }).addOnFailureListener(e -> {
             Log.e(TAG, "Play Integrity Token request failed.", e);
         });
-        */
         Log.i(TAG, "Play Integrity API verification initialized.");
     }
 }
