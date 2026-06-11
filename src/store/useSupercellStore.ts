@@ -44,6 +44,7 @@ export interface IncidentCluster {
   arrivedAt?: number;
   resolvedAt?: number;
   closedAt?: number;
+  incidentVersion: number;
   currentLatLng: [number, number]; // SWAP WARNING: Convert [Lat, Lng] to strict Mapbox GL [Lng, Lat] format
   forensicTranscript: string;
   nearestThanaName: string;
@@ -230,13 +231,33 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     }
 
     incident.status = newStatus;
+    incident.incidentVersion += 1;
     
-    // Phase 13: Chain of Custody (Create new Evidence Node on State Change)
+    // Phase B: Hash Chain Validation
+    let isTampered = false;
+    let tamperLevel: 'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'|null = null;
+    
+    if (incident.evidenceChain.length > 0) {
+      const lastNode = incident.evidenceChain[0];
+      // In a production environment, we cryptographically verify lastNode.digitalSignature
+      // For this hardening simulation, we check for basic integrity gaps.
+      if (!lastNode.hash || !lastNode.digitalSignature) {
+        isTampered = true;
+        tamperLevel = 'HIGH';
+      }
+    }
+
     const prevHash = incident.evidenceChain.length > 0 ? incident.evidenceChain[0].hash : "GENESIS";
     const dataString = `${nodeId}-${newStatus}-${now}-${responderId || 'SYSTEM'}`;
     const hashValue = await generateSHA256(dataString);
     const sealedHash = `SHA256:${hashValue}`;
     
+    if (isTampered) {
+      incident.incidentTampered = true;
+      incident.tamperLevel = tamperLevel || 'CRITICAL';
+      get().addAuditLog(`🚨 TAMPER [${tamperLevel}]: Hash chain anomaly detected for ${incidentId}`, 'Tamper');
+    }
+
     const evidenceNode = {
       evidenceId: `STATE-${now}`,
       capturedAt: now,
@@ -251,7 +272,14 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     incident.evidenceChain = [evidenceNode, ...incident.evidenceChain].slice(0, 50);
     incident.sha256Seal = sealedHash;
 
-    get().addAuditLog(`📈 SLA ENGINE: Incident ${incidentId} transitioned to ${newStatus}`);
+    // Phase B: Audit Event Stream Dispatch
+    let eventType = newStatus;
+    if (newStatus === 'ACKNOWLEDGED') eventType = 'ACK';
+    else if (newStatus === 'ASSIGNED') eventType = 'Assign';
+    else if (newStatus === 'RESOLVED') eventType = 'Resolve';
+    else if (newStatus === 'CLOSED') eventType = 'Close';
+
+    get().addAuditLog(`📈 AUDIT [${eventType}]: Incident ${incidentId} transitioned to ${newStatus}`, eventType);
     get().addLogToIncident(incidentId, `STATUS UPDATE: Moved to ${newStatus}`);
     
     // Phase 15: Queue State Change Evidence Node
@@ -283,21 +311,27 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
     return { score: Math.round(score), rank };
   },
 
-  escalateIncident: (incidentId: string, level: 'PCR' | 'HQ' | 'STATE') => {
+  escalateIncident: (incidentId: string, level: 'PCR' | 'HQ' | 'STATE', reason: string = 'SLA Breach') => {
     const timestamp = new Date().toLocaleTimeString();
-    get().addAuditLog(`⚠️ ESCALATION [${level}]: Incident ${incidentId} escalated to higher authorities.`);
-    get().addLogToIncident(incidentId, `⚠️ AUTOMATED ESCALATION to ${level} level.`);
+    get().addAuditLog(`⚠️ AUDIT [Escalation]: Incident ${incidentId} escalated to ${level} due to ${reason}.`, 'Escalation');
+    get().addLogToIncident(incidentId, `⚠️ AUTOMATED ESCALATION to ${level} level. (${reason})`);
     
-    // In a real app, this would update Firebase incident_ack collection with level and timestamp
-    console.warn(`🚨 ESCALATING ${incidentId} to ${level}`);
+    console.warn(`🚨 ESCALATING ${incidentId} to ${level} - ${reason}`);
   },
 
   startEscalationEngine: (incidentId: string) => {
-    // 30 seconds -> PCR
+    // Configurable SLA Engine Thresholds
+    const slaConfig = {
+      ackThresholdSec: 30,
+      arrivalThresholdMin: 10
+    };
+
+    // ACK SLA Check
     setTimeout(() => {
        const incident = Object.values(get().activeIncidents).find(i => i.incidentId === incidentId);
        if (incident && incident.status !== 'ACKNOWLEDGED' && incident.status !== 'RESOLVED' && incident.status !== 'CLOSED') {
-          get().escalateIncident(incidentId, 'PCR');
+          get().addAuditLog(`⏳ AUDIT [SlaBreach]: ACK SLA (${slaConfig.ackThresholdSec}s) breached for ${incidentId}`, 'SlaBreach');
+          get().escalateIncident(incidentId, 'PCR', 'ACK SLA Breach');
        }
     }, 30000);
 
@@ -365,6 +399,7 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
             incidentId: caseId,
             victimName: rawData.full_name || "Sovereign Node",
             status: "CREATED",
+            incidentVersion: 1,
             currentLatLng: [rawData.live_longitude || 77.2090, rawData.live_latitude || 28.6139], // Strict [Lng, Lat] for Mapbox
             forensicTranscript: lastTranscript,
             nearestThanaName: rawData.nearest_police_station || "Calculating Node...",

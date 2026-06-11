@@ -24,22 +24,24 @@ public class BootReceiver extends BroadcastReceiver {
             
             Log.i(TAG, "KAVACH Auto-Boot: Initializing background safety core components...");
             
-            Intent serviceIntent = new Intent(context, KavachService.class);
-            
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    // Note: Android 14 requires appropriate FOREGROUND_SERVICE permissions 
-                    // declared in manifest for this call to execute successfully from boot.
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
-                Log.i(TAG, "Safety core service stack initialized successfully.");
-            } catch (Exception e) {
-                Log.e(TAG, "OS Background execution restrictions rejected service startup: " + e.getMessage());
+                androidx.work.Constraints constraints = new androidx.work.Constraints.Builder()
+                        .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                        .build();
+
+                // Phase A: Use WorkManager to enqueue OfflineSyncWorker safely on Android 12+
+                androidx.work.OneTimeWorkRequest syncWorkRequest = new androidx.work.OneTimeWorkRequest.Builder(OfflineSyncWorker.class)
+                        .setConstraints(constraints)
+                        .setBackoffCriteria(
+                                androidx.work.BackoffPolicy.EXPONENTIAL,
+                                androidx.work.WorkRequest.MIN_BACKOFF_MILLIS,
+                                java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .build();
                 
-                // Fallback Strategy: Schedule a low-latency worker or trigger a high-priority 
-                // notification to prompt user engagement if the direct foreground launch fails.
+                androidx.work.WorkManager.getInstance(context).enqueue(syncWorkRequest);
+                Log.i(TAG, "WorkManager successfully enqueued OfflineSyncWorker.");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to enqueue OfflineSyncWorker: " + e.getMessage());
             }
         }
     }

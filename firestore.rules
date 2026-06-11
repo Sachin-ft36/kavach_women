@@ -121,11 +121,15 @@ service cloud.firestore {
 
     function isValidAlertTransition(oldStatus, newStatus) {
       return (oldStatus == newStatus) ||
-             (oldStatus == 'active' && newStatus in ['responding', 'aborted', 'cancelled', 'rescued_pending_victim_clearance']) ||
-             (oldStatus == 'responding' && newStatus in ['arrived', 'aborted', 'rescued_pending_victim_clearance']) ||
-             (oldStatus == 'arrived' && newStatus in ['rescued_pending_victim_clearance', 'resolved']) ||
-             (oldStatus == 'rescued_pending_victim_clearance' && newStatus == 'resolved') ||
-             (oldStatus == 'resolved' && newStatus == 'closed');
+             (oldStatus == 'closed' && newStatus == 'closed') ||
+             (oldStatus != 'cancelled' && oldStatus != 'aborted' && oldStatus != 'closed' && (
+               (oldStatus == 'active' && (newStatus == 'responding' || newStatus == 'cancelled')) ||
+               (oldStatus == 'responding' && newStatus == 'assigned') ||
+               (oldStatus == 'assigned' && newStatus == 'en_route') ||
+               (oldStatus == 'en_route' && (newStatus == 'arrived' || newStatus == 'aborted')) ||
+               (oldStatus == 'arrived' && (newStatus == 'resolved' || newStatus == 'reassigned')) ||
+               (oldStatus == 'resolved' && newStatus == 'closed')
+             ));
     }
 
     // --- 🚨 SOS ALERTS & JUSTICE ---
