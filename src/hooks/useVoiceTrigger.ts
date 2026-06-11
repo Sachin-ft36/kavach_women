@@ -45,8 +45,7 @@ export const useVoiceTrigger = () => {
     const isResponder = 
       role === 'protector' || 
       role === 'super_cell' || 
-      role === 'admin' || 
-      user?.role === 'admin' || user?.role === 'super_cell';
+      role === 'admin';
 
     if (isResponder) {
       if (isVoiceTriggerActive) {

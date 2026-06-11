@@ -649,7 +649,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
     if (isSOSActive) {
       const state = get();
-      const isAdmin = state.user?.role === 'admin' || state.user?.role === 'super_cell';
+      const isAdmin = state.role === 'admin' || state.role === 'super_cell';
       const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
       if (!isAuthorized) {
         console.warn("🛡️ KAVACH GUARD: SOS activation blocked. Profile must be registered, synced, and approved by the Command Center.");

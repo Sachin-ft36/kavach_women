@@ -247,7 +247,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
               uid: 'mock_dev_uid_123',
               email: 'admin@kavach.gov.in',
               username: 'Developer Admin',
-              role: 'admin',
+              role: 'admin' as const,
               isRegistered: true,
               isVerified: true,
               gender: 'male'

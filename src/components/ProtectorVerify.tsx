@@ -8,7 +8,7 @@ import { useKavachStore } from '../store/useKavachStore';
 
 export default function ProtectorVerify() {
   const { t } = useLanguage();
-  const isAdmin = auth.currentUser && (useKavachStore.getState().user?.role === 'admin' || useKavachStore.getState().user?.role === 'super_cell');
+  const isAdmin = auth.currentUser && (useKavachStore.getState().role === 'admin' || useKavachStore.getState().role === 'super_cell');
   const [protectors, setProtectors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'pending' | 'verified'>('pending');

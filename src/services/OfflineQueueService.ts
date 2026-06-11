@@ -96,7 +96,7 @@ export const OfflineQueueService = {
             console.error(`💀 DLQ Triggered for ${item.id}`);
             logTelemetryEvent('queue_failure_dlq', { alertId: item.id, reason: item.lastError });
             // Pushing to Firestore DLQ asynchronously
-            import('../config/firebase').then(({ db }) => {
+            import('../firebase').then(({ db }) => {
               import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
                 setDoc(doc(db, 'dead_letter_queue', item.id), {
                    incidentId: item.id,
