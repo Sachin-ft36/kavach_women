@@ -46,6 +46,10 @@ export interface KavachPlugin {
   scheduleFakeCall(options: { delaySeconds: number }): Promise<void>;
   playEmergencyRingtone(): Promise<void>;
   stopEmergencyRingtone(): Promise<void>;
+  
+  // 🔐 Storage Crypto
+  encryptQueue(options: { data: string }): Promise<{ ciphertext: string; iv: string; version: number }>;
+  decryptQueue(options: { ciphertext: string; iv: string }): Promise<{ data: string }>;
 }
 
 // 🛡️ Master Plugin Registration

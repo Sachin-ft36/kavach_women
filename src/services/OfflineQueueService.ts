@@ -1,7 +1,10 @@
 import { Preferences } from '@capacitor/preferences';
 import { Network } from '@capacitor/network';
+import { Capacitor } from '@capacitor/core';
 import { executeEmergencyBlast } from './sosService';
 import { logTelemetryEvent } from '../firebase';
+
+import { KavachNative as KavachPlugin } from './KavachNative';
 
 const QUEUE_KEY = 'kavach_offline_sos_queue';
 
@@ -32,8 +35,28 @@ export const OfflineQueueService = {
   enqueueSOS: async (userPos: any, data: any) => {
     try {
       const { value } = await Preferences.get({ key: QUEUE_KEY });
-      // TODO: Phase B Queue Encryption hook here
-      const queue: QueuedSOS[] = value ? JSON.parse(value) : [];
+      let queue: QueuedSOS[] = [];
+      
+      if (value) {
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed.version && parsed.ciphertext && parsed.iv) {
+            // It's encrypted
+            if (Capacitor.isNativePlatform()) {
+              const { data } = await KavachPlugin.decryptQueue({ ciphertext: parsed.ciphertext, iv: parsed.iv });
+              queue = JSON.parse(data);
+            } else {
+              console.warn("Native plugin not available to decrypt queue.");
+              queue = []; // Fallback empty
+            }
+          } else {
+            // Legacy unencrypted
+            queue = Array.isArray(parsed) ? parsed : [];
+          }
+        } catch(e) {
+          console.error("Failed to parse queue", e);
+        }
+      }
       
       const newEntry: QueuedSOS = {
         id: `sos_fail_${Date.now()}_${Math.random().toString(36).substring(7)}`,
@@ -45,8 +68,22 @@ export const OfflineQueueService = {
       };
 
       queue.push(newEntry);
-      // TODO: Phase B Queue Encryption hook here
-      await Preferences.set({ key: QUEUE_KEY, value: JSON.stringify(queue) });
+      
+      let payloadToSave = JSON.stringify(queue);
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const encrypted = await KavachPlugin.encryptQueue({ data: payloadToSave });
+          payloadToSave = JSON.stringify({
+            version: encrypted.version,
+            ciphertext: encrypted.ciphertext,
+            iv: encrypted.iv
+          });
+        } catch (e) {
+          console.error("Queue encryption failed, falling back to plaintext", e);
+        }
+      }
+      
+      await Preferences.set({ key: QUEUE_KEY, value: payloadToSave });
       console.warn(`📦 OFFLINE QUEUE: SOS Dispatch saved to local cache. Queue size: ${queue.length}`);
     } catch (e) {
       console.error("🚨 OFFLINE QUEUE ERROR: Failed to write to local storage.", e);
@@ -58,7 +95,26 @@ export const OfflineQueueService = {
       const { value } = await Preferences.get({ key: QUEUE_KEY });
       if (!value) return;
 
-      let queue: QueuedSOS[] = JSON.parse(value); // TODO: Phase B Queue Decryption hook here
+      let queue: QueuedSOS[] = [];
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed.version && parsed.ciphertext && parsed.iv) {
+          if (Capacitor.isNativePlatform()) {
+            const { data } = await KavachPlugin.decryptQueue({ ciphertext: parsed.ciphertext, iv: parsed.iv });
+            queue = JSON.parse(data);
+          } else {
+            console.warn("Cannot decrypt queue on non-native platform");
+            return;
+          }
+        } else {
+          // Legacy unencrypted migration read
+          queue = Array.isArray(parsed) ? parsed : [];
+        }
+      } catch (e) {
+         console.error("Queue replay parse error", e);
+         return;
+      }
+
       if (queue.length === 0) return;
 
       console.log(`🚀 OFFLINE QUEUE: Replaying ${queue.length} pending SOS dispatches...`);
@@ -114,8 +170,20 @@ export const OfflineQueueService = {
         }
       }
 
-      // Update the queue with any items that still failed
-      await Preferences.set({ key: QUEUE_KEY, value: JSON.stringify(updatedQueue) }); // TODO: Phase B Encryption hook
+      let payloadToSave = JSON.stringify(updatedQueue);
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const encrypted = await KavachPlugin.encryptQueue({ data: payloadToSave });
+          payloadToSave = JSON.stringify({
+            version: encrypted.version,
+            ciphertext: encrypted.ciphertext,
+            iv: encrypted.iv
+          });
+        } catch (e) {
+          console.error("Queue encryption failed during replay save", e);
+        }
+      }
+      await Preferences.set({ key: QUEUE_KEY, value: payloadToSave });
       
     } catch (e) {
       console.error("🚨 OFFLINE QUEUE ERROR: Failed during replay sequence.", e);

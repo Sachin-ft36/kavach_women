@@ -44,6 +44,7 @@ export interface VaultEntry {
   fileName: string;
   mimeType: string;
   hash: string;
+  digitalSignature?: string;
   timestamp: number;
   coords?: string;
   status: string;
