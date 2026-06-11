@@ -97,8 +97,8 @@ export default function SOSButton() {
 
       logIncidentToBlackBox({
         source,
-        lat: userPos[0],
-        lng: userPos[1],
+        lat: userPos.lat,
+        lng: userPos.lng,
         uid: user?.uid,
         status: isOnline ? 'syncing' : 'offline_pending'
       });

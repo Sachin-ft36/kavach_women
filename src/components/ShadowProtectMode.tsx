@@ -366,8 +366,8 @@ export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean
                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">Uplink Active</span>
                     </div>
                     <span className="text-[7px] font-bold text-gray-500 uppercase tracking-widest mt-1">
-                       LAT: {userPos[0].toFixed(6)} <br/>
-                       LNG: {userPos[1].toFixed(6)}
+                       LAT: {userPos.lat.toFixed(6)} <br/>
+                       LNG: {userPos.lng.toFixed(6)}
                     </span>
                  </div>
               </div>

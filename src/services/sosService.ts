@@ -4,12 +4,13 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, orde
 import { getReverseMetadata } from './locationService';
 import { fetchNearbyPoliceMappls } from './MapplsService';
 import { KavachSafe } from './KavachNative';
+import { GeoPoint } from '../types';
 
 let lastTriggerTime = 0;
 const TRIGGER_THROTTLE = 5000; // 🛡️ 5s Tactical Gate to prevent double-logs
 const activeBlasts = new Set<string>(); // 🛰️ ATOMIC DEDUPLICATION GATE
 
-export const executeEmergencyBlast = async (user: any, userPos: [number, number], data?: any) => {
+export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?: any) => {
   const victimId = auth.currentUser?.uid || user?.uid || user?.id || localStorage.getItem('kavach_user_uid');
   if (!victimId) return [];
 
@@ -52,7 +53,7 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
           const existingSnap = await getDocs(q);
           const existingAlert = existingSnap.docs[0];
           
-          const meta = await getReverseMetadata(userPos[0], userPos[1]);
+          const meta = await getReverseMetadata(userPos.lat, userPos.lng);
           const battery = (window as any).kavachBatteryLevel || 0;
           
           const alertData: any = {
@@ -65,10 +66,10 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
             timestamp: serverTimestamp(),
             lastUpdateAt: serverTimestamp(),
             location: { 
-              latitude: userPos[0], 
-              longitude: userPos[1],
-              routingLat: data?.routingLat || userPos[0],
-              routingLng: data?.routingLng || userPos[1],
+              latitude: userPos.lat, 
+              longitude: userPos.lng,
+              routingLat: data?.routingLat || userPos.lat,
+              routingLng: data?.routingLng || userPos.lng,
               address: meta.address,
               city: meta.city,
               pincode: meta.pincode
@@ -159,14 +160,14 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
         const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
         
         // 🗺️ Grab fast local metadata for Nearest Police Station
-        const meta = await getReverseMetadata(userPos[0], userPos[1]);
+        const meta = await getReverseMetadata(userPos.lat, userPos.lng);
         
         // 🛰️ TACTICAL POI QUERY: Fetch ACTUAL nearest verified Police Station
         let nearestPS = `${meta.suburb || meta.city || 'Nearest'} Police Station`;
         let psMapsLink = '';
         
         try {
-          const stations = await fetchNearbyPoliceMappls(userPos[0], userPos[1]);
+          const stations = await fetchNearbyPoliceMappls(userPos.lat, userPos.lng);
           if (stations && stations.length > 0) {
             nearestPS = stations[0].name;
             // Direct pin coordinate link for extreme precision
@@ -181,7 +182,7 @@ export const executeEmergencyBlast = async (user: any, userPos: [number, number]
         }
 
         const message = `🚨 SOS! ${user?.displayName?.split(' ')[0] || 'User'} is in danger!
-📍 Loc: https://maps.google.com/?q=${userPos[0]},${userPos[1]}
+📍 Loc: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
 🚔 Near Police Station: ${nearestPS}
 🔗 Nav: ${psMapsLink}
 🔴 Track: ${alertLink}

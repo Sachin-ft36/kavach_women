@@ -33,11 +33,11 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
   const [livePcrs, setLivePcrs] = useState<any[]>([]);
 
   const fetchRealData = async () => {
-    if (!userPos) return;
+    if (!userPos || typeof userPos.lat !== 'number') return;
+    const { lat, lng } = userPos;
     setLoading(true);
 
     try {
-      const [lat, lng] = userPos;
 
       // 🛰️ PRIMARY ENGINE: MapmyIndia (Mappls) - Best for India
       let realStations: any[] = await fetchNearbyPoliceMappls(lat, lng);
@@ -281,7 +281,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
           let distStr = "Positioning...";
 
           if (userPos && pLat && pLng) {
-            const d = calculateDistance(userPos[0], userPos[1], pLat, pLng);
+            const d = calculateDistance(userPos.lat, userPos.lng, pLat, pLng);
             distStr = d < 1 ? `${(d * 1000).toFixed(0)}m AWAY` : `${d.toFixed(1)}km AWAY`;
             distVal = d;
           }
@@ -317,7 +317,7 @@ export default function NearbyHubModal({ isOpen, onClose }: NearbyHubModalProps)
           const pLat = data.lastLocation?.lat || data.latitude || (data.coords && data.coords[0]);
           const pLng = data.lastLocation?.lng || data.longitude || (data.coords && data.coords[1]);
           if (pLat && pLng && userPos) {
-            const d = calculateDistance(userPos[0], userPos[1], pLat, pLng);
+            const d = calculateDistance(userPos.lat, userPos.lng, pLat, pLng);
             pcrList.push({
               id: doc.id,
               name: data.vehicleNo || `PCR Unit - ${data.name || 'Patrol'}`,

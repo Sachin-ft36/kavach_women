@@ -97,8 +97,8 @@ export default function WeatherScreen({ onClose, userPhoto, displayName, uid, on
 
   useEffect(() => {
     // Fallback to New Delhi coordinates if userPos is not available yet
-    const lat = userPos && userPos[0] !== undefined ? userPos[0] : 28.6139;
-    const lng = userPos && userPos[1] !== undefined ? userPos[1] : 77.2090;
+    const lat = userPos && userPos.lat !== undefined ? userPos.lat : 28.6139;
+    const lng = userPos && userPos.lng !== undefined ? userPos.lng : 77.2090;
 
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto`)
       .then(res => res.json())

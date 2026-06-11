@@ -72,7 +72,7 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
     const Mappls = (window as any).mappls;
     if (Mappls && !mapRef.current) {
       mapRef.current = new Mappls.Map(mapId, {
-        center: [userPos?.[0] || 28.61, userPos?.[1] || 77.23],
+        center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
         zoom: 13,
       });
       mapRef.current.on('load', () => setIsLoaded(true));
@@ -95,8 +95,8 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
   useEffect(() => {
     if (!isLoaded || !mapRef.current || !userPos) return;
     const Mappls = (window as any).mappls;
-    const centerLat = userPos[0];
-    const centerLng = userPos[1];
+    const centerLat = userPos.lat;
+    const centerLng = userPos.lng;
 
     if (!markersRef.current['user']) {
         markersRef.current['user'] = new Mappls.Marker({

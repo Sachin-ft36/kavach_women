@@ -73,8 +73,8 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
       if (showReviewModal && userPos) {
         setIsFetchingPS(true);
         try {
-          const lat = userPos[0];
-          const lng = userPos[1];
+          const lat = userPos.lat;
+          const lng = userPos.lng;
           const stations = await fetchNearbyPoliceMappls(lat, lng);
           if (stations && stations.length > 0) {
             const nearest = stations[0];
@@ -121,8 +121,8 @@ export default function ZeroFIR({ evidenceLogs = [] }: ZeroFIRProps) {
       }
 
       const idToken = await currentUser.getIdToken();
-      const lat = userPos?.[0] || 0;
-      const lng = userPos?.[1] || 0;
+      const lat = userPos?.lat || 0;
+      const lng = userPos?.lng || 0;
       const meta = await getReverseMetadata(lat, lng);
       const firId = `FIR-KVC-${Math.floor(1000 + Math.random() * 9000)}`;
 

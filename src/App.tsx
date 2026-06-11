@@ -356,7 +356,7 @@ export default function App() {
 
           // 🚗 TRANSIT SYNC: If in ride mode, update the journey doc immediately
           if (localStorage.getItem('kavach_ride_active') === 'true') {
-            state.syncLocation({ latitude: pos[0], longitude: pos[1] });
+            state.syncLocation({ latitude: pos.lat, longitude: pos.lng });
           }
         }, performanceMode);
         startBackgroundTracking(user.uid, performanceMode);
@@ -517,7 +517,7 @@ export default function App() {
             setRegistered(data.isRegistered === true);
             setVerified(data.isVerified || data.verified || false);
             setGender(data.gender || 'female');
-            setProfile(data);
+            setProfile(data as any);
             if (data.safetyPin) setSafetyPin(data.safetyPin);
           } else {
             localStorage.removeItem('kavach_sos_active');

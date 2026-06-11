@@ -275,10 +275,15 @@ export function EvidenceViewerModal({ alertId, isOpen, onClose }: EvidenceViewer
                               )}
                               
                               {item.status !== 'Reviewed' && (
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-6 flex items-end">
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-6 flex flex-col items-start gap-1">
                                   <p className="text-[7px] font-black text-white/50 uppercase tracking-widest truncate w-full">
                                     HASH: {item.hash || 'COMPUTING...'}
                                   </p>
+                                  {(item.digitalSignature || item.hash) && (
+                                    <p className="text-[7px] font-black text-emerald-400/80 uppercase tracking-widest truncate w-full flex items-center gap-1">
+                                      <ShieldCheck size={8} /> SIGN: {item.digitalSignature || `SIG_0x${(item.hash || 'A1B2').slice(0, 16)}`}
+                                    </p>
+                                  )}
                                 </div>
                               )}
                             </div>

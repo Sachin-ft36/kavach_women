@@ -174,7 +174,7 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
             occupation.toLowerCase().includes(role.toLowerCase())
           );
 
-          const dist = calculateDistance(userPos[0], userPos[1], data.coords[0], data.coords[1]);
+          const dist = calculateDistance(userPos.lat, userPos.lng, data.coords[0], data.coords[1]);
           return isElite ? (dist <= 5.0) : (dist <= activeRadius);
         });
 
@@ -196,7 +196,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
     if (isSOSActive && userPos && !nearestPolice) {
       const fetchNearestPolice = async () => {
         try {
-          const [lat, lng] = userPos;
+          if (!userPos || typeof userPos.lat !== 'number' || typeof userPos.lng !== 'number') return;
+          const { lat, lng } = userPos;
 
           // 🛰️ PRIMARY ENGINE: MapmyIndia (Mappls)
           let realStations: any[] = await fetchNearbyPoliceMappls(lat, lng);
@@ -299,8 +300,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
             // 🛑 CRITICAL MOCK FALLBACK
             setNearestPolice({
               name: 'Kavach Tactical Hub (Local)',
-              lat: userPos[0] + 0.01,
-              lng: userPos[1] + 0.01,
+              lat: userPos.lat + 0.01,
+              lng: userPos.lng + 0.01,
               dist: '1.2km AWAY'
             });
           }
@@ -310,8 +311,8 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
           if (!nearestPolice) {
             setNearestPolice({
               name: 'Kavach Tactical Hub (Local)',
-              lat: userPos[0] + 0.01,
-              lng: userPos[1] + 0.01,
+              lat: userPos.lat + 0.01,
+              lng: userPos.lng + 0.01,
               dist: '1.2km AWAY'
             });
           }
@@ -332,10 +333,10 @@ export default function SOSScreen({ isLocked, activeTab, isGhostMode, handleManu
           const { db } = await import('../firebase');
 
           await setDoc(doc(db, 'alerts', activeAlertId), {
-            latitude: userPos[0],
-            longitude: userPos[1],
-            'location.latitude': userPos[0],
-            'location.longitude': userPos[1],
+            latitude: userPos.lat,
+            longitude: userPos.lng,
+            'location.latitude': userPos.lat,
+            'location.longitude': userPos.lng,
             lastLocationUpdate: serverTimestamp()
           }, { merge: true });
           console.log("🛰️ KAVACH UPLINK: Precision coordinates transmitted.");

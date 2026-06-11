@@ -486,7 +486,7 @@ export default function ProtectorDashboard() {
       const vLat = alert.latitude || alert.location?.latitude || alert.location?.lat || (alert.coords && alert.coords[0]);
       const vLng = alert.longitude || alert.location?.longitude || alert.location?.lng || (alert.coords && alert.coords[1]);
       if (vLat && vLng) {
-        newDistances[alert.id] = calculateDistance(userPos[0], userPos[1], vLat, vLng);
+        newDistances[alert.id] = calculateDistance(userPos.lat, userPos.lng, vLat, vLng);
       }
     });
     setDistanceToVictim(newDistances);
@@ -504,9 +504,9 @@ export default function ProtectorDashboard() {
           const vLng = alert.longitude || alert.location?.longitude || alert.location?.lng || (alert.coords && alert.coords[1]);
           if (!vLat || !vLng) return false;
 
-          const dLat = (vLat - userPos[0]) * Math.PI / 180;
-          const dLon = (vLng - userPos[1]) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(userPos[0] * Math.PI / 180) * Math.cos(vLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const dLat = (vLat - userPos.lat) * Math.PI / 180;
+          const dLon = (vLng - userPos.lng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(userPos.lat * Math.PI / 180) * Math.cos(vLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           const dist = 6371 * c;
 

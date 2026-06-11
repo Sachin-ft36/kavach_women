@@ -67,7 +67,7 @@ export default function ProtectorsRadarScreen() {
     const allWithDistance = allProtectors.map(p => {
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude || (p.coords && p.coords[0]);
       const lng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude || p.longitude || (p.coords && p.coords[1]);
-      const distanceKm = (lat && lng) ? calculateDistance(userPos[0], userPos[1], lat, lng) : null;
+      const distanceKm = (lat && lng) ? calculateDistance(userPos.lat, userPos.lng, lat, lng) : null;
       return { ...p, distanceKm };
     });
 

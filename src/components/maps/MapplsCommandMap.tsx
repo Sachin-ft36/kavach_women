@@ -245,9 +245,9 @@ export default function MapplsCommandMap({
       startTracking(carLat, carLng);
     } else {
       // 4. Ultimate fallback to live location or default
-      const isDefaultPos = userPos && Math.abs(userPos[0] - 20.5937) < 0.001 && Math.abs(userPos[1] - 78.9629) < 0.001;
+      const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
       if (userPos && userPos.length === 2 && !isDefaultPos) {
-        startTracking(userPos[0], userPos[1]);
+        startTracking(userPos.lat, userPos.lng);
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => { if (isCockpitMode) startTracking(pos.coords.latitude, pos.coords.longitude); },
@@ -306,11 +306,11 @@ export default function MapplsCommandMap({
                   if (!Mappls) return;
 
                   let currentHeading = headingRef.current;
-                  if (lastUserPosRef.current[0] !== 0 && userPos && (lastUserPosRef.current[0] !== userPos[0] || lastUserPosRef.current[1] !== userPos[1])) {
+                  if (lastUserPosRef.current[0] !== 0 && userPos && (lastUserPosRef.current[0] !== userPos.lat || lastUserPosRef.current[1] !== userPos.lng)) {
                     const lat1 = lastUserPosRef.current[0];
                     const lng1 = lastUserPosRef.current[1];
-                    const lat2 = userPos[0];
-                    const lng2 = userPos[1];
+                    const lat2 = userPos.lat;
+                    const lng2 = userPos.lng;
                     const dy = lat2 - lat1;
                     const dx = Math.cos(Math.PI / 180 * lat1) * (lng2 - lng1);
                     const angle = Math.atan2(dy, dx);
@@ -474,9 +474,9 @@ export default function MapplsCommandMap({
                 executeTacticalNavigation(28.6139, 77.2090);
               };
 
-              const isDefaultPos = userPos && Math.abs(userPos[0] - 20.5937) < 0.001 && Math.abs(userPos[1] - 78.9629) < 0.001;
+              const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
               if (userPos && userPos.length === 2 && !isDefaultPos) {
-                executeTacticalNavigation(userPos[0], userPos[1]);
+                executeTacticalNavigation(userPos.lat, userPos.lng);
               } else if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                   (pos) => executeTacticalNavigation(pos.coords.latitude, pos.coords.longitude),
@@ -890,9 +890,9 @@ export default function MapplsCommandMap({
       flyToTarget(carLat, carLng);
     } else {
       // 4. Ultimate fallback to live location or default
-      const isDefaultPos = userPos && Math.abs(userPos[0] - 20.5937) < 0.001 && Math.abs(userPos[1] - 78.9629) < 0.001;
+      const isDefaultPos = userPos && Math.abs(userPos.lat - 20.5937) < 0.001 && Math.abs(userPos.lng - 78.9629) < 0.001;
       if (userPos && userPos.length === 2 && !isDefaultPos) {
-        flyToTarget(userPos[0], userPos[1]);
+        flyToTarget(userPos.lat, userPos.lng);
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => flyToTarget(pos.coords.latitude, pos.coords.longitude),

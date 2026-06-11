@@ -37,7 +37,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
     if (!mapContainer.current) return;
 
     // Mapbox expects [lng, lat]
-    const initialCoords: [number, number] = userPos ? [userPos[1], userPos[0]] : [78.9629, 20.5937];
+    const initialCoords: [number, number] = userPos ? [userPos.lng, userPos.lat] : [78.9629, 20.5937];
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -121,7 +121,7 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
     const m = map.current;
     if (!m || !userPos) return;
 
-    const coords: [number, number] = [userPos[1], userPos[0]];
+    const coords: [number, number] = [userPos.lng, userPos.lat];
 
     // 🛡️ DYNAMIC FRAME: Fit map based on the ACTIVE radius
     const offset = (activeRadius * 0.011) + 0.003; 
@@ -224,11 +224,11 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
 
     // 🚔 FETCH REAL POLICE STATIONS VIA OVERPASS API (Once per significant location change)
     const fetchPoliceStations = async () => {
-      const dist = fetchedPoliceCoords.current ? calculateDistance(userPos[0], userPos[1], fetchedPoliceCoords.current.lat, fetchedPoliceCoords.current.lng) : 999;
+      const dist = fetchedPoliceCoords.current ? calculateDistance(userPos.lat, userPos.lng, fetchedPoliceCoords.current.lat, fetchedPoliceCoords.current.lng) : 999;
       // Only re-fetch if user moved more than 2KM
       if (dist < 2.0) return; 
 
-      fetchedPoliceCoords.current = { lat: userPos[0], lng: userPos[1] };
+      fetchedPoliceCoords.current = { lat: userPos.lat, lng: userPos.lng };
       console.log("🚔 RADAR: Scanning for real Police Stations...");
 
       try {
@@ -236,9 +236,9 @@ const SecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0 }: { protec
         const query = `
           [out:json];
           (
-            node["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
-            way["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
-            relation["amenity"="police"](around:${searchRadius},${userPos[0]},${userPos[1]});
+            node["amenity"="police"](around:${searchRadius},${userPos.lat},${userPos.lng});
+            way["amenity"="police"](around:${searchRadius},${userPos.lat},${userPos.lng});
+            relation["amenity"="police"](around:${searchRadius},${userPos.lat},${userPos.lng});
           );
           out center;
         `;

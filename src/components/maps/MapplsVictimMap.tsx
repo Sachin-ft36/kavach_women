@@ -90,7 +90,7 @@ export default function MapplsVictimMap({
     const Mappls = (window as any).mappls;
     if (Mappls && !mapRef.current) {
       mapRef.current = new Mappls.Map(mapId, {
-        center: [userPos?.[0] || 28.61, userPos?.[1] || 77.23],
+        center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
         zoom: 11,
         mapType: 'standard', // 🗺️ EXPLICITLY TELL MAPPLS TO LOAD NORMAL MAP
         zoomControl: false,
@@ -120,7 +120,7 @@ export default function MapplsVictimMap({
   useEffect(() => {
     if (!isLoaded || !mapRef.current || !userPos) return;
     const Mappls = (window as any).mappls;
-    const uCoords = { lat: userPos[0], lng: userPos[1] };
+    const uCoords = { lat: userPos.lat, lng: userPos.lng };
 
     // User Marker Update
     if (!userMarkerRef.current) {
@@ -172,7 +172,7 @@ export default function MapplsVictimMap({
       };
 
       const sourceId = 'user-radius-source';
-      const circleData = getCircleData(userPos[0], userPos[1], 5);
+      const circleData = getCircleData(userPos.lat, userPos.lng, 5);
 
       if (mapRef.current.getSource(sourceId)) {
         mapRef.current.getSource(sourceId).setData(circleData);
@@ -303,7 +303,7 @@ export default function MapplsVictimMap({
           shouldFetch = true;
         } else {
           // Agar user 15 meters se zyada hila ho
-          const distSq = Math.pow(userPos[1] - prev.uLng, 2) + Math.pow(userPos[0] - prev.uLat, 2);
+          const distSq = Math.pow(userPos.lng - prev.uLng, 2) + Math.pow(userPos.lat - prev.uLat, 2);
           // Ya fir sarak band/traffic update ke liye har 30 seconds me auto-refresh ho
           const timeElapsed = currentTime - lastFetchTime;
 
@@ -313,7 +313,7 @@ export default function MapplsVictimMap({
         }
 
         if (shouldFetch) {
-          (window as any)._last_mappls_route_coords = { uLng: userPos[1], uLat: userPos[0] };
+          (window as any)._last_mappls_route_coords = { uLng: userPos.lng, uLat: userPos.lat };
           (window as any)._last_mappls_fetch_time = currentTime;
 
           if (directionPluginRef.current) {
@@ -324,7 +324,7 @@ export default function MapplsVictimMap({
           if (!directionPluginRef.current) {
             Mappls.tracking({
               map: mapRef.current,
-              start: { geoposition: `${userPos[0]},${userPos[1]}` },
+              start: { geoposition: `${userPos.lat},${userPos.lng}` },
               end: { geoposition: `${routingLat},${routingLng}` },
               fitBounds: false,
               ccpIconWidth: 70,
@@ -343,7 +343,7 @@ export default function MapplsVictimMap({
             });
           } else if (directionPluginRef.current.trackingCall) {
             directionPluginRef.current.trackingCall({
-              location: [userPos[1], userPos[0]],
+              location: [userPos.lng, userPos.lat],
               reRoute: true,
               heading: true,
               mapCenter: isNavigating,
@@ -366,7 +366,7 @@ export default function MapplsVictimMap({
         // 1. Start Native Mappls Tracking INVISIBLE (Just for the Bike and ETA)
         Mappls.tracking({
           map: mapRef.current,
-          start: { geoposition: `${userPos[0]},${userPos[1]}` },
+          start: { geoposition: `${userPos.lat},${userPos.lng}` },
           end: { geoposition: `${rideData.targetCoords[1]},${rideData.targetCoords[0]}` },
           fitBounds: false,
           ccpIconWidth: 70,
@@ -382,7 +382,7 @@ export default function MapplsVictimMap({
         });
 
         // 2. Draw the FLAWLESS Mappls Native GeoJSON line underneath (Aligns perfectly with tiles)
-        fetchRouteMappls(userPos[1], userPos[0], rideData.targetCoords[0], rideData.targetCoords[1])
+        fetchRouteMappls(userPos.lng, userPos.lat, rideData.targetCoords[0], rideData.targetCoords[1])
           .then(coords => {
             if (coords && coords.length > 0 && mapRef.current) {
               const routeGeoJSON = {
@@ -428,7 +428,7 @@ export default function MapplsVictimMap({
           .catch(err => console.warn("🚨 Hybrid Mappls Route failed:", err));
       } else if (ridePolylineRef.current.trackingCall) {
         ridePolylineRef.current.trackingCall({
-          location: [userPos[1], userPos[0]],
+          location: [userPos.lng, userPos.lat],
           reRoute: true,
           heading: true,
           mapCenter: isNavigating,
@@ -481,7 +481,7 @@ export default function MapplsVictimMap({
 
   const handleRecenter = () => {
     if (mapRef.current && userPos) {
-      mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
+      mapRef.current.setCenter({ lat: userPos.lat, lng: userPos.lng });
       mapRef.current.setZoom(14);
     }
   };

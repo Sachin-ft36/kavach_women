@@ -132,7 +132,7 @@ export default function RideSafeOverlay({
         // 🛡️ KAVACH: Mappls-only coordinate resolution — NO Nominatim, NO Mapbox, NO fake offsets
         new Mappls.search(inputEl, {
           region: "IND",
-          location: userPos ? [userPos[0], userPos[1]] : undefined,
+          location: userPos ? [userPos.lat, userPos.lng] : undefined,
           hyperLocal: true,
           clearButton: false,
           tokenizeAddress: true
@@ -166,7 +166,7 @@ export default function RideSafeOverlay({
               const cityState = addrParts.slice(-3, -1).join(', ');
               const qualifiedQuery = cityState ? `${title}, ${cityState}` : title;
 
-              const proximity = userPos ? `&proximity=${userPos[1]},${userPos[0]}` : '';
+              const proximity = userPos ? `&proximity=${userPos.lng},${userPos.lat}` : '';
               const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "pk.eyJ1Ijoic2FjaGluc2luZ2g0NCIsImEiOiJjbW9jaGtvajYwMHJrMm9zNHAxOTNiaWR2In0.VgCw_PcpPvNKFWQv_B3-lA";
 
               console.log('🔍 KAVACH TIER-2 Mapbox query:', qualifiedQuery);
@@ -271,8 +271,8 @@ export default function RideSafeOverlay({
   let estimatedMinutes = 0;
 
   if (userPos && rideData?.targetCoords) {
-    const lat1 = userPos[0];
-    const lon1 = userPos[1];
+    const lat1 = userPos.lat;
+    const lon1 = userPos.lng;
     const lon2 = rideData.targetCoords[0]; // Mapbox targetCoords is [lng, lat]
     const lat2 = rideData.targetCoords[1];
 
@@ -419,7 +419,7 @@ export default function RideSafeOverlay({
                     <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
                       <button
                         onClick={async () => {
-                          const googleMapsLink = userPos ? `https://www.google.com/maps?q=${userPos[0]},${userPos[1]}` : "GPS signal pending...";
+                          const googleMapsLink = userPos ? `https://www.google.com/maps?q=${userPos.lat},${userPos.lng}` : "GPS signal pending...";
                           const kavachHubLink = `https://kavach-women.web.app/track/${auth.currentUser?.uid}`;
 
                           const msg = `🚨 *KAVACH TACTICAL ALERT*\n\nRide Safe Protocol: *ACTIVE MONITORING*\n\n*Vehicle:* ${vehicleNo || 'Not Specified'}\n\n📍 *CURRENT LOCATION (Snapshot):*\n${googleMapsLink}\n\n📡 *LIVE MOVEMENT TRACKER (Real-time):*\n${kavachHubLink}\n\n_Note: Live tracker updates movement every 3 seconds. System is linked to Police Command Hub._`;

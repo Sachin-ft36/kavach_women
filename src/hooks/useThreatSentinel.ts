@@ -30,7 +30,7 @@ export function useThreatSentinel() {
   useEffect(() => {
     userPosRef.current = userPos;
     if (!lastPosRef.current && userPos) {
-      lastPosRef.current = [userPos[0], userPos[1]];
+      lastPosRef.current = [userPos.lat, userPos.lng];
     }
   }, [userPos]);
 

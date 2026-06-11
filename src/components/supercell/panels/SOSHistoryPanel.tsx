@@ -116,6 +116,12 @@ export function SOSHistoryPanel({
                       <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-2">Resolution Log</p>
                       <p className="text-[13px] font-black text-emerald-500 uppercase  tracking-widest">Verified Rescue Completed</p>
                       <p className="text-[12px] font-bold text-gray-400 uppercase  mt-1.5">"{alert.closureReason || 'Mission Accomplished'}"</p>
+                      {alert.feedback && (
+                        <div className="bg-amber-500/10 p-3 mt-3 rounded-xl border border-amber-500/20">
+                           <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1">Citizen Feedback</p>
+                           <p className="text-[11px] font-bold text-amber-200 italic">"{alert.feedback}"</p>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
                       <button 

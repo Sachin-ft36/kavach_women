@@ -2,6 +2,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { GeoPoint } from '../types';
 
 const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
 
@@ -54,7 +55,7 @@ export const getLiveLocation = async (): Promise<PrecisionLocation | null> => {
  * Manages clean single-stream tracking hooks without running concurrent loop engines.
  */
 export const watchLiveLocation = async (
-  callback: (pos: [number, number], accuracy: number) => void,
+  callback: (pos: GeoPoint, accuracy: number) => void,
   performanceMode: 'high' | 'auto' | 'power_save' | 'ultra_power_save' = 'auto'
 ): Promise<string> => {
   if (Capacitor.isNativePlatform()) {
@@ -75,7 +76,7 @@ export const watchLiveLocation = async (
     },
     (position) => {
       if (position?.coords) {
-        callback([position.coords.latitude, position.coords.longitude], position.coords.accuracy);
+        callback({ lat: position.coords.latitude, lng: position.coords.longitude }, position.coords.accuracy);
       }
     }
   );
@@ -127,10 +128,10 @@ export const syncTelemetry = async (
   uid: string, 
   role: string, 
   battery: number | null, 
-  coords: [number, number], 
+  coords: GeoPoint, 
   accuracy?: number
 ): Promise<void> => {
-  if (!uid || !coords || coords[0] === 0) return;
+  if (!uid || !coords || coords.lat === 0) return;
 
   try {
     const userRef = doc(db, 'users', uid);
@@ -151,8 +152,8 @@ export const syncTelemetry = async (
     if (activeAlertId) {
       const alertRef = doc(db, 'alerts', activeAlertId);
       await updateDoc(alertRef, { 
-        'location.latitude': coords[0],
-        'location.longitude': coords[1],
+        'location.latitude': coords.lat,
+        'location.longitude': coords.lng,
         'lastPulse': serverTimestamp(),
         'telemetry.battery': battery ?? 100,
         'telemetry.accuracy': accuracy ?? 0

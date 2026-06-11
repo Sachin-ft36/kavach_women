@@ -73,7 +73,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     const Mappls = (window as any).mappls;
     if (Mappls && !mapRef.current) {
       mapRef.current = new Mappls.Map(mapId, {
-        center: [userPos?.[0] || 28.61, userPos?.[1] || 77.23],
+        center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
         zoom: 14,
         mapType: 'standard',
         zoomControl: false, location: false, locationControl: false, mapTypeControl: false, layerControl: false, fullscreenControl: false, searchControl: false
@@ -117,7 +117,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     if (!userPos) return;
 
     // Fetch Police
-    fetchNearbyPoliceMappls(userPos[0], userPos[1]).then(stations => {
+    fetchNearbyPoliceMappls(userPos.lat, userPos.lng).then(stations => {
       if(stations) setPoliceStations(stations.slice(0, 15)); // Get up to 15 stations
     });
 
@@ -205,12 +205,12 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     if (!userMarkerRef.current) {
       userMarkerRef.current = new Mappls.Marker({
         map: mapRef.current,
-        position: { lat: userPos[0], lng: userPos[1] },
+        position: { lat: userPos.lat, lng: userPos.lng },
         html: markerHTML,
         width: 36, height: 36, offset: [18, 18]
       });
     } else {
-      userMarkerRef.current.setPosition({ lat: userPos[0], lng: userPos[1] });
+      userMarkerRef.current.setPosition({ lat: userPos.lat, lng: userPos.lng });
       // Update HTML if state changes
       if (userMarkerRef.current.getPopup() || true) { // Hack to update inner HTML on Mappls Marker
          const el = userMarkerRef.current._element;
@@ -228,8 +228,8 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     
     if (mapRef.current && userPos) {
       if (typeof mapRef.current.setPitch === 'function') mapRef.current.setPitch(0);
-      let minLat = userPos[0], maxLat = userPos[0];
-      let minLng = userPos[1], maxLng = userPos[1];
+      let minLat = userPos.lat, maxLat = userPos.lat;
+      let minLng = userPos.lng, maxLng = userPos.lng;
 
       if (newFilter === 'all' || newFilter === 'police') {
         policeStations.forEach(s => {
@@ -282,7 +282,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
         // 🔥 Initialize Native Tracking Engine once per target
         Mappls.tracking({
           map: mapRef.current,
-          start: { geoposition: `${userPos[0]},${userPos[1]}` },
+          start: { geoposition: `${userPos.lat},${userPos.lng}` },
           end: { geoposition: `${targetPoint.lat},${targetPoint.lng}` },
           strokeWidth: 0, // Hide native line to prevent artifacts, we draw our own geojson below!
           routeColor: "transparent",
@@ -301,7 +301,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
             try {
               // Immediately engage heading and centering if navigation was already active
               data.trackingCall({
-                location: [userPos[1], userPos[0]],
+                location: [userPos.lng, userPos.lat],
                 heading: isCameraLocked,
                 mapCenter: isCameraLocked,
                 buffer: 50, delay: 2000, fitBounds: false
@@ -318,7 +318,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
       try {
         // 🚁 Smooth Camera Chase: Dynamically move bike & rotate map
         directionPluginRef.current.trackingCall({
-          location: [userPos[1], userPos[0]],
+          location: [userPos.lng, userPos.lat],
           reRoute: true,
           heading: isNavigating && isCameraLocked,    // 🎯 Rotates map towards movement direction if locked
           mapCenter: isNavigating && isCameraLocked,  // 🎯 Auto-centers map on the girl if locked
@@ -332,7 +332,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     }
 
     // 🛡️ Mapbox GL Fallback Line Drawing (Bulletproof)
-    fetchRouteMappls(userPos[1], userPos[0], targetPoint.lng, targetPoint.lat)
+    fetchRouteMappls(userPos.lng, userPos.lat, targetPoint.lng, targetPoint.lat)
       .then(coords => {
         if (coords && coords.length > 0 && mapRef.current) {
           const routeGeoJSON = {
@@ -385,7 +385,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     if (!targetPoint || !userPos || !mapRef.current) return;
     setIsNavigating(true);
     // Center map on user, zoom in, and tilt the camera for 3D navigation view
-    mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
+    mapRef.current.setCenter({ lat: userPos.lat, lng: userPos.lng });
     mapRef.current.setZoom(18);
     setIsCameraLocked(true);
     if (typeof mapRef.current.setPitch === 'function') {
@@ -396,7 +396,7 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
 
   const handleRecenter = () => {
     if (mapRef.current && userPos) {
-      mapRef.current.setCenter({ lat: userPos[0], lng: userPos[1] });
+      mapRef.current.setCenter({ lat: userPos.lat, lng: userPos.lng });
       mapRef.current.setZoom(17);
       setIsCameraLocked(true);
     }

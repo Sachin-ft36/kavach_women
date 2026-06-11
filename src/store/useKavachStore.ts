@@ -22,6 +22,7 @@ import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
 import { executeEmergencyBlast } from '../services/sosService';
 import { supabase } from '../lib/supabase';
+import { GeoPoint, UserProfile } from '../types';
 
 const lastLat = localStorage.getItem('kavach_last_lat');
 const lastLng = localStorage.getItem('kavach_last_lng');
@@ -37,13 +38,13 @@ const savedIsVerified = localStorage.getItem('kavach_is_verified') === 'true';
 
 interface KavachState {
   user: FirebaseUser | null;
-  profile: any | null;
+  profile: UserProfile | null;
   role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell';
   gender: 'female' | 'male' | null;
   isRegistered: boolean;
   isVerified: boolean;
   safetyPin: string | null;
-  userPos: [number, number];
+  userPos: GeoPoint;
   batteryLevel: number | null;
   isSOSActive: boolean;
   triggerMethod: 'button' | 'shake' | 'voice' | 'silent' | 'ride' | 'remote' | 'power';
@@ -52,7 +53,7 @@ interface KavachState {
     vehicleNo: string;
     destination: string;
     destinationEloc?: string | null;
-    targetCoords: [number, number] | null;
+    targetCoords: GeoPoint | null;
     startTime: number | null;
     deviationDistance: number;
     status: 'linked' | 'displacement_only' | 'active' | 'monitored' | 'emergency';
@@ -98,13 +99,13 @@ interface KavachState {
   resetSentinelPulse: () => void;
   setGuardianCache: (guardians: any[]) => void;
   setUser: (user: FirebaseUser | null) => Promise<void>;
-  setProfile: (profile: any | null) => void;
+  setProfile: (profile: UserProfile | null) => void;
   setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
   setRegistered: (registered: boolean) => void;
   setVerified: (verified: boolean) => void;
   setSafetyPin: (pin: string | null) => void;
-  setUserPos: (pos: [number, number]) => void;
+  setUserPos: (pos: GeoPoint) => void;
   setBatteryLevel: (level: number) => void;
   setSOSActive: (active: boolean, alertId?: string | null, method?: KavachState['triggerMethod'], closureReason?: string | null, providedHandshake?: string | null) => Promise<void>;
   setRideMode: (active: boolean, rideData?: KavachState['rideData']) => Promise<void>;
@@ -115,7 +116,7 @@ interface KavachState {
   handleManualUnlock: () => Promise<void>;
   setActiveTab: (tab: string) => void;
   setLoading: (loading: boolean) => void;
-  syncLocation: (providedCoords?: any) => Promise<[number, number] | null>;
+  syncLocation: (providedCoords?: any) => Promise<GeoPoint | null>;
   isHubReady: boolean;
   setHubReady: (ready: boolean) => void;
   blackBox: any[];
@@ -174,7 +175,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
   isRegistered: savedIsRegistered,
   isVerified: savedIsVerified,
   safetyPin: localStorage.getItem('kavach_safety_pin'),
-  userPos: (lastLat && lastLng) ? [parseFloat(lastLat), parseFloat(lastLng)] : [20.5937, 78.9629],
+  userPos: (lastLat && lastLng) ? { lat: parseFloat(lastLat), lng: parseFloat(lastLng) } : { lat: 20.5937, lng: 78.9629 },
   batteryLevel: null,
   isSOSActive: savedSOS,
   triggerMethod: savedMethod || 'button',
@@ -371,7 +372,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
             sosStrikeCount: data.sosStrikeCount || 0,
             hasPendingWarning: !!data.hasPendingWarning,
             warningMessage: data.warningMessage || null,
-            profile: data,
+            profile: data as UserProfile,
             isVerified: !!(data.isVerified || data.verified)
           });
 
@@ -422,8 +423,8 @@ export const useKavachStore = create<KavachState>((set, get) => ({
     set({ safetyPin });
   },
   setUserPos: (userPos) => {
-    localStorage.setItem('kavach_last_lat', userPos[0].toString());
-    localStorage.setItem('kavach_last_lng', userPos[1].toString());
+    localStorage.setItem('kavach_last_lat', userPos.lat.toString());
+    localStorage.setItem('kavach_last_lng', userPos.lng.toString());
     set({ userPos });
   },
   setBatteryLevel: (batteryLevel) => set((state) => {
@@ -464,9 +465,9 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         try {
           await setDoc(journeyRef, {
             ...rideData,
-            latitude: state.userPos[0],
-            longitude: state.userPos[1],
-            path: [{ lng: state.userPos[1], lat: state.userPos[0] }],
+            latitude: state.userPos.lat,
+            longitude: state.userPos.lng,
+            path: [{ lng: state.userPos.lng, lat: state.userPos.lat }],
             userId: auth.currentUser.uid,
             userName: auth.currentUser.displayName || 'Kavach User',
             timestamp: serverTimestamp(),
@@ -542,7 +543,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
         const lng = loc.longitude ?? loc.coords?.longitude;
 
         if (lat !== undefined && lng !== undefined) {
-          const userPos: [number, number] = [lat, lng];
+          const userPos: GeoPoint = { lat, lng };
           set({ userPos, loading: false });
 
           if (auth.currentUser) {
@@ -674,20 +675,20 @@ export const useKavachStore = create<KavachState>((set, get) => ({
 
       // ✨ Mappls Precise Building ID Fetch (eLoc) & Entry Gate Node
       let mapplsId = null;
-      let routingLat = userPos[0];
-      let routingLng = userPos[1];
+      let routingLat = userPos.lat;
+      let routingLng = userPos.lng;
       try {
         // Mappls APIs block client-side CORS requests without proper headers/whitelists.
         // We will default to GPS coordinates for routing to prevent console errors.
         /*
         const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
-        const response = await fetch(`https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/rev_geocode?lat=${userPos[0]}&lng=${userPos[1]}&region=IND`);
+        const response = await fetch(`https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/rev_geocode?lat=${userPos.lat}&lng=${userPos.lng}&region=IND`);
         const data = await response.json();
         const place = data.results?.[0];
         if (place) {
           mapplsId = place.eloc || null;
-          routingLat = place.entry_latitude || userPos[0];
-          routingLng = place.entry_longitude || userPos[1];
+          routingLat = place.entry_latitude || userPos.lat;
+          routingLng = place.entry_longitude || userPos.lng;
         }
         */
       } catch (err) {
@@ -774,7 +775,7 @@ export const useKavachStore = create<KavachState>((set, get) => ({
           status: 'active',
           trigger_method: method,
           handshake_code: finalHandshake,
-          location: `POINT(${userPos[1]} ${userPos[0]})`,
+          location: `POINT(${userPos.lng} ${userPos.lat})`,
           priority: 'high'
         })
         .then(({ error }) => {

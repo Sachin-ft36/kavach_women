@@ -28,12 +28,10 @@ export default function MedicalHubModal({ isOpen, onClose }: MedicalHubModalProp
   const [hospitals, setHospitals] = useState<Node[]>([]);
 
   const fetchRealData = async () => {
-    if (!userPos) return;
-    setLoading(true);
-    
-    try {
-      const [lat, lng] = userPos;
+    if (!userPos || typeof userPos.lat !== 'number') return;
+    const { lat, lng } = userPos;
       
+    try {
       // 🛰️ PRIMARY ENGINE: MapmyIndia (Mappls)
       let realHospitals: any[] = await fetchNearbyHospitalsMappls(lat, lng);
 

@@ -35,7 +35,7 @@ export const useSafetyIntelligence = () => {
   }, [verifiedProtectorCount]);
 
   useEffect(() => {
-    if (!userPos || !userPos[0] || !userPos[1]) return;
+    if (!userPos || !userPos.lat || !userPos.lng) return;
 
     // Monitor active incidents on the network
     const activeIncidentsQuery = query(

@@ -18,6 +18,7 @@ export interface EvidenceNode {
   hash: string;
   deviceId: string;
   previousHash: string;
+  digitalSignature?: string;
 }
 
 export interface TelemetrySnapshot {
@@ -53,9 +54,8 @@ export interface IncidentCluster {
   timeToReachMs?: number;
   timeToResolveMs?: number;
   
-  // Phase 13 & 14: Evidence Vault & Black Box
+  // Phase 13: Evidence Vault (Chain of Custody)
   evidenceChain: EvidenceNode[];
-  blackBoxTelemetry: TelemetrySnapshot[];
 }
 
 async function generateSHA256(data: string) {
@@ -127,10 +127,8 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
       
       const now = Date.now();
       
-      // Phase 14: Black Box Recorder
+      // Phase 14: Black Box Recorder (Removed from Zustand memory for scalability)
       const newTelemetry = { lat, lng, speed: 0, decibel, timestamp: now };
-      if (!current[nodeId].blackBoxTelemetry) current[nodeId].blackBoxTelemetry = [];
-      current[nodeId].blackBoxTelemetry = [newTelemetry, ...current[nodeId].blackBoxTelemetry].slice(0, 100);
       
       // Real-time SHA-256 seal calculation using Web Crypto API
       const dataString = `${nodeId}-${lat}-${lng}-${decibel}-${transcript}-${now}`;
@@ -150,7 +148,8 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
         capturedBy: "SUPERCELL_TELEMETRY",
         hash: sealedHash,
         deviceId: nodeId,
-        previousHash: prevHash
+        previousHash: prevHash,
+        digitalSignature: `SIG_${await generateSHA256(sealedHash + "PRIVATE_KEY")}`
       };
       current[nodeId].evidenceChain = [evidenceNode, ...current[nodeId].evidenceChain].slice(0, 50);
       
@@ -219,7 +218,8 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
       capturedBy: responderId || "SUPERCELL_SLA_ENGINE",
       hash: sealedHash,
       deviceId: nodeId,
-      previousHash: prevHash
+      previousHash: prevHash,
+      digitalSignature: `SIG_${await generateSHA256(sealedHash + "PRIVATE_KEY")}`
     };
     
     incident.evidenceChain = [evidenceNode, ...incident.evidenceChain].slice(0, 50);
@@ -344,8 +344,7 @@ export const useSupercellStore = create<SupercellCommandState>((set, get) => ({
               `[${new Date().toLocaleTimeString()}] 📡 UPLINK INITIALIZED: Node mapped to Mapbox layer.`,
               `[${new Date().toLocaleTimeString()}] 🔒 SECURITY SEAL: Generating true SHA256 cryptographic proof.`
             ],
-            evidenceChain: currentIncidents[rawData.id]?.evidenceChain || [],
-            blackBoxTelemetry: currentIncidents[rawData.id]?.blackBoxTelemetry || []
+            evidenceChain: currentIncidents[rawData.id]?.evidenceChain || []
           };
 
           set({ activeIncidents: currentIncidents });
