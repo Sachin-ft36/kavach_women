@@ -27,7 +27,7 @@ const MASTER_PASSWORD = "Singhsachin@#0012";
 // Admin tier detector
 const detectAdminTier = (email: string): 'NATIONAL' | 'STATE' | 'DISTRICT' | 'PROTECTOR' | 'CITIZEN' => {
   const e = email.toLowerCase();
-  if (e === 'singh.sachin16559@gmail.com') return 'NATIONAL';
+  if (e === 'admin') return 'NATIONAL';
   if (e.includes('adminsachin') && e.split('.').length >= 3) {
     const parts = e.split('@')[0].split('.');
     if (parts.length >= 3) return 'DISTRICT';
@@ -167,7 +167,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
           const uid = userCred.user.uid;
 
           // Provision the admin settings in Firestore
-          const displayName = targetEmail === 'singh.sachin16559@gmail.com' ? 'NATIONAL COMMANDER' : 'COMMAND ADMIN';
+          const displayName = targetEmail.includes('admin') ? 'NATIONAL COMMANDER' : 'COMMAND ADMIN';
           await setDoc(doc(db, 'users', uid), {
             uid: uid,
             email: targetEmail,
@@ -202,7 +202,7 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
             const uid = userCred.user.uid;
 
             // Provision the admin settings in Firestore
-            const displayName = targetEmail === 'singh.sachin16559@gmail.com' ? 'NATIONAL COMMANDER' : 'COMMAND ADMIN';
+            const displayName = targetEmail.includes('admin') ? 'NATIONAL COMMANDER' : 'COMMAND ADMIN';
             await setDoc(doc(db, 'users', uid), {
               uid: uid,
               email: targetEmail,
@@ -239,15 +239,15 @@ export default function AuthScreen({ handleLogin, onResetLanguage }: AuthScreenP
 
             const mockUser = {
               uid: 'mock_dev_uid_123',
-              email: 'singh.sachin16559@gmail.com',
+              email: 'admin@kavach.gov.in',
               displayName: 'Developer Admin',
               phoneNumber: '9999999999'
             } as any;
             const devProfile = {
               uid: 'mock_dev_uid_123',
-              email: 'singh.sachin16559@gmail.com',
+              email: 'admin@kavach.gov.in',
               username: 'Developer Admin',
-              role: 'admin',
+              role: 'admin' as const,
               isRegistered: true,
               isVerified: true,
               gender: 'male'

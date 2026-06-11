@@ -17,8 +17,6 @@ service cloud.firestore {
              hasRole('national_commander') ||
              hasRole('admin') ||
              hasRole('super_cell') ||
-             request.auth.token.email == 'singh.sachin16559@gmail.com' ||
-             request.auth.token.email.lower().matches('.*adminsachin.*') ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell' ||

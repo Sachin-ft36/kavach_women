@@ -234,7 +234,7 @@ export default function App() {
     const storedRole = localStorage.getItem('kavach_user_role');
     const effectiveRole = role || storedRole;
 
-    if (isSOSActive && (effectiveRole === 'citizen' || user?.email === 'singh.sachin16559@gmail.com')) {
+    if (isSOSActive && (effectiveRole === 'citizen' || user?.role === 'admin' || user?.role === 'super_cell')) {
       if (activeTab !== 'sos') {
         setActiveTab('sos');
       }
@@ -243,7 +243,7 @@ export default function App() {
 
   // 🛡️ PROACTIVE SAFETY SENTINEL: Auto-enable Voice Protection for Citizens
   useEffect(() => {
-    const isResponder = role === 'protector' || role === 'super_cell' || role === 'admin' || user?.email === 'singh.sachin16559@gmail.com';
+    const isResponder = role === 'protector' || role === 'super_cell' || role === 'admin';
     if (role === 'citizen' && !isResponder && !isVoiceTriggerActive) {
       console.log("🛡️ KAVACH SENTINEL: Proactive Voice Protection Engaged.");
       useKavachStore.getState().setVoiceTriggerActive(true);
@@ -285,7 +285,7 @@ export default function App() {
 
   // 🛡️ ROLE-AWARE SNAPBACK: Ensure Protectors never stay on the SOS interface
   useEffect(() => {
-    if (activeTab === 'sos' && role === 'protector' && user?.email !== 'singh.sachin16559@gmail.com') {
+    if (activeTab === 'sos' && role === 'protector' && user?.role !== 'admin' && user?.role !== 'super_cell') {
       console.log("🛡️ KAVACH NAV: Protector detected on Victim interface. Snapping back to Command...");
       setActiveTab('dashboard');
     }
@@ -462,7 +462,7 @@ export default function App() {
 
         // 🏛️ ADMIN AUTO-PROVISIONING: Auto-promote to admin role if logged in with admin email
         const userEmail = firebaseUser.email || '';
-        const isAdminEmail = userEmail === 'singh.sachin16559@gmail.com' || userEmail.toLowerCase().includes('adminsachin');
+        const isAdminEmail = user?.role === 'admin' || user?.role === 'super_cell';
         if (isAdminEmail) {
           // Instantly set store state to bypass onboarding
           setRole('admin');
@@ -513,7 +513,7 @@ export default function App() {
                 console.log("🚔 KAVACH: Restoring accidentally locked PCR Officer role...");
                 currentRole = 'pcr_officer';
                 await setDoc(docRef, { role: 'pcr_officer' }, { merge: true });
-              } else if (data.email && data.email !== 'singh.sachin16559@gmail.com' && data.email.includes('adminsachin')) {
+              } else if (data.role === 'admin') {
                 console.log("🏛️ KAVACH: Restoring accidentally locked Admin role...");
                 currentRole = 'admin';
                 await setDoc(docRef, { role: 'admin' }, { merge: true });
@@ -769,7 +769,7 @@ export default function App() {
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
             ) : isSOSActive ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
-            ) : (role === 'admin' || user?.email === 'singh.sachin16559@gmail.com') ? (
+            ) : (role === 'admin' || role === 'super_cell') ? (
               <Layout
                 isGhostMode={isGhostMode}
                 onToggleGhost={onToggleGhost}
@@ -789,7 +789,7 @@ export default function App() {
                   isReturningUser={isRegistered && !isHardwareSynced}
                 />
               </div>
-            ) : (!isVerified && user?.email !== 'singh.sachin16559@gmail.com') ? (
+            ) : (!isVerified && role !== 'admin' && role !== 'super_cell') ? (
               <VerificationPendingGate user={user} profile={profile} />
             ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
               <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
@@ -802,7 +802,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && role !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || user?.email === 'singh.sachin16559@gmail.com')) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && role !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || role === 'admin' || role === 'super_cell')) && createPortal(
         <>
           <motion.nav
             initial={{ y: 120, opacity: 0 }}
@@ -893,7 +893,7 @@ export default function App() {
 
 function TabManager({ isGhostMode, onToggleGhost }: { isGhostMode: boolean, onToggleGhost: () => void }) {
   const { activeTab, role, isLocked, handleManualUnlock, isVerified } = useKavachStore();
-  const isSystemAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
+  const isSystemAdmin = auth.currentUser && (role === 'admin' || role === 'super_cell');
   const [useMapboxFallback, setUseMapboxFallback] = useState(true);
 
   const renderTab = (tab: string) => {

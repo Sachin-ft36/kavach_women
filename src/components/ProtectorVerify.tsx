@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { useKavachStore } from '../store/useKavachStore';
 
 export default function ProtectorVerify() {
   const { t } = useLanguage();
-  const isAdmin = auth.currentUser?.email === 'singh.sachin16559@gmail.com';
+  const isAdmin = auth.currentUser && (useKavachStore.getState().role === 'admin' || useKavachStore.getState().role === 'super_cell');
   const [protectors, setProtectors] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'pending' | 'verified'>('pending');

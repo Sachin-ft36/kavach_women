@@ -269,8 +269,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
         bloodGroup: bloodGroup || existingData.bloodGroup || "",
         dob: dob || existingData.dob || "",
         // ⏳ COMMAND CENTER VETTING: Everyone must be verified by admin, except master admin
-        isVerified: user.email === 'singh.sachin16559@gmail.com' ? true : false,
-        verificationStatus: user.email === 'singh.sachin16559@gmail.com' ? 'approved' : 'pending',
+        isVerified: user.role === 'admin' || user.role === 'super_cell' ? true : false,
+        verificationStatus: user.role === 'admin' || user.role === 'super_cell' ? 'approved' : 'pending',
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
         aadhaarHash: aadhaar ? await crypto.subtle.digest('SHA-256', new TextEncoder().encode(aadhaar)).then(b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('')) : (existingData.aadhaarHash || null),
 
