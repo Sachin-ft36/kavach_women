@@ -16,10 +16,10 @@ export interface GeoPoint {
 }
 
 export interface SOSPayload {
-  triggerMethod?: string;
-  timestamp?: number;
-  offlineQueued?: boolean;
+  triggerMethod: 'shake' | 'voice' | 'manual' | 'hardware' | 'app' | 'simulated';
+  timestamp: number;
   userId?: string;
+  offlineQueued?: boolean;
   batteryLevel?: number;
   isSimulated?: boolean;
 }
