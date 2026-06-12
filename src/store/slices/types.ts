@@ -113,6 +113,8 @@ export interface KavachState {
   setIsAIChatOpen: (open: boolean) => void;
   activeProtectorAlertId: string | null;
   setActiveProtectorAlert: (id: string | null) => void;
+  activeAlertsCount: number;
+  setActiveAlertsCount: (count: number) => void;
   activeRadius: number;
   setActiveRadius: (radius: number) => void;
   isFirFlowActive: boolean;

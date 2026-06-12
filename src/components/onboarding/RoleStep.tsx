@@ -1,27 +1,18 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React from 'react';
+import { motion } from 'motion/react';
 import { 
   Shield, 
   UserCheck, 
   Car, 
-  Lock, 
-  X, 
-  MapPin, 
-  Radio, 
-  Siren, 
-  Clipboard, 
-  Users, 
-  ShieldAlert, 
-  FileText, 
-  Activity, 
-  ShieldCheck, 
   ArrowRight,
   Landmark,
   CheckCircle2
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { citizenFeatures, pcrFeatures, protectorFeatures } from './constants/roleFeatures';
+import PcrAuthModal from './PcrAuthModal';
+import { usePcrAuth } from './hooks/usePcrAuth';
 
 interface RoleStepProps {
   role: 'citizen' | 'protector' | 'pcr_officer' | null;
@@ -33,129 +24,14 @@ interface RoleStepProps {
 
 export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen }: RoleStepProps) {
   const { t } = useLanguage();
-  const [showAuth, setShowAuth] = useState(false);
-  const [passcode, setPasscode] = useState('');
-
-  const handlePcrClick = () => {
-    setShowAuth(true);
-    setPasscode('');
-  };
-
-  const handleAuthSubmit = () => {
-    if (passcode === 'Singhsachin@#0012') {
-      setRole('pcr_officer');
-      setShowAuth(false);
-      toast.success("PCR Authorization Successful");
-    } else {
-      toast.error("Invalid Passcode", { description: "Please check your passcode and try again." });
-      setPasscode('');
-    }
-  };
-
-  const handleAuthCancel = () => {
-    setShowAuth(false);
-  };
-
-  const handleCardClick = (targetRole: 'citizen' | 'protector' | 'pcr_officer') => {
-    if (targetRole === 'pcr_officer' && role !== 'pcr_officer') {
-      handlePcrClick();
-    } else {
-      setRole(targetRole);
-    }
-  };
-
-  const citizenFeatures = [
-    {
-      icon: <span className="font-black text-[7px] tracking-tighter">SOS</span>,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "SOS",
-      title2: "Alert"
-    },
-    {
-      icon: <MapPin size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Live",
-      title2: "Tracking"
-    },
-    {
-      icon: <Shield size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Guardian",
-      title2: "Network"
-    },
-    {
-      icon: <FileText size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Evidence",
-      title2: "Vault"
-    }
-  ];
-
-  const pcrFeatures = [
-    {
-      icon: <MapPin size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Live",
-      title2: "Maps"
-    },
-    {
-      icon: <Radio size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Auto",
-      title2: "Dispatch"
-    },
-    {
-      icon: <Siren size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Emergency",
-      title2: "Routing"
-    },
-    {
-      icon: <Clipboard size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Patrol",
-      title2: "Management"
-    }
-  ];
-
-  const protectorFeatures = [
-    {
-      icon: <ShieldAlert size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "SOS",
-      title2: "Alerts"
-    },
-    {
-      icon: <Activity size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Active",
-      title2: "Escort"
-    },
-    {
-      icon: <MapPin size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Duty",
-      title2: "Grid"
-    },
-    {
-      icon: <Users size={11} className="stroke-[2.5]" />,
-      iconBg: "bg-slate-100",
-      iconColor: "text-slate-600",
-      title1: "Community",
-      title2: "Network"
-    }
-  ];
+  const {
+    showAuth,
+    passcode,
+    setPasscode,
+    handleAuthSubmit,
+    handleAuthCancel,
+    handleCardClick
+  } = usePcrAuth(role, setRole);
 
   return (
     <motion.div 
@@ -383,50 +259,13 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
         </motion.button>
       </div>
 
-      {/* Verification Passcode Dialog (Restricted Access) */}
-      <AnimatePresence>
-        {showAuth && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-md p-6 shadow-2xl relative border-2 border-[#000080]"
-            >
-              <button onClick={handleAuthCancel} className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-800 bg-slate-100 rounded-sm">
-                <X size={16} />
-              </button>
-
-              <div className="flex flex-col items-center text-center space-y-3 mb-6">
-                <div className="w-14 h-14 bg-red-50 border border-red-100 rounded-sm flex items-center justify-center text-red-700 mb-1">
-                  <Lock size={28} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-[#000080] tracking-widest uppercase">Restricted Clearance</h3>
-                  <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-wide">Enter Department Passcode to proceed.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <input 
-                  type="password" 
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="AUTHORIZATION CODE"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-sm outline-none focus:border-[#000080] focus:bg-blue-50/30 font-mono font-bold text-center tracking-[0.3em] text-sm uppercase placeholder:tracking-widest placeholder:text-xs"
-                />
-                <button 
-                  onClick={handleAuthSubmit}
-                  className="w-full py-3.5 bg-[#000080] text-white rounded-sm font-black uppercase tracking-widest text-[11px] active:scale-[0.98] transition-all"
-                >
-                  Verify Clearance
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PcrAuthModal
+        isOpen={showAuth}
+        passcode={passcode}
+        setPasscode={setPasscode}
+        onSubmit={handleAuthSubmit}
+        onCancel={handleAuthCancel}
+      />
     </motion.div>
   );
 }

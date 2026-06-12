@@ -27,77 +27,9 @@ import SafeHavenMap from '../components/maps/SafeHavenMap';
 import { db, auth } from '../firebase';
 import { setDoc, doc, getDoc, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import ProtectorRatingModal from '../components/ProtectorRatingModal';
+import { useDashboardLogic } from './hooks/useDashboardLogic';
+import { ActionCard } from './components/ActionCard';
 
-import { useVoiceTrigger } from '../hooks/useVoiceTrigger';
-import { useRideProtocol } from '../hooks/useRideProtocol';
-import { useProtectorSentinel } from '../hooks/useProtectorSentinel';
-
-import { useSafetyIntelligence } from '../hooks/useSafetyIntelligence';
-
-const SafetyRadarCard = React.memo(() => {
-  const metrics = useSafetyIntelligence();
-  const [showInfo, setShowInfo] = React.useState(false);
-
-  const getColors = () => {
-    switch (metrics.level) {
-      case 'OPTIMAL': return { text: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' };
-      case 'CAUTION': return { text: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' };
-      case 'CRITICAL': return { text: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' };
-      default: return { text: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' };
-    }
-  };
-
-  const colors = getColors();
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      onClick={() => setShowInfo(!showInfo)}
-      className={cn("px-4 py-2.5 rounded-[20px] border shadow-sm transition-all duration-300 relative overflow-hidden cursor-pointer active:scale-95", colors.bg, colors.border)}
-    >
-      <div className="flex justify-between items-center relative z-10 gap-3">
-        <div className="flex items-center gap-2">
-          <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse shrink-0", metrics.level === 'OPTIMAL' ? 'bg-emerald-500' : metrics.level === 'CAUTION' ? 'bg-amber-500' : 'bg-red-500')} />
-          <span className="text-[9px] font-black text-gray-900 tracking-widest uppercase italic">Radar Active</span>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="h-6 w-[1px] bg-black/5" />
-          <div className="flex flex-col items-center">
-            <span className="text-sm font-black text-gray-900 tabular-nums leading-none">{metrics.score}</span>
-            <span className="text-[6px] font-bold text-gray-400 uppercase tracking-widest leading-none mt-0.5">Safety</span>
-          </div>
-          <div className="flex -space-x-1">
-            {[...Array(Math.min(2, metrics.protectorCount || 1))].map((_, i) => (
-              <div key={i} className="w-4 h-4 rounded-full border border-white bg-blue-100 flex items-center justify-center text-[6px] font-black text-blue-600">
-                P
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showInfo && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="mt-2 pt-2 border-t border-black/5"
-          >
-            <div className="flex justify-between text-[6px] font-black uppercase tracking-widest text-gray-400">
-              <span>80+: Optimal</span>
-              <span>60+: Stable</span>
-              <span>40+: Caution</span>
-              <span>-40: Critical</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-});
 
 export default function DashboardScreen() {
   const {
@@ -106,185 +38,29 @@ export default function DashboardScreen() {
     isSOSActive, isRideModeActive, rideData, updateRideData,
     setBriefingActive, verifiedProtectorCount, setOverlayActive,
     setActiveTab, setIsFirFlowActive, isVoiceTriggerActive, setVoiceTriggerActive,
-    pendingNavigationTarget, setPendingNavigationTarget
-  } = useKavachStore();
-  const { language } = useLanguage();
+    pendingNavigationTarget, setPendingNavigationTarget,
+    isVaultOpen, setIsVaultOpen,
+    isAIChatOpen, setIsAIChatOpen,
+    isShadowOpen, setIsShadowOpen,
+    isFakeCallHubOpen, setIsFakeCallHubOpen,
+    isSafeTimerOpen, setIsSafeTimerOpen,
+    isNearbyHubOpen, setIsNearbyHubOpen,
+    isMedicalHubOpen, setIsMedicalHubOpen,
+    isRideSafeOpen, setIsRideSafeOpen,
+    isRideActive, setIsRideActive,
+    isSafeHavenMapOpen, setIsSafeHavenMapOpen,
+    vehicleNo, setVehicleNo,
+    isBriefingPlaying, setIsBriefingPlaying,
+    ratingAlert, setRatingAlert,
+    toggleOverlay, handleVoiceBriefing
+  } = useDashboardLogic();
 
   // 🛡️ Global hooks are now handled in App.tsx to prevent duplicate background execution
   // useVoiceTrigger();
   // useRideProtocol();
   // useProtectorSentinel();
 
-  const [isVaultOpen, setIsVaultOpen] = React.useState(false);
-  const [isAIChatOpen, setIsAIChatOpen] = React.useState(false);
-  const [isShadowOpen, setIsShadowOpen] = React.useState(false);
-  const [isFakeCallHubOpen, setIsFakeCallHubOpen] = React.useState(false);
-  const [isSafeTimerOpen, setIsSafeTimerOpen] = React.useState(false);
-  const [isNearbyHubOpen, setIsNearbyHubOpen] = React.useState(false);
-  const [isMedicalHubOpen, setIsMedicalHubOpen] = React.useState(false);
-  const [isRideSafeOpen, setIsRideSafeOpen] = React.useState(isRideModeActive);
-  const [isRideActive, setIsRideActive] = React.useState(isRideModeActive);
-  const [isSafeHavenMapOpen, setIsSafeHavenMapOpen] = React.useState(false);
-  const [vehicleNo, setVehicleNo] = React.useState(rideData?.vehicleNo || '');
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const [isBriefingPlaying, setIsBriefingPlaying] = React.useState(false);
 
-  // Rating Modal State
-  const [ratingAlert, setRatingAlert] = React.useState<{ id: string, responders: string[] } | null>(null);
-
-  React.useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    const q = query(
-      collection(db, 'alerts'),
-      where('userId', '==', currentUser.uid),
-      where('status', '==', 'resolved'),
-      where('isRated', '!=', true),
-      orderBy('isRated'), // required for != query
-      orderBy('timestamp', 'desc'),
-      limit(1)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const alertData = snapshot.docs[0].data();
-        const alertId = snapshot.docs[0].id;
-        
-        // Ensure there are responders to rate
-        const responders = alertData.responders || alertData.acceptedBy || [];
-        
-        if (responders.length > 0) {
-          setRatingAlert({ id: alertId, responders });
-        }
-      } else {
-        setRatingAlert(null);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // 🛡️ TACTICAL OVERLAY HANDSHAKE
-  const toggleOverlay = (setter: (val: boolean) => void, val: boolean) => {
-    setter(val);
-    setOverlayActive(val);
-  };
-
-  const handleVoiceBriefing = async (isManual = false) => {
-    const isCompleted = localStorage.getItem('kavach_briefing_completed') === 'true';
-
-    // 🛡️ STOP LOGIC: Allow any user to manually halt the voice briefing
-    if (audioRef.current && !audioRef.current.paused) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsBriefingPlaying(false);
-      setBriefingActive(false);
-
-      // 🔄 RESUME NATIVE MIC: Briefing interrupted manually
-      KavachSafe.startVoiceSentinel().catch(() => { });
-      return;
-    }
-
-    // 🛡️ PREVENT RE-TRIGGER: If already playing or already greeted in this session, do nothing
-    const isAlreadyGreeted = sessionStorage.getItem('kavach_greeted') === 'true';
-    if (isBriefingPlaying || (!isManual && isAlreadyGreeted)) return;
-
-    const audioPath = language === 'hi' ? '/voice/hindispeech.mp3' : '/voice/englishspeech.mp3';
-    const audio = new Audio(audioPath);
-    audioRef.current = audio;
-
-    setBriefingActive(true);
-    setIsBriefingPlaying(true);
-
-    audio.onended = () => {
-      setBriefingActive(false);
-      setIsBriefingPlaying(false);
-      localStorage.setItem('kavach_briefing_completed', 'true');
-
-      // 🔄 RESUME NATIVE MIC: Briefing naturally completed
-      KavachSafe.startVoiceSentinel().catch(() => { });
-    };
-
-    // 🛑 PAUSE NATIVE MIC: Prevent feedback loop while system speaks
-    await KavachSafe.stopVoiceSentinel().catch(() => { });
-    // Give native layer 200ms to actually drop the hardware lock before speaking
-    await new Promise(r => setTimeout(r, 200));
-
-    audio.play().then(() => {
-      if (!isManual) sessionStorage.setItem('kavach_greeted', 'true');
-    }).catch(err => {
-      setBriefingActive(false);
-      setIsBriefingPlaying(false);
-      console.log("Voice blocked by browser autoplay policy.");
-      // If blocked, instantly resume mic
-      KavachSafe.startVoiceSentinel().catch(() => { });
-    });
-  };
-
-  React.useEffect(() => {
-    if (isRideModeActive) {
-      setIsRideActive(true);
-      setIsRideSafeOpen(true);
-      if (rideData?.vehicleNo) setVehicleNo(rideData.vehicleNo);
-    }
-  }, [isRideModeActive, rideData]);
-
-  React.useEffect(() => {
-    if (pendingNavigationTarget) {
-      setIsNearbyHubOpen(false); // Close modal if open
-      setIsSafeHavenMapOpen(true);
-    }
-  }, [pendingNavigationTarget]);
-
-  React.useEffect(() => {
-    syncLocation();
-    const isJustLoggedIn = sessionStorage.getItem('kavach_just_logged_in');
-
-    if (isJustLoggedIn === 'true') {
-      // 🎙️ Auto-play for NEW LOGIN session
-      sessionStorage.removeItem('kavach_just_logged_in');
-      sessionStorage.removeItem('kavach_greeted');
-
-      // Try to play immediately (might be blocked by browser)
-      handleVoiceBriefing();
-
-      // Fallback for browser autoplay block (plays on first click)
-      const playOnInteract = (e: MouseEvent) => {
-        // If the user clicked the manual toggle button, don't auto-start and let the button handle it
-        const target = e.target as HTMLElement;
-        if (target.closest('#voice-toggle-btn')) {
-          document.removeEventListener('click', playOnInteract);
-          return;
-        }
-        handleVoiceBriefing();
-        document.removeEventListener('click', playOnInteract);
-      };
-      document.addEventListener('click', playOnInteract);
-    }
-    if (Capacitor.isNativePlatform()) {
-      const checkStatus = async () => {
-        const status = await KavachSafe.isIgnoringBatteryOptimizations();
-        if (status) setBatteryExempt(status.isExempt);
-      };
-      checkStatus();
-      const interval = setInterval(checkStatus, 5000);
-      return () => {
-        clearInterval(interval);
-        if (audioRef.current && !audioRef.current.paused) {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }
-      };
-    }
-
-    return () => {
-      if (audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans selection:bg-[#2563EB]/10 text-[#1E293B]">
@@ -414,22 +190,4 @@ export default function DashboardScreen() {
   );
 }
 
-const ActionCard = React.memo(({ icon, title, desc, iconColor, tint, onClick, className }: any) => (
-  <button
-    onClick={onClick}
-    className={cn("bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 active:scale-95 transition-transform", className)}
-  >
-    <div className="flex items-center gap-2 sm:gap-3 relative z-10">
-      <div style={{ color: iconColor, backgroundColor: tint }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
-        {React.cloneElement(icon as any, { size: 16 })}
-      </div>
-      <h3 className="text-[10px] sm:text-[12px] font-bold text-[#1E293B] tracking-tight leading-tight flex-1 break-words">
-        {title}
-      </h3>
-    </div>
 
-    <div className="relative z-10">
-      <p className="text-[10px] text-[#64748B] font-medium leading-relaxed">{desc}</p>
-    </div>
-  </button>
-));

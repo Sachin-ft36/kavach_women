@@ -1,237 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, EyeOff, Mic, Video, MapPin, Lock, Camera, Activity, Terminal, AlertTriangle, X, ChevronRight, Zap, ShieldCheck } from 'lucide-react';
-import { db } from '../firebase';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { saveToVault } from '../lib/forensicVault';
+import React from 'react';
+import { EyeOff, Mic, Video, MapPin, Lock, Camera, Activity, Terminal, X, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { useKavachStore } from '../store/useKavachStore';
-import { toast } from 'sonner';
+import { useForensicCapture } from './hooks/useForensicCapture';
 
 export default function ShadowProtectMode({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { isShadowActive, setShadowActive, userPos } = useKavachStore();
-  const [step, setStep] = useState(1);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
-  const chunksRef = React.useRef<Blob[]>([]);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false);
-
-  useEffect(() => {
-    let interval: any;
-    if (isShadowActive) {
-      interval = setInterval(() => {
-        setRecordingTime(prev => {
-          // 🛡️ AUTO-STOP PROTOCOL: Max 30 mins to save storage
-          if (prev >= 1800) { 
-            sealEvidence();
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-      
-      // 🎥 START LIVE PREVIEW (In-App Only)
-      startCamera();
-    } else {
-      // 🛡️ EMERGENCY SEAL: If recording was active, ensure it gets saved
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        sealEvidence();
-      } else {
-        stopCamera();
-        setRecordingTime(0);
-      }
-    }
-    return () => {
-      clearInterval(interval);
-      stopCamera();
-    };
-  }, [isShadowActive]);
-
-  const startCamera = async () => {
-    try {
-      setIsCameraReady(false);
-      // 🛡️ SMART LENS DISCOVERY: Try back camera first, fallback to any available
-      const constraints = { 
-        video: { 
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }, 
-        audio: false 
-      };
-      
-      let mediaStream;
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (e) {
-        console.warn("Environmental camera failed, falling back to basic feed...");
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      }
-
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.onloadedmetadata = () => {
-          setIsCameraReady(true);
-        };
-      }
-
-      // ⏺️ START MEDIA RECORDER
-      const recorder = new MediaRecorder(mediaStream, { 
-        mimeType: MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4' 
-      });
-      mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.start(1000); // Chunk every second for safety
-    } catch (err) {
-      console.error("Camera Access Denied:", err);
-      toast.error("Forensic Camera Access Denied.");
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-  };
+  const {
+    isShadowActive,
+    userPos,
+    videoRef,
+    recordingTime,
+    isSaving,
+    isCameraReady,
+    activateStealth,
+    handleStop
+  } = useForensicCapture(isOpen, onClose);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const activateStealth = async () => {
-    const { KavachSafe } = await import('../services/KavachNative');
-    localStorage.removeItem('kavach_shadow_stealth');
-    setShadowActive(true);
-    
-    // 🚀 TRIGGER NATIVE FORENSIC ENGINE
-    await KavachSafe.startForensicCapture();
-    
-    // 📂 SEAL EVIDENCE IN VAULT (SIMULATED FOR LOGS)
-    // 📂 SEAL EVIDENCE IN VAULT (LINKED TO NATIONAL GRID)
-    const store = useKavachStore.getState();
-    const currentUser = store.user;
-    const alertId = store.activeAlertId;
-    
-    // If SOS is active, link evidence directly to the alert for SuperCell
-    const targetPath = alertId ? `alerts/${alertId}/evidence` : `users/${currentUser?.uid || 'anonymous'}/evidence`;
-    
-    const evidenceRef = doc(collection(db, targetPath));
-    await setDoc(evidenceRef, {
-      type: alertId ? 'CCTV_FEED' : 'SHADOW_PROTECT_LOG',
-      timestamp: serverTimestamp(),
-      status: 'LIVE_UPLINK_ACTIVE',
-      details: 'Silent background forensic capture initiated by ThreatProtect protocol.',
-      gps_locked: true,
-      audio_stream_active: true,
-      victimUid: currentUser?.uid || 'anonymous',
-      url: 'PENDING_FINAL_SEAL' // This tells SuperCell to wait for the stream
-    }).catch(() => {});
-
-    toast.success("SHADOW PROTECT: STEALTH MODE ENGAGED", {
-      description: "Forensic capture uplinked to National Grid.",
-      icon: <Shield className="text-blue-500" />
-    });
-  };
-
-  const sealEvidence = async () => {
-    setIsSaving(true);
-    const { KavachSafe } = await import('../services/KavachNative');
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      
-      setTimeout(async () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        const timestamp = Date.now();
-        const fileName = `KAVACH_FORENSIC_${timestamp}.webm`;
-
-        // 1️⃣ Browser download (to Downloads folder)
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-        await KavachSafe.stopForensicCapture();
-
-        const store = useKavachStore.getState();
-        const alertId = store.activeAlertId || 'standby';
-        const vaultId = `shadow_${alertId}_${timestamp}`;
-
-        try {
-          // 2️⃣ Save to IndexedDB (no subscription, no cloud cost)
-          await saveToVault({
-            id: vaultId,
-            alertId,
-            type: 'CCTV_FEED',
-            blob,
-            fileName,
-            mimeType: 'video/webm',
-            hash: '',
-            timestamp,
-            status: 'SEALED_ENCRYPTED'
-          });
-
-          // 3️⃣ Save metadata to Firestore (text only — always free)
-          if (store.activeAlertId) {
-            const evidenceRef = doc(collection(db, 'alerts', store.activeAlertId, 'evidence'));
-            await setDoc(evidenceRef, {
-              type: 'CCTV_FEED',
-              vaultId,
-              fileName,
-              url: '',
-              timestamp: serverTimestamp(),
-              status: 'SEALED_ENCRYPTED',
-              metadata: { storage: 'IndexedDB', mode: 'SHADOW_PROTECT_MANUAL' }
-            }, { merge: true }).catch(() => {});
-          }
-        } catch (e) {
-          console.error('ShadowProtect vault save failed:', e);
-        }
-
-        localStorage.removeItem('kavach_shadow_stealth');
-        setShadowActive(false);
-        setIsSaving(false);
-        toast.success("🔒 FORENSIC ARCHIVE SEALED", {
-          description: (
-            <div className="space-y-1.5 mt-1 text-[11px] text-gray-400">
-              <p>• <span className="text-white font-bold">Download:</span> File <span className="font-mono text-emerald-400 bg-white/10 px-1 rounded">{fileName}</span> saved to <span className="text-blue-400 font-mono">Downloads/</span></p>
-              <p>• <span className="text-white font-bold">Local Vault:</span> Secured in browser <span className="text-blue-400 font-mono">IndexedDB</span> — playable in Command Center on <span className="text-white">this device</span>.</p>
-              <p>• <span className="text-white font-bold">Cloud Metadata:</span> Record logged at <span className="text-blue-400 font-mono">alerts/{store.activeAlertId || 'standby'}/evidence</span></p>
-              <p>• <span className="text-white font-bold">Cost:</span> <span className="text-emerald-400">₹0 — No paid subscription required.</span></p>
-            </div>
-          ),
-          duration: 15000,
-          action: { label: "Dismiss", onClick: () => {} }
-        });
-        onClose();
-      }, 500);
-    } else {
-      await KavachSafe.stopForensicCapture();
-      localStorage.removeItem('kavach_shadow_stealth');
-      setShadowActive(false);
-      setIsSaving(false);
-      onClose();
-    }
-  };
-
-  const handleStop = () => {
-    sealEvidence();
   };
 
   if (!isOpen) return null;

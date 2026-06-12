@@ -1,6 +1,10 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Activity, ScanLine, Smartphone, Zap, CheckCircle2, AlertTriangle, ChevronRight, Landmark } from 'lucide-react';
+import { ShieldCheck, ChevronRight, Landmark } from 'lucide-react';
+import { BatteryExemptModule } from './modules/BatteryExemptModule';
+import { OverlayGrantedModule } from './modules/OverlayGrantedModule';
+import { SentinelActiveModule } from './modules/SentinelActiveModule';
+import { EmergencyPermissionsModule } from './modules/EmergencyPermissionsModule';
 
 // Self-contained utility function to replace external '../../lib/utils' import
 function cn(...inputs: (string | boolean | undefined | null)[]) {
@@ -201,305 +205,40 @@ export default function MissionReadiness({
           
           {/* Module 1: Always On Protection (Hidden on iOS) */}
           {!isIOS && (
-            <div className={cn(
-              "p-4 rounded-2xl border transition-all duration-300 shadow-sm",
-              batteryExempt 
-                ? "bg-emerald-50/20 border-emerald-500/30" 
-                : "bg-white border-amber-200 ring-4 ring-amber-500/5"
-            )}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center border transition-all mt-0.5",
-                    batteryExempt ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-amber-50 text-amber-600 border-amber-200"
-                  )}>
-                    <Activity size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Emergency Response Engine
-                      </h3>
-                      <span className={cn(
-                        "px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider",
-                        batteryExempt ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                      )}>
-                        {batteryExempt ? "Armed" : "Critical"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                      KAVACH must bypass battery optimization to trigger SOS in sleep state.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={onOpenBattery}
-                  className={cn(
-                    "relative w-12 h-6.5 rounded-full transition-colors duration-300 shrink-0",
-                    batteryExempt ? "bg-emerald-500" : "bg-slate-200"
-                  )}
-                >
-                  <div className={cn(
-                    "absolute top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform duration-300",
-                    batteryExempt ? "translate-x-6.5" : "translate-x-1"
-                  )} />
-                </button>
-              </div>
-
-              {!batteryExempt && (
-                <div className="mt-3.5 pt-3 border-t border-amber-100 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-amber-800 text-[10px] font-bold">
-                    <AlertTriangle size={12} className="shrink-0" />
-                    <span>SYSTEM ALERT: Core engine will go dormant if optimization is enabled.</span>
-                  </div>
-                  {isNative && (
-                    <button
-                      onClick={onOpenAppSettings}
-                      className="text-[10px] text-slate-600 hover:text-slate-900 font-bold underline underline-offset-2 flex items-center gap-1"
-                    >
-                      <span>Android 15: Open settings to remove restrictions</span>
-                      <ChevronRight size={10} />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {batteryExempt && (
-                <div className="mt-3 flex items-center gap-1.5 text-emerald-700 text-[10px] font-semibold">
-                  <CheckCircle2 size={12} />
-                  <span>Always-On background service verified.</span>
-                </div>
-              )}
-            </div>
+            <BatteryExemptModule 
+              batteryExempt={batteryExempt}
+              onOpenBattery={onOpenBattery}
+              onOpenAppSettings={onOpenAppSettings}
+              isNative={isNative}
+            />
           )}
 
           {/* Module 2: Emergency Interface Authorization (Hidden on iOS) */}
           {!isIOS && (
-            <div className={cn(
-              "p-4 rounded-2xl border transition-all duration-300 shadow-sm",
-              overlayGranted 
-                ? "bg-emerald-50/20 border-emerald-500/30" 
-                : "bg-white border-slate-200"
-            )}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center border transition-all mt-0.5",
-                    overlayGranted ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"
-                  )}>
-                    <ScanLine size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Lock Screen SOS Access
-                      </h3>
-                      <span className={cn(
-                        "px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider",
-                        overlayGranted ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"
-                      )}>
-                        {overlayGranted ? "Granted" : "Required"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                      Enables physical SOS widgets and emergency feeds on top of the lock screen.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={onOpenOverlay}
-                  className={cn(
-                    "relative w-12 h-6.5 rounded-full transition-colors duration-300 shrink-0",
-                    overlayGranted ? "bg-emerald-500" : "bg-slate-200"
-                  )}
-                >
-                  <div className={cn(
-                    "absolute top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform duration-300",
-                    overlayGranted ? "translate-x-6.5" : "translate-x-1"
-                  )} />
-                </button>
-              </div>
-
-              {!overlayGranted && (
-                <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2">
-                  <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-semibold">
-                    <AlertTriangle size={12} className="text-amber-500 shrink-0" />
-                    <span>Highly recommended for immediate safety access during duress.</span>
-                  </div>
-                  {isNative && (
-                    <button
-                      onClick={onOpenAppSettings}
-                      className="text-[10px] text-slate-600 hover:text-slate-900 font-bold underline underline-offset-2 flex items-center gap-1"
-                    >
-                      <span>Resolve restricted lock-screen setting</span>
-                      <ChevronRight size={10} />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {overlayGranted && (
-                <div className="mt-3 flex items-center gap-1.5 text-emerald-700 text-[10px] font-semibold">
-                  <CheckCircle2 size={12} />
-                  <span>Overlay authorization verified.</span>
-                </div>
-              )}
-            </div>
+            <OverlayGrantedModule 
+              overlayGranted={overlayGranted}
+              onOpenOverlay={onOpenOverlay}
+              onOpenAppSettings={onOpenAppSettings}
+              isNative={isNative}
+            />
           )}
 
           {/* Module 3: Kinetic Sentinel Authorization */}
           {isCitizen && (
-            <div className={cn(
-              "p-4 rounded-2xl border transition-all duration-300 shadow-sm",
-              isSentinelActive 
-                ? "bg-emerald-50/20 border-emerald-500/30" 
-                : "bg-white border-slate-200"
-            )}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center border transition-all mt-0.5",
-                    isSentinelActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"
-                  )}>
-                    <Zap size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Shake-to-Activate SOS
-                      </h3>
-                      <span className={cn(
-                        "px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider",
-                        isSentinelActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"
-                      )}>
-                        {isSentinelActive ? "Active" : "Recommended"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                      Triggers a priority emergency sequence when the handset is shaken aggressively.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setSentinelActive(!isSentinelActive)}
-                  className={cn(
-                    "relative w-12 h-6.5 rounded-full transition-colors duration-300 shrink-0",
-                    isSentinelActive ? "bg-emerald-500" : "bg-slate-200"
-                  )}
-                >
-                  <div className={cn(
-                    "absolute top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform duration-300",
-                    isSentinelActive ? "translate-x-6.5" : "translate-x-1"
-                  )} />
-                </button>
-              </div>
-
-              {!isSentinelActive && (
-                <div className="mt-3.5 pt-3 border-t border-slate-100">
-                  <p className="text-[10px] text-slate-500 font-medium leading-normal">
-                    Allows triggering emergency responses hands-free without opening the screen.
-                  </p>
-                </div>
-              )}
-
-              {isSentinelActive && (
-                <div className="mt-3 flex items-center gap-1.5 text-emerald-700 text-[10px] font-semibold">
-                  <CheckCircle2 size={12} />
-                  <span>Violent movement detection operational.</span>
-                </div>
-              )}
-            </div>
+            <SentinelActiveModule 
+              isSentinelActive={isSentinelActive}
+              setSentinelActive={setSentinelActive}
+            />
           )}
 
           {/* Module 4: Safety Core Permissions */}
-          <div className={cn(
-            "p-4 rounded-2xl border transition-all duration-300 shadow-sm",
-            isLifelineActive 
-              ? "bg-emerald-50/20 border-emerald-500/30" 
-              : "bg-white border-slate-200"
-          )}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="flex items-start gap-3 flex-1">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center border transition-all mt-0.5",
-                  isLifelineActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"
-                )}>
-                  <Smartphone size={20} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Emergency Permissions
-                    </h3>
-                    <span className={cn(
-                      "px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider",
-                      isLifelineActive ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                    )}>
-                      {isLifelineActive ? "Authorized" : "Action Required"}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    Crucial hardware features required to capture media, map location, and contact dispatch.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={onRequestPerms}
-                className={cn(
-                  "relative w-12 h-6.5 rounded-full transition-colors duration-300 shrink-0",
-                  isLifelineActive ? "bg-emerald-500" : "bg-slate-200"
-                )}
-              >
-                <div className={cn(
-                  "absolute top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform duration-300",
-                  isLifelineActive ? "translate-x-6.5" : "translate-x-1"
-                )} />
-              </button>
-            </div>
-
-            {/* Permission badges matrix */}
-            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-5 gap-1.5 pt-2">
-              {[
-                { name: 'SMS Alerts', state: safePerms.sms },
-                { name: 'Emergency Calls', state: safePerms.call },
-                { name: 'Live GPS', state: safePerms.location },
-                { name: 'Camera Feed', state: safePerms.camera },
-                { name: 'Microphone', state: safePerms.microphone }
-              ].map((item) => {
-                const isGranted = item.state === 'granted';
-                return (
-                  <div 
-                    key={item.name} 
-                    className={cn(
-                      "py-1.5 px-2 rounded-lg text-[9px] font-bold text-center border uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-1",
-                      isGranted 
-                        ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-700" 
-                        : "bg-slate-50 border-slate-100 text-slate-400"
-                    )}
-                  >
-                    {isGranted && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
-                    <span className="truncate">{item.name}</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {!isLifelineActive && isNative && (
-              <div className="mt-3.5 pt-3 border-t border-slate-100 text-center">
-                <button 
-                  onClick={onOpenAppSettings} 
-                  className="text-[10px] text-slate-600 hover:text-slate-900 font-bold underline underline-offset-2 inline-flex items-center gap-1"
-                >
-                  <span>Manual Override: Allow Background Location in App Info</span>
-                  <ChevronRight size={10} />
-                </button>
-              </div>
-            )}
-          </div>
+          <EmergencyPermissionsModule 
+            isLifelineActive={isLifelineActive}
+            onRequestPerms={onRequestPerms}
+            onOpenAppSettings={onOpenAppSettings}
+            isNative={isNative}
+            safePerms={safePerms}
+          />
 
         </div>
       </div>

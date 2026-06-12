@@ -34,6 +34,8 @@ import { Activity, Car, Map as MapIcon, FileText, MessageSquare } from 'lucide-r
 import KavachAIChat from './KavachAIChat';
 import Onboarding from './Onboarding';
 import WeatherScreen from './WeatherScreen';
+import { ProtectorPledgeModal } from './onboarding/ProtectorPledgeModal';
+import { Header } from './navigation/Header';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -54,6 +56,18 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
   const user = auth.currentUser;
 
   // 🛰️ DYNAMIC GLOBAL WAR-ROOM VIEWPORT SCALING
+  useEffect(() => {
+    if (activeTab === 'safety_network') {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleOpenProfile = () => setIsProfileOpen(true);
+    document.addEventListener('OPEN_PROFILE_MODAL', handleOpenProfile);
+    return () => document.removeEventListener('OPEN_PROFILE_MODAL', handleOpenProfile);
+  }, []);
+
   useEffect(() => {
     if (role === 'super_cell') {
       document.documentElement.classList.add('supercell-active');
@@ -202,111 +216,25 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
       </div>
 
       {/* 🛡️ STREAMLINED PROTECTOR PLEDGE OVERLAY */}
-      <AnimatePresence>
-        {showProtectorOnboarding && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 sm:p-10">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowProtectorOnboarding(false)}
-              className="absolute inset-0 bg-[#0F172A]/80 backdrop-blur-xl"
-            />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-[40px] p-8 sm:p-10 shadow-2xl border border-white"
-            >
-              <div className="flex flex-col items-center text-center space-y-6">
-                <div className="w-20 h-20 bg-blue-600 rounded-[28px] flex items-center justify-center text-white shadow-xl shadow-blue-600/30">
-                  <ShieldCheck size={40} strokeWidth={1.5} />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Protector's Pledge</h2>
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[3px]">Institutional Enrollment</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-6 text-left border border-gray-100">
-                  <p className="text-[11px] font-bold text-gray-500 leading-relaxed uppercase tracking-wider">
-                    As a member of the <span className="text-gray-900">Kavach Protector Grid</span>, you pledge to assist fellow citizens in distress, maintain the highest standards of integrity, and respond to tactical alerts within your sector.
-                  </p>
-                </div>
-                <div className="w-full space-y-3 pt-4">
-                  <button
-                    onClick={confirmProtectorEnrollment}
-                    className="w-full py-5 bg-blue-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[4px] shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
-                  >
-                    Confirm Enrollment
-                  </button>
-                  <button
-                    onClick={() => setShowProtectorOnboarding(false)}
-                    className="w-full py-5 bg-gray-50 text-gray-400 rounded-[24px] text-xs font-black uppercase tracking-[4px] hover:bg-gray-100 transition-all"
-                  >
-                    Not Now
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ProtectorPledgeModal 
+        isOpen={showProtectorOnboarding}
+        onClose={() => setShowProtectorOnboarding(false)}
+        onConfirm={confirmProtectorEnrollment}
+      />
 
       {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && !isSOSBlocked && (
-        <header className={cn("fixed top-0 left-0 right-0 z-[150] flex justify-between items-center w-full px-4 py-2.5 sm:py-3", role === 'citizen' ? "bg-[#F8FAFC]" : "bg-[#0F172A]")}>
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center overflow-hidden border shadow-sm", role === 'citizen' ? "border-slate-100" : "border-white/10")}>
-              <img src="/logo.jpeg" alt="KAVACH" className="w-full h-full object-cover rounded-full" />
-            </div>
-            <div>
-              <h1 className={cn("text-[17px] sm:text-lg font-bold tracking-tight leading-tight", role === 'citizen' ? "text-slate-900" : "text-white")}>{role === 'admin' ? 'ADMIN' : 'KAVACH'}</h1>
-              <p className={cn("text-[6px] sm:text-[7px] font-bold uppercase tracking-[1.5px] sm:tracking-[2px] mt-0.5", role === 'citizen' ? "text-slate-500" : "text-slate-400")}>women safety network</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            {role === 'citizen' && (
-              <button onClick={onToggleGhost} className="w-8 h-8 sm:w-9 sm:h-9 border rounded-lg flex items-center justify-center transition-all shadow-sm bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-100">
-                <Eye size={15} />
-              </button>
-            )}
-            <div className="relative">
-              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className={cn("w-8 h-8 sm:w-9 sm:h-9 rounded-lg shadow-sm transition-all border flex items-center justify-center overflow-hidden", role === 'citizen' ? "border-slate-200 hover:border-slate-300 bg-slate-50" : "border-white hover:border-white/80 bg-slate-800")}>
-                {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={15} className={role === 'citizen' ? "text-slate-400" : "text-slate-500"} />}
-              </button>
-              <AnimatePresence>
-                {isProfileOpen && (
-                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-3 w-72 bg-white border border-[#E5E7EB] rounded-[32px] p-6 shadow-2xl z-[100]">
-                    <div className="space-y-6">
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="w-20 h-20 rounded-[28px] bg-[#2563EB]/5 border-2 border-[#2563EB]/10 flex items-center justify-center overflow-hidden shadow-inner">
-                          {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={36} className="text-[#2563EB]/40" />}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{displayName}</h3>
-                          <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'pcr_officer' ? 'PCR PATROL UNIT' : role === 'protector' ? 'VERIFIED PROTECTOR' : 'VERIFIED CITIZEN'}</p>
-                        </div>
-                      </div>
-                      <div className="space-y-3 py-4 border-y border-gray-100">
-                        {/* Aadhaar details commented out until API integration is ready */}
-                        {/* <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Aadhaar Link</span><span className="text-[10px] font-bold text-gray-900">{userData?.aadhar ? `XXXXXXXX${userData.aadhar.slice(-4)}` : 'NOT LINKED'}</span></div> */}
-                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone</span><span className="text-[10px] font-bold text-gray-900">{userData?.phoneNumber ? `+91 ${userData.phoneNumber.slice(-10)}` : 'UNLINKED'}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Shield Status</span><span className="text-[10px] font-bold text-accent-green uppercase tracking-widest">SECURE</span></div>
-                        <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gender</span><span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">{userData?.gender || 'FEMALE'}</span></div>
-                      </div>
-                      <div className="space-y-3">
-                        {gender === 'female' && (
-                          <button onClick={handleRoleSwitch} className="w-full py-4 bg-[#2563EB] text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#1D4ED8] shadow-lg shadow-[#2563EB]/20 transition-all flex items-center justify-center gap-2">
-                            {role === 'citizen' ? <><Zap size={14} /> Join Protector Network</> : <><Shield size={14} /> Return to Home</>}
-                          </button>
-                        )}
-                        <button onClick={handleLogout} className="w-full py-4 bg-gray-50 text-gray-400 border border-gray-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center justify-center gap-2"><LogOut size={14} /> System Logout</button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </header>
+        <Header 
+          role={role}
+          isProfileOpen={isProfileOpen}
+          setIsProfileOpen={setIsProfileOpen}
+          userPhoto={userPhoto}
+          displayName={displayName}
+          userData={userData}
+          gender={gender}
+          onToggleGhost={onToggleGhost}
+          handleRoleSwitch={handleRoleSwitch}
+          handleLogout={handleLogout}
+        />
       )}
 
       <main className={cn("mx-auto pb-6 relative transition-all z-10", 

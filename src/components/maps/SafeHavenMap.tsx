@@ -1,102 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useKavachStore } from '../../store/useKavachStore';
-import { fetchNearbyPoliceMappls, fetchRouteMappls } from '../../services/MapplsService';
-import { X, Navigation, LocateFixed, Layers, ShieldCheck, Crosshair, MapPin, Activity } from 'lucide-react';
+import { X, Navigation, LocateFixed, ShieldCheck, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-
-const REST_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "hiexfwnhftspmoasdsnuwukpxugoaljlqhls";
+import { useMapplsInit } from './hooks/useMapplsInit';
+import { useSafeHavenData } from './hooks/useSafeHavenData';
+import { useSafeHavenSync } from './hooks/useSafeHavenSync';
+import { useMapplsControls } from './hooks/useMapplsControls';
 
 export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () => void, initialTarget?: {lat: number, lng: number, name: string, dist?: string} }) {
   const { userPos, activeRadius } = useKavachStore();
-  const mapRef = useRef<any>(null);
-  const mapId = useRef(`mappls-safe-map-${Math.random().toString(36).substring(7)}`).current;
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [policeStations, setPoliceStations] = useState<any[]>([]);
-  const [protectors, setProtectors] = useState<any[]>([]);
   const [targetPoint, setTargetPoint] = useState<{lat: number, lng: number, name: string, type: 'police'|'protector', dist?: string} | null>(null);
-  const directionPluginRef = useRef<any>(null);
-  const prevTargetRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const userMarkerRef = useRef<any>(null);
-  const [mapStyle, setMapStyle] = useState<'standard' | 'hybrid'>('standard');
   const [isNavigating, setIsNavigating] = useState(false);
   const [isCameraLocked, setIsCameraLocked] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'all'|'police'|'pcr'|'civilian'>('all');
 
-  useEffect(() => {
-    let retryCount = 0;
-    const checkAndInit = () => {
-      if ((window as any).mappls) {
-        initMap();
-      } else {
-        retryCount++;
-        if (retryCount > 15) return;
-        setTimeout(checkAndInit, 200);
-      }
-    };
+  const { mapRef, isLoaded, mapId } = useMapplsInit(userPos);
+  const { policeStations, protectors } = useSafeHavenData(userPos);
+  useSafeHavenSync(mapRef, isLoaded, userPos, policeStations, protectors, activeFilter, targetPoint, setTargetPoint, isNavigating, isCameraLocked);
 
-    if (document.getElementById('mappls-sdk')) {
-      checkAndInit();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'mappls-sdk';
-    script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${REST_KEY}`;
-    script.async = true;
-    script.onload = () => {
-      if (!document.getElementById('mappls-plugins')) {
-        const pluginsScript = document.createElement('script');
-        pluginsScript.id = 'mappls-plugins';
-        pluginsScript.src = `https://sdk.mappls.com/map/sdk/plugins?access_token=${REST_KEY}&v=3.0`;
-        pluginsScript.async = true;
-        pluginsScript.onload = checkAndInit;
-        document.body.appendChild(pluginsScript);
-      } else {
-        checkAndInit();
-      }
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      if (mapRef.current && typeof mapRef.current.remove === 'function') {
-        try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
-      }
-    };
-  }, []);
-
-  const initMap = () => {
-    const Mappls = (window as any).mappls;
-    if (Mappls && !mapRef.current) {
-      mapRef.current = new Mappls.Map(mapId, {
-        center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
-        zoom: 14,
-        mapType: 'standard',
-        zoomControl: false, location: false, locationControl: false, mapTypeControl: false, layerControl: false, fullscreenControl: false, searchControl: false
-      });
-
-      // 🧼 Silencing Mappls sprite image missing warnings in console (e.g. agricultural_automotive)
-      mapRef.current.on('styleimagemissing', (e: any) => {
-        try {
-          const width = 16;
-          const bytesPerPixel = 4;
-          const data = new Uint8Array(width * width * bytesPerPixel);
-          mapRef.current.addImage(e.id, { width: width, height: width, data: data });
-        } catch (err) {}
-      });
-      
-      const controls = document.querySelectorAll('[class*="ctrl-top"], [class*="ctrl-bottom"], [class*="control-container"]');
-      controls.forEach(c => (c as HTMLElement).style.display = 'none');
-
-      mapRef.current.on('load', () => {
-        setIsLoaded(true);
-      });
-    }
-  };
+  const { mapStyle, toggleMapStyle, handleZoom } = useMapplsControls(mapRef, userPos);
 
   // Auto-Select Initial Target
   useEffect(() => {
@@ -108,118 +32,9 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
         type: 'police',
         dist: initialTarget.dist || 'NEARBY'
       });
-      setIsNavigating(true); // Auto-start navigation
+      setIsNavigating(true);
     }
   }, [isLoaded, initialTarget]);
-
-  // Fetch Data (Police & Protectors)
-  useEffect(() => {
-    if (!userPos) return;
-
-    // Fetch Police
-    fetchNearbyPoliceMappls(userPos.lat, userPos.lng).then(stations => {
-      if(stations) setPoliceStations(stations.slice(0, 15)); // Get up to 15 stations
-    });
-
-    // Fetch Protectors
-    const q = query(collection(db, 'users'), where('role', '==', 'protector'), where('isVerified', '==', true));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allFound = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-      setProtectors(allFound.filter(p => p.coords));
-    });
-
-    return () => unsubscribe();
-  }, [userPos]);
-
-  // Render Markers
-  useEffect(() => {
-    if (!isLoaded || !mapRef.current || !userPos) return;
-    const Mappls = (window as any).mappls;
-
-    // Clear old markers
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-
-    // Removed User Marker logic from here to its own useEffect
-
-    // Draw Police Stations
-    if (activeFilter === 'all' || activeFilter === 'police') {
-      policeStations.forEach(station => {
-        if (!station.lat || !station.lng) return;
-        const marker = new Mappls.Marker({
-          map: mapRef.current,
-          position: { lat: station.lat, lng: station.lng },
-          html: `<div class="tactical-marker police">🚨</div>`,
-          width: 32, height: 32, offset: [16, 16]
-        });
-        marker.addListener('click', () => {
-          setTargetPoint({ lat: station.lat, lng: station.lng, name: station.name, type: 'police', dist: station.dist });
-        });
-        markersRef.current.push(marker);
-      });
-    }
-
-    // Draw Protectors / PCR
-    protectors.forEach(p => {
-      if (!p.coords) return;
-      const isPCR = p.protectorVetting?.occupation?.toLowerCase().includes('police');
-      
-      if (activeFilter !== 'all') {
-         if (activeFilter === 'pcr' && !isPCR) return;
-         if (activeFilter === 'civilian' && isPCR) return;
-         if (activeFilter === 'police') return;
-      }
-
-      const marker = new Mappls.Marker({
-        map: mapRef.current,
-        position: { lat: p.coords[0], lng: p.coords[1] },
-        html: `<div class="tactical-marker ${isPCR ? 'pcr' : 'protector'}">${isPCR ? '🚓' : '🛡️'}</div>`,
-        width: 32, height: 32, offset: [16, 16]
-      });
-      marker.addListener('click', () => {
-        setTargetPoint({ lat: p.coords[0], lng: p.coords[1], name: isPCR ? 'PCR Van' : (p.name || 'Protector'), type: 'protector', dist: 'LIVE' });
-      });
-      markersRef.current.push(marker);
-    });
-
-  }, [isLoaded, policeStations, protectors, activeFilter]);
-
-  // Handle User Marker (Pulse when idle, Navigation Dot when routing)
-  useEffect(() => {
-    if (!isLoaded || !mapRef.current || !userPos) return;
-    const Mappls = (window as any).mappls;
-
-    const isNavMode = !!targetPoint;
-    
-    // 🔥 CLUTTER REDUCTION: Hide our manual user dot if the bike is routing
-    if (isNavMode) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-        userMarkerRef.current = null;
-      }
-      return;
-    }
-
-    const markerHTML = `<div class="pulse-marker-victim"></div>`;
-
-    if (!userMarkerRef.current) {
-      userMarkerRef.current = new Mappls.Marker({
-        map: mapRef.current,
-        position: { lat: userPos.lat, lng: userPos.lng },
-        html: markerHTML,
-        width: 36, height: 36, offset: [18, 18]
-      });
-    } else {
-      userMarkerRef.current.setPosition({ lat: userPos.lat, lng: userPos.lng });
-      // Update HTML if state changes
-      if (userMarkerRef.current.getPopup() || true) { // Hack to update inner HTML on Mappls Marker
-         const el = userMarkerRef.current._element;
-         if (el && el.innerHTML !== markerHTML) {
-            el.innerHTML = markerHTML;
-         }
-      }
-    }
-  }, [isLoaded, userPos, targetPoint]);
 
   const handleFilterClick = (filter: 'police' | 'pcr' | 'civilian') => {
     const newFilter = activeFilter === filter ? 'all' : filter;
@@ -256,135 +71,9 @@ export default function SafeHavenMap({ onClose, initialTarget }: { onClose: () =
     }
   };
 
-  // Handle Routing when a target is selected
-  useEffect(() => {
-    if (!targetPoint || !userPos || !isLoaded || !mapRef.current) return;
-    const Mappls = (window as any).mappls;
-
-    const isNewTarget = !prevTargetRef.current || prevTargetRef.current.lat !== targetPoint.lat || prevTargetRef.current.lng !== targetPoint.lng;
-
-    if (isNewTarget) {
-      if (directionPluginRef.current) {
-        try {
-          if (typeof directionPluginRef.current.remove === 'function') directionPluginRef.current.remove();
-        } catch (e) {}
-        directionPluginRef.current = null;
-      }
-      prevTargetRef.current = targetPoint;
-    }
-
-    // Clean up any stray manual layers if they exist
-    if (mapRef.current.getLayer('custom-route-layer')) mapRef.current.removeLayer('custom-route-layer');
-    if (mapRef.current.getSource('custom-route-source')) mapRef.current.removeSource('custom-route-source');
-
-    if (!directionPluginRef.current) {
-      try {
-        // 🔥 Initialize Native Tracking Engine once per target
-        Mappls.tracking({
-          map: mapRef.current,
-          start: { geoposition: `${userPos.lat},${userPos.lng}` },
-          end: { geoposition: `${targetPoint.lat},${targetPoint.lng}` },
-          strokeWidth: 0, // Hide native line to prevent artifacts, we draw our own geojson below!
-          routeColor: "transparent",
-          ccpIconWidth: 70, // 🔥 Large animated bike/car icon
-          profile: 'driving', // 🚗 Use driving profile for full database support in tier-2/3 cities like Rewa
-          resource: 'route_eta',
-          traffic: false,
-          alternatives: false,
-          fitBounds: !isNavigating,
-          sPopup: "", dPopup: "",
-          start_icon: "", // 🔥 Force hide mappls native start marker
-          end_icon: "", // 🔥 Force hide mappls native end marker
-        }, function (data: any) {
-          directionPluginRef.current = data;
-          if (isNavigating && data && data.trackingCall) {
-            try {
-              // Immediately engage heading and centering if navigation was already active
-              data.trackingCall({
-                location: [userPos.lng, userPos.lat],
-                heading: isCameraLocked,
-                mapCenter: isCameraLocked,
-                buffer: 50, delay: 2000, fitBounds: false
-              });
-            } catch (e) {
-              console.warn("Mappls trackingCall failed:", e);
-            }
-          }
-        });
-      } catch (err) {
-        console.error("Mappls tracking plugin crashed:", err);
-      }
-    } else if (directionPluginRef.current.trackingCall) {
-      try {
-        // 🚁 Smooth Camera Chase: Dynamically move bike & rotate map
-        directionPluginRef.current.trackingCall({
-          location: [userPos.lng, userPos.lat],
-          reRoute: true,
-          heading: isNavigating && isCameraLocked,    // 🎯 Rotates map towards movement direction if locked
-          mapCenter: isNavigating && isCameraLocked,  // 🎯 Auto-centers map on the girl if locked
-          buffer: 50,
-          delay: 2000,
-          fitBounds: false
-        });
-      } catch (e) {
-        console.warn("Mappls trackingCall failed during update:", e);
-      }
-    }
-
-    // 🛡️ Mapbox GL Fallback Line Drawing (Bulletproof)
-    fetchRouteMappls(userPos.lng, userPos.lat, targetPoint.lng, targetPoint.lat)
-      .then(coords => {
-        if (coords && coords.length > 0 && mapRef.current) {
-          const routeGeoJSON = {
-            type: 'LineString',
-            coordinates: coords // fetchRouteMappls already returns [[lng, lat]]
-          };
-          const map = mapRef.current;
-          const sourceId = 'custom-route-source';
-          const layerId = 'custom-route-layer';
-
-          if (map.getSource(sourceId)) {
-            map.getSource(sourceId).setData(routeGeoJSON);
-          } else {
-            map.addSource(sourceId, { type: 'geojson', data: routeGeoJSON });
-            
-            // Background outline for better visibility
-            map.addLayer({
-              id: layerId + '-outline', type: 'line', source: sourceId,
-              layout: { 'line-join': 'round', 'line-cap': 'round' },
-              paint: { 'line-color': targetPoint.type === 'police' ? '#1E40AF' : '#047857', 'line-width': 8, 'line-opacity': 0.6 }
-            });
-            
-            // Main route line (Flawless road snapping)
-            map.addLayer({
-              id: layerId, type: 'line', source: sourceId,
-              layout: { 'line-join': 'round', 'line-cap': 'round' },
-              paint: { 'line-color': targetPoint.type === 'police' ? '#3B82F6' : '#10B981', 'line-width': 5, 'line-opacity': 1 }
-            });
-          }
-        }
-      })
-      .catch(err => console.warn("🚨 Fallback Route drawing failed:", err));
-
-  }, [targetPoint, userPos, isLoaded, isNavigating, isCameraLocked]);
-
-  const toggleMapStyle = () => {
-    const Mappls = (window as any).mappls;
-    if (mapRef.current && Mappls) {
-      const newStyle = mapStyle === 'standard' ? 'hybrid' : 'standard';
-      try { Mappls.setLayer(newStyle === 'standard' ? 'vector' : 'hybrid'); } 
-      catch (e) {
-        if (typeof mapRef.current.setMapType === 'function') mapRef.current.setMapType(newStyle);
-        else if (typeof mapRef.current.setStyle === 'function') mapRef.current.setStyle(newStyle);
-      }
-      setMapStyle(newStyle);
-    }
-  };
-
   const startInternalNav = () => {
     if (!targetPoint || !userPos || !mapRef.current) return;
     setIsNavigating(true);
-    // Center map on user, zoom in, and tilt the camera for 3D navigation view
     mapRef.current.setCenter({ lat: userPos.lat, lng: userPos.lng });
     mapRef.current.setZoom(18);
     setIsCameraLocked(true);

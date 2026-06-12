@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Cloud, Droplets, Sun, Moon, MapPin, EyeOff, User, LogOut, ThermometerSun, ThermometerSnowflake, Activity, Zap, Wind, Lock, Delete, ShieldCheck, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Cloud, Droplets, Sun, MapPin, EyeOff, User, LogOut, ThermometerSun, ThermometerSnowflake, Activity, Zap, Wind } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useKavachStore } from '../store/useKavachStore';
-import { toast } from 'sonner';
+import { usePinVerification } from '../hooks/usePinVerification';
+import { useWeatherSync } from '../hooks/useWeatherSync';
+import PinVerificationModal from './PinVerificationModal';
 
 interface WeatherScreenProps {
   onClose: () => void;
@@ -15,151 +17,24 @@ interface WeatherScreenProps {
 
 export default function WeatherScreen({ onClose, userPhoto, displayName, uid, onLogout }: WeatherScreenProps) {
   const { userPos, safetyPin } = useKavachStore();
-  const [weatherData, setWeatherData] = useState<any>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // ── PIN VERIFICATION STATE ──────────────────────────────────────────────
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [enteredPin, setEnteredPin] = useState('');
-  const [pinError, setPinError] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [isLockedOut, setIsLockedOut] = useState(false);
-  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  // ── WEATHER DATA HOOK ───────────────────────────────────────────────────
+  const { weatherData, currentInfo, getWeatherInfo } = useWeatherSync(userPos);
 
-  // Lockout countdown timer
-  useEffect(() => {
-    if (!isLockedOut || lockoutSeconds <= 0) return;
-    const t = setInterval(() => {
-      setLockoutSeconds(prev => {
-        if (prev <= 1) { clearInterval(t); setIsLockedOut(false); setAttempts(0); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [isLockedOut, lockoutSeconds]);
-
-  const handleOpenPinModal = () => {
-    setEnteredPin('');
-    setPinError(false);
-    setIsPinModalOpen(true);
-  };
-
-  const handlePinKey = useCallback((val: string) => {
-    if (isLockedOut) return;
-    setEnteredPin(prev => {
-      if (prev.length >= 4) return prev;
-      return prev + val;
-    });
-    setPinError(false);
-  }, [isLockedOut]);
-
-  const handlePinClear = () => {
-    setEnteredPin(prev => prev.slice(0, -1));
-    setPinError(false);
-  };
-
-  const handlePinSubmit = useCallback(() => {
-    if (enteredPin.length < 4) return;
-
-    // If no PIN was set during onboarding, allow exit
-    if (!safetyPin) {
-      toast.info('No PIN configured. Returning to Kavach.');
-      setIsPinModalOpen(false);
-      onClose();
-      return;
-    }
-
-    if (enteredPin === safetyPin) {
-      toast.success('Identity Verified. Returning to KAVACH.', { icon: '🛡️' });
-      setIsPinModalOpen(false);
-      setEnteredPin('');
-      setAttempts(0);
-      onClose();
-    } else {
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-      setPinError(true);
-      setEnteredPin('');
-      if (newAttempts >= 5) {
-        setIsLockedOut(true);
-        setLockoutSeconds(30);
-        toast.error('Too many failed attempts. Locked for 30 seconds.', { duration: 5000 });
-      } else {
-        toast.error(`Incorrect PIN. ${5 - newAttempts} attempt(s) remaining.`);
-      }
-    }
-  }, [enteredPin, safetyPin, attempts, onClose]);
-
-  // Auto-submit when 4 digits are entered
-  useEffect(() => {
-    if (enteredPin.length === 4) handlePinSubmit();
-  }, [enteredPin, handlePinSubmit]);
-
-  useEffect(() => {
-    // Fallback to New Delhi coordinates if userPos is not available yet
-    const lat = userPos && userPos.lat !== undefined ? userPos.lat : 28.6139;
-    const lng = userPos && userPos.lng !== undefined ? userPos.lng : 77.2090;
-
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto`)
-      .then(res => res.json())
-      .then(data => setWeatherData(data))
-      .catch(console.error);
-  }, [userPos]);
-
-  const getWeatherInfo = (code: number, isDay: boolean = true) => {
-    // WMO Weather interpretation codes with Unsplash realistic backgrounds
-    if (code === 0) return { 
-        desc: 'Clear Sky', 
-        icon: isDay ? <Sun className="text-amber-400" /> : <Moon className="text-indigo-300" />, 
-        bg: 'bg-gradient-to-br from-blue-500 to-indigo-800',
-        bgImage: isDay ? 'https://images.unsplash.com/photo-1601297183305-6df142704ea2?auto=format&fit=crop&q=80&w=1080' : 'https://images.unsplash.com/photo-1532704868953-d85f24176d73?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code <= 3) return { 
-        desc: 'Partly Cloudy', 
-        icon: <Cloud className="text-slate-200" />, 
-        bg: 'bg-gradient-to-br from-slate-600 to-slate-900',
-        bgImage: 'https://images.unsplash.com/photo-1534088568595-a066f410cbda?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code <= 48) return { 
-        desc: 'Foggy', 
-        icon: <Cloud className="text-slate-400" />, 
-        bg: 'bg-gradient-to-br from-gray-500 to-gray-800',
-        bgImage: 'https://images.unsplash.com/photo-1485236715568-ddc5ee6ca227?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code <= 55) return { 
-        desc: 'Drizzle', 
-        icon: <Cloud className="text-blue-300" />, 
-        bg: 'bg-gradient-to-br from-slate-700 to-blue-900',
-        bgImage: 'https://images.unsplash.com/photo-1541562232579-512a21360020?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code <= 65) return { 
-        desc: 'Rainy', 
-        icon: <Droplets className="text-blue-400" />, 
-        bg: 'bg-gradient-to-br from-slate-800 to-blue-950',
-        bgImage: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code <= 75) return { 
-        desc: 'Snow', 
-        icon: <Cloud className="text-white" />, 
-        bg: 'bg-gradient-to-br from-slate-400 to-slate-700',
-        bgImage: 'https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&q=80&w=1080'
-    };
-    if (code >= 95) return { 
-        desc: 'Thunderstorm', 
-        icon: <Zap className="text-amber-400" />, 
-        bg: 'bg-gradient-to-br from-gray-900 to-black',
-        bgImage: 'https://images.unsplash.com/photo-1605727216801-e27ce1d0ce49?auto=format&fit=crop&q=80&w=1080'
-    };
-    return { 
-        desc: 'Clear', 
-        icon: <Sun className="text-amber-400" />, 
-        bg: 'bg-gradient-to-br from-blue-500 to-indigo-800',
-        bgImage: 'https://images.unsplash.com/photo-1601297183305-6df142704ea2?auto=format&fit=crop&q=80&w=1080'
-    };
-  };
-
-  const isDaytime = weatherData ? weatherData.current.is_day !== 0 : true;
-  const currentInfo = weatherData ? getWeatherInfo(weatherData.current.weather_code, isDaytime) : null;
+  // ── PIN VERIFICATION HOOK ───────────────────────────────────────────────
+  const {
+    isPinModalOpen,
+    enteredPin,
+    pinError,
+    isLockedOut,
+    lockoutSeconds,
+    handleOpenPinModal,
+    handlePinKey,
+    handlePinClear,
+    handlePinSubmit,
+    handleCancel
+  } = usePinVerification(safetyPin, onClose, () => {});
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white font-sans p-4 sm:p-6 pb-20 relative overflow-hidden selection:bg-blue-500/30">
@@ -354,128 +229,17 @@ export default function WeatherScreen({ onClose, userPhoto, displayName, uid, on
       </div>
 
       {/* ── PIN VERIFICATION MODAL ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isPinModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4"
-            style={{ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', backgroundColor: 'rgba(0,0,0,0.75)' }}
-          >
-            <motion.div
-              initial={{ y: 80, opacity: 0, scale: 0.96 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 80, opacity: 0, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="w-full max-w-sm bg-[#0A0D14] border border-blue-500/30 rounded-t-[36px] sm:rounded-[36px] p-7 shadow-[0_0_60px_rgba(37,99,235,0.25)] relative overflow-hidden"
-            >
-              {/* Glow accent */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-32 bg-blue-500/15 blur-3xl pointer-events-none" />
-
-              {/* Drag handle (mobile) */}
-              <div className="w-10 h-1 bg-white/15 rounded-full mx-auto mb-6 sm:hidden" />
-
-              {/* Header */}
-              <div className="text-center mb-6">
-                <motion.div
-                  animate={pinError ? { x: [0, -10, 10, -8, 8, -4, 4, 0] } : {}}
-                  transition={{ duration: 0.4 }}
-                  className={cn(
-                    "w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-3 border-2 transition-colors duration-300",
-                    pinError
-                      ? "bg-red-500/15 border-red-500/40"
-                      : isLockedOut
-                      ? "bg-orange-500/15 border-orange-500/40"
-                      : "bg-blue-500/15 border-blue-500/30"
-                  )}
-                >
-                  {pinError ? (
-                    <ShieldAlert size={26} className="text-red-400" />
-                  ) : isLockedOut ? (
-                    <Lock size={26} className="text-orange-400" />
-                  ) : (
-                    <Lock size={26} className="text-blue-400" />
-                  )}
-                </motion.div>
-                <h3 className="text-base font-black text-white uppercase tracking-widest">
-                  {isLockedOut ? 'Account Locked' : 'Identity Verification'}
-                </h3>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mt-1">
-                  {isLockedOut
-                    ? `Retry in ${lockoutSeconds}s`
-                    : 'Enter your Security PIN to exit decoy'}
-                </p>
-              </div>
-
-              {/* PIN Dots */}
-              <div className="flex justify-center gap-4 mb-7">
-                {[0, 1, 2, 3].map(i => (
-                  <motion.div
-                    key={i}
-                    animate={pinError ? { scale: [1, 1.3, 0.8, 1] } : {}}
-                    transition={{ delay: i * 0.05, duration: 0.3 }}
-                    className={cn(
-                      "w-4 h-4 rounded-full border-2 transition-all duration-200",
-                      enteredPin.length > i
-                        ? pinError
-                          ? "bg-red-500 border-red-400"
-                          : "bg-blue-500 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-                        : "bg-transparent border-white/20"
-                    )}
-                  />
-                ))}
-              </div>
-
-              {/* Keypad */}
-              <div className="grid grid-cols-3 gap-3">
-                {[1,2,3,4,5,6,7,8,9].map(num => (
-                  <button
-                    key={num}
-                    disabled={isLockedOut}
-                    onClick={() => handlePinKey(num.toString())}
-                    className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white text-xl font-bold hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    {num}
-                  </button>
-                ))}
-                {/* Clear / Backspace */}
-                <button
-                  disabled={isLockedOut}
-                  onClick={handlePinClear}
-                  className="h-14 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <Delete size={20} />
-                </button>
-                <button
-                  key={0}
-                  disabled={isLockedOut}
-                  onClick={() => handlePinKey('0')}
-                  className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white text-xl font-bold hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-                >
-                  0
-                </button>
-                {/* Confirm */}
-                <button
-                  disabled={isLockedOut || enteredPin.length < 4}
-                  onClick={handlePinSubmit}
-                  className="h-14 rounded-2xl bg-blue-600 border border-blue-500 text-white flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
-                >
-                  <ShieldCheck size={22} />
-                </button>
-              </div>
-
-              {/* Cancel */}
-              <button
-                onClick={() => { setIsPinModalOpen(false); setEnteredPin(''); setPinError(false); }}
-                className="w-full mt-5 py-3 text-white/30 hover:text-white/60 text-[11px] font-black uppercase tracking-widest transition-colors"
-              >
-                Cancel — Stay in WeatherPro
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PinVerificationModal
+        isOpen={isPinModalOpen}
+        pinError={pinError}
+        isLockedOut={isLockedOut}
+        lockoutSeconds={lockoutSeconds}
+        enteredPin={enteredPin}
+        onPinKey={handlePinKey}
+        onPinClear={handlePinClear}
+        onPinSubmit={handlePinSubmit}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

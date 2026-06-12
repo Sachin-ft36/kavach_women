@@ -1,25 +1,7 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
-// 🛡️ LAZY LOAD: Zego SDK is 5 MB — only load when a call is actually placed
-// import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useKavachStore } from '../store/useKavachStore';
-import { toast } from 'sonner';
-import { Capacitor } from '@capacitor/core';
-import { KavachSafe } from '../services/KavachNative';
-
-const loadZegoScript = (): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    if ((window as any).ZegoUIKitPrebuilt) {
-      resolve((window as any).ZegoUIKitPrebuilt);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = "https://unpkg.com/@zegocloud/zego-uikit-prebuilt/zego-uikit-prebuilt.js";
-    script.async = true;
-    script.onload = () => resolve((window as any).ZegoUIKitPrebuilt);
-    script.onerror = () => reject(new Error("Failed to load ZegoCloud SDK from CDN"));
-    document.body.appendChild(script);
-  });
-};
+import { useCallSignaling } from './call_modules/useCallSignaling';
+import { clearSignal, initiateCallAction, answerCallAction } from './call_modules/callActions';
 
 interface CallContextType {
   initiateCall: (targetUserId: string, targetName: string, contextId?: string) => Promise<void>;
@@ -52,223 +34,31 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   const { profile, user, activeAlertId } = useKavachStore();
 
-  // 📡 REAL-TIME SIGNALING SENTINEL
-  React.useEffect(() => {
-    const contextId = activeAlertId || activeContextId;
-    const currentUid = profile?.uid || user?.uid || localStorage.getItem('kavach_user_uid');
-    
-    if (!contextId || !currentUid) return;
-
-    const setupSignalListener = async () => {
-      const { doc, onSnapshot } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-
-      const processSnap = (snap: any) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.activeCall) {
-             const amITargeted = data.activeCall.targetUid === currentUid;
-             const isVictim = data.victimUid === currentUid;
-             const shouldRing = (amITargeted || (isVictim && data.activeCall.targetUid === currentUid)) && 
-                                data.activeCall.callerUid !== currentUid && 
-                                callState === 'idle';
-
-             if (shouldRing) {
-                setCallState('ringing');
-                setCallerName(data.activeCall.callerName);
-                setActiveCallUserId(data.activeCall.callerUid);
-                setActiveContextId(contextId);
-             }
-          }
-          if (!data.activeCall && callState !== 'idle') {
-            setCallState('idle');
-            if (zegoInstance) zegoInstance.destroy();
-            setZegoInstance(null);
-          }
-        }
-      };
-
-      let unsubAlert = () => {};
-      let unsubJourney = () => {};
-
-      try {
-        unsubAlert = onSnapshot(doc(db, 'alerts', contextId), processSnap, (err) => {
-          console.warn("⚠️ CallContext: Alerts listener read or permission error.", err.message);
-        });
-      } catch (e) {}
-
-      try {
-        unsubJourney = onSnapshot(doc(db, 'journeys', contextId), processSnap, (err) => {
-          console.warn("⚠️ CallContext: Journeys listener read or permission error.", err.message);
-        });
-      } catch (e) {}
-
-      return () => { unsubAlert(); unsubJourney(); };
-    };
-
-    let unsub: any;
-    setupSignalListener().then(fn => unsub = fn);
-    return () => unsub && unsub();
-  }, [profile?.uid, user?.uid, activeAlertId, activeContextId, callState]);
-
-  const clearSignal = async (contextId?: string) => {
-    try {
-      const targetId = contextId || activeAlertId || activeContextId;
-      if (!targetId) return;
-      const { doc, updateDoc, deleteField } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      await updateDoc(doc(db, 'alerts', targetId), { activeCall: deleteField() });
-    } catch (e) {}
-  };
+  useCallSignaling(
+    profile, user, activeAlertId, activeContextId,
+    callState, setCallState, setCallerName, setActiveCallUserId, setActiveContextId,
+    zegoInstance, setZegoInstance
+  );
 
   const initiateCall = async (targetUid: string, targetName: string, contextId?: string) => {
-    if (isJoiningRef.current) return;
-    
-    const state = useKavachStore.getState();
-    const currentUser = state.profile || state.user;
-    if (!currentUser?.uid) return;
-
-    const finalContextId = contextId || activeAlertId || state.activeAlertId;
-    if (!finalContextId) return;
-
-    try {
-      isJoiningRef.current = true;
-      const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
-      const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
-
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      
-      const callerName = ('name' in currentUser ? (currentUser as any).name : undefined) || 
-                         ('displayName' in currentUser ? (currentUser as any).displayName : undefined) || 
-                         "Kavach Citizen";
-
-      const signalData = {
-        activeCall: {
-          callerName: callerName,
-          callerUid: currentUser.uid,
-          targetUid: targetUid,
-          timestamp: new Date()
-        }
-      };
-
-      await updateDoc(doc(db, 'alerts', finalContextId), signalData);
-
-      // 📡 VOIP PUSH TRIGGER: Wake up the protector if the app is closed
-      try {
-        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-        await addDoc(collection(db, 'notifications'), {
-          type: 'VOIP_CALL',
-          targetUid: targetUid,
-          callerName: callerName,
-          contextId: finalContextId,
-          timestamp: serverTimestamp(),
-          status: 'pending',
-          priority: 'high'
-        });
-        console.log("🚀 KAVACH: VoIP Wake-up Signal Dispatched to Grid.");
-      } catch (pushErr) {
-        console.error("⚠️ KAVACH: VoIP Push Trigger Failed.", pushErr);
-      }
-
-      setCallState('calling');
-      setCallerName(targetName);
-      setActiveCallUserId(targetUid);
-      setActiveContextId(finalContextId);
-
-      // 🚀 CLOUD CDN: Download Zego's SDK dynamically on-demand from the cloud
-      const ZegoUIKitPrebuilt = await loadZegoScript();
-
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID, serverSecret, finalContextId, currentUser.uid, callerName || "User"
-      );
-
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
-      setZegoInstance(zp);
-
-      zp.joinRoom({
-        container: zegoContainerRef.current,
-        scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
-        showScreenSharingButton: false,
-        showMyCameraToggleButton: false,
-        showPreJoinView: false,
-        showLeaveRoomConfirmDialog: false,
-        showTextChat: false,
-        showUserList: false,
-        onUserJoin: (_user: any) => {
-          setCallState('connected');
-          if (Capacitor.isNativePlatform()) KavachSafe.triggerHapticPulse();
-          toast.success("🛡️ PROTECTOR LINKED");
-        },
-        onJoinRoom: () => {
-          setCallState('calling');
-          isJoiningRef.current = false;
-        },
-        onLeaveRoom: () => {
-          setCallState('idle');
-          setZegoInstance(null);
-          clearSignal(finalContextId);
-          isJoiningRef.current = false;
-          window.dispatchEvent(new CustomEvent('kavach-call-ended'));
-        }
-      });
-    } catch (error) {
-      isJoiningRef.current = false;
-      setCallState('idle');
-    }
+    await initiateCallAction(
+      targetUid, targetName, contextId, isJoiningRef, activeAlertId,
+      setCallState, setCallerName, setActiveCallUserId, setActiveContextId,
+      zegoContainerRef, setZegoInstance
+    );
   };
 
   const answerCall = async () => {
-    if (isJoiningRef.current || callState === 'connected') return;
-    const contextId = activeAlertId || activeContextId;
-    if (!contextId || !profile) return;
-
-    try {
-      isJoiningRef.current = true;
-      const appID = Number(import.meta.env.VITE_ZEGO_APP_ID);
-      const serverSecret = import.meta.env.VITE_ZEGO_SERVER_SECRET;
-
-      // 🚀 CLOUD CDN: Download Zego's SDK dynamically on-demand from the cloud
-      const ZegoUIKitPrebuilt = await loadZegoScript();
-
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID, serverSecret, contextId, profile.uid, profile.name || "Protector"
-      );
-
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
-      setZegoInstance(zp);
-
-      zp.joinRoom({
-        container: zegoContainerRef.current,
-        scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
-        showScreenSharingButton: false,
-        showMyCameraToggleButton: false,
-        showPreJoinView: false,
-        showLeaveRoomConfirmDialog: false,
-        showTextChat: false,
-        showUserList: false,
-        onJoinRoom: () => {
-          setCallState('connected');
-          isJoiningRef.current = false;
-        },
-        onLeaveRoom: () => {
-          setCallState('idle');
-          setZegoInstance(null);
-          clearSignal(contextId);
-          isJoiningRef.current = false;
-          window.dispatchEvent(new CustomEvent('kavach-call-ended'));
-        }
-      });
-    } catch (error) {
-      isJoiningRef.current = false;
-      setCallState('idle');
-    }
+    await answerCallAction(
+      isJoiningRef, callState, activeAlertId, activeContextId,
+      profile, setZegoInstance, zegoContainerRef, setCallState
+    );
   };
 
   const declineCall = () => {
     setCallState('idle');
     if (zegoInstance) zegoInstance.destroy();
-    clearSignal();
+    clearSignal(undefined, activeAlertId, activeContextId);
     isJoiningRef.current = false;
   };
 
@@ -276,7 +66,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (zegoInstance) zegoInstance.destroy();
     setZegoInstance(null);
     setCallState('idle');
-    clearSignal();
+    clearSignal(undefined, activeAlertId, activeContextId);
     isJoiningRef.current = false;
   };
 

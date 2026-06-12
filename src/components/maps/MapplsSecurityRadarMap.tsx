@@ -15,8 +15,10 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
   const [responderId, setResponderId] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     let retryCount = 0;
     const checkAndInit = () => {
+      if (!isMounted) return;
       if ((window as any).mappls) {
         initMap();
       } else {
@@ -60,6 +62,7 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
     document.body.appendChild(script);
 
     return () => {
+      isMounted = false;
       if (mapRef.current && typeof mapRef.current.remove === 'function') {
         try { mapRef.current.remove(); mapRef.current = null; } catch(e) {}
       }
@@ -104,7 +107,7 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
             position: { lat: centerLat, lng: centerLng },
             html: `<div class="pulse-marker-user"></div>`,
             width: 32, height: 32,
-            offset: [16, 16]
+            offset: [0, 0]
         });
     } else {
         markersRef.current['user'].setPosition({ lat: centerLat, lng: centerLng });
@@ -179,7 +182,7 @@ const MapplsSecurityRadarMap = memo(({ protectors = [], activeRadius = 1.0, onFa
                 html: html,
                 width: isResponder ? 36 : parseInt(markerSize),
                 height: isResponder ? 36 : parseInt(markerSize),
-                offset: isResponder ? [18, 18] : [parseInt(markerSize)/2, parseInt(markerSize)/2]
+                offset: [0, 0]
             });
         } else {
             markersRef.current[pid].setPosition({ lat, lng });
