@@ -19,7 +19,9 @@ export interface SOSPayload {
   triggerMethod?: string;
   timestamp?: number;
   offlineQueued?: boolean;
-  [key: string]: any;
+  userId?: string;
+  batteryLevel?: number;
+  isSimulated?: boolean;
 }
 
 export interface QueuedSOS {
@@ -73,7 +75,7 @@ export const OfflineQueueService = {
       }
       
       const newEntry: QueuedSOS = {
-        id: `sos_fail_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        id: `sos_fail_${Date.now()}_${crypto.randomUUID()}`,
         timestamp: Date.now(),
         userPos,
         data: { ...data, offlineQueued: true },
