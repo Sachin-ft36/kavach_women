@@ -809,4 +809,21 @@ public class KavachNative extends Plugin {
             call.reject("Queue Decryption Failed", e);
         }
     }
+
+    @PluginMethod
+    public void requestPlayIntegrityToken(PluginCall call) {
+        try {
+            String nonce = call.getString("nonce");
+            Long gcpProjectNumber = call.getLong("gcpProjectNumber");
+            
+            if (nonce == null || gcpProjectNumber == null) {
+                call.reject("Must provide nonce and gcpProjectNumber");
+                return;
+            }
+
+            SecuritySentinel.verifyPlayIntegrity(getContext(), nonce, gcpProjectNumber, call);
+        } catch (Exception e) {
+            call.reject("Play Integrity error: " + e.getMessage());
+        }
+    }
 }
