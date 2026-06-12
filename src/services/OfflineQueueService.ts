@@ -8,11 +8,25 @@ import { KavachNative as KavachPlugin } from './KavachNative';
 
 const QUEUE_KEY = 'kavach_offline_sos_queue';
 
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+  routingLat?: number;
+  routingLng?: number;
+}
+
+export interface SOSPayload {
+  triggerMethod?: string;
+  timestamp?: number;
+  offlineQueued?: boolean;
+  [key: string]: any;
+}
+
 export interface QueuedSOS {
   id: string;
   timestamp: number;
-  userPos: any;
-  data: any;
+  userPos: GeoPoint | null;
+  data: SOSPayload;
   status: 'pending' | 'sent' | 'acknowledged' | 'retrying' | 'dead_letter';
   retryCount: number;
   lastError?: string;
@@ -32,7 +46,7 @@ export const OfflineQueueService = {
     });
   },
 
-  enqueueSOS: async (userPos: any, data: any) => {
+  enqueueSOS: async (userPos: GeoPoint | null, data: SOSPayload) => {
     try {
       const { value } = await Preferences.get({ key: QUEUE_KEY });
       let queue: QueuedSOS[] = [];

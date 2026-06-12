@@ -23,11 +23,21 @@ import {
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import { getAnalytics, logEvent } from 'firebase/analytics';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
+// Initialize Firebase App Check (Play Integrity on Native, ReCaptcha on Web)
+if (typeof window !== 'undefined') {
+  initializeAppCheck(app, {
+    // Replace with your actual ReCaptcha Enterprise Site Key for Web fallback
+    provider: new ReCaptchaEnterpriseProvider('YOUR_RECAPTCHA_ENTERPRISE_SITE_KEY'),
+    isTokenAutoRefreshEnabled: true
+  });
+}
 
 // Helper function to log critical telemetry
 export const logTelemetryEvent = (eventName: string, params?: Record<string, any>) => {
