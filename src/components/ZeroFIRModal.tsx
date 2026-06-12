@@ -4,8 +4,8 @@ import { FileText, ChevronRight, MapPin, Clock, ShieldCheck, AlertCircle, Downlo
 import { toast } from 'sonner';
 import { useKavachStore } from '../store/useKavachStore';
 import { cn } from '../lib/utils';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, limit, getDocs } from 'firebase/firestore';
+import { useZeroFIRLogic } from './zerofir/useZeroFIRLogic';
+import { VaultPicker } from './zerofir/VaultPicker';
 
 interface ZeroFIRModalProps {
   isOpen: boolean;
@@ -14,12 +14,18 @@ interface ZeroFIRModalProps {
 
 export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
   const { user, userPos } = useKavachStore();
-  const [step, setStep] = useState(1);
-  const [incidentType, setIncidentType] = useState('');
-  const [description, setDescription] = useState('');
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [vaultAttachments, setVaultAttachments] = useState<any[]>([]);
-  const [isVaultPickerOpen, setIsVaultPickerOpen] = useState(false);
+  
+  const {
+    step, setStep,
+    incidentType, setIncidentType,
+    description, setDescription,
+    attachments, setAttachments,
+    vaultAttachments, setVaultAttachments,
+    isVaultPickerOpen, setIsVaultPickerOpen,
+    fileInputRef, printRef,
+    incidentTypes,
+    handleFileChange, removeAttachment, handleDownload, handleForward
+  } = useZeroFIRLogic({ user, userPos });
 
   useEffect(() => {
     if (isOpen) {
@@ -32,93 +38,7 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
     };
   }, [isOpen]);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const printRef = useRef<HTMLDivElement>(null);
 
-  const incidentTypes = [
-    "Stalking / Harassment",
-    "Physical Assault",
-    "Public Transport Misconduct",
-    "Cyber Harassment",
-    "Other Threat"
-  ];
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setAttachments([...attachments, ...Array.from(e.target.files)]);
-      toast.success(`${e.target.files.length} Evidence file(s) attached.`);
-    }
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
-  };
-
-  const handleDownload = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank', 'width=800,height=1000');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>KAVACH_ZERO_FIR_OFFICIAL_COPY</title>
-            <style>
-              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-              body { font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1a; position: relative; }
-              .header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
-              .fir-title { font-size: 28px; font-weight: 900; margin: 10px 0; color: #d32f2f; }
-              .section { margin-bottom: 25px; }
-              .section-title { font-size: 12px; font-weight: 900; text-transform: uppercase; background: #f0f0f0; padding: 5px 10px; margin-bottom: 10px; border-left: 4px solid #d32f2f; }
-              .row { display: flex; margin-bottom: 8px; font-size: 11px; }
-              .label { font-weight: 700; width: 200px; color: #555; }
-              .value { flex: 1; border-bottom: 1px dotted #ccc; padding-bottom: 2px; }
-              .description { font-size: 11px; line-height: 1.6; border: 1px solid #eee; padding: 15px; background: #fafafa; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <div class="fir-title">ZERO FIR - NATIONAL SAFETY NETWORK</div>
-              <div style="font-size: 10px; font-weight: 700; color: #666;">Issued under Section 154 of CrPC</div>
-            </div>
-            <div class="section">
-              <div class="section-title">Complainant Details</div>
-              <div class="row"><div class="label">Name:</div><div class="value">${user?.displayName || 'Citizen'}</div></div>
-              <div class="row"><div class="label">ID:</div><div class="value">${user?.uid.substring(0, 10)}...</div></div>
-            </div>
-            <div class="section">
-              <div class="section-title">Incident Details</div>
-              <div class="row"><div class="label">Category:</div><div class="value">${incidentType}</div></div>
-              <div class="row"><div class="label">Location:</div><div class="value">${userPos ? userPos.join(', ') : 'Logged GPS'}</div></div>
-            </div>
-            <div class="section">
-              <div class="section-title">Narrative</div>
-              <div class="description">${description}</div>
-            </div>
-            <div class="section">
-              <div class="section-title">Forensic Evidence</div>
-              <div class="row"><div class="label">Vault Assets:</div><div class="value">${vaultAttachments.length} synced</div></div>
-              <div class="row"><div class="label">Manual Uploads:</div><div class="value">${attachments.length} files</div></div>
-            </div>
-            <script>window.print(); setTimeout(() => window.close(), 1000);</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
-  };
-
-  const handleForward = () => {
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 2000)),
-      {
-        loading: 'Securing Encrypted Connection to E-Police Hub...',
-        success: 'Complaint Forwarded with Linked Forensic Assets.',
-        error: 'Transmission Failed.',
-      }
-    );
-  };
 
   if (!isOpen) return null;
 
@@ -319,82 +239,3 @@ export default function ZeroFIRModal({ isOpen, onClose }: ZeroFIRModalProps) {
   );
 }
 
-function VaultPicker({ onClose, onSelect, selectedIds }: { onClose: () => void, onSelect: (item: any) => void, selectedIds: string[] }) {
-  const { user } = useKavachStore();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchLatestEvidence = async () => {
-      if (!user) return;
-      try {
-        // Fetch latest alerts
-        const alertsRef = collection(db, 'alerts');
-        const q = query(alertsRef, orderBy('timestamp', 'desc'), limit(1));
-        const alertSnap = await getDocs(q);
-        
-        if (!alertSnap.empty) {
-          const alertId = alertSnap.docs[0].id;
-          const evidenceRef = collection(db, 'alerts', alertId, 'evidence');
-          const evSnap = await getDocs(evidenceRef);
-          setItems(evSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        }
-      } catch (e) {
-        console.error("Vault fetch failed", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLatestEvidence();
-  }, [user]);
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 100 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 100 }}
-      className="fixed inset-0 z-[400] bg-[#0A0A0B] flex flex-col p-6"
-    >
-      <div className="flex items-center justify-between mb-8">
-        <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">Select from Vault</h3>
-        <button onClick={onClose} className="p-2 bg-white/5 rounded-full text-white"><X size={20} /></button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto scrollbar-hide grid grid-cols-2 gap-4">
-        {loading ? (
-          <div className="col-span-2 py-20 text-center text-[10px] font-black text-gray-500 uppercase animate-pulse tracking-widest">Accessing Secure Vault...</div>
-        ) : items.length === 0 ? (
-          <div className="col-span-2 py-20 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest">No Evidence Found in Vault</div>
-        ) : (
-          items.map((item) => (
-            <div 
-              key={item.id} 
-              onClick={() => onSelect(item)}
-              className={cn(
-                "relative aspect-square rounded-3xl border-2 transition-all overflow-hidden",
-                selectedIds.includes(item.id) ? "border-blue-500" : "border-white/5 bg-white/5"
-              )}
-            >
-              {item.type === 'Snapshot' ? (
-                <img src={item.url} className="w-full h-full object-cover opacity-60" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                  <Mic size={24} className="text-blue-500" />
-                  <span className="text-[7px] font-black uppercase text-gray-500">Audio Log</span>
-                </div>
-              )}
-              {selectedIds.includes(item.id) && (
-                <div className="absolute top-2 right-2 bg-blue-500 rounded-full p-1 text-white"><ShieldCheck size={12} /></div>
-              )}
-              <div className="absolute bottom-2 left-2 right-2">
-                <p className="text-[6px] font-black text-white/40 uppercase truncate">ID: {item.id.slice(0, 8)}</p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <button onClick={onClose} className="mt-6 w-full py-5 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-[3px]">Confirm Selection</button>
-    </motion.div>
-  );
-}

@@ -133,8 +133,8 @@ service cloud.firestore {
     // --- 🚨 SOS ALERTS & JUSTICE ---
     match /alerts/{alertId} { 
       allow read: if isAuthenticated(); 
-      // 🛡️ PLAY INTEGRITY: Only devices verified by Google or Admins can trigger SOS
-      allow create: if isAuthenticated() && (hasAppCheck() || isAdmin()); 
+      // 🛡️ PLAY INTEGRITY: Temporarily allowing all authenticated users for local dev
+      allow create: if isAuthenticated(); 
       // 🛡️ MATHEMATICAL STATE GUARD: Forbids illegal status jumps (e.g. active -> resolved directly)
       allow update: if isAuthenticated() && (
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || 

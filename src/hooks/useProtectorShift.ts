@@ -1,0 +1,162 @@
+import { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { doc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { toast } from 'sonner';
+
+export const useProtectorShift = (user: any, profile: any, activeAlerts: any[], assignedDispatch: any, setAssignedDispatch: any, setIsCarScreenOpen: any, setIsSirenActive: any, setIsMegaphoneActive: any) => {
+  const [isOnDuty, setIsOnDuty] = useState(profile?.isOnDuty || false);
+  const [shiftVehicle, setShiftVehicle] = useState(profile?.vehicleNo || '');
+  const [shiftZone, setShiftZone] = useState(profile?.thanaName || '');
+  const [shiftPartner, setShiftPartner] = useState('');
+  
+  const [shiftStartTime, setShiftStartTime] = useState<Date | null>(() => {
+    const saved = localStorage.getItem('kavach_shift_start_time');
+    return saved ? new Date(saved) : (profile?.isOnDuty ? new Date() : null);
+  });
+  
+  const [shiftElapsedSeconds, setShiftElapsedSeconds] = useState(0);
+  const [showShiftCompleteModal, setShowShiftCompleteModal] = useState(false);
+  const [shiftStats, setShiftStats] = useState({ duration: '08 Hours 15 Mins', responses: 0 });
+
+  const dynamicVehicleNo = shiftVehicle || profile?.vehicleNo || 'PCR-TBD';
+  const customJurisdiction = shiftZone || profile?.address || profile?.thanaName || 'Unassigned Zone';
+
+  useEffect(() => {
+    if (profile?.isOnDuty !== undefined) {
+      setIsOnDuty(profile.isOnDuty);
+      if (profile.isOnDuty && !shiftStartTime) {
+        const saved = localStorage.getItem('kavach_shift_start_time');
+        const startTime = saved ? new Date(saved) : new Date();
+        setShiftStartTime(startTime);
+        if (!saved) {
+          localStorage.setItem('kavach_shift_start_time', startTime.toISOString());
+        }
+      } else if (!profile.isOnDuty) {
+        setShiftStartTime(null);
+        localStorage.removeItem('kavach_shift_start_time');
+      }
+    }
+  }, [profile?.isOnDuty]);
+
+  useEffect(() => {
+    if (!isOnDuty || !shiftStartTime) return;
+    const timer = setInterval(() => {
+      setShiftElapsedSeconds(Math.floor((Date.now() - shiftStartTime.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isOnDuty, shiftStartTime]);
+
+  const formatShiftTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const handleToggleDuty = async () => {
+    if (!user) return;
+    const targetState = !isOnDuty;
+    setIsOnDuty(targetState);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        isOnDuty: targetState,
+        currentVehicle: targetState ? dynamicVehicleNo : null,
+        currentZone: targetState ? customJurisdiction : null,
+        lastUpdated: serverTimestamp()
+      });
+
+      if (targetState) {
+        if (profile?.role === 'pcr_officer') {
+          setShiftStartTime(new Date());
+          setShiftElapsedSeconds(0);
+          localStorage.setItem('kavach_shift_start_time', new Date().toISOString());
+          toast.success(`🚔 Shift Started — Vehicle: ${dynamicVehicleNo} | Zone: ${customJurisdiction}`);
+          if ('speechSynthesis' in window) {
+            const msg = new SpeechSynthesisUtterance(`Shift started. Patrol unit ${dynamicVehicleNo} is now active in ${customJurisdiction}.`);
+            window.speechSynthesis.speak(msg);
+          }
+        } else {
+          toast.success("Active Duty Started. You will now receive emergency alerts.");
+        }
+      } else {
+        if (profile?.role === 'pcr_officer') {
+          setIsCarScreenOpen(false);
+          setIsSirenActive(false);
+          setIsMegaphoneActive(false);
+
+        const elapsed = shiftElapsedSeconds;
+        const durationFormatted = formatShiftTime(elapsed);
+        const responses = activeAlerts.filter(a => a.responderUid === user.uid).length;
+
+        try {
+          await addDoc(collection(db, 'shift_logs'), {
+            officerUid: user.uid,
+            officerName: profile?.name || 'Officer',
+            officerBadge: profile?.badgeId || 'IND-POL-00000',
+            vehicleNo: dynamicVehicleNo,
+            zone: customJurisdiction,
+            partner: shiftPartner || 'Solo Patrol',
+            startTime: shiftStartTime ? shiftStartTime.toISOString() : new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: durationFormatted,
+            durationSeconds: elapsed,
+            responsesCount: responses,
+            state: (profile as any)?.state || 'Uttar Pradesh',
+            city: (profile as any)?.city || 'Rewa',
+            timestamp: serverTimestamp()
+          });
+        } catch (err) {
+          console.error("Failed to save shift log:", err);
+        }
+
+        setShiftStartTime(null);
+        setShiftElapsedSeconds(0);
+        localStorage.removeItem('kavach_shift_start_time');
+
+        if (assignedDispatch) {
+          try {
+            await updateDoc(doc(db, 'dispatches', assignedDispatch.id), {
+              status: 'pending',
+              officerUid: null,
+              officerName: null,
+              lastUpdated: serverTimestamp()
+            });
+          } catch (err) {}
+          setAssignedDispatch(null);
+        }
+
+        setShiftStats({
+          duration: durationFormatted,
+          responses: responses
+        });
+        setShowShiftCompleteModal(true);
+
+          if ('speechSynthesis' in window) {
+            const msg = new SpeechSynthesisUtterance("Shift ended. Vehicle released. Stay safe.");
+            window.speechSynthesis.speak(msg);
+          }
+        } else {
+          toast.success("Duty mode disabled. You are now on standby.");
+        }
+      }
+    } catch (e) {
+      toast.error("Duty sync failed.");
+      setIsOnDuty(!targetState);
+    }
+  };
+
+  return {
+    isOnDuty, setIsOnDuty,
+    shiftVehicle, setShiftVehicle,
+    shiftZone, setShiftZone,
+    shiftPartner, setShiftPartner,
+    shiftStartTime,
+    shiftElapsedSeconds,
+    showShiftCompleteModal, setShowShiftCompleteModal,
+    shiftStats,
+    dynamicVehicleNo,
+    customJurisdiction,
+    handleToggleDuty,
+    formatShiftTime
+  };
+};

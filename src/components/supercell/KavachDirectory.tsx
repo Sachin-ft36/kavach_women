@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Users, Shield, Heart, MapPin, CheckCircle2, 
-  XCircle, Search, Filter, History, Phone,
-  ArrowUpRight, Zap, Activity, Mail, Printer,
-  Globe, ShieldCheck, LayoutGrid, AlertTriangle, ShieldAlert
+  Heart, Globe, ShieldCheck, LayoutGrid, Search, Printer,
+  Phone, Mail, History, ArrowUpRight, ShieldAlert
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { MissionAuditModal } from './MissionAuditModal';
-import { db } from '../../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { useKavachDirectoryLogic } from '../../hooks/useKavachDirectoryLogic';
+import AddressCell from './directory/AddressCell';
+import GuardianCell from './directory/GuardianCell';
 
 interface KavachDirectoryProps {
   womenUsers: any[];
@@ -19,186 +18,16 @@ interface KavachDirectoryProps {
   isSovereignActive?: boolean;
 }
 
-// 📡 ENHANCED ADDRESS RESOLVER WITH LIVE SOS LINKING
-function AddressCell({ user, activeAlerts = [] }: { user: any, activeAlerts?: any[] }) {
-  // 🛰️ CHECK FOR LIVE SOS LINK
-  const activeAlert = activeAlerts.find(a => a.userId === user.id || a.id === user.id);
-  
-  // Prioritize SOS coordinates if active
-  const lat = activeAlert ? (activeAlert.latitude || activeAlert.lat) : (user.latitude || user.lat || user.lastLat || user.currentLat);
-  const lng = activeAlert ? (activeAlert.longitude || activeAlert.lng) : (user.longitude || user.lng || user.lastLng || user.currentLng || user.long);
-  
-  const [address, setAddress] = useState<string>(activeAlert?.locationName || activeAlert?.address || user.city || user.address || 'Sector Unknown');
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // If we have an active alert with an address already, use it immediately
-    if (activeAlert && (activeAlert.locationName || activeAlert.address)) {
-        setAddress(activeAlert.locationName || activeAlert.address);
-        return;
-    }
-
-    if (!lat || !lng) return;
-    
-    const fetchAddr = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
-        const data = await res.json();
-        if (data.display_name) {
-          setAddress(data.display_name);
-        }
-      } catch (e) {
-        console.error("Directory Address Sync Failed", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAddr();
-  }, [lat, lng, activeAlert]);
-
-  return (
-    <div className="flex items-center gap-3">
-       <div className={cn(
-         "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
-         activeAlert ? "bg-rose-600 text-white shadow-lg shadow-rose-600/40" : (lat && lng) ? "bg-rose-500/10 text-rose-500" : "bg-gray-100 text-gray-400"
-       )}>
-          {activeAlert ? <AlertTriangle size={14} className="animate-pulse" /> : <MapPin size={14} className={(lat && lng) ? "animate-bounce" : ""} />}
-          {activeAlert && (
-            <span className="absolute inset-0 rounded-full bg-rose-500 animate-ping opacity-20" />
-          )}
-       </div>
-       <div className="flex flex-col max-w-[220px]">
-          <span className={cn(
-            "text-[9px] font-black uppercase tracking-tight leading-tight italic",
-            activeAlert ? "text-rose-600 underline decoration-rose-600/30" : "text-rose-500"
-          )}>
-            {loading ? "Neural Mapping..." : address}
-          </span>
-          <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-            {activeAlert ? "LIVE SOS LOCATION LINKED" : (lat && lng) ? "Verified Precision Signal" : "Registered Home Sector"}
-          </span>
-       </div>
-    </div>
-  );
-}
-
-// 🛡️ GUARDIAN NETWORK RESOLVER
-function GuardianCell({ userId }: { userId: string }) {
-  const [guardians, setGuardians] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    const fetchGuardians = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'users', userId, 'guardians'));
-        setGuardians(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (e) {
-        console.error("Guardian Fetch Error", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGuardians();
-  }, [userId]);
-
-  return (
-    <div className="flex flex-col items-center gap-1 group/g">
-      <div className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all",
-        guardians.length > 0 ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-gray-50 border-gray-100 text-gray-400"
-      )}>
-        <Shield size={10} strokeWidth={3} />
-        <span className="text-[10px] font-black tabular-nums">{loading ? '...' : guardians.length}</span>
-      </div>
-      
-      {guardians.length > 0 && (
-        <div className="absolute z-[100] mt-8 scale-0 group-hover/g:scale-100 transition-all origin-top bg-white border border-gray-100 p-3 rounded-2xl shadow-2xl min-w-[180px] pointer-events-none">
-           <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-50 pb-1.5">Emergency Network</p>
-           <div className="space-y-2">
-             {guardians.map((g, i) => (
-               <div key={i} className="flex flex-col">
-                 <span className="text-[10px] font-black text-gray-900 leading-none">{g.name}</span>
-                 <div className="flex items-center gap-1.5 mt-0.5">
-                   <span className="text-[7px] font-black text-blue-500 uppercase">{g.relation}</span>
-                   <span className="text-[8px] font-bold text-gray-400">{g.phone}</span>
-                 </div>
-               </div>
-             ))}
-           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function KavachDirectory({ womenUsers, protectors, selectedState, activeAlerts = [], isSovereignActive }: KavachDirectoryProps) {
-  const [activeTab, setActiveTab] = useState<'UNIVERSAL' | 'WOMEN' | 'PROTECTORS'>('UNIVERSAL');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUserForAudit, setSelectedUserForAudit] = useState<any>(null);
-  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-
-  // 🛡️ UNIFIED IDENTITY AGGREGATOR (Merge duplicate citizen/protector records)
-  const aggregateIdentities = (usersList: any[], protectorsList: any[]) => {
-    const registry: Record<string, any> = {};
-
-    const processUser = (user: any, defaultRole: string) => {
-      if (!user) return;
-      
-      // Select best stable identity key (avoid double rows for the same human)
-      const aadharNum = user.aadhaar || user.aadhar;
-      const phoneNum = user.phoneNumber || user.phone;
-      const idKey = user.id || user.uid || aadharNum || phoneNum || user.email || Math.random().toString();
-      
-      const roleStr = user.role || defaultRole;
-      const formattedRole = roleStr.toUpperCase(); // 'CITIZEN' or 'PROTECTOR'
-
-      if (registry[idKey]) {
-        // Person already exists: merge details
-        const existing = registry[idKey];
-        const existingRoles = existing.role ? existing.role.split(' / ') : [];
-        if (!existingRoles.includes(formattedRole)) {
-          existingRoles.push(formattedRole);
-        }
-        existing.role = existingRoles.join(' / ');
-        
-        if (user.isVerified || user.verified) {
-          existing.isVerified = true;
-        }
-        if (user.protectorVetting) {
-          existing.protectorVetting = { ...existing.protectorVetting, ...user.protectorVetting };
-        }
-      } else {
-        // Create new entry
-        registry[idKey] = {
-          ...user,
-          role: formattedRole
-        };
-      }
-    };
-
-    usersList.forEach(u => processUser(u, 'CITIZEN'));
-    protectorsList.forEach(p => processUser(p, 'PROTECTOR'));
-
-    return Object.values(registry);
-  };
-
-  const allMergedIdentities = aggregateIdentities(womenUsers, protectors);
-  const mergedWomenUsers = allMergedIdentities.filter(u => u.gender?.toUpperCase() === 'FEMALE' || u.role.includes('CITIZEN'));
-  const mergedProtectors = allMergedIdentities.filter(u => u.role.includes('PROTECTOR'));
-
-  const getFilteredData = () => {
-    const baseData = activeTab === 'UNIVERSAL' ? allMergedIdentities : activeTab === 'WOMEN' ? mergedWomenUsers : mergedProtectors;
-    return baseData.filter(u => 
-      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      u.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.aadhaar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.aadhar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  };
+  
+  const {
+    activeTab, setActiveTab,
+    searchTerm, setSearchTerm,
+    selectedUserForAudit, setSelectedUserForAudit,
+    isAuditModalOpen, setIsAuditModalOpen,
+    allMergedIdentities, mergedWomenUsers, mergedProtectors,
+    filteredData
+  } = useKavachDirectoryLogic(womenUsers, protectors, selectedState);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white border border-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl print-area font-['Outfit']">
@@ -255,7 +84,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
             </thead>
             <tbody className="divide-y divide-gray-50">
                <AnimatePresence mode="popLayout">
-               {getFilteredData().map((user) => (
+               {filteredData.map((user) => (
                   <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-gray-50/30 transition-colors group">
                      <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
@@ -290,7 +119,6 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
                            </div>
                         )}
                      </td>
-                     {/* <td className="px-8 py-5"><div className="flex flex-col gap-1"><span className="text-[10px] font-black text-gray-900 tabular-nums tracking-[2px]">{user.aadhaar || user.aadhar || "DATA_NOT_SYNCED"}</span><div className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={10} /><span className="text-[7px] font-black uppercase tracking-widest">Full Forensic ID</span></div></div></td> */}
                      <td className="px-8 py-5"><div className="flex flex-col gap-2"><div className="flex items-center gap-2 text-blue-600"><Phone size={12} strokeWidth={3} /><span className="text-[10px] font-black tabular-nums">{user.phoneNumber || user.phone || "NO_PHONE_RECORD"}</span></div><div className="flex items-center gap-2 text-gray-400"><Mail size={12} /><span className="text-[9px] font-bold truncate max-w-[140px]">{user.email || "N/A"}</span></div></div></td>
                      <td className="px-8 py-5 text-center relative"><GuardianCell userId={user.id || user.uid} /></td>
                      <td className="px-8 py-5"><AddressCell user={user} activeAlerts={activeAlerts} /></td>

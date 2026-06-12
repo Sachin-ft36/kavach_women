@@ -1,26 +1,10 @@
 import axios from 'axios';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { executeMapboxPoliceBackup, executeMapboxHospitalBackup } from './mappls/MapboxFallback';
+import { safeParsePayload, processMapplsLocations } from './mappls/mapplsUtils';
 
 // Ensure strict key fallback structures to protect security perimeters
 const MAPPLS_KEY = import.meta.env.VITE_MAPMYINDIA_REST_KEY || "wyzopujjvzdbyogtdyzhbguilecucgwgfpmg";
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
-
-/**
- * Helper to normalize cross-platform data payloads.
- * Forcefully converts raw background text strings into structured Javascript objects.
- */
-const safeParsePayload = (response: any): any => {
-  if (!response) return null;
-  const targetData = response.data;
-  if (typeof targetData === 'string') {
-    try {
-      return JSON.parse(targetData);
-    } catch {
-      return null;
-    }
-  }
-  return targetData;
-};
 
 export const isOfficialPoliceStation = (name: string): boolean => {
   if (!name) return false;
@@ -44,41 +28,7 @@ export const isOfficialPoliceStation = (name: string): boolean => {
   return hasOfficialTerm;
 };
 
-export const getOfficialPolicePhone = (name: string, fallback: string = "112"): string => {
-  const clean = name.toLowerCase().trim();
-  if (fallback && fallback !== "112" && fallback !== "100") {
-    return fallback;
-  }
 
-  const NATIONAL_DIRECTORY: Record<string, string> = {
-    'rewa antrela': '07661-235960', 'rewa baikunthpur': '07662-277228',
-    'rewa chakghat': '07661-283230', 'rewa chorhata': '07662-220577',
-    'rewa civil lines': '07662-254434', 'rewa dabhora': '07661-282950',
-    'rewa garh': '07660-284545', 'rewa govindgarh': '07662-261530',
-    'rewa hanumana': '07664-288530', 'rewa java': '07661-282230',
-    'rewa kotwali': '07662-258557', 'rewa laur': '07663-286231',
-    'rewa mangwan': '07660-281218', 'rewa mauganj': '07663-270341',
-    'rewa naigarhi': '07663-285119', 'rewa panwar': '07661-235950',
-    'rewa raipur': '07662-265204', 'rewa sagra': '07662-263244',
-    'rewa semariya': '07660-266549', 'rewa shahpur': '07663-237692',
-    'rewa sirmour': '07660-260633', 'rewa sohagi': '07661-282230',
-    'rewa university': '07662-240817', 'rewa teonthar': '07662-240817',
-    'rewa traffic': '07662-223171', 'rewa mahila': '07661-255700',
-    'rewa saman': '07662-258557', 'rewa samaan': '07662-258557',
-    'indore palasia': '0731-2522108', 'indore vijay nagar': '0731-2522105',
-    'indore bhanwarkuan': '0731-2522110', 'bhopal mp nagar': '0755-2443491',
-    'bhopal t t nagar': '0755-2443493', 'patna boring road': '0612-2213344',
-    'patna gardanibagh': '0612-2213345', 'jodhpur sardarpura': '0291-2650711'
-  };
-
-  for (const [key, phone] of Object.entries(NATIONAL_DIRECTORY)) {
-    const parts = key.split(' ');
-    if (parts.every(part => clean.includes(part))) {
-      return phone;
-    }
-  }
-  return fallback || "112";
-};
 
 /**
  * 🛰️ MAPMYINDIA NEARBY POLICE SYSTEM
@@ -266,95 +216,4 @@ export const fetchRouteDetails = async (startLng: number, startLat: number, endL
   return null;
 };
 
-// Internal utilities to group Mappls parameters safely
-const processMapplsLocations = (locations: any[], fallbackPhone: string) => {
-  const sorted = [...locations].sort((a: any, b: any) => (a.distance || 0) - (b.distance || 0));
-  const uniqueStations: any[] = [];
-  const seenNames = new Set<string>();
 
-  sorted.forEach((loc: any) => {
-    const nameKey = (loc.placeName || '').toLowerCase().trim();
-    if (!nameKey || seenNames.has(nameKey)) return;
-    seenNames.add(nameKey);
-    uniqueStations.push(loc);
-  });
-
-  return uniqueStations.map((loc: any) => {
-    const pLat = loc.latitude || loc.lat || loc.y || undefined;
-    const pLng = loc.longitude || loc.lng || loc.lon || loc.x || undefined;
-    
-    return {
-      id: loc.eLoc || Math.random().toString(),
-      name: loc.placeName || "Local Station",
-      address: loc.placeAddress || "",
-      dist: loc.distance ? `${(loc.distance / 1000).toFixed(2)}km` : "Nearby",
-      distVal: loc.distance ? (loc.distance / 1000) : 0,
-      lat: pLat,
-      lng: pLng,
-      phone: getOfficialPolicePhone(loc.placeName || "", loc.mobile || fallbackPhone)
-    };
-  }).filter((loc: any) => loc.lat !== undefined && loc.lng !== undefined);
-};
-
-// Encapsulated secure fallback workers to process backup tracking metrics smoothly
-const executeMapboxPoliceBackup = async (lat: number, lng: number) => {
-  if (!MAPBOX_TOKEN) return [];
-  try {
-    const url = `https://api.mapbox.com/search/searchbox/v1/category/police?proximity=${lng},${lat}&limit=15&access_token=${MAPBOX_TOKEN}`;
-    const response = await fetch(url);
-    const resData = await response.json();
-
-    if (!resData?.features) return [];
-
-    return resData.features
-      .map((f: any) => {
-        const fLat = f.geometry?.coordinates?.[1] || lat;
-        const fLng = f.geometry?.coordinates?.[0] || lng;
-        const distMeters = f.properties?.distance || 0;
-
-        return {
-          id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-          name: f.properties?.name || "Local Police Station",
-          address: f.properties?.full_address || "Nearby Area",
-          dist: distMeters ? `${(distMeters / 1000).toFixed(2)}km` : "Nearby",
-          distVal: distMeters / 1000 || 0,
-          lat: fLat,
-          lng: fLng,
-          phone: getOfficialPolicePhone(f.properties?.name || "", "112")
-        };
-      })
-      .sort((a: any, b: any) => a.distVal - b.distVal);
-  } catch {
-    return [];
-  }
-};
-
-const executeMapboxHospitalBackup = async (lat: number, lng: number) => {
-  if (!MAPBOX_TOKEN) return [];
-  try {
-    const url = `https://api.mapbox.com/search/searchbox/v1/category/hospital?proximity=${lng},${lat}&limit=20&access_token=${MAPBOX_TOKEN}`;
-    const response = await fetch(url);
-    const resData = await response.json();
-
-    if (!resData?.features) return [];
-
-    return resData.features.map((f: any) => {
-      const fLat = f.geometry?.coordinates?.[1] || lat;
-      const fLng = f.geometry?.coordinates?.[0] || lng;
-      const distMeters = f.properties?.distance || 0;
-
-      return {
-        id: f.properties?.mapbox_id || f.id || Math.random().toString(),
-        name: f.properties?.name || "Local Hospital",
-        address: f.properties?.full_address || "Nearby Area",
-        dist: distMeters ? `${(distMeters / 1000).toFixed(1)}km` : "Nearby",
-        distVal: distMeters / 1000 || 0,
-        lat: fLat,
-        lng: fLng,
-        phone: "108"
-      };
-    });
-  } catch {
-    return [];
-  }
-};

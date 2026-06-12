@@ -29,8 +29,8 @@ export default function ProtectorHistoryScreen() {
     if (profile?.missionHistory) {
       // Sort history by timestamp descending
       const sortedHistory = [...profile.missionHistory].sort((a, b) => {
-        const timeA = a.timestamp?.seconds || 0;
-        const timeB = b.timestamp?.seconds || 0;
+        const timeA = typeof a.timestamp === 'number' ? a.timestamp : (a.timestamp as any)?.seconds || 0;
+        const timeB = typeof b.timestamp === 'number' ? b.timestamp : (b.timestamp as any)?.seconds || 0;
         return timeB - timeA;
       });
       setLogs(sortedHistory);
