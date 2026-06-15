@@ -19,10 +19,29 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
+import android.telephony.TelephonyManager;
+import android.telephony.PhoneStateListener;
 import android.util.Log;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.core.app.NotificationCompat;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.AdvertiseCallback;
+import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertiseSettings;
+import android.bluetooth.le.BluetoothLeAdvertiser;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
+import android.os.ParcelUuid;
+import java.nio.ByteBuffer;
+import java.util.UUID;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 // Agora WebRTC Native Imports
 import io.agora.rtc2.Constants;
@@ -64,6 +83,15 @@ public class KavachService extends Service implements SensorEventListener {
 
     // ── Proximity pocket/bag filter ──────────────────
     private boolean isPhoneInPocket = false;
+
+    // ── BLE Mesh SOS Relays ──────────────────────────
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothLeAdvertiser bleAdvertiser;
+    private BluetoothLeScanner bleScanner;
+    private AdvertiseCallback advertiseCallback;
+    private ScanCallback scanCallback;
+    private final Set<String> processedBeacons = new HashSet<>();
+    private final Handler deduplicationCleanupHandler = new Handler(Looper.getMainLooper());
 
     // ── Power-Button Counter ─────────────────────────
     private int screenToggleCount = 0;
@@ -141,6 +169,12 @@ public class KavachService extends Service implements SensorEventListener {
             wakeLock.acquire(12 * 60 * 60 * 1000L); // Max 12 hours
         }
 
+        // Initialize Bluetooth LE components
+        BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        if (bm != null) {
+            bluetoothAdapter = bm.getAdapter();
+        }
+
         // 2. Accelerometer shake detection
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
@@ -168,6 +202,29 @@ public class KavachService extends Service implements SensorEventListener {
             registerReceiver(systemReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             registerReceiver(systemReceiver, filter);
+        }
+
+        // 5. Phone State Listener for Call detection (Mic collision prevention)
+        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager != null) {
+            telephonyManager.listen(new PhoneStateListener() {
+                @Override
+                public void onCallStateChanged(int state, String phoneNumber) {
+                    if (state == TelephonyManager.CALL_STATE_RINGING || state == TelephonyManager.CALL_STATE_OFFHOOK) {
+                        Log.i(TAG, "📞 TELEPHONY: Call Active. Suspending Voice Sentinel...");
+                        if (speechService != null) {
+                            speechService.stop();
+                            speechService = null;
+                            isListening = false;
+                        }
+                    } else if (state == TelephonyManager.CALL_STATE_IDLE) {
+                        Log.i(TAG, "📞 TELEPHONY: Call Ended. Resuming Voice Sentinel...");
+                        if (!isListening && !isSOSMissionActive) {
+                            startVoiceSentinel();
+                        }
+                    }
+                }
+            }, PhoneStateListener.LISTEN_CALL_STATE);
         }
 
         Log.i(TAG, "KAVACH TACTICAL SERVICE: Initialized. Monitoring active.");
@@ -267,6 +324,14 @@ public class KavachService extends Service implements SensorEventListener {
 
     private void processVoskResult(String json, boolean isPartial) {
         if (isSOSMissionActive) return;
+        
+        // 🛡️ MEDIA PLAYBACK FILTER: Ignore words if they are coming from the phone's speaker (YouTube, Music, etc.)
+        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null && audioManager.isMusicActive()) {
+            // Drop processing silently so we don't trigger SOS on a movie
+            return;
+        }
+        
         try {
             org.json.JSONObject obj = new org.json.JSONObject(json);
             String text = obj.optString(isPartial ? "partial" : "text", "");
@@ -380,6 +445,17 @@ public class KavachService extends Service implements SensorEventListener {
             startSafeTimer(durationMs);
         } else if ("com.kavach.app.ACTION_STOP_SAFE_TIMER".equals(action)) {
             stopSafeTimer();
+        } else if ("com.kavach.app.ACTION_START_BLE_ADV".equals(action)) {
+            String victimUid = intent.getStringExtra("victim_uid");
+            double lat = intent.getDoubleExtra("latitude", 0.0);
+            double lng = intent.getDoubleExtra("longitude", 0.0);
+            startBleSOSAdvertising(victimUid, lat, lng);
+        } else if ("com.kavach.app.ACTION_STOP_BLE_ADV".equals(action)) {
+            stopBleSOSAdvertising();
+        } else if ("com.kavach.app.ACTION_START_BLE_SCAN".equals(action)) {
+            startBackgroundBleScanner();
+        } else if ("com.kavach.app.ACTION_STOP_BLE_SCAN".equals(action)) {
+            stopBackgroundBleScanner();
         }
 
         // Build persistent foreground notification
@@ -512,6 +588,9 @@ public class KavachService extends Service implements SensorEventListener {
         // 1.5 Terminate WebRTC Broadcasting
         stopAgoraStealthBroadcast();
         
+        // 1.6 Stop BLE advertising
+        stopBleSOSAdvertising();
+        
         // 2. Kill the 15-minute timer
         if (autoKillHandler != null && autoKillRunnable != null) {
             autoKillHandler.removeCallbacks(autoKillRunnable);
@@ -567,6 +646,14 @@ public class KavachService extends Service implements SensorEventListener {
 
         // 1. TACTICAL DECOUPLING: Start Offline Survival Mode (Continuous SMS Fallback)
         startOfflineSurvivalMode();
+
+        // 1.2 Start BLE SOS advertising with location
+        android.location.Location lastLoc = getLastKnownLocation();
+        double lat = lastLoc != null ? lastLoc.getLatitude() : 0.0;
+        double lng = lastLoc != null ? lastLoc.getLongitude() : 0.0;
+        android.content.SharedPreferences prefs = getSharedPreferences("KavachPrefs", MODE_PRIVATE);
+        String victimUid = prefs.getString("kavach_user_uid", "unknown_victim");
+        startBleSOSAdvertising(victimUid, lat, lng);
 
         // 2. Bring MainActivity to front (High Priority Override)
         Intent intent = new Intent(this, MainActivity.class);
@@ -1032,6 +1119,273 @@ public class KavachService extends Service implements SensorEventListener {
         }
     }
 
+    private boolean isAdvertising = false;
+    private boolean isScanning = false;
+
+    private void startBleSOSAdvertising(String victimUid, double lat, double lng) {
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+            Log.e(TAG, "BLE ADVERTISER: Bluetooth not available or disabled.");
+            return;
+        }
+
+        bleAdvertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+        if (bleAdvertiser == null) {
+            Log.e(TAG, "BLE ADVERTISER: LeAdvertiser not supported by hardware.");
+            return;
+        }
+
+        if (isAdvertising) {
+            stopBleSOSAdvertising();
+        }
+
+        try {
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                    .setConnectable(false)
+                    .build();
+
+            // Pack victimUid hash (8 bytes) + latitude (4 bytes) + longitude (4 bytes) = 16 bytes
+            byte[] payload = new byte[16];
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            
+            // Generate a 8-byte hash of victimUid (or use standard UUID conversion if hash is required)
+            long uidHash = victimUid.hashCode();
+            buffer.putLong(uidHash);
+            buffer.putFloat((float) lat);
+            buffer.putFloat((float) lng);
+
+            ParcelUuid pUuid = new ParcelUuid(UUID.fromString("48e3e4a2-198c-4a31-90a1-9a746522bc01"));
+
+            AdvertiseData data = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceUuid(pUuid)
+                    .addServiceData(pUuid, payload)
+                    .build();
+
+            advertiseCallback = new AdvertiseCallback() {
+                @Override
+                public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+                    super.onStartSuccess(settingsInEffect);
+                    isAdvertising = true;
+                    Log.i(TAG, "BLE ADVERTISER: Successfully advertising SOS Beacon on UUID 48e3e4a2-198c-4a31-90a1-9a746522bc01");
+                }
+
+                @Override
+                public void onStartFailure(int errorCode) {
+                    super.onStartFailure(errorCode);
+                    isAdvertising = false;
+                    Log.e(TAG, "BLE ADVERTISER: Advertisement failed with code: " + errorCode);
+                }
+            };
+
+            bleAdvertiser.startAdvertising(settings, data, advertiseCallback);
+
+        } catch (Exception e) {
+            Log.e(TAG, "BLE ADVERTISER: Error setting up BLE advertising", e);
+        }
+    }
+
+    private void stopBleSOSAdvertising() {
+        if (bleAdvertiser != null && advertiseCallback != null) {
+            try {
+                bleAdvertiser.stopAdvertising(advertiseCallback);
+                Log.i(TAG, "BLE ADVERTISER: SOS Beacon Advertising Stopped.");
+            } catch (Exception e) {
+                Log.e(TAG, "BLE ADVERTISER: Error stopping advertising", e);
+            }
+        }
+        isAdvertising = false;
+    }
+
+    private void startBackgroundBleScanner() {
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+            Log.e(TAG, "BLE SCANNER: Bluetooth not enabled.");
+            return;
+        }
+
+        bleScanner = bluetoothAdapter.getBluetoothLeScanner();
+        if (bleScanner == null) {
+            Log.e(TAG, "BLE SCANNER: BluetoothLeScanner unsupported.");
+            return;
+        }
+
+        if (isScanning) {
+            stopBackgroundBleScanner();
+        }
+
+        try {
+            ScanSettings settings = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                    .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+                    .build();
+
+            ScanFilter filter = new ScanFilter.Builder()
+                    .setServiceUuid(new ParcelUuid(UUID.fromString("48e3e4a2-198c-4a31-90a1-9a746522bc01")))
+                    .build();
+
+            scanCallback = new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, ScanResult result) {
+                    super.onScanResult(callbackType, result);
+                    processScanResult(result);
+                }
+
+                @Override
+                public void onBatchScanResults(java.util.List<ScanResult> results) {
+                    super.onBatchScanResults(results);
+                    for (ScanResult result : results) {
+                        processScanResult(result);
+                    }
+                }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    super.onScanFailed(errorCode);
+                    Log.e(TAG, "BLE SCANNER: Scan failed with error: " + errorCode);
+                }
+            };
+
+            bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+            isScanning = true;
+            Log.i(TAG, "BLE SCANNER: Aggressive Background Scan Engaged for 48e3e4a2-198c-4a31-90a1-9a746522bc01");
+
+        } catch (Exception e) {
+            Log.e(TAG, "BLE SCANNER: Error launching scanner", e);
+        }
+    }
+
+    private void processScanResult(ScanResult result) {
+        if (result == null || result.getScanRecord() == null) return;
+
+        ParcelUuid pUuid = new ParcelUuid(UUID.fromString("48e3e4a2-198c-4a31-90a1-9a746522bc01"));
+        byte[] payload = result.getScanRecord().getServiceData(pUuid);
+        if (payload == null || payload.length < 16) return;
+
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        long uidHash = buffer.getLong();
+        float lat = buffer.getFloat();
+        float lng = buffer.getFloat();
+
+        String beaconKey = uidHash + "_" + lat + "_" + lng;
+
+        synchronized (processedBeacons) {
+            if (processedBeacons.contains(beaconKey)) {
+                return; // deduplication loop protection
+            }
+            processedBeacons.add(beaconKey);
+            deduplicationCleanupHandler.postDelayed(() -> {
+                synchronized (processedBeacons) {
+                    processedBeacons.remove(beaconKey);
+                }
+            }, 30 * 60 * 1000L); // 30-minute skew tolerance / deduplication cache lifetime
+        }
+
+        Log.w(TAG, "🚨 BLE MESH: SOS beacon intercepted! UID Hash: " + uidHash + " Location: " + lat + ", " + lng);
+
+        // Re-broadcast (Mesh Hopping)
+        reBroadcastBleBeacon(uidHash, lat, lng);
+
+        // 🌐 INTERNET UPLINK RELAY (Senior Architect Bridge):
+        // If this scanning device has active internet connectivity, instantly relay the intercepted victim's location to the SuperCell command center.
+        if (isNetworkAvailable()) {
+            Log.i(TAG, "📶 BLE MESH UPLINK: Active internet detected on relay node. Pushing offline beacon to SuperCell cloud...");
+            new Thread(() -> {
+                try {
+                    // Send HTTP POST relay to the backend function/Supabase Edge function or direct webhook
+                    java.net.URL url = new java.net.URL("https://gen-lang-client-0115433512.web.app/api/relay-ble-sos");
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setDoOutput(true);
+
+                    org.json.JSONObject jsonParam = new org.json.JSONObject();
+                    jsonParam.put("victimUidHash", String.valueOf(uidHash));
+                    jsonParam.put("latitude", lat);
+                    jsonParam.put("longitude", lng);
+                    jsonParam.put("relayDeviceUid", getSharedPreferences("KavachPrefs", MODE_PRIVATE).getString("kavach_user_uid", "relay_node"));
+                    jsonParam.put("timestamp", System.currentTimeMillis());
+
+                    try (java.io.OutputStream os = conn.getOutputStream()) {
+                        byte[] input = jsonParam.toString().getBytes("utf-8");
+                        os.write(input, 0, input.length);
+                    }
+
+                    int code = conn.getResponseCode();
+                    Log.i(TAG, "📶 BLE MESH UPLINK: Relay request dispatched. Response Code: " + code);
+                    conn.disconnect();
+                } catch (Exception e) {
+                    Log.e(TAG, "📶 BLE MESH UPLINK ERROR: Failed to forward BLE payload to SuperCell: " + e.getMessage());
+                }
+            }).start();
+        }
+
+        // Notify UI/Command Centre
+        Intent intent = new Intent("com.kavach.app.BLE_SOS_INTERCEPTED");
+        intent.putExtra("victim_uid_hash", uidHash);
+        intent.putExtra("latitude", (double) lat);
+        intent.putExtra("longitude", (double) lng);
+        sendBroadcast(intent);
+    }
+
+    private void reBroadcastBleBeacon(long uidHash, float lat, float lng) {
+        if (bleAdvertiser == null) return;
+        try {
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                    .setConnectable(false)
+                    .build();
+
+            byte[] payload = new byte[16];
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            buffer.putLong(uidHash);
+            buffer.putFloat(lat);
+            buffer.putFloat(lng);
+
+            ParcelUuid pUuid = new ParcelUuid(UUID.fromString("48e3e4a2-198c-4a31-90a1-9a746522bc01"));
+            AdvertiseData data = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceUuid(pUuid)
+                    .addServiceData(pUuid, payload)
+                    .build();
+
+            AdvertiseCallback hopCallback = new AdvertiseCallback() {
+                @Override
+                public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+                    super.onStartSuccess(settingsInEffect);
+                    Log.i(TAG, "BLE MESH: Re-broadcast hop active for hash: " + uidHash);
+                }
+            };
+
+            bleAdvertiser.startAdvertising(settings, data, hopCallback);
+            // Stop re-broadcasting after 60s to prevent air congestion
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    bleAdvertiser.stopAdvertising(hopCallback);
+                } catch (Exception ignored) {}
+            }, 60000);
+
+        } catch (Exception e) {
+            Log.e(TAG, "BLE MESH: Re-broadcast fail", e);
+        }
+    }
+
+    private void stopBackgroundBleScanner() {
+        if (bleScanner != null && scanCallback != null) {
+            try {
+                bleScanner.stopScan(scanCallback);
+                Log.i(TAG, "BLE SCANNER: Background scanning halted.");
+            } catch (Exception e) {
+                Log.e(TAG, "BLE SCANNER: Error stopping scan", e);
+            }
+        }
+        isScanning = false;
+    }
+
     // ── Resurrect on Swipe ───────────────────────────────────────────────
     @Override
     public void onTaskRemoved(Intent rootIntent) {
@@ -1085,6 +1439,8 @@ public class KavachService extends Service implements SensorEventListener {
         // Clean up locks and broadcast listeners to prevent context leaks
         stopOfflineSurvivalMode();
         stopSirenLogic();
+        stopBleSOSAdvertising();
+        stopBackgroundBleScanner();
         
         try {
             unregisterReceiver(systemReceiver);

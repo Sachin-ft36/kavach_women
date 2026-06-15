@@ -12,6 +12,23 @@ interface IncidentFeedProps {
   zeroFirs: any[];
 }
 
+const formatAlertTime = (timestamp: any) => {
+  if (!timestamp) return 'LIVE';
+  let dateVal: Date;
+  if (typeof timestamp.toDate === 'function') {
+    dateVal = timestamp.toDate();
+  } else if (timestamp.seconds) {
+    dateVal = new Date(timestamp.seconds * 1000);
+  } else if (typeof timestamp.toMillis === 'function') {
+    dateVal = new Date(timestamp.toMillis());
+  } else {
+    dateVal = new Date(timestamp);
+  }
+  return isNaN(dateVal.getTime()) 
+    ? 'LIVE' 
+    : dateVal.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+};
+
 export const IncidentFeed = ({
   sortedAlerts,
   selectedAlertId,
@@ -66,7 +83,7 @@ export const IncidentFeed = ({
                        <AlertTriangle size={14} className="" />
                     </div>
                     <span className="text-[11px] text-gray-500 font-black">
-                       {alert.timestamp ? new Date(alert.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'LIVE'}
+                       {formatAlertTime(alert.timestamp)}
                     </span>
                  </div>
                  
@@ -93,6 +110,21 @@ export const IncidentFeed = ({
                           {alert.locationName || alert.address || alert.fullAddress || alert.victimLocationName || 'Triangulating GPS...'}
                        </p>
                     </div>
+
+                    {/* 🛡️ LIVE RESPONDERS STATUS */}
+                    {alert.responders && Object.keys(alert.responders).length > 0 && (
+                       <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block">👮 Responding PCRs / Officers:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                             {Object.values(alert.responders).map((res: any) => (
+                                <span key={res.uid} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-bold text-blue-200">
+                                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                   {res.name} ({res.role || 'Rescuer'})
+                                </span>
+                             ))}
+                          </div>
+                       </div>
+                    )}
                  </div>
                  
                  <div className="flex gap-2">

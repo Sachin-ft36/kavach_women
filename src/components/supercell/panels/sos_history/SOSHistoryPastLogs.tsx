@@ -60,7 +60,7 @@ export const SOSHistoryPastLogs = ({
                   { label: 'Role', value: victimData.role || 'CITIZEN', icon: ShieldCheck },
                   { label: 'Phone', value: victimData.phoneNumber || victimData.phone || 'NO RECORD', icon: Phone },
                   { label: 'Email Address', value: victimData.email || 'NO EMAIL', icon: Mail },
-                  { label: 'Battery Level', value: alert.batteryLevel || alert.battery || (alert.deviceStatus && alert.deviceStatus.battery) || alert.deviceBattery || '89%', icon: Battery }
+                  { label: 'Battery Level', value: (() => { const lvl = alert.batteryLevel ?? alert.battery ?? alert.telemetry?.battery ?? alert.deviceStatus?.battery ?? alert.deviceBattery; return lvl !== undefined && lvl !== null ? (typeof lvl === 'string' && lvl.includes('%') ? lvl : `${lvl}%`) : '89%'; })(), icon: Battery }
                 ].map((item, i) => (
                   <div key={i} className="bg-black/25 p-3.5 rounded-xl border border-white/5 flex flex-col justify-between">
                     <p className="text-[14px] font-black text-gray-500 uppercase tracking-widest mb-1 leading-none">{item.label}</p>

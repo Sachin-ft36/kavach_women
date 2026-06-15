@@ -40,5 +40,45 @@ export const KavachSafeSentinel = {
         console.error("🚨 ACOUSTIC SENTINEL FAULT: Voice tracking failed to halt:", error);
       }
     }
+  },
+
+  startBleSOSAdvertising: async (options: { victimUid: string; latitude: number; longitude: number }): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.startBleSOSAdvertising(options);
+      } catch (error) {
+        console.error("🚨 BLE MESH FAULT: Failed to start advertising BLE beacon:", error);
+      }
+    }
+  },
+
+  stopBleSOSAdvertising: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.stopBleSOSAdvertising();
+      } catch (error) {
+        console.error("🚨 BLE MESH FAULT: Failed to stop advertising BLE beacon:", error);
+      }
+    }
+  },
+
+  startBleSOSScanning: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.startBleSOSScanning();
+      } catch (error) {
+        console.error("🚨 BLE MESH FAULT: Failed to start scanning for BLE beacons:", error);
+      }
+    }
+  },
+
+  stopBleSOSScanning: async (): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.stopBleSOSScanning();
+      } catch (error) {
+        console.error("🚨 BLE MESH FAULT: Failed to stop scanning for BLE beacons:", error);
+      }
+    }
   }
 };

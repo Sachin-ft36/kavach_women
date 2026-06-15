@@ -36,7 +36,11 @@ export const createLocationSlice: StateCreator<KavachState, [], [], Pick<KavachS
                 lastLocation: { latitude: lat, longitude: lng },
                 lastActive: serverTimestamp()
               };
-              await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
+              try {
+                await updateDoc(doc(db, 'users', auth.currentUser.uid), updates);
+              } catch (fsErr) {
+                console.warn("⚠️ Firestore location sync deferred (document not found):", fsErr);
+              }
 
               const state = get();
 

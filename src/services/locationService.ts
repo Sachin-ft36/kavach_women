@@ -1,8 +1,7 @@
 import { Geolocation } from '@capacitor/geolocation';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { GeoPoint } from '../types';
+
 
 const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
 
@@ -85,7 +84,7 @@ export const watchLiveLocation = async (
 };
 
 /**
- * 🛡️ PERSISTENT BACKGROUND TRACKING ENGINE
+ * 🛡️ PERSISTENT BACKGROUND TRACKING ENGINE — Supabase Primary
  * Registers a single, flat native process watcher for closed-state tracking.
  */
 export const startBackgroundTracking = async (uid: string, performanceMode: string = 'auto') => {
@@ -94,7 +93,6 @@ export const startBackgroundTracking = async (uid: string, performanceMode: stri
   try {
     const definedDistanceFilter = performanceMode === 'power_save' ? 50 : 8;
 
-    // FIXED: Removed structural nesting loop. Allocating a single, flat native watcher handle.
     await BackgroundGeolocation.addWatcher(
       {
         backgroundMessage: "KAVACH Tracker is active. Location monitoring SECURE.",
@@ -106,13 +104,27 @@ export const startBackgroundTracking = async (uid: string, performanceMode: stri
       async (location: any) => {
         if (!location || !location.latitude || !location.longitude) return;
 
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, {
-          'telemetry.coords': [location.latitude, location.longitude],
-          'telemetry.lastSeen': serverTimestamp(),
-          'telemetry.status': 'Background Secure',
-          'telemetry.mode': performanceMode
-        }).catch(() => {});
+        // ✅ Write PostGIS geography point via RPC
+        try {
+          const { supabase } = await import('../lib/supabase');
+          const { error: rpcError } = await supabase.rpc('update_protector_coords', {
+            p_id: uid,
+            p_lat: location.latitude,
+            p_lng: location.longitude,
+            p_battery: 100,
+            p_accuracy: Math.round(location.accuracy ?? 0),
+            p_online: true,
+          });
+          // Fallback to plain update if RPC not deployed yet
+          if (rpcError) {
+            await supabase.from('profiles').update({
+              last_seen: new Date().toISOString(),
+              is_online: true,
+            }).eq('id', uid);
+          }
+        } catch {
+          // Silent fail in background
+        }
       }
     );
   } catch (error) {
@@ -120,53 +132,66 @@ export const startBackgroundTracking = async (uid: string, performanceMode: stri
   }
 };
 
+
 /**
- * 🔄 UNIVERSAL TELEMETRY SYNC
- * Safely updates remote indices while managing database write targets.
+ * 🔄 UNIVERSAL TELEMETRY SYNC — Supabase + PostGIS Primary
+ * Uses update_protector_coords RPC to write a proper GEOGRAPHY point
+ * so find_nearest_protectors() geospatial queries work correctly.
  */
 export const syncTelemetry = async (
-  uid: string, 
-  role: string, 
-  battery: number | null, 
-  coords: GeoPoint, 
+  uid: string,
+  role: string,
+  battery: number | null,
+  coords: GeoPoint,
   accuracy?: number
 ): Promise<void> => {
   if (!uid || !coords || coords.lat === 0) return;
 
   try {
-    const userRef = doc(db, 'users', uid);
-    const primaryPayload = {
-      'telemetry.coords': coords,
-      'telemetry.battery': battery ?? 100,
-      'telemetry.lastSeen': serverTimestamp(),
-      'telemetry.role': role,
-      'telemetry.status': 'Optimal',
-      'telemetry.accuracy': accuracy ?? 0,
-      'telemetry.isOnline': navigator.onLine,
-      'lastActive': serverTimestamp()
-    };
+    const { supabase } = await import('../lib/supabase');
 
-    await updateDoc(userRef, primaryPayload);
+    // ✅ PRIMARY: Call RPC to write PostGIS geography point + telemetry fields
+    const { error: rpcError } = await supabase.rpc('update_protector_coords', {
+      p_id: uid,
+      p_lat: coords.lat,
+      p_lng: coords.lng,
+      p_battery: Math.round(battery ?? 100),
+      p_accuracy: Math.round(accuracy ?? 0),
+      p_online: navigator.onLine,
+    });
 
+    // 🔄 FALLBACK: If RPC not yet deployed, update columns directly
+    if (rpcError) {
+      await supabase
+        .from('profiles')
+        .update({
+          last_seen: new Date().toISOString(),
+          battery_level: Math.round(battery ?? 100),
+          is_online: navigator.onLine,
+          gps_accuracy: Math.round(accuracy ?? 0),
+        })
+        .eq('id', uid);
+    }
+
+    // Update active alert responder location (non-blocking)
     const activeAlertId = localStorage.getItem('kavach_active_alert_id');
     if (activeAlertId) {
-      const alertRef = doc(db, 'alerts', activeAlertId);
-      await updateDoc(alertRef, { 
-        'location.latitude': coords.lat,
-        'location.longitude': coords.lng,
-        'lastPulse': serverTimestamp(),
-        'telemetry.battery': battery ?? 100,
-        'telemetry.accuracy': accuracy ?? 0
-      }).catch(() => {});
+      (async () => {
+        try {
+          await supabase.from('alerts').update({
+            responder_lat: coords.lat,
+            responder_lng: coords.lng,
+            last_pulse: new Date().toISOString(),
+          }).eq('id', activeAlertId);
+        } catch { /* non-critical */ }
+      })();
     }
   } catch (error: any) {
-    if (error.message && error.message.includes("No document to update")) {
-      console.warn("Telemetry Sync: User document not yet created on Firestore (onboarding pending). Telemetry write deferred.");
-    } else {
-      console.error("Telemetry write tracking exception intercepted safely:", error.message);
-    }
+    // Silent fail — telemetry is non-critical, never crash the app
+    console.warn('Telemetry sync deferred:', error?.message?.slice(0, 80));
   }
 };
+
 
 // Simple in-memory cache to handle immediate reverse geocoding lookups
 const reverseGeocodeThrottleCache = new Map<string, { data: any; expiry: number }>();

@@ -9,7 +9,12 @@ export function handleMapplsHybridRide(
   isNavigating: boolean,
   Mappls: any
 ) {
-  if (isRideModeActive && rideData?.targetCoords && userPos && Mappls?.direction) {
+  if (isRideModeActive && 
+      rideData?.targetCoords?.[0] && rideData?.targetCoords?.[1] && 
+      userPos?.lat && userPos?.lng && 
+      !isNaN(userPos.lat) && !isNaN(userPos.lng) &&
+      !isNaN(rideData.targetCoords[0]) && !isNaN(rideData.targetCoords[1]) &&
+      Mappls?.direction) {
     if (!ridePolylineRef.current) {
       console.log("🛰️ KAVACH: Initializing Hybrid Routing (Mapbox Path + Mappls Bike)");
       

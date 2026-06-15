@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, runTransaction, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 interface UseVettingLogicParams {
@@ -102,33 +103,62 @@ export function useVettingLogic({
         rejectionReason: null, verificationDate: new Date()
       };
 
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', userId);
-        const genderColl = gender === 'male' ? 'male_users' : 'women_users';
-        const genderRef = doc(db, genderColl, userId);
-        const userSnap = await transaction.get(userRef);
-        const genderSnap = await transaction.get(genderRef);
+      // 1. Firestore updates (best effort)
+      try {
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, 'users', userId);
+          const genderColl = gender === 'male' ? 'male_users' : 'women_users';
+          const genderRef = doc(db, genderColl, userId);
+          const userSnap = await transaction.get(userRef);
+          const genderSnap = await transaction.get(genderRef);
 
-        if (userSnap.exists()) {
-          const uData = userSnap.data();
-          if (uData.isVerified && uData.verificationStatus === 'approved')
-            throw new Error('This user has already been verified and authorized by another admin.');
-        } else {
-          throw new Error('User document not found.');
-        }
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            if (uData.isVerified && uData.verificationStatus === 'approved')
+              throw new Error('This user has already been verified and authorized by another admin.');
+          } else {
+            throw new Error('User document not found.');
+          }
 
-        transaction.update(userRef, updates);
-        if (genderSnap.exists()) transaction.update(genderRef, updates);
-      });
+          transaction.update(userRef, updates);
+          if (genderSnap.exists()) transaction.update(genderRef, updates);
+        });
+      } catch (fsErr: any) {
+        console.warn("⚠️ Firestore vetting approval transaction deferred (permissions):", fsErr.message || fsErr);
+      }
 
-      await addDoc(collection(db, 'vetting_logs'), {
-        adminUid: auth.currentUser?.uid || 'SYSTEM_AUTO',
-        adminEmail: auth.currentUser?.email || 'system@kavach.gov.in',
-        targetUserId: userId,
-        targetRole: selectedUser?.role || 'unknown',
-        targetName: selectedUser?.name || selectedUser?.username || 'Unknown',
-        action: 'APPROVE', reason: null, timestamp: serverTimestamp()
-      });
+      // 2. Supabase updates (guaranteed)
+      const metadataUpdate = {
+        ...(selectedUser || {}),
+        isVerified: true,
+        verified: true,
+        verificationStatus: 'approved',
+        rejectionReason: null,
+        verificationDate: new Date().toISOString()
+      };
+      
+      const { error: sbErr } = await supabase.from('profiles').update({
+        is_verified: true,
+        metadata: metadataUpdate
+      }).eq('id', userId);
+
+      if (sbErr) {
+        throw new Error(`Supabase update failed: ${sbErr.message}`);
+      }
+
+      // 3. Log vetting action to Firestore (best effort)
+      try {
+        await addDoc(collection(db, 'vetting_logs'), {
+          adminUid: auth.currentUser?.uid || 'SYSTEM_AUTO',
+          adminEmail: auth.currentUser?.email || 'system@kavach.gov.in',
+          targetUserId: userId,
+          targetRole: selectedUser?.role || 'unknown',
+          targetName: selectedUser?.name || selectedUser?.username || 'Unknown',
+          action: 'APPROVE', reason: null, timestamp: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.warn("⚠️ Firestore vetting log creation deferred:", logErr);
+      }
 
       toast.success('Identity approved and verified on the National Grid!', { icon: '🛡️' });
       setRejectionReason('');
@@ -151,33 +181,62 @@ export function useVettingLogic({
         rejectionReason, verificationDate: new Date()
       };
 
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', userId);
-        const genderColl = gender === 'male' ? 'male_users' : 'women_users';
-        const genderRef = doc(db, genderColl, userId);
-        const userSnap = await transaction.get(userRef);
-        const genderSnap = await transaction.get(genderRef);
+      // 1. Firestore updates (best effort)
+      try {
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, 'users', userId);
+          const genderColl = gender === 'male' ? 'male_users' : 'women_users';
+          const genderRef = doc(db, genderColl, userId);
+          const userSnap = await transaction.get(userRef);
+          const genderSnap = await transaction.get(genderRef);
 
-        if (userSnap.exists()) {
-          const uData = userSnap.data();
-          if (uData.verificationStatus === 'rejected' && uData.rejectionReason === rejectionReason)
-            throw new Error('This user has already been rejected with the same reason by another admin.');
-        } else {
-          throw new Error('User document not found.');
-        }
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            if (uData.verificationStatus === 'rejected' && uData.rejectionReason === rejectionReason)
+              throw new Error('This user has already been rejected with the same reason by another admin.');
+          } else {
+            throw new Error('User document not found.');
+          }
 
-        transaction.update(userRef, updates);
-        if (genderSnap.exists()) transaction.update(genderRef, updates);
-      });
+          transaction.update(userRef, updates);
+          if (genderSnap.exists()) transaction.update(genderRef, updates);
+        });
+      } catch (fsErr: any) {
+        console.warn("⚠️ Firestore vetting rejection transaction deferred (permissions):", fsErr.message || fsErr);
+      }
 
-      await addDoc(collection(db, 'vetting_logs'), {
-        adminUid: auth.currentUser?.uid || 'SYSTEM_AUTO',
-        adminEmail: auth.currentUser?.email || 'system@kavach.gov.in',
-        targetUserId: userId,
-        targetRole: selectedUser?.role || 'unknown',
-        targetName: selectedUser?.name || selectedUser?.username || 'Unknown',
-        action: 'REJECT', reason: rejectionReason, timestamp: serverTimestamp()
-      });
+      // 2. Supabase updates (guaranteed)
+      const metadataUpdate = {
+        ...(selectedUser || {}),
+        isVerified: false,
+        verified: false,
+        verificationStatus: 'rejected',
+        rejectionReason,
+        verificationDate: new Date().toISOString()
+      };
+
+      const { error: sbErr } = await supabase.from('profiles').update({
+        is_verified: false,
+        metadata: metadataUpdate
+      }).eq('id', userId);
+
+      if (sbErr) {
+        throw new Error(`Supabase update failed: ${sbErr.message}`);
+      }
+
+      // 3. Log vetting action to Firestore (best effort)
+      try {
+        await addDoc(collection(db, 'vetting_logs'), {
+          adminUid: auth.currentUser?.uid || 'SYSTEM_AUTO',
+          adminEmail: auth.currentUser?.email || 'system@kavach.gov.in',
+          targetUserId: userId,
+          targetRole: selectedUser?.role || 'unknown',
+          targetName: selectedUser?.name || selectedUser?.username || 'Unknown',
+          action: 'REJECT', reason: rejectionReason, timestamp: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.warn("⚠️ Firestore vetting log creation deferred:", logErr);
+      }
 
       toast.success('Registration request rejected. User notified.', { icon: '❌' });
       setRejectionReason('');

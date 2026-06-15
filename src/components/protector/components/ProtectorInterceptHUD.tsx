@@ -14,7 +14,8 @@ export function ProtectorInterceptHUD({
   setResolvingAlert,
   setIsInterceptHUDOpen,
   setInterceptActive,
-  setUseMapboxFallback
+  setUseMapboxFallback,
+  onAbort
 }: any) {
   if (!isInterceptHUDOpen || !activeInterceptAlert) return null;
 
@@ -38,7 +39,9 @@ export function ProtectorInterceptHUD({
               setIsInterceptHUDOpen(false); 
               setInterceptActive(false); 
               setIsNavigating(false); 
-            }} 
+            }}
+            onAbort={onAbort}
+            isProtectorHUD={true}
             onFallback={() => setUseMapboxFallback(true)} 
           />
         ) : (
@@ -58,7 +61,9 @@ export function ProtectorInterceptHUD({
               setIsInterceptHUDOpen(false); 
               setInterceptActive(false); 
               setIsNavigating(false); 
-            }} 
+            }}
+            onAbort={onAbort}
+            isProtectorHUD={true}
           />
         )}
       </div>

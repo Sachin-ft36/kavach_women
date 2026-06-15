@@ -27,7 +27,8 @@ export function useMapplsInit(onFallback?: () => void) {
 
   const initMap = () => {
     const Mappls = (window as any).mappls;
-    if (Mappls && !mapRef.current) {
+    const container = document.getElementById(mapId);
+    if (Mappls && !mapRef.current && container) {
       mapRef.current = new Mappls.Map(mapId, {
         center: [21.0, 78.9629],
         zoom: 4.2,
@@ -40,7 +41,8 @@ export function useMapplsInit(onFallback?: () => void) {
         searchControl: false
       });
 
-      mapRef.current.on('styleimagemissing', (e: any) => {
+      if (mapRef.current && typeof mapRef.current.on === 'function') {
+        mapRef.current.on('styleimagemissing', (e: any) => {
         try {
           const width = 16;
           const bytesPerPixel = 4;
@@ -52,12 +54,13 @@ export function useMapplsInit(onFallback?: () => void) {
       const controls = document.querySelectorAll('[class*="ctrl-top"], [class*="ctrl-bottom"], [class*="control-container"]');
       controls.forEach(c => (c as HTMLElement).style.display = 'none');
 
-      mapRef.current.on('load', () => {
-        setIsLoaded(true);
-        setTimeout(() => {
-          document.querySelectorAll('.mappls-ctrl button, .mapboxgl-ctrl button, div.mappls-ctrl-top-right, div.mapboxgl-ctrl-top-right, div.mmi-ctrl-top-right, div.mappls-ctrl-bottom-right, div.mapboxgl-ctrl-bottom-right, div.mmi-ctrl-bottom-right').forEach(el => el.remove());
-        }, 1000);
-      });
+        mapRef.current.on('load', () => {
+          setIsLoaded(true);
+          setTimeout(() => {
+            document.querySelectorAll('.mappls-ctrl button, .mapboxgl-ctrl button, div.mappls-ctrl-top-right, div.mapboxgl-ctrl-top-right, div.mmi-ctrl-top-right, div.mappls-ctrl-bottom-right, div.mapboxgl-ctrl-bottom-right, div.mmi-ctrl-bottom-right').forEach(el => el.remove());
+          }, 1000);
+        });
+      }
     }
   };
 

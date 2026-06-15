@@ -68,7 +68,7 @@ export function useMapplsInit(userPos: { lat: number; lng: number } | null, onFa
     if (Mappls && !mapRef.current && container) {
       mapRef.current = new Mappls.Map(mapId, {
         center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
-        zoom: 11,
+        zoom: 17,
         mapType: 'standard',
         zoomControl: false,
         location: false,

@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { getReverseMetadata } from '../../../services/locationService';
 import { KavachNative } from '../../../services/KavachNative';
 import { toast } from 'sonner';
+import { supabase } from '../../../lib/supabase';
 
 export function useOnboardingSync(
   user: any,
@@ -31,8 +32,15 @@ export function useOnboardingSync(
     if (!user) return;
     setIsFinishing(true);
     try {
-      const currentSnap = await getDoc(doc(db, 'users', user.uid));
-      const existingData = currentSnap.exists() ? currentSnap.data() : {};
+      let existingData: any = {};
+      try {
+        const currentSnap = await getDoc(doc(db, 'users', user.uid));
+        if (currentSnap.exists()) {
+          existingData = currentSnap.data();
+        }
+      } catch (docErr) {
+        console.warn("Could not fetch existing profile (likely offline), proceeding with empty defaults.", docErr);
+      }
 
       let initialLocation = existingData.lastLocation || null;
       let fullAddress = existingData.fullAddress || "Sector Unknown";
@@ -104,6 +112,24 @@ export function useOnboardingSync(
         );
 
         await setDoc(doc(db, 'users', user.uid), cleanProfile, { merge: true });
+
+        try {
+          const supabasePayload: any = {
+            id: user.uid,
+            email: user.email || cleanProfile.email || "",
+            role: cleanProfile.role || 'citizen',
+            is_verified: !!cleanProfile.isVerified,
+            gender: cleanProfile.gender || 'female',
+            xp: cleanProfile.xp || 0,
+            metadata: cleanProfile
+          };
+          if (initialLocation && initialLocation.lat && initialLocation.lng) {
+            supabasePayload.last_location = `POINT(${initialLocation.lng} ${initialLocation.lat})`;
+          }
+          await supabase.from('profiles').upsert(supabasePayload);
+        } catch (supabaseErr) {
+          console.warn("Supabase onboarding sync failed:", supabaseErr);
+        }
 
         const finalGender = gender || existingData.gender || 'female';
         if (finalGender === 'male') {

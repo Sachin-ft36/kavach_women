@@ -80,10 +80,10 @@ export function IdentityFields({
               <button
                 type="button" onClick={handleSendOTP} disabled={phone.length < 10}
                 className={cn(
-                  "w-full py-2.5 rounded-sm text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] border",
+                  "w-full py-2.5 rounded-sm text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] border-none",
                   phone.length === 10
-                    ? "bg-slate-900 border-slate-900 text-white hover:bg-slate-800"
-                    : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                    ? "bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                 )}
               >
                 Request OTP Authentication
@@ -104,10 +104,10 @@ export function IdentityFields({
               <button
                 type="button" onClick={handleVerifyOTP} disabled={phoneOtp.length < 6}
                 className={cn(
-                  "w-full py-2.5 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.99] border",
+                  "w-full py-2.5 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.99] border-none",
                   phoneOtp.length === 6
-                    ? "bg-[#000080] border-[#000080] text-white hover:bg-blue-900"
-                    : "bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed"
+                    ? "bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                 )}
               >
                 Verify OTP

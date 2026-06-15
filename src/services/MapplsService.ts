@@ -136,6 +136,10 @@ export const fetchNearbyHospitalsMappls = async (lat: number, lng: number) => {
  * Fixed parameter layout schema ordering to: latitude,longitude.
  */
 export const fetchRouteMappls = async (startLng: number, startLat: number, endLng: number, endLat: number) => {
+  if (!startLng || !startLat || !endLng || !endLat || isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+    console.warn("🛰️ fetchRouteMappls: Invalid coordinates passed:", { startLng, startLat, endLng, endLat });
+    return null;
+  }
   if (!MAPPLS_KEY) return null;
   try {
     const isNative = Capacitor.isNativePlatform();
@@ -176,6 +180,10 @@ export const fetchRouteMappls = async (startLng: number, startLat: number, endLn
 };
 
 export const fetchRouteDetails = async (startLng: number, startLat: number, endLng: number, endLat: number) => {
+  if (!startLng || !startLat || !endLng || !endLat || isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+    console.warn("🛰️ fetchRouteDetails: Invalid coordinates passed:", { startLng, startLat, endLng, endLat });
+    return null;
+  }
   try {
     if (MAPPLS_KEY) {
       const isNative = Capacitor.isNativePlatform();

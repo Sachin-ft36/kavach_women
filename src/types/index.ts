@@ -136,4 +136,6 @@ export interface UserProfile {
   recentActivity?: MissionActivity[];
   activities?: MissionActivity[];
   missionHistory?: MissionActivity[];
+  trustTier?: string;
+  completedMissions?: number;
 }

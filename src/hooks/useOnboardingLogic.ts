@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 import { useHardwarePermissions } from '../components/onboarding/hooks/useHardwarePermissions';
 import { useOnboardingNavigation } from '../components/onboarding/hooks/useOnboardingNavigation';
@@ -87,22 +88,74 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
     const hydrateState = async () => {
       if (!user?.uid) return;
       try {
-        const docRef = doc(db, 'users', user.uid);
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.name) setUserName(data.name);
-          if (data.phoneNumber) setUserPhone(data.phoneNumber);
-          if (data.gender) setGender(data.gender);
-          if (data.role) setRole(data.role);
-          if (data.aadhar) setAadhaar(data.aadhar);
-          if (data.safetyPin) setLocalSafetyPin(data.safetyPin);
-          if (data.protectorVetting) setProtectorData(data.protectorVetting);
-          if (data.photoUrl) setPhotoUrl(data.photoUrl);
-          if (data.address) setAddress(data.address);
-          if (data.bloodGroup) setBloodGroup(data.bloodGroup);
-          if (data.dob) setDob(data.dob);
+        let name = '';
+        let phoneNumber = '';
+        let currentGender: any = null;
+        let currentRole: any = null;
+        let aadhar = '';
+        let safetyPin = '';
+        let protectorVetting: any = null;
+        let photoUrl = '';
+        let address = '';
+        let bloodGroup = '';
+        let dob = '';
+
+        // Try Supabase first
+        try {
+          const { data: sbProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.uid)
+            .single();
+          if (sbProfile) {
+            const meta = sbProfile.metadata || {};
+            name = sbProfile.display_name || meta.name || '';
+            phoneNumber = meta.phoneNumber || '';
+            currentGender = sbProfile.gender || meta.gender || null;
+            currentRole = sbProfile.role || meta.role || null;
+            aadhar = meta.aadhar || '';
+            safetyPin = meta.safetyPin || '';
+            protectorVetting = meta.protectorVetting || null;
+            photoUrl = meta.photoUrl || meta.photoURL || meta.displayPhotoUrl || '';
+            address = meta.address || '';
+            bloodGroup = meta.bloodGroup || '';
+            dob = meta.dob || '';
+          }
+        } catch (sbErr) {
+          console.warn("⚠️ Hydration from Supabase profile bypassed:", sbErr);
         }
+
+        // Fallback to Firestore
+        try {
+          const docRef = doc(db, 'users', user.uid);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.name) name = data.name;
+            if (data.phoneNumber) phoneNumber = data.phoneNumber;
+            if (data.gender) currentGender = data.gender;
+            if (data.role) currentRole = data.role;
+            if (data.aadhar) aadhar = data.aadhar;
+            if (data.safetyPin) safetyPin = data.safetyPin;
+            if (data.protectorVetting) protectorVetting = data.protectorVetting;
+            if (data.photoUrl) photoUrl = data.photoUrl;
+            if (data.address) address = data.address;
+            if (data.bloodGroup) bloodGroup = data.bloodGroup;
+            if (data.dob) dob = data.dob;
+          }
+        } catch (e) { }
+
+        if (name) setUserName(name);
+        if (phoneNumber) setUserPhone(phoneNumber);
+        if (currentGender) setGender(currentGender);
+        if (currentRole) setRole(currentRole);
+        if (aadhar) setAadhaar(aadhar);
+        if (safetyPin) setLocalSafetyPin(safetyPin);
+        if (protectorVetting) setProtectorData(protectorVetting);
+        if (photoUrl) setPhotoUrl(photoUrl);
+        if (address) setAddress(address);
+        if (bloodGroup) setBloodGroup(bloodGroup);
+        if (dob) setDob(dob);
       } catch (e) { }
     };
     hydrateState();

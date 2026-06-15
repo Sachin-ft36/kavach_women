@@ -48,19 +48,7 @@ export function Header({
             <Eye size={15} />
           </button>
         )}
-        {(role === 'protector' || role === 'pcr_officer' || role === 'admin') && (
-          <button 
-            onClick={() => document.dispatchEvent(new CustomEvent('OPEN_ALERTS_TAB'))}
-            className="relative p-1.5 text-slate-400 hover:text-white transition-colors group"
-          >
-            <Bell size={20} className={cn("stroke-[1.5]", activeAlertsCount > 0 && "animate-bounce text-rose-400")} />
-            {activeAlertsCount > 0 && (
-              <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center text-[8px] font-black text-white border-2 border-[#0F172A] shadow-sm">
-                {activeAlertsCount}
-              </span>
-            )}
-          </button>
-        )}
+
         <div className="relative">
           <button onClick={() => setIsProfileOpen(!isProfileOpen)} className={cn("w-8 h-8 sm:w-9 sm:h-9 rounded-lg shadow-sm transition-all border flex items-center justify-center overflow-hidden", role === 'citizen' ? "border-slate-200 hover:border-slate-300 bg-slate-50" : "border-white hover:border-white/80 bg-slate-800")}>
             {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={15} className={role === 'citizen' ? "text-slate-400" : "text-slate-500"} />}

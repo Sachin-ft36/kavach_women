@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Clock, RefreshCw, XCircle, AlertTriangle, ChevronRight, LogOut, CheckCircle2, Shield } from 'lucide-react';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
+import { supabase } from '../../lib/supabase';
 import { useKavachStore } from '../../store/useKavachStore';
 import { toast } from 'sonner';
 
@@ -53,16 +54,32 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const docRef = doc(db, 'users', user.uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        useKavachStore.getState().setProfile(data as any);
-        useKavachStore.getState().setVerified(data.isVerified || data.verified || false);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.uid)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        const meta = data.metadata || {};
+        const isVerified = !!data.is_verified;
+        useKavachStore.getState().setProfile({
+          id: data.id,
+          uid: data.id,
+          email: data.email,
+          role: data.role,
+          isVerified,
+          ...meta
+        });
+        useKavachStore.getState().setVerified(isVerified);
         
-        if (data.isVerified || data.verified) {
+        if (isVerified) {
           toast.success("Verification Confirmed! Welcome to Kavach.");
-        } else if (data.verificationStatus === 'rejected') {
+        } else if (meta.verificationStatus === 'rejected') {
           toast.error("Verification Rejected by Command Center.");
         } else {
           toast.info("Verification still pending at the Command Center.");
@@ -92,12 +109,13 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
         rejectionReason: null
       };
 
-      // Update primary user doc
-      await updateDoc(doc(db, 'users', user.uid), cleanUpdates);
-
-      // Update gender-partition
+      // 1. Update Firestore (best effort)
+      await updateDoc(doc(db, 'users', user.uid), cleanUpdates).catch(() => {});
       const genderColl = profile?.gender === 'male' ? 'male_users' : 'women_users';
       await updateDoc(doc(db, genderColl, user.uid), cleanUpdates).catch(() => {});
+
+      // 2. Delete/Reset in Supabase
+      await supabase.from('profiles').delete().eq('id', user.uid);
 
       // Clear local storage markers
       localStorage.removeItem(`kavach_verification_start_${user.uid}`);
@@ -188,7 +206,7 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
 
             <button
               onClick={handleReOnboard}
-              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 active:scale-[0.98] transition-all rounded-xl text-xs font-black uppercase tracking-widest text-white flex items-center justify-center gap-2 shadow-md shadow-rose-600/10 cursor-pointer border-none"
+              className="w-full py-4 rounded-md font-black text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 transition-all border-none bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer"
             >
               Update Profile Details
               <ChevronRight size={14} />
@@ -270,7 +288,7 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="w-full py-3 bg-[#1B3A6B] hover:bg-[#112543] active:scale-[0.98] disabled:opacity-50 transition-all rounded-xl text-xs font-black uppercase tracking-widest text-white flex items-center justify-center gap-2 border-none shadow-md shadow-[#1B3A6B]/15 cursor-pointer"
+                className="w-full py-4 rounded-md font-black text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 transition-all border-none bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-white' : 'text-white'} />
                 Refresh Status

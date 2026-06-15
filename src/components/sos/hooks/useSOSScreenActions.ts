@@ -96,7 +96,7 @@ export function useSOSScreenActions(isAIChatOpen: boolean) {
       toast.error("Please provide a mission clearance reason.");
       return;
     }
-    setIsAborting(true);
+    
     const alertId = useKavachStore.getState().activeAlertId;
 
     stopWebSiren();
@@ -105,17 +105,74 @@ export function useSOSScreenActions(isAIChatOpen: boolean) {
       KavachSafe.stopContinuousSiren();
     }
 
-    setSOSActive(false);
+    // ⚡ OPTIMISTIC UI CLOSE: Instantly reset modal states so UI reacts in <100ms
     setShowAbortReason(false);
     setAbortReason('');
     setIsAborting(false);
     toast.success("Mission De-escalated. Grid Restored.");
 
-    try {
-      await setSOSActive(false, alertId, triggerMethod, abortReason);
-    } catch (e: any) {
-      console.warn("⚠️ SOS Grid Sync: Background update failed.", e);
-    }
+    // 📡 Execute database sync and archiving in the background
+    (async () => {
+      try {
+        await setSOSActive(false, alertId, triggerMethod, abortReason);
+      } catch (e: any) {
+        console.warn("⚠️ SOS Grid Sync: Background update failed.", e);
+      }
+
+      // 🎯 STRIKE DETECTION: Was this a false alarm?
+      if (alertId && user?.uid) {
+        try {
+          const { db } = await import('../../../firebase');
+          const { doc, getDoc, updateDoc, increment, serverTimestamp } = await import('firebase/firestore');
+
+          const alertSnap = await getDoc(doc(db, 'alerts', alertId));
+          const alertData = alertSnap.exists() ? alertSnap.data() : null;
+
+          // Time from alert creation to closure
+          const createdMs = alertData?.createdAt?.toMillis
+            ? alertData.createdAt.toMillis()
+            : (typeof alertData?.createdAt === 'number' ? alertData.createdAt : 0);
+          const durationMs = createdMs > 0 ? Date.now() - createdMs : Infinity;
+
+          // False-alarm keywords in reason
+          const falseAlarmKeywords = ['false', 'mistake', 'accident', 'wrong', 'test', 'prank', 'fun', 'joke', 'fake', 'ghalti', 'bhool', 'galti'];
+          const reasonLower = abortReason.toLowerCase();
+          const isFalseReason = falseAlarmKeywords.some(kw => reasonLower.includes(kw));
+
+          // Short close < 2 min = suspicious
+          const isShortDuration = durationMs < 2 * 60 * 1000;
+
+          if (isFalseReason || isShortDuration) {
+            const userRef = doc(db, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            const currentStrikes = userSnap.exists() ? (userSnap.data().sosStrikeCount || 0) : 0;
+            const newStrikes = currentStrikes + 1;
+
+            await updateDoc(userRef, {
+              sosStrikeCount: increment(1),
+              lastFalseAlarmAt: serverTimestamp(),
+              lastFalseAlarmReason: abortReason,
+            });
+
+            const strikeMessages: Record<number, string> = {
+              1: '⚠️ Strike 1/4: Next SOS restricted to 3 hours.',
+              2: '🔴 Strike 2/4: Next SOS restricted to 12 hours.',
+              3: '🚨 Strike 3/4: Next SOS blocked for 48 hours.',
+              4: '🚫 Strike 4/4: SOS access suspended.',
+            };
+
+            toast.warning(strikeMessages[newStrikes] || '🚫 SOS privileges suspended.', {
+              description: 'Misuse of the emergency system puts real lives at risk.',
+              duration: 8000,
+            });
+
+            console.warn(`🛡️ KAVACH STRIKE: User ${user.uid} now has ${newStrikes} strike(s). Reason: ${isFalseReason ? 'false reason' : 'short duration'}`);
+          }
+        } catch (strikeErr) {
+          console.warn('⚠️ KAVACH: Strike update failed:', strikeErr);
+        }
+      }
+    })();
   };
 
   return {

@@ -2,6 +2,8 @@ import React from 'react';
 import { AlertTriangle, Radio, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { cn } from '../../lib/utils';
+
 interface ProtectorAlertListProps {
   activeAlerts: any[];
   profile: any;
@@ -13,6 +15,16 @@ interface ProtectorAlertListProps {
 
 export default function ProtectorAlertList({ activeAlerts, profile, setActiveInterceptAlert, setActiveTab, setIsNearbyHubOpen, setIsMedicalHubOpen }: ProtectorAlertListProps) {
   const isPcrOfficer = profile?.role === 'pcr_officer';
+
+  const getTriggerLabel = (type: string) => {
+    if (!type) return 'APP SOS TRIGGER';
+    const t = type.toUpperCase();
+    if (t.includes('POWER')) return 'COVERT: POWER BUTTON';
+    if (t.includes('SHAKE')) return 'COVERT: SHAKE TRIGGER';
+    if (t.includes('VOICE')) return 'COVERT: VOICE COMMAND';
+    if (t.includes('APP') || t.includes('SOS')) return 'IN-APP SOS BUTTON';
+    return type;
+  };
 
   return (
     <>
@@ -77,20 +89,23 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
             <div className="space-y-3 mt-2">
               {activeAlerts.slice(0, 3).map((alert: any) => {
                 const name = alert.victimName || alert.userName || 'Unknown Victim';
+                const isUserRespondingToThis = profile?.respondingToAlertId === alert.id;
                 return (
-                <div key={alert.id} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-rose-100 transition-colors" onClick={() => setActiveInterceptAlert(alert)}>
+                <div key={alert.id} className={cn("border rounded-xl p-3 flex justify-between items-center cursor-pointer transition-colors", isUserRespondingToThis ? "bg-blue-50 border-blue-100 hover:bg-blue-100" : "bg-rose-50 border-rose-100 hover:bg-rose-100")} onClick={() => setActiveInterceptAlert(alert)}>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-rose-200/50 flex items-center justify-center text-rose-600 font-black text-xs">
+                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-black text-xs", isUserRespondingToThis ? "bg-blue-200/50 text-blue-600" : "bg-rose-200/50 text-rose-600")}>
                       {name.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="text-xs font-black text-slate-800">{name}</p>
-                      <p className="text-[9px] font-bold text-rose-600 uppercase mt-0.5">{alert.type || 'EMERGENCY'}</p>
+                      <p className={cn("text-[9px] font-bold uppercase mt-0.5", isUserRespondingToThis ? "text-blue-600" : "text-rose-600")}>{isUserRespondingToThis ? "Active Intercept" : getTriggerLabel(alert.type)}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-bold text-slate-600">{alert.distance ? `${Number(alert.distance).toFixed(1)} km` : 'Nearby'}</p>
-                    <button className="text-[9px] font-black text-white bg-rose-600 px-3 py-1.5 rounded-lg mt-1 shadow-sm">RESPOND</button>
+                    <button className={cn("text-[9px] font-black text-white px-3 py-1.5 rounded-lg mt-1 shadow-sm uppercase tracking-wider", isUserRespondingToThis ? "bg-blue-600" : "bg-rose-600")}>
+                      {isUserRespondingToThis ? "RESUME" : "RESPOND"}
+                    </button>
                   </div>
                 </div>
               )})}

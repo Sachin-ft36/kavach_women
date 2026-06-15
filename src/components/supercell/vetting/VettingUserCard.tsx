@@ -46,6 +46,9 @@ export default function VettingUserCard({ user, isSelected, onSelect }: Props) {
           )}>
             {u.role || 'citizen'}
           </span>
+          <span className="text-[8px] font-mono text-slate-500 bg-white/5 px-1 py-0.5 rounded-md">
+            ID: {(u.id || '').slice(0, 4)}
+          </span>
         </div>
         <p className="text-[9px] text-slate-500 truncate">
           {u.locationData?.city || 'City Unknown'}, {u.locationData?.state || 'State Unknown'}

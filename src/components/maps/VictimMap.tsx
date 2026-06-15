@@ -26,10 +26,13 @@ const VictimMap = React.memo(({
   isNavigating = false,
   onToggleNav,
   onResolve,
+  onAbort,
   distance = '---',
   mapStyle = 'streets',
   customPos,
-  isCarHUD = false
+  isCarHUD = false,
+  isProtectorHUD = false,
+  onVictimClick
 }: {
   activeAlerts?: any[],
   onClose?: () => void,
@@ -37,13 +40,22 @@ const VictimMap = React.memo(({
   isNavigating?: boolean,
   onToggleNav?: () => void,
   onResolve?: () => void,
+  onAbort?: () => void,
   distance?: string,
   mapStyle?: 'streets' | 'satellite' | 'dark',
   customPos?: [number, number],
-  isCarHUD?: boolean
+  isCarHUD?: boolean,
+  isProtectorHUD?: boolean,
+  onVictimClick?: () => void
 }) => {
   const { userPos, rideData, isRideModeActive } = useKavachStore();
-  const activePos = (customPos || userPos) as [number, number] | null;
+  const activePos = React.useMemo(() => {
+    if (customPos) return customPos;
+    if (userPos && typeof userPos.lat === 'number' && typeof userPos.lng === 'number' && !isNaN(userPos.lat) && !isNaN(userPos.lng)) {
+      return [userPos.lat, userPos.lng] as [number, number];
+    }
+    return null;
+  }, [customPos, userPos?.lat, userPos?.lng]);
   const metrics = useSafetyIntelligence();
   const { initiateCall } = useCall();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -56,13 +68,13 @@ const VictimMap = React.memo(({
   useMapboxInit(map, mapContainer, activePos || null, setIsMapLoaded, isAutoTracking);
 
   // Sync map style, user location, and safety radius
-  useMapSync(map, markersRef, isMapLoaded, mapStyle, activePos || null, isNavigating, isInterceptMode, metrics, setIsMapLoaded);
+  useMapSync(map, markersRef, isMapLoaded, mapStyle, activePos || null, isNavigating, isInterceptMode, metrics, setIsMapLoaded, isCarHUD, isProtectorHUD);
 
   // Real-time PCR & Protector Tracking
   useResponderTracking(map, markersRef, isMapLoaded);
 
   // Victim and Route Sync (Mappls integration)
-  useVictimRouteSync(map, markersRef, isMapLoaded, activePos || null, activeAlerts, isNavigating, isCarHUD, isAutoTracking);
+  useVictimRouteSync(map, markersRef, isMapLoaded, activePos || null, activeAlerts, isNavigating, isCarHUD, isAutoTracking, onVictimClick);
 
   // Ride Safe Route Sync
   useRideRouteSync(map, markersRef, isMapLoaded, isRideModeActive, activePos || null);
@@ -143,6 +155,15 @@ const VictimMap = React.memo(({
               </div>
 
               <div className="flex items-center gap-2">
+                {onAbort && (
+                  <button
+                    onClick={onAbort}
+                    className="px-4 py-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all"
+                  >
+                    <span className="whitespace-nowrap">Stand Down</span>
+                  </button>
+                )}
+
                 <button
                   onClick={onToggleNav}
                   className={cn(

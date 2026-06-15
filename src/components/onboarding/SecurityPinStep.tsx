@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Delete, ShieldCheck, ShieldAlert, Power, Calculator, Timer, Eye, Landmark, CheckCircle2, Info } from 'lucide-react';
+import { Lock, Delete, ShieldCheck, ShieldAlert, Power, Calculator, Timer, Eye, Landmark, Check, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 
@@ -60,7 +60,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
             className="flex-1 flex flex-col space-y-4 py-2 overflow-y-auto custom-scrollbar"
           >
             <div className="flex flex-col items-center space-y-2 mt-2 mb-1 text-center shrink-0">
-              <Landmark className="text-[#000080]" size={36} strokeWidth={1.5} />
+              <Landmark className="text-[#000080]" size={24} strokeWidth={1.5} />
               <div className="space-y-0.5">
                 <h2 className="text-[16px] sm:text-[18px] font-black tracking-widest text-[#000080] uppercase">Security Clearance</h2>
                 <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-wider">National Safety Grid • Form 4A</p>
@@ -153,7 +153,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
             className="flex-1 flex flex-col space-y-3 py-1 min-h-0 text-slate-800 overflow-y-auto custom-scrollbar"
           >
             <div className="flex flex-col items-center space-y-2 mt-2 mb-1 text-center shrink-0">
-              <Landmark className="text-[#000080] sm:w-9 sm:h-9" size={32} strokeWidth={1.5} />
+              <Landmark className="text-[#000080] sm:w-9 sm:h-9" size={24} strokeWidth={1.5} />
               <div className="space-y-0.5">
                 <h2 className="text-[16px] sm:text-[18px] font-black tracking-widest text-[#000080] uppercase">Safety Directives</h2>
                 <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-wider">Mandatory Interactive Tutorials</p>
@@ -181,7 +181,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </p>
                 <button type="button" onClick={() => setShowClimatePreview(true)}
                   className="w-full mt-3 py-2 bg-slate-100 hover:bg-slate-200 text-[#000080] border border-slate-300 rounded-sm text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-widest transition-all">
-                  [ INITIATE TUTORIAL ]
+                  [ WATCH TUTORIAL ]
                 </button>
               </div>
 
@@ -198,7 +198,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </p>
                 <button type="button" onClick={() => setShowSosPreview(true)}
                   className="w-full mt-3 py-2 bg-slate-100 hover:bg-slate-200 text-red-700 border border-slate-300 rounded-sm text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-widest transition-all">
-                  [ INITIATE TUTORIAL ]
+                  [ WATCH TUTORIAL ]
                 </button>
               </div>
 
@@ -215,7 +215,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </p>
                 <button type="button" onClick={() => setShowCalcPreview(true)}
                   className="w-full mt-3 py-2 bg-slate-100 hover:bg-slate-200 text-[#000080] border border-slate-300 rounded-sm text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-widest transition-all">
-                  [ INITIATE TUTORIAL ]
+                  [ WATCH TUTORIAL ]
                 </button>
               </div>
 
@@ -232,7 +232,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </p>
                 <button type="button" onClick={() => setShowTimerPreview(true)}
                   className="w-full mt-3 py-2 bg-slate-100 hover:bg-slate-200 text-amber-700 border border-slate-300 rounded-sm text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-widest transition-all">
-                  [ INITIATE TUTORIAL ]
+                  [ WATCH TUTORIAL ]
                 </button>
               </div>
             </div>
@@ -246,7 +246,7 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 "w-4 h-4 sm:w-5 sm:h-5 border-2 rounded-sm flex items-center justify-center shrink-0 transition-colors mt-0.5",
                 understood ? "bg-[#000080] border-[#000080]" : "bg-white border-slate-400"
               )}>
-                {understood && <CheckCircle2 size={12} className="text-white sm:w-3.5 sm:h-3.5" strokeWidth={3} />}
+                {understood && <Check size={12} className="text-white sm:w-3.5 sm:h-3.5" strokeWidth={3} />}
               </div>
               <span className="text-[8px] sm:text-[9px] font-bold text-slate-700 leading-relaxed uppercase tracking-wider">
                 I acknowledge that this Security PIN is classified and critical for emergency override. It must not be shared.

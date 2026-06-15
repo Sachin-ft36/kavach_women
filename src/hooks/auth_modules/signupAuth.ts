@@ -2,6 +2,7 @@ import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification, s
 import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { toast } from 'sonner';
+import { supabase } from '../../lib/supabase';
 
 export const handleSignup = async (
   loginEmail: string,
@@ -24,7 +25,7 @@ export const handleSignup = async (
   await updateProfile(userCred.user, { displayName: username });
   await sendEmailVerification(userCred.user);
 
-  await setDoc(doc(db, 'users', userCred.user.uid), {
+  const profileData = {
     uid: userCred.user.uid,
     email: loginEmail,
     phone: fullPhone,
@@ -34,7 +35,21 @@ export const handleSignup = async (
     isRegistered: false,
     isVerified: false,
     verificationStatus: 'pending'
-  });
+  };
+
+  await setDoc(doc(db, 'users', userCred.user.uid), profileData);
+
+  try {
+    await supabase.from('profiles').insert({
+      id: userCred.user.uid,
+      email: loginEmail,
+      role: 'citizen',
+      is_verified: false,
+      metadata: profileData
+    });
+  } catch (supabaseErr) {
+    console.warn("Supabase profile insert on signup deferred:", supabaseErr);
+  }
 
   toast.info("Verification link sent! Please verify your email.");
   setNeedsVerification(true);

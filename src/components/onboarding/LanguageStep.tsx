@@ -103,15 +103,7 @@ export default function LanguageStep({ onNext }: { onNext: () => void }) {
             <span className="truncate min-w-0">Confirm & Proceed</span>
             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform shrink-0" />
           </button>
-          
-          <div className="flex flex-col items-center gap-3 opacity-90">
-            <div className="flex items-center gap-3">
-              <img src="/Made-In-India-Lion-PNG-Cutout.png" alt="Made in India" className="h-10 w-auto object-contain" />
-            </div>
-            <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center px-6 leading-relaxed">
-              National Emergency Response Grid<br/>Ministry of Electronics & IT
-            </p>
-          </div>
+
         </div>
       </div>
     </motion.div>

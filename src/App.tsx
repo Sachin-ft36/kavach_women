@@ -19,6 +19,7 @@ import Layout from './components/Layout';
 import SOSConfirmationOverlay from './components/SOSConfirmationOverlay';
 import WarningOverlay from './components/WarningOverlay';
 import BanOverlay from './components/BanOverlay';
+import RestrictedSOSOverlay from './components/RestrictedSOSOverlay';
 import RemoteCommandListener from './components/RemoteCommandListener';
 import { TacticalCallOverlay } from './components/TacticalCallOverlay';
 import SafeTimerPopup from './components/SafeTimerPopup';
@@ -41,8 +42,12 @@ export default function App() {
     isAIChatOpen, setIsAIChatOpen, isInterceptActive, isSOSActive,
     activeTab, setActiveTab, role, setRole, isRegistered, isVerified, profile,
     user, loading, isLocked, handleManualUnlock, isFakeCallActive, setFakeCallActive,
-    isOverlayActive, isSOSBlocked, pendingSOS, isHardwareSynced
+    isOverlayActive, isSOSBlocked, pendingSOS, isHardwareSynced, gender
   } = useKavachStore();
+
+  // 🔒 FORCED MALE RULE: Compute effective role — male citizens are always protectors
+  const isMale = gender === 'male' || (profile as any)?.gender === 'male';
+  const effectiveRole = (isMale && role === 'citizen') ? 'protector' : role;
 
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -63,6 +68,15 @@ export default function App() {
   useEffect(() => {
     const path = window.location.pathname;
     if (path.startsWith('/track/')) setTrackId(path.split('/')[2]);
+
+    // Expose SOS Timer trigger method to window for development/testing
+    (window as any).triggerSOSTimer = (method: any = 'button') => {
+      useKavachStore.getState().setPendingSOS(true, method);
+    };
+
+    return () => {
+      delete (window as any).triggerSOSTimer;
+    };
   }, []);
 
   const [isGhostMode, setIsGhostMode] = useState<boolean>(() => localStorage.getItem('kavach_ghost_mode') === 'true');
@@ -138,6 +152,7 @@ export default function App() {
       <SOSConfirmationOverlay />
       <WarningOverlay />
       <BanOverlay />
+      <RestrictedSOSOverlay />
       <RemoteCommandListener />
       <TacticalCallOverlay />
       <SafeTimerPopup />
@@ -211,8 +226,6 @@ export default function App() {
               }} />
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
-            ) : isSOSActive ? (
-              <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : ((role as any) === 'admin' || (role as any) === 'super_cell') ? (
               <Layout
                 isGhostMode={isGhostMode} onToggleGhost={onToggleGhost}
@@ -225,24 +238,47 @@ export default function App() {
               <div className="w-full h-full">
                 <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
               </div>
-            ) : (!isVerified && (role as any) !== 'admin' && (role as any) !== 'super_cell') ? (
+            ) : (!isVerified && localStorage.getItem('kavach_is_verified') !== 'true' && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'protector' && (effectiveRole as any) !== 'pcr_officer') ? (
               <VerificationPendingGate user={user} profile={profile} />
-            ) : (isLocked && activeTab !== 'sos' && role === 'citizen') ? (
-              <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
             ) : (
-              <Layout isGhostMode={isGhostMode} onToggleGhost={onToggleGhost} activeTab={activeTab} setActiveTab={setActiveTab} role={role} setRole={setRole} setGender={() => { }}>
-                <TabManager isGhostMode={isGhostMode} onToggleGhost={onToggleGhost} />
-              </Layout>
+              <>
+                <Layout isGhostMode={isGhostMode} onToggleGhost={onToggleGhost} activeTab={activeTab} setActiveTab={setActiveTab} role={effectiveRole as any} setRole={setRole} setGender={() => { }}>
+                  <TabManager isGhostMode={isGhostMode} onToggleGhost={onToggleGhost} />
+                </Layout>
+
+                <AnimatePresence>
+                  {(isSOSActive || (isLocked && activeTab !== 'sos' && role === 'citizen')) && (
+                    <motion.div
+                      key="sos-screen-overlay"
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                      style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        width: '100%',
+                        height: '100%',
+                        overflow: 'hidden',
+                        backgroundColor: '#071433'
+                      }}
+                    >
+                      <SOSScreen isLocked={isLocked} activeTab={activeTab} isGhostMode={isGhostMode} handleManualUnlock={handleManualUnlock} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
             )}
           </>
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (role as any) !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || (role as any) === 'admin' || (role as any) === 'super_cell')) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (effectiveRole as any) !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || (effectiveRole as any) === 'admin' || (effectiveRole as any) === 'super_cell' || (effectiveRole as any) === 'protector' || (effectiveRole as any) === 'pcr_officer')) && createPortal(
         <>
           <BottomNavBar isNavVisible={isNavVisible} />
 
-          {role === 'citizen' && (
+          {effectiveRole === 'citizen' && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ bottom: '110px', scale: 1, opacity: 1 }}
