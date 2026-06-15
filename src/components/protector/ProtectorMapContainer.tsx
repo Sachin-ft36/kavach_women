@@ -6,13 +6,15 @@ import { useKavachStore } from '../../store/useKavachStore';
 import { executeEmergencyBlast } from '../../services/sosService';
 
 interface ProtectorMapContainerProps {
+  activeAlerts: any[];
   setIsNearbyHubOpen: (val: boolean) => void;
   setIsMedicalHubOpen: (val: boolean) => void;
   setActiveTab: (val: string) => void;
   setHubViewMode?: (mode: 'all' | 'protectors_only') => void;
+  setActiveInterceptAlert?: (alert: any) => void;
 }
 
-export default function ProtectorMapContainer({ setIsNearbyHubOpen, setIsMedicalHubOpen, setActiveTab, setHubViewMode }: ProtectorMapContainerProps) {
+export default function ProtectorMapContainer({ activeAlerts, setIsNearbyHubOpen, setIsMedicalHubOpen, setActiveTab, setHubViewMode, setActiveInterceptAlert }: ProtectorMapContainerProps) {
   const user = useKavachStore(state => state.user);
   const userPos = useKavachStore(state => state.userPos);
   const [showWarningModal, setShowWarningModal] = useState(false);
@@ -29,7 +31,16 @@ export default function ProtectorMapContainer({ setIsNearbyHubOpen, setIsMedical
       {/* LIVE AREA MAP (WHITE CARD) */}
       <div className="bg-white rounded-[24px] shadow-lg border border-slate-100 overflow-hidden relative mb-4">
         <div className="w-full h-[350px]">
-          <MapplsVictimMap />
+          <MapplsVictimMap 
+            activeAlerts={activeAlerts} 
+            isProtectorHUD={true}
+            onVictimClick={() => {
+              const alert = activeAlerts.find((a: any) => a.status === 'active' || a.status === 'responding');
+              if (alert && setActiveInterceptAlert) {
+                setActiveInterceptAlert(alert);
+              }
+            }}
+          />
         </div>
       </div>
 

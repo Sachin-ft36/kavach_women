@@ -23,6 +23,50 @@ export function useAppInitialization(trackId: string | null) {
   const [loadingStatus, setLoadingStatus] = useState("Resolving Local Telemetry...");
 
   useEffect(() => {
+    const updateBattery = async () => {
+      let level = 100;
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Device } = await import('@capacitor/device');
+          const info = await Device.getBatteryInfo();
+          if (info && info.batteryLevel !== undefined) {
+            level = Math.round(info.batteryLevel * 100);
+          }
+        } catch (e) {
+          console.warn("Failed to get native battery level:", e);
+        }
+      } else if ('getBattery' in navigator) {
+        try {
+          const battery: any = await (navigator as any).getBattery();
+          level = Math.round(battery.level * 100);
+          
+          const onLevelChange = () => {
+            const newLevel = Math.round(battery.level * 100);
+            useKavachStore.getState().setBatteryLevel(newLevel);
+            (window as any).kavachBatteryLevel = newLevel;
+          };
+          battery.addEventListener('levelchange', onLevelChange);
+          return () => battery.removeEventListener('levelchange', onLevelChange);
+        } catch (e) {
+          console.warn("Failed to get browser battery level:", e);
+        }
+      }
+      useKavachStore.getState().setBatteryLevel(level);
+      (window as any).kavachBatteryLevel = level;
+    };
+
+    const cleanupPromise = updateBattery();
+    const interval = setInterval(updateBattery, 60000);
+    
+    return () => {
+      clearInterval(interval);
+      cleanupPromise.then(cleanup => {
+        if (typeof cleanup === 'function') cleanup();
+      }).catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       OfflineQueueService.init();
     }
@@ -83,37 +127,87 @@ export function useAppInitialization(trackId: string | null) {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, 'alerts'),
-      where('victimUid', '==', user.uid),
-      where('status', 'in', ['active', 'responding', 'rescued_pending_victim_clearance'])
-    );
+    let active = true;
+    let channel: any;
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const activeAlert = snapshot.docs[0];
-        const alertData = activeAlert.data();
+    const syncActiveAlert = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase');
         
-        // Ignore protector incident broadcasts, only resume actual SOS
-        if (alertData.type === 'PROTECTOR_REPORT') return;
+        const { data, error } = await supabase
+          .from('alerts')
+          .select('*')
+          .eq('victim_uid', user.uid)
+          .in('status', ['active', 'responding', 'rescued_pending_victim_clearance']);
 
-        console.log("🛰️ KAVACH RECOVERY: Active Mission Detected in Cloud Hub. Syncing local state...");
-        if (!isSOSActive || (alertData.handshakeCode && handshakeCode !== alertData.handshakeCode)) {
-          setSOSActive(true, activeAlert.id, alertData.type || 'remote', null, alertData.handshakeCode);
+        if (error) {
+          console.error("Error fetching active alert from Supabase:", error);
+          return;
         }
-      } else {
-        const lastTrigger = localStorage.getItem('kavach_last_trigger_time');
-        const isRecentlyTriggered = lastTrigger && (Date.now() - parseInt(lastTrigger) < 10000);
 
-        if (isSOSActive && !isRecentlyTriggered) {
-          console.log("✅ KAVACH RECOVERY: Mission Resolved in Cloud Hub. Standing down.");
-          setSOSActive(false);
+        const handleAlertData = (alertData: any) => {
+          if (!active) return;
+          const state = useKavachStore.getState();
+          if (alertData) {
+            const type = alertData.metadata?.type || alertData.type || 'remote';
+            const handshake = alertData.metadata?.handshakeCode || alertData.handshakeCode;
+            if (!state.isSOSActive || (handshake && state.handshakeCode !== handshake)) {
+              setSOSActive(true, alertData.id, type, null, handshake);
+            }
+          } else {
+            const lastTrigger = localStorage.getItem('kavach_last_trigger_time');
+            const isRecentlyTriggered = lastTrigger && (Date.now() - parseInt(lastTrigger) < 10000);
+
+            if (state.isSOSActive && !isRecentlyTriggered) {
+              console.log("✅ KAVACH RECOVERY: Mission Resolved in Supabase. Standing down.");
+              setSOSActive(false);
+            }
+          }
+        };
+
+        if (data && data.length > 0) {
+          handleAlertData(data[0]);
+        } else {
+          handleAlertData(null);
         }
+
+        channel = supabase
+          .channel(`recovery:${user.uid}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'alerts',
+            filter: `victim_uid=eq.${user.uid}`
+          }, async (payload) => {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              const row = payload.new;
+              if (['active', 'responding', 'rescued_pending_victim_clearance'].includes(row.status)) {
+                handleAlertData(row);
+              } else {
+                handleAlertData(null);
+              }
+            } else if (payload.eventType === 'DELETE') {
+              handleAlertData(null);
+            }
+          })
+          .subscribe();
+
+      } catch (err) {
+        console.error("Failed to setup recovery stream from Supabase:", err);
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [user, isSOSActive, handshakeCode, setSOSActive]);
+    syncActiveAlert();
+
+    return () => {
+      active = false;
+      if (channel) {
+        import('../lib/supabase').then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        });
+      }
+    };
+  }, [user, setSOSActive]);
 
   useEffect(() => {
     if (activeTab === 'sos' && role === 'protector' && (user as any)?.role !== 'admin' && (user as any)?.role !== 'super_cell') {
@@ -169,13 +263,23 @@ export function useAppInitialization(trackId: string | null) {
 
   useEffect(() => {
     let activePulse: any = null;
+    let lastTelemetrySync = 0;
+    const TELEMETRY_THROTTLE_MS = 30000; // Sync to Firestore at most every 30s to prevent quota exhaustion
 
     const startTracking = async () => {
       if (user && isRegistered && isHardwareSynced && !isSOSBlocked && isHubReady) {
         const state = useKavachStore.getState();
         activePulse = await watchLiveLocation((pos, acc) => {
           setUserPos(pos);
-          syncTelemetry(user.uid, role, state.batteryLevel, pos, acc);
+
+          // Throttle Firestore writes — GPS fires every few seconds but we only write every 30s
+          const now = Date.now();
+          const isSOSActiveNow = localStorage.getItem('kavach_sos_active') === 'true';
+          const throttleMs = isSOSActiveNow ? 5000 : TELEMETRY_THROTTLE_MS; // 5s during SOS, 30s otherwise
+          if (now - lastTelemetrySync >= throttleMs) {
+            lastTelemetrySync = now;
+            syncTelemetry(user.uid, role, state.batteryLevel, pos, acc);
+          }
 
           if (localStorage.getItem('kavach_ride_active') === 'true') {
             state.syncLocation({ latitude: pos.lat, longitude: pos.lng });

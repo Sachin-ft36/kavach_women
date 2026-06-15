@@ -62,7 +62,7 @@ export default function IdentityStep({
 
         {/* Official Header */}
         <div className="flex flex-col items-center space-y-2 mt-2 mb-2 text-center">
-          <Landmark className="text-[#000080]" size={36} strokeWidth={1.5} />
+          <Landmark className="text-[#000080]" size={24} strokeWidth={1.5} />
           <div className="space-y-0.5">
             <h2 className="text-[18px] font-black tracking-widest text-[#000080] uppercase">
               Citizen Registration
@@ -149,25 +149,7 @@ export default function IdentityStep({
           </div>
         </div>
 
-        {/* GOI Footer */}
-        {!isKeyboardOpen && (
-          <div className="flex flex-col items-center gap-1.5 pt-4 pb-8">
-            <div className="flex items-center justify-between w-full border-t border-slate-300 pt-3 px-1">
-              <div className="flex items-center gap-2.5 text-left">
-                <img src="/emblem-dark.png" alt="Emblem of India" className="h-10 w-auto object-contain shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest leading-none mb-1">
-                    Govt. of India Initiative
-                  </span>
-                  <span className="text-[8px] text-slate-500 font-bold leading-none uppercase tracking-wider">
-                    Securing Citizens Digitally
-                  </span>
-                </div>
-              </div>
-              <img src="/Made-In-India-Lion-PNG-Cutout.png" alt="Made in India" className="h-9 w-auto object-contain opacity-80" />
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* Sticky Proceed Button */}

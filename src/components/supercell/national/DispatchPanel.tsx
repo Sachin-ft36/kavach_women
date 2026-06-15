@@ -142,51 +142,58 @@ export const DispatchPanel = ({
           </div>
 
           <div className="space-y-2">
-            {simulatedPcrVans.map((pcr) => (
-              <div key={pcr.id} className={cn(
-                "p-3 border rounded-xl flex items-center justify-between transition-all",
-                pcrDispatched[pcr.id] 
-                  ? "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                  : "bg-black/40 border-white/5 hover:border-white/10"
-              )}>
-                <div className="min-w-0 flex-1 pr-2">
-                  <h5 className="text-[12px] font-black text-white uppercase leading-none truncate">{pcr.name}</h5>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[14px] text-gray-500 font-bold uppercase">{pcr.officer}</span>
-                    <div className="w-1 h-1 rounded-full bg-white/10" />
-                    <span className="text-[14px] text-cyan-400 font-black italic">{pcr.distance} // ETA {pcr.delay}</span>
+            {simulatedPcrVans.length === 0 ? (
+              <div className="py-8 text-center opacity-40 border border-dashed border-white/10 rounded-[1.25rem] bg-white/2">
+                <p className="text-[12px] font-black uppercase tracking-widest text-white">No Active PCR Units in Range</p>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Units must mark themselves on-duty to appear</p>
+              </div>
+            ) : (
+              simulatedPcrVans.map((pcr) => (
+                <div key={pcr.id} className={cn(
+                  "p-3 border rounded-xl flex items-center justify-between transition-all",
+                  pcrDispatched[pcr.id] 
+                    ? "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                    : "bg-black/40 border-white/5 hover:border-white/10"
+                )}>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <h5 className="text-[12px] font-black text-white uppercase leading-none truncate">{pcr.name}</h5>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[14px] text-gray-500 font-bold uppercase">{pcr.officer}</span>
+                      <div className="w-1 h-1 rounded-full bg-white/10" />
+                      <span className="text-[14px] text-cyan-400 font-black italic">{pcr.distance} // ETA {pcr.delay}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1.5 shrink-0">
+                    <button 
+                      onClick={() => handleRadioCall(pcr.id, pcr.name)}
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-[14px] font-black uppercase tracking-widest border transition-all flex items-center gap-1",
+                        activePcoRadio === pcr.id
+                          ? "bg-rose-500/20 border-rose-500 text-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse"
+                          : "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
+                      )}
+                    >
+                      <Phone size={8} className={activePcoRadio === pcr.id ? "animate-pulse" : ""} />
+                      {activePcoRadio === pcr.id ? "ON CALL" : "RADIO PCO"}
+                    </button>
+
+                    <button 
+                      onClick={() => handlePcrDispatch(pcr.id, pcr.name, pcr.isReal, pcr.uid)}
+                      disabled={pcrDispatched[pcr.id]}
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-[14px] font-black uppercase tracking-widest border transition-all",
+                        pcrDispatched[pcr.id]
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          : "bg-rose-600 hover:bg-rose-700 border-rose-600 text-white shadow-md shadow-rose-600/15"
+                      )}
+                    >
+                      {pcrDispatched[pcr.id] ? "✓ DISPATCHED" : "DISPATCH"}
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex gap-1.5 shrink-0">
-                  <button 
-                    onClick={() => handleRadioCall(pcr.id, pcr.name)}
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg text-[14px] font-black uppercase tracking-widest border transition-all flex items-center gap-1",
-                      activePcoRadio === pcr.id
-                        ? "bg-rose-500/20 border-rose-500 text-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse"
-                        : "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
-                    )}
-                  >
-                    <Phone size={8} className={activePcoRadio === pcr.id ? "animate-pulse" : ""} />
-                    {activePcoRadio === pcr.id ? "ON CALL" : "RADIO PCO"}
-                  </button>
-
-                  <button 
-                    onClick={() => handlePcrDispatch(pcr.id, pcr.name, pcr.isReal, pcr.uid)}
-                    disabled={pcrDispatched[pcr.id]}
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg text-[14px] font-black uppercase tracking-widest border transition-all",
-                      pcrDispatched[pcr.id]
-                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        : "bg-rose-600 hover:bg-rose-700 border-rose-600 text-white shadow-md shadow-rose-600/15"
-                    )}
-                  >
-                    {pcrDispatched[pcr.id] ? "✓ DISPATCHED" : "DISPATCH"}
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

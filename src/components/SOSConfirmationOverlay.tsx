@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, X, AlertTriangle, Zap } from 'lucide-react';
+import { ShieldAlert, X, AlertTriangle, Zap, Radio } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
-import { cn } from '../lib/utils';
-import { KavachSafe } from '../services/KavachNative';
 import { Capacitor } from '@capacitor/core';
+import { KavachSafe } from '../services/KavachNative';
 
 export default function SOSConfirmationOverlay() {
   const { pendingSOS, cancelPendingSOS, setSOSActive } = useKavachStore();
@@ -15,7 +14,6 @@ export default function SOSConfirmationOverlay() {
       return;
     }
 
-    // 📳 Tactical Haptic Pulse on Trigger
     if (Capacitor.isNativePlatform()) {
       KavachSafe.triggerHapticPulse();
     }
@@ -27,7 +25,6 @@ export default function SOSConfirmationOverlay() {
           return 0;
         }
         
-        // 📳 Rhythmic Pulse during countdown
         if (Capacitor.isNativePlatform()) {
            KavachSafe.triggerHapticPulse();
         }
@@ -39,7 +36,6 @@ export default function SOSConfirmationOverlay() {
     return () => clearInterval(timer);
   }, [pendingSOS]);
 
-  // 🚀 MISSION DISPATCH WATCHER
   useEffect(() => {
     if (timeLeft === 0 && pendingSOS) {
       setSOSActive(true, null, pendingSOS.method);
@@ -48,72 +44,268 @@ export default function SOSConfirmationOverlay() {
 
   if (!pendingSOS) return null;
 
+  // Calculate SVG stroke offset for the circular countdown (r=75, circumference = 2 * pi * 75 = 471.24)
+  const radius = 75;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (timeLeft / 5) * circumference;
+
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#0A0A0B] flex flex-col items-center justify-between p-8 sm:p-12 text-white">
-      {/* Background Tactical Glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.1),transparent)] pointer-events-none" />
-      
-      <div className="w-full max-w-md mx-auto flex-1 flex flex-col items-center justify-center text-center space-y-8">
-        <div className="w-24 h-24 rounded-[32px] bg-red-600/10 border-2 border-red-600/30 flex items-center justify-center text-red-500 shadow-[0_0_40px_rgba(220,38,38,0.1)]">
-          <ShieldAlert size={48} strokeWidth={1.5} />
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 99999,
+      background: 'radial-gradient(circle at center, #151020 0%, #07080C 100%)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '56px 28px',
+      color: '#FFFFFF',
+      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      overflow: 'hidden',
+      boxSizing: 'border-box'
+    }}>
+      <style>{`
+        .abort-btn-tactical {
+          width: 100%;
+          padding: 18px 32px;
+          background: rgba(255, 255, 255, 0.08);
+          color: #FFFFFF;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border-radius: 20px;
+          fontSize: 13px;
+          fontWeight: 800;
+          textTransform: uppercase;
+          letter-spacing: 3px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          box-sizing: border-box;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .abort-btn-tactical:hover {
+          background: rgba(239, 68, 68, 0.15) !important;
+          border-color: rgba(239, 68, 68, 0.4) !important;
+          color: #F87171 !important;
+          box-shadow: 0 0 15px rgba(239, 68, 68, 0.25) !important;
+        }
+        .abort-btn-tactical:active {
+          transform: scale(0.97) !important;
+          background: rgba(239, 68, 68, 0.3) !important;
+        }
+      `}</style>
+
+      {/* Futuristic soft background ambient nodes */}
+      <div style={{
+        position: 'absolute',
+        top: '-15%',
+        width: '400px',
+        height: '400px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(239, 68, 68, 0.08) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+
+      {/* HEADER SECTION */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '16px',
+        zIndex: 10,
+        width: '100%',
+        textAlign: 'center'
+      }}>
+        {/* State Badge */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 16px',
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: '100px'
+        }}>
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            backgroundColor: '#EF4444',
+            boxShadow: '0 0 8px #EF4444'
+          }} />
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '2.5px',
+            color: '#F87171'
+          }}>Sovereign Guard Active</span>
         </div>
 
-        <div className="space-y-3">
-          <h2 className="text-3xl font-black uppercase tracking-widest leading-tight">
-            Emergency Trigger<br />Detected
+        {/* Title */}
+        <div>
+          <h2 style={{
+            margin: '0',
+            fontSize: '28px',
+            fontWeight: 900,
+            textTransform: 'uppercase',
+            letterSpacing: '3px',
+            color: '#FFFFFF',
+            lineHeight: '1.2'
+          }}>
+            SOS Broadcast
           </h2>
-          <div className="flex items-center justify-center gap-2 text-red-500/80">
-            <Zap size={14} />
-            <span className="text-[10px] font-bold uppercase tracking-[3px]">Trigger Method: {pendingSOS.method}</span>
-          </div>
-        </div>
-
-        <div className="relative w-40 h-40 flex items-center justify-center">
-           <svg className="w-full h-full -rotate-90">
-              <circle
-                cx="80" cy="80" r="70"
-                fill="transparent"
-                stroke="currentColor"
-                strokeWidth="8"
-                className="text-white/5"
-              />
-              <circle
-                cx="80" cy="80" r="70"
-                fill="transparent"
-                stroke="currentColor"
-                strokeWidth="8"
-                className="text-red-600 transition-all duration-1000"
-                style={{
-                  strokeDasharray: '440',
-                  strokeDashoffset: (440 - (440 * (5 - timeLeft) / 5)).toString()
-                }}
-              />
-           </svg>
-           <span className="absolute text-7xl font-black font-mono">{timeLeft}</span>
-        </div>
-
-        <div className="space-y-4">
-           <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-             Broadcasting Live SOS in {timeLeft}s
-           </p>
-           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
-              <AlertTriangle size={14} className="text-yellow-500" />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-300">National Grid Authorities Standing By</span>
-           </div>
+          <p style={{
+            margin: '8px 0 0 0',
+            fontSize: '11px',
+            color: '#94A3B8',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '1.5px'
+          }}>
+            Trigger Method: <span style={{ color: '#F87171', fontWeight: 800 }}>{pendingSOS.method}</span>
+          </p>
         </div>
       </div>
 
-      <div className="w-full max-w-md mx-auto pt-10">
-        <button 
+      {/* CENTRAL SLEEK COUNTDOWN */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '220px',
+        height: '220px',
+        zIndex: 10
+      }}>
+        {/* Soft Ring Shadow Background */}
+        <div style={{
+          position: 'absolute',
+          width: '150px',
+          height: '150px',
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.01)',
+          border: '1px solid rgba(255, 255, 255, 0.03)'
+        }} />
+
+        {/* Circular Progress SVG */}
+        <svg style={{
+          transform: 'rotate(-90deg)',
+          width: '180px',
+          height: '180px',
+          position: 'absolute'
+        }}>
+          <circle
+            cx="90"
+            cy="90"
+            r={radius}
+            stroke="rgba(255, 255, 255, 0.03)"
+            strokeWidth="6"
+            fill="transparent"
+          />
+          <circle
+            cx="90"
+            cy="90"
+            r={radius}
+            stroke="#EF4444"
+            strokeWidth="6"
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset 1s linear' }}
+          />
+        </svg>
+
+        {/* Counter digits */}
+        <div style={{
+          position: 'absolute',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <span style={{
+            fontSize: '76px',
+            fontWeight: 900,
+            color: '#FFFFFF',
+            lineHeight: '1',
+            fontFamily: "system-ui, -apple-system, sans-serif"
+          }}>
+            {timeLeft}
+          </span>
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '1.5px',
+            color: '#94A3B8',
+            marginTop: '4px'
+          }}>seconds left</span>
+        </div>
+      </div>
+
+      {/* ACTION & FOOTER SECTION */}
+      <div style={{
+        width: '100%',
+        maxWidth: '360px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '24px',
+        zIndex: 10
+      }}>
+        {/* Warning Banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          width: '100%',
+          padding: '14px 18px',
+          background: 'rgba(245, 158, 11, 0.05)',
+          border: '1px solid rgba(245, 158, 11, 0.15)',
+          borderRadius: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            color: '#F3F4F6',
+            textAlign: 'center',
+            lineHeight: '1.4'
+          }}>
+            PCR Dispatch & Guardians will be alerted
+          </span>
+        </div>
+
+        {/* Abort button (Glassmorphic) */}
+        <button
           onClick={cancelPendingSOS}
-          className="w-full py-6 bg-white text-black rounded-[32px] font-black uppercase tracking-[4px] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4"
+          className="abort-btn-tactical"
         >
-          <X size={24} strokeWidth={3} />
-          Cancel Request
+          <X size={14} strokeWidth={3} />
+          Cancel Alert
         </button>
-        <p className="text-center text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-6">
-          System Response Hardened for Reliability
-        </p>
+
+        {/* Secure marker */}
+        <span style={{
+          fontSize: '9px',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '2px',
+          color: '#475569'
+        }}>
+          Secure Transit Link
+        </span>
       </div>
     </div>
   );

@@ -55,14 +55,14 @@ export default function ProtectorsRadarScreen() {
     return () => unsubscribe();
   }, []);
 
-  const [activeRadius, setActiveRadius] = useState(5.0);
+  const [activeRadius, setActiveRadius] = useState(2.0);
 
-  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Direct 5km scan
+  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Direct 2km scan
   useEffect(() => {
     if (!userPos || allProtectors.length === 0) return;
 
     let foundProtectors: any[] = [];
-    let currentRadius = 5.0;
+    let currentRadius = 2.0;
 
     const allWithDistance = allProtectors.map(p => {
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude || (p.coords && p.coords[0]);
@@ -72,7 +72,15 @@ export default function ProtectorsRadarScreen() {
     });
 
     foundProtectors = allWithDistance
-      .filter(p => p.distanceKm !== null && p.distanceKm <= currentRadius && p.id !== user?.uid && p.uid !== user?.uid)
+      .filter(p => {
+        if (p.distanceKm === null) return false;
+        if (p.id === user?.uid || p.uid === user?.uid) return false;
+        const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police', 'Doctor'].includes(p.protectorVetting?.occupation || p.profession) || p.role === 'pcr_officer';
+        if (isElite) {
+          return p.distanceKm <= 5.0;
+        }
+        return p.distanceKm <= currentRadius;
+      })
       .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
 
     setNearbyProtectors(foundProtectors);
@@ -97,7 +105,7 @@ export default function ProtectorsRadarScreen() {
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-               <p className={cn("text-[7px] sm:text-[9px] font-bold uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>5KM Perimeter // Live</p>
+               <p className={cn("text-[7px] sm:text-[9px] font-bold uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>2KM Perimeter // Live</p>
             </div>
           </div>
         </div>

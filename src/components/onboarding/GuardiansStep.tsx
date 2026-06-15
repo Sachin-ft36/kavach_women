@@ -54,7 +54,7 @@ export default function GuardiansStep({
     >
       {/* Official Header */}
       <div className="flex flex-col items-center space-y-2 mt-2 mb-4 text-center shrink-0">
-        <Landmark className="text-[#000080]" size={32} strokeWidth={1.5} />
+        <Landmark className="text-[#000080]" size={24} strokeWidth={1.5} />
         <div className="space-y-0.5">
           <h2 className="text-[16px] sm:text-[18px] font-black tracking-widest text-[#000080] uppercase">
             Emergency Registry
@@ -137,10 +137,10 @@ export default function GuardiansStep({
               onClick={handleAddClick} 
               disabled={draftPhone.length < 10}
               className={cn(
-                "w-full py-2.5 rounded-sm text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] border",
+                "w-full py-2.5 rounded-sm text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] border-none",
                 draftPhone.length === 10
-                  ? "bg-[#000080] border-[#000080] text-white hover:bg-blue-900"
-                  : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                  ? "bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
               )}
             >
               <CheckCircle2 size={12} />

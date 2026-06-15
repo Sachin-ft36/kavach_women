@@ -17,6 +17,8 @@ export function useMapboxInit(
       return;
     }
 
+    if (map.current) return; // Prevent re-initialization if map already exists
+    
     mapContainer.current.innerHTML = '';
     const initialCoords: [number, number] = activePos ? [activePos[1], activePos[0]] : [78.9629, 20.5937];
 
@@ -129,5 +131,5 @@ export function useMapboxInit(
         map.current = null;
       }
     };
-  }, [map, mapContainer, activePos, setIsMapLoaded, isAutoTracking]);
+  }, []); // Empty dependency array so map only initializes once
 }

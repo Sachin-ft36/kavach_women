@@ -71,6 +71,7 @@ export function useStateFilter(params: FilterParams) {
       return districtMatch && stateMatch;
     }
 
+    if (selectedState === 'ALL') return true;
     if (item.state && matchesState(selectedState, item.state)) return true;
     if (item.address && matchesState(selectedState, item.address)) return true;
     if (item.locationName && matchesState(selectedState, item.locationName)) return true;

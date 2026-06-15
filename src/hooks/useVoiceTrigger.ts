@@ -12,7 +12,7 @@ import { KavachSafe } from '../services/KavachNative';
 export const useVoiceTrigger = () => {
   const {
     isSOSActive, isVoiceTriggerActive, isBriefingActive, setPendingSOS, 
-    isSOSBlocked, pendingSOS, performanceMode, role, user, isRegistered, isHardwareSynced
+    isSOSBlocked, pendingSOS, performanceMode, role, user, isRegistered, isHardwareSynced, isVerified
   } = useKavachStore();
 
   // Create absolute thread-safe immutable reference points for loop processes
@@ -30,6 +30,7 @@ export const useVoiceTrigger = () => {
   const animationFrameIdRef = useRef<number | null>(null);
   const lastAudioActivityRef = useRef<number>(0);
   const isHandoffInProgressRef = useRef<boolean>(false);
+  const isVerifiedRef = useRef(isVerified);
 
   useEffect(() => {
     isVoiceTriggerActiveRef.current = isVoiceTriggerActive;
@@ -38,7 +39,8 @@ export const useVoiceTrigger = () => {
     isSOSBlockedRef.current = isSOSBlocked;
     pendingSOSRef.current = !!pendingSOS;
     performanceModeRef.current = performanceMode;
-  }, [isVoiceTriggerActive, isSOSActive, isBriefingActive, isSOSBlocked, pendingSOS, performanceMode]);
+    isVerifiedRef.current = isVerified;
+  }, [isVoiceTriggerActive, isSOSActive, isBriefingActive, isSOSBlocked, pendingSOS, performanceMode, isVerified]);
 
   useEffect(() => {
     // 🛡️ ROLE GATING: Only Citizens require the voice monitoring layer
@@ -129,6 +131,7 @@ export const useVoiceTrigger = () => {
         !user || 
         !isRegistered || 
         !isHardwareSynced || 
+        !isVerifiedRef.current || 
         !hasSeenIntro
       ) {
         return;
@@ -246,7 +249,7 @@ export const useVoiceTrigger = () => {
     };
 
     const hasSeenIntro = localStorage.getItem('kavach_intro_seen') === 'true';
-    if (isVoiceTriggerActive && user && isRegistered && isHardwareSynced && hasSeenIntro) {
+    if (isVoiceTriggerActive && user && isRegistered && isHardwareSynced && isVerified && hasSeenIntro) {
       if (document.hasFocus()) {
         initGlobalSentinel();
       } else {
@@ -266,5 +269,5 @@ export const useVoiceTrigger = () => {
       window.removeEventListener('blur', handleWindowBlur);
       stopPassiveAudioGate();
     };
-  }, [isVoiceTriggerActive, isSOSActive, isBriefingActive, isSOSBlocked, pendingSOS, role, user, isRegistered, isHardwareSynced]);
+  }, [isVoiceTriggerActive, isSOSActive, isBriefingActive, isSOSBlocked, pendingSOS, role, user, isRegistered, isHardwareSynced, isVerified]);
 };

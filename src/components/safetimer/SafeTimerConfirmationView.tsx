@@ -14,13 +14,13 @@ export default function SafeTimerConfirmationView({
   return (
     <AnimatePresence>
       {showConfirmation && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
         >
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
@@ -29,7 +29,7 @@ export default function SafeTimerConfirmationView({
             <div className="w-16 h-16 rounded-full bg-accent-red/10 border border-accent-red/20 mx-auto flex items-center justify-center mb-2">
               <AlertCircle className="text-accent-red" size={24} />
             </div>
-            
+
             <div className="text-center space-y-2">
               <h3 className="text-xl font-black text-white italic tracking-tight">KAVACH OFFLINE TRACKING</h3>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">
@@ -65,13 +65,13 @@ export default function SafeTimerConfirmationView({
             </div>
 
             <div className="space-y-3 pt-2">
-              <button 
+              <button
                 onClick={startTimer}
                 className="w-full py-4 bg-accent-red text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-accent-red/20 flex items-center justify-center gap-2"
               >
                 <ShieldCheck size={16} /> I Understand, Start Timer
               </button>
-              <button 
+              <button
                 onClick={() => setShowConfirmation(false)}
                 className="w-full py-4 bg-white/5 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest"
               >

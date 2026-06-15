@@ -160,7 +160,7 @@ export function useProtectorSentinel() {
         }
       }
     };
-  }, [role, isRegistered, isSOSBlocked]);
+  }, [role, isRegistered, isSOSBlocked, profile?.isVerified]);
 
   return null;
 }

@@ -144,8 +144,6 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
         console.warn("🛡️ KAVACH GUARD: SOS activation blocked. Profile must be registered, synced, and approved by the Command Center.");
         return;
       }
-      console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
-      logTelemetryEvent('sos_trigger_success', { method });
 
       const currentUid = auth.currentUser?.uid || localStorage.getItem('kavach_user_uid');
 
@@ -154,7 +152,26 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
         return;
       }
 
-      const alertId = activeAlertId || `alert_${currentUid}_${Date.now()}`;
+      const lastCancel = localStorage.getItem('kavach_last_cancellation_time');
+      const isOverride = (method === 'duress' || (window as any)._kavach_sos_override === true);
+      
+      if (lastCancel && !isOverride) {
+        const timeSinceCancel = Date.now() - parseInt(lastCancel, 10);
+        if (timeSinceCancel < 30 * 60 * 1000) { // 30 minutes
+          const cooldownKey = `kavach_sos_cooldown_${currentUid}`;
+          localStorage.setItem(cooldownKey, lastCancel);
+          console.warn("🛡️ KAVACH GUARD: SOS activation blocked due to cool down restriction.");
+          set({ pendingSOS: null });
+          return;
+        }
+      }
+
+      // 🎯 Bypassed all strike systems completely. Allowing instant SOS triggers.
+      console.log(`🚨 KAVACH COMMAND: SOS TRIGGERED VIA [${method.toUpperCase()}]`);
+      logTelemetryEvent('sos_trigger_success', { method });
+
+      const freshAlertId = `alert_${currentUid}_${Date.now()}`;
+      const alertId = freshAlertId;
       const existingHandshake = providedHandshake || get().handshakeCode || localStorage.getItem('kavach_handshake_code');
       const finalHandshake = existingHandshake || Math.floor(1000 + Math.random() * 9000).toString();
 
@@ -213,6 +230,34 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
         KavachSafe.startForensicCapture().catch(e => console.warn("Native forensics not available:", e));
 
         try {
+          // 📡 Initialize Firestore Alert Document
+          const { db } = await import('../../firebase');
+          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+          const finalUser = (get().user || auth.currentUser) as any;
+          await setDoc(doc(db, 'alerts', alertId), {
+            id: alertId,
+            victimUid: currentUid,
+            victimName: finalUser?.displayName || finalUser?.name || 'Kavach Citizen',
+            victimPhone: finalUser?.phoneNumber || finalUser?.phone || localStorage.getItem('kavach_user_phone') || 'UNREGISTERED',
+            status: 'active',
+            createdAt: serverTimestamp(),
+            timestamp: serverTimestamp(),
+            lastUpdated: serverTimestamp(),
+            type: method,
+            schemaVersion: 1,
+            latitude: userPos?.lat || 20.5937,
+            longitude: userPos?.lng || 78.9629,
+            location: {
+              latitude: userPos?.lat || 20.5937,
+              longitude: userPos?.lng || 78.9629,
+            }
+          });
+          console.log(`🔥 [FIRESTORE] Alert document ${alertId} initialized as active`);
+        } catch (fsErr) {
+          console.error("❌ [FIRESTORE] Failed to initialize alert document:", fsErr);
+        }
+
+        try {
           await executeEmergencyBlast(get().user || auth.currentUser, userPos, {
             alertId: alertId,
             type: method,
@@ -237,17 +282,73 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
       localStorage.removeItem('kavach_trigger_method');
       localStorage.removeItem('kavach_handshake_code');
       localStorage.removeItem('kavach_last_trigger_time');
+
+      localStorage.setItem('kavach_last_cancellation_time', Date.now().toString());
       
       const closedAlertId = get().activeAlertId;
 
+      // ⚡ IMMEDIATE SYNCHRONOUS STATE UPDATE: Switch active tab and turn off active SOS immediately
       set({
         isSOSActive: false,
         activeAlertId: null,
         isHandshakeVerified: false,
         handshakeCode: null,
         isDuressTriggered: false,
-        isShadowActive: false
+        isShadowActive: false,
+        activeTab: 'dashboard'
       });
+
+      if (closedAlertId && auth.currentUser) {
+         // Run DB calls asynchronously in the background so UI doesn't wait
+         (async () => {
+           // 📡 Update Firestore Alert Document Status
+           try {
+             const { db } = await import('../../firebase');
+             const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+             await updateDoc(doc(db, 'alerts', closedAlertId), {
+               status: 'cancelled',
+               closedAt: serverTimestamp(),
+               closureReason: closureReason || 'citizen_standdown'
+             });
+             console.log(`🔥 [FIRESTORE] Successfully updated alert ${closedAlertId} to cancelled`);
+           } catch (fsErr) {
+             console.warn("⚠️ [FIRESTORE] Failed to update alert status to cancelled in Firestore:", fsErr);
+           }
+
+           try {
+             const { supabase } = await import('../../lib/supabase');
+             
+             await supabase
+               .from('alerts')
+               .update({
+                 status: 'cancelled'
+               })
+               .eq('id', closedAlertId);
+
+             await archiveIncident(closedAlertId, closureReason || 'citizen_standdown');
+
+             const { data: ghosts } = await supabase
+               .from('alerts')
+               .select('id')
+               .eq('victim_uid', auth.currentUser.uid)
+               .in('status', ['active', 'responding']);
+
+             if (ghosts && ghosts.length > 0) {
+               for (const ghost of ghosts) {
+                 if (ghost.id !== closedAlertId) {
+                   await supabase
+                     .from('alerts')
+                     .update({ status: 'cancelled' })
+                     .eq('id', ghost.id);
+                   await archiveIncident(ghost.id, 'ghost_cleanup');
+                 }
+               }
+             }
+           } catch (e) {
+             console.error("Failed to archive incident in Supabase:", e);
+           }
+         })();
+      }
 
       if (Capacitor.isNativePlatform()) {
         try {
@@ -255,14 +356,6 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
            await KavachSafe.stopForensicCapture();
            await KavachSafe.setAppStealthMode({ enabled: false });
         } catch (e) { }
-      }
-
-      if (closedAlertId && auth.currentUser) {
-         try {
-           await archiveIncident(closedAlertId, closureReason || 'citizen_standdown');
-         } catch (e) {
-           console.error("Failed to archive incident:", e);
-         }
       }
 
       toast.success("Security Standdown", {

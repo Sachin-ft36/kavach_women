@@ -8,7 +8,7 @@ import { Capacitor } from '@capacitor/core';
  * Includes a low-pass filter to prevent false triggers from simple drops or running.
  */
 export function useShakeTrigger() {
-  const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive, isSOSBlocked } = useKavachStore();
+  const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive, isSOSBlocked, isVerified } = useKavachStore();
   
   const lastShakeTimestampRef = useRef<number>(0);
   const shakeCountRef = useRef<number>(0);
@@ -21,7 +21,7 @@ export function useShakeTrigger() {
 
   useEffect(() => {
     // Structural gating checks
-    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked) {
+    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked || !isVerified) {
       teardownKineticEngine();
       return;
     }
@@ -94,7 +94,7 @@ export function useShakeTrigger() {
     return () => {
       teardownKineticEngine();
     };
-  }, [isSOSActive, pendingSOS, role, isBriefingActive, isSOSBlocked]);
+  }, [isSOSActive, pendingSOS, role, isBriefingActive, isSOSBlocked, isVerified]);
 
   return null;
 }

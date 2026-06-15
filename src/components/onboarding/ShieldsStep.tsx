@@ -124,11 +124,7 @@ export default function MissionReadiness({
   return (
     <div className="flex-1 flex flex-col min-h-0 relative bg-slate-50/50">
       
-      {/* Top Ministry Badge Banner */}
-      <div className="bg-slate-900 text-[9px] text-slate-300 font-bold uppercase tracking-wider py-1.5 px-4 flex items-center justify-center gap-2 border-b border-slate-800">
-        <Landmark size={11} className="text-amber-500" />
-        <span>KAVACH Security Protocol • Government of India Initiative</span>
-      </div>
+
 
       {/* Main Scrollable Content */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-5 px-4 custom-scrollbar pb-6 pt-4">
@@ -153,7 +149,7 @@ export default function MissionReadiness({
           </div>
           
           <div className="space-y-1.5">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-[16px] sm:text-[18px] font-black tracking-widest text-[#000080] uppercase">
               {allShieldsActive ? "SYSTEM ARMED & SECURED" : "KAVACH System Configuration"}
             </h1>
             <p className={cn(
@@ -169,32 +165,32 @@ export default function MissionReadiness({
         </div>
 
         {/* Protection Progress & Status Indicator */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+        <div className="bg-white rounded-md border border-slate-200/80 p-2.5 shadow-sm space-y-2.5">
+          <div className="flex justify-between items-center px-0.5">
+            <div className="flex flex-col">
+              <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest leading-none mb-1">
                 Verification Progress
               </span>
-              <p className="text-xs font-bold text-slate-800">
+              <p className="text-[10px] font-bold text-slate-800 leading-none">
                 {activeModulesCount === 4 ? "Ready to Deploy Shield" : "Awaiting Authorization Modules"}
               </p>
             </div>
 
-            <div className="flex items-baseline gap-1 bg-slate-100 px-3 py-1 rounded-lg">
-              <span className="text-base font-black text-slate-900">{activeModulesCount}</span>
-              <span className="text-[10px] font-bold text-slate-400">/ 4</span>
+            <div className="flex items-baseline gap-0.5 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-sm">
+              <span className="text-[11px] font-black text-[#000080]">{activeModulesCount}</span>
+              <span className="text-[8px] font-bold text-slate-400">/4</span>
             </div>
           </div>
 
           {/* Clean Progress Bar */}
-          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mx-0.5">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${(activeModulesCount / 4) * 100}%` }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               className={cn(
                 "h-full rounded-full transition-colors duration-500",
-                allShieldsActive ? "bg-emerald-500" : "bg-blue-600"
+                allShieldsActive ? "bg-emerald-500" : "bg-[#000080]"
               )}
             />
           </div>
@@ -249,16 +245,11 @@ export default function MissionReadiness({
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={onActivate}
-            className="w-full py-4 rounded-xl font-bold text-[11px] tracking-widest uppercase flex items-center justify-between px-6 transition-all border-none bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/15 cursor-pointer"
+            className="w-full py-4 rounded-md font-black text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 transition-all border-none bg-[#000080] text-white shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 cursor-pointer"
           >
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span className="text-white text-[11px] font-black">PROCEED TO CONSOLE</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-300">INITIATE REVIEW</span>
-              <ChevronRight size={14} className="text-white" />
-            </div>
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>ACTIVATE KAVACH</span>
+            <ChevronRight size={16} className="text-white" />
           </motion.button>
         ) : (
           <div className="w-full py-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center gap-2">

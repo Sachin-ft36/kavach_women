@@ -22,6 +22,7 @@ import { ProtectorClosureModal } from './protector/components/ProtectorClosureMo
 import { ProtectorInterceptHUD } from './protector/components/ProtectorInterceptHUD';
 import { ProtectorSuccessModal } from './protector/components/ProtectorSuccessModal';
 import { ProtectorShiftCompleteModal } from './protector/components/ProtectorShiftCompleteModal';
+import { ProtectorStandDownModal } from './protector/components/ProtectorStandDownModal';
 
 export default function ProtectorDashboard() {
   const { user, profile, userPos, setInterceptActive, setActiveAlertsCount } = useKavachStore();
@@ -38,6 +39,8 @@ export default function ProtectorDashboard() {
   const [isMegaphoneActive, setIsMegaphoneActive] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isInterceptHUDOpen, setIsInterceptHUDOpen] = useState(false);
+  const [isStandDownOpen, setIsStandDownOpen] = useState(false);
+  const [isAborting, setIsAborting] = useState(false);
 
   const [showTacticalPledge, setShowTacticalPledge] = useState<{ isOpen: boolean, alertId: string | null }>({ isOpen: false, alertId: null });
   const [rescuePhoto, setRescuePhoto] = useState<string | null>(null);
@@ -48,7 +51,13 @@ export default function ProtectorDashboard() {
 
 
   // Extract hooks
-  const { activeAlerts, setActiveAlerts, respondingToId, setRespondingToId, activeInterceptAlert, setActiveInterceptAlert, assignedDispatch, setAssignedDispatch, distanceToVictim, lastResolvedVictim, showSuccessMotivation, setShowSuccessMotivation, resolvingAlert, setResolvingAlert } = useProtectorAlerts(user, profile, userPos, activeTab || 'map', isPcrOfficer, setInterceptActive, setIsInterceptHUDOpen, setIsNavigating);
+  const { 
+    activeAlerts, setActiveAlerts, respondingToId, setRespondingToId, 
+    activeInterceptAlert, setActiveInterceptAlert, assignedDispatch, setAssignedDispatch, 
+    distanceToVictim, lastResolvedVictim, showSuccessMotivation, setShowSuccessMotivation, 
+    resolvingAlert, setResolvingAlert, isCancelledByVictim, setIsCancelledByVictim,
+    deEscalationReason, setDeEscalationReason, addToAbortedBlacklist, setAbortedVictims
+  } = useProtectorAlerts(user, profile, userPos, activeTab || 'map', isPcrOfficer, setInterceptActive, setIsInterceptHUDOpen, setIsNavigating);
 
   // Sync alert count to global store for Header badge
   useEffect(() => {
@@ -76,7 +85,7 @@ export default function ProtectorDashboard() {
   
   const { carSpeed, etaTimer } = useProtectorCarSimulation(isCarScreenOpen, respondingToId, isNavigating, isOnDuty, profile);
 
-  const { handleStartHelp, confirmTacticalResponse, handleResolveAlert, maskName } = useProtectorHandlers(
+  const { handleStartHelp, confirmTacticalResponse, handleResolveAlert, handleAbortResponse, maskName } = useProtectorHandlers(
     user, isProcessingResponse, setIsProcessingResponse, showTacticalPledge, setShowTacticalPledge,
     setRespondingToId, activeAlerts, setActiveInterceptAlert, isCarScreenOpen, setIsInterceptHUDOpen,
     setInterceptActive, setIsNavigating, resolvingAlert, setResolvingAlert, handshakeInput, setHandshakeInput,
@@ -147,6 +156,8 @@ export default function ProtectorDashboard() {
     <div className="min-h-screen bg-[#0F172A] pb-6 font-sans overflow-x-hidden relative">
       <ProtectorHeader profile={profile} user={user} isOnDuty={isOnDuty} protectorStats={protectorStats} setActiveTab={setActiveTab} handleToggleDuty={handleToggleDuty} />
       
+
+
       <div className="mt-4">
         <ProtectorTabs 
           activeTab={activeTab || 'map'} 
@@ -157,7 +168,21 @@ export default function ProtectorDashboard() {
       </div>
 
       {activeTab === 'list' && (
-        <ProtectorAlertList activeAlerts={activeAlerts} profile={profile} setActiveInterceptAlert={setActiveInterceptAlert} setActiveTab={setActiveTab} setIsNearbyHubOpen={setIsNearbyHubOpen} setIsMedicalHubOpen={setIsMedicalHubOpen} />
+        <ProtectorAlertList 
+          activeAlerts={activeAlerts} 
+          profile={profile} 
+          setActiveInterceptAlert={(alert) => {
+            if (profile?.respondingToAlertId === alert.id) {
+              setIsInterceptHUDOpen(true);
+              setInterceptActive(true);
+            } else {
+              handleStartHelp(alert.id);
+            }
+          }} 
+          setActiveTab={setActiveTab} 
+          setIsNearbyHubOpen={setIsNearbyHubOpen} 
+          setIsMedicalHubOpen={setIsMedicalHubOpen} 
+        />
       )}
 
       {activeTab === 'hq' && (
@@ -166,10 +191,19 @@ export default function ProtectorDashboard() {
 
       {(!activeTab || activeTab === 'map') && (
         <ProtectorMapContainer 
+          activeAlerts={activeAlerts}
           setIsNearbyHubOpen={setIsNearbyHubOpen} 
           setIsMedicalHubOpen={setIsMedicalHubOpen} 
           setActiveTab={setActiveTab} 
           setHubViewMode={setHubViewMode} 
+          setActiveInterceptAlert={(alert) => {
+            if (profile?.respondingToAlertId === alert.id) {
+              setIsInterceptHUDOpen(true);
+              setInterceptActive(true);
+            } else {
+              handleStartHelp(alert.id);
+            }
+          }}
         />
       )}
 
@@ -204,6 +238,26 @@ export default function ProtectorDashboard() {
         setIsInterceptHUDOpen={setIsInterceptHUDOpen}
         setInterceptActive={setInterceptActive}
         setUseMapboxFallback={setUseMapboxFallback}
+        onAbort={() => setIsStandDownOpen(true)}
+      />
+
+       {/* Stand Down Reason Modal */}
+      <ProtectorStandDownModal
+        isOpen={isStandDownOpen}
+        isAborting={isAborting}
+        onCancel={() => setIsStandDownOpen(false)}
+        onConfirm={async (reason) => {
+          const abortingAlertId = activeInterceptAlert?.id;
+          const victimUid = activeInterceptAlert?.victimUid || activeInterceptAlert?.uid;
+          setIsAborting(true);
+          await handleAbortResponse(abortingAlertId, reason);
+          // Blacklist this victim so their alerts do not appear for 3 hours for this protector
+          if (victimUid) {
+            addToAbortedBlacklist(victimUid);
+          }
+          setIsAborting(false);
+          setIsStandDownOpen(false);
+        }}
       />
 
       {/* Success / Mission Complete celebration */}
@@ -211,6 +265,13 @@ export default function ProtectorDashboard() {
         showSuccessMotivation={showSuccessMotivation}
         setShowSuccessMotivation={setShowSuccessMotivation}
         lastResolvedVictim={lastResolvedVictim}
+        isCancelledByVictim={isCancelledByVictim}
+        deEscalationReason={deEscalationReason}
+        onCloseModal={() => {
+          setShowSuccessMotivation(false);
+          setIsCancelledByVictim(false);
+          setDeEscalationReason('');
+        }}
       />
     </div>
   );

@@ -35,6 +35,30 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
   lastTriggerTime = now;
 
   console.log("🚀 KAVACH: Parallel Tactical Dispatch Engaged for:", victimId);
+
+  // 🗺️ Pre-fetch fast local metadata & Nearest Police Station POI
+  let meta: any = { address: 'Classified Geo-Grid', city: 'Local Sector', state: 'National' };
+  try {
+    meta = await getReverseMetadata(userPos.lat, userPos.lng);
+  } catch (e) {
+    console.error("Reverse metadata resolution failed:", e);
+  }
+
+  let nearestPS = `${meta.suburb || meta.city || 'Nearest'} Police Station`;
+  let psMapsLink = '';
+  try {
+    const stations = await fetchNearbyPoliceMappls(userPos.lat, userPos.lng);
+    if (stations && stations.length > 0) {
+      nearestPS = stations[0].name;
+      psMapsLink = `https://maps.google.com/?q=${stations[0].lat},${stations[0].lng}`;
+    } else {
+      const searchCity = meta.city ? ` ${meta.city}` : '';
+      psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
+    }
+  } catch (e) {
+    const searchCity = meta.city ? ` ${meta.city}` : '';
+    psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
+  }
   
   // Tactical Parallelization Engine
   const tacticalMission = async () => {
@@ -45,18 +69,16 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
         if (!finalUser || data?.skipCloud) return null;
         
         try {
-          const alertsRef = collection(db, 'alerts');
-          // 🛡️ SIMPLIFIED DEDUPLICATION QUERY (No index required)
-          const q = query(
-            alertsRef, 
-            where('victimUid', '==', victimId),
-            where('status', 'in', ['active', 'responding', 'rescued_pending_victim_clearance'])
-          );
+          const { supabase } = await import('../lib/supabase');
           
-          const existingSnap = await getDocs(q);
-          const existingAlert = existingSnap.docs[0];
+          // Query active alerts in Supabase
+          const { data: existingAlerts } = await supabase
+            .from('alerts')
+            .select('id')
+            .eq('victim_uid', victimId)
+            .in('status', ['active', 'responding', 'rescued_pending_victim_clearance']);
           
-          const meta = await getReverseMetadata(userPos.lat, userPos.lng);
+          const existingAlert = existingAlerts?.[0];
           const battery = (window as any).kavachBatteryLevel || 0;
           
           // PHASE 8: Device Trust Validation
@@ -73,8 +95,8 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
             victimAadhaar: finalUser.aadhar || finalUser.aadhaar || finalUser.victimAadhaar || localStorage.getItem('kavach_user_aadhar') || 'NOT_VERIFIED',
             victimEmail: finalUser.email || 'N/A',
             status: 'active',
-            timestamp: serverTimestamp(),
-            lastUpdateAt: serverTimestamp(),
+            timestamp: new Date().toISOString(),
+            lastUpdateAt: new Date().toISOString(),
             location: { 
               latitude: userPos.lat, 
               longitude: userPos.lng,
@@ -99,6 +121,7 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
             handshakeCode: data?.handshakeCode || Math.floor(1000 + Math.random() * 9000).toString(),
             mapplsId: data?.mapplsId || null,
             digitalSignature: digitalSignature,
+            nearestPoliceStation: nearestPS,
             guardianContacts: (() => {
               try {
                 const gStr = localStorage.getItem('kavach_guardian_cache');
@@ -123,40 +146,78 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
             }
           }
 
-          if (existingAlert) {
-             console.log(`🛰️ KAVACH: Existing Mission Found [${existingAlert.id}]. Merging Telemetry.`);
-             await setDoc(doc(db, 'alerts', existingAlert.id), alertData, { merge: true });
-             return { id: existingAlert.id };
+          const targetAlertId = data?.alertId || existingAlert?.id || Math.random().toString(36).substring(2, 15);
+          const locationGeog = `POINT(${userPos.lng} ${userPos.lat})`;
+
+          const supabaseRow = {
+            id: targetAlertId,
+            victim_uid: victimId,
+            victim_name: finalUser.displayName || finalUser.name || 'Kavach Citizen',
+            status: 'active',
+            location: locationGeog,
+            metadata: alertData,
+            timestamp: new Date().toISOString()
+          };
+
+          const { error: upsertErr } = await supabase
+            .from('alerts')
+            .upsert(supabaseRow);
+
+          if (upsertErr) {
+            console.error("❌ KAVACH: Supabase Alert Upsert Error:", upsertErr);
+            throw new Error(upsertErr.message);
           }
 
-          if (data?.alertId) {
-            await setDoc(doc(db, 'alerts', data.alertId), alertData, { merge: true });
-            logTelemetryEvent('sos_trigger_success_firestore', { method: data?.type });
-            return { id: data.alertId };
+          // Update Firestore alert document with reverse-geocoded info
+          try {
+            await updateDoc(doc(db, 'alerts', targetAlertId), {
+              nearestPoliceStation: nearestPS,
+              fullAddress: meta.address,
+              city: meta.city || 'Classified Zone',
+              state: meta.state || 'National'
+            });
+            console.log(`🔥 [FIRESTORE] Alert ${targetAlertId} metadata updated with ${nearestPS}`);
+          } catch (fsErr) {
+            console.warn("⚠️ KAVACH: Firestore Alert metadata update pending...", fsErr);
           }
 
-          const newDoc = await addDoc(collection(db, 'alerts'), alertData);
           logTelemetryEvent('sos_trigger_success_firestore', { method: data?.type });
-          return newDoc;
+          return { id: targetAlertId };
         } catch (error: any) {
           console.error("❌ KAVACH: Alert Dispatch Error (Network/Auth):", error);
           
-          // 📦 If offline, queue it!
           if (error?.message?.includes("offline") || error?.code === 'unavailable' || !navigator.onLine) {
-            console.warn("⚠️ NETWORK DROPPED: Queuing dispatch payload...");
+            console.warn("⚠️ NETWORK DROPPED: Queuing dispatch payload & sending gateway SMS...");
             logTelemetryEvent('sos_failure_offline_fallback', { method: data?.type, reason: error.message });
+            
+            // Dispatch encrypted location SMS relay to government gateway (e.g., +91112911 or similar)
+            const gatewayPhone = "112911"; 
+            const gatewayMsg = `KAVACH_OFFLINE_GATEWAY_SOS:v_uid:${victimId}:lat:${userPos.lat}:lng:${userPos.lng}`;
+            try {
+              if (Capacitor.isNativePlatform()) {
+                await KavachSafe.broadcastEmergencySMS({ numbers: [gatewayPhone], message: gatewayMsg });
+                console.log("📡 Gateway SMS Relay dispatched to " + gatewayPhone);
+              }
+            } catch (smsErr) {
+              console.error("Failed to dispatch offline gateway SMS:", smsErr);
+            }
+            
             await OfflineQueueService.enqueueSOS(userPos, data);
-            return null; // Acknowledge it failed but was queued
+            return null;
           }
 
-          // Fallback to basic creation if query fails but we are online
-          return addDoc(collection(db, 'alerts'), {
-            victimUid: victimId,
+          // Fallback creation
+          const { supabase } = await import('../lib/supabase');
+          const fallbackId = Math.random().toString(36).substring(2, 15);
+          await supabase.from('alerts').insert({
+            id: fallbackId,
+            victim_uid: victimId,
             status: 'active',
-            timestamp: serverTimestamp()
+            location: `POINT(${userPos.lng} ${userPos.lat})`,
+            timestamp: new Date().toISOString()
           });
+          return { id: fallbackId };
         } finally {
-           // Release the lock after 10 seconds to allow new missions if needed
            setTimeout(() => activeBlasts.delete(victimId), 10000);
         }
       })(),
@@ -166,13 +227,11 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
         let guardiansStr = localStorage.getItem('kavach_guardian_cache');
         let guardians = guardiansStr ? JSON.parse(guardiansStr) : [];
 
-        // 🛡️ TACTICAL FALLBACK: If cache is empty, query the master ledger (Firestore)
         if (guardians.length === 0 && victimId) {
           try {
             const gCol = collection(db, 'users', victimId, 'guardians');
             const gSnap = await getDocs(gCol);
             guardians = gSnap.docs.map(d => d.data());
-            // Update cache for next time
             if (guardians.length > 0) {
               localStorage.setItem('kavach_guardian_cache', JSON.stringify(guardians));
             }
@@ -183,28 +242,6 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
 
         const phones = guardians.map((g: any) => g.phone).filter(Boolean);
         const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
-        
-        // 🗺️ Grab fast local metadata for Nearest Police Station
-        const meta = await getReverseMetadata(userPos.lat, userPos.lng);
-        
-        // 🛰️ TACTICAL POI QUERY: Fetch ACTUAL nearest verified Police Station
-        let nearestPS = `${meta.suburb || meta.city || 'Nearest'} Police Station`;
-        let psMapsLink = '';
-        
-        try {
-          const stations = await fetchNearbyPoliceMappls(userPos.lat, userPos.lng);
-          if (stations && stations.length > 0) {
-            nearestPS = stations[0].name;
-            // Direct pin coordinate link for extreme precision
-            psMapsLink = `https://maps.google.com/?q=${stations[0].lat},${stations[0].lng}`;
-          } else {
-            const searchCity = meta.city ? ` ${meta.city}` : '';
-            psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
-          }
-        } catch (e) {
-          const searchCity = meta.city ? ` ${meta.city}` : '';
-          psMapsLink = `https://maps.google.com/?q=${encodeURIComponent(nearestPS + searchCity)}`;
-        }
 
         const message = `🚨 SOS! ${user?.displayName?.split(' ')[0] || 'User'} is in danger!
 📍 Loc: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
@@ -221,9 +258,6 @@ PIN: ${data?.handshakeCode || 'N/A'}`;
           console.warn("⚠️ KAVACH: No guardians found to notify via SMS.");
         }
 
-        // 📞 AUTO-CALL INITIATION (First Guardian)
-        // 🛡️ TACTICAL OVERRIDE: If triggered via Power Button, Native OS is dialing 112. 
-        // We MUST NOT interrupt the police call by trying to dial the guardian simultaneously.
         if (data?.source === 'power') {
           console.warn("⚠️ KAVACH: Power Button trigger detected. Skipping auto-call to Guardian to protect Native 112 call.");
         } else {
@@ -243,7 +277,7 @@ PIN: ${data?.handshakeCode || 'N/A'}`;
         if (Capacitor.isNativePlatform() && 'vibrate' in navigator) {
           navigator.vibrate([200, 100, 200, 100, 500]);
         }
-      })()
+      })
     ];
 
     const results = await Promise.allSettled(hooks);
@@ -256,35 +290,65 @@ PIN: ${data?.handshakeCode || 'N/A'}`;
 
 export const archiveIncident = async (incidentId: string, closureReason?: string) => {
   try {
-    const { doc, getDoc, setDoc, deleteDoc } = await import('firebase/firestore');
+    const { supabase } = await import('../lib/supabase');
     
-    // 1. Fetch Hot Data
-    const alertRef = doc(db, 'alerts', incidentId);
-    const alertSnap = await getDoc(alertRef);
-    
-    if (!alertSnap.exists()) {
-      console.warn(`[ARCHIVE] Incident ${incidentId} not found in Hot Data.`);
+    const { data: alertsList, error: fetchError } = await supabase
+      .from('alerts')
+      .select('*')
+      .eq('id', incidentId);
+      
+    if (fetchError || !alertsList || alertsList.length === 0) {
+      console.warn(`[ARCHIVE] Incident ${incidentId} not found in Supabase Hot Data.`);
       return false;
     }
     
-    const incidentData = alertSnap.data();
+    const alertData = alertsList[0];
     
-    // 2. Only archive if closed or resolved
-    if (incidentData.status !== 'resolved' && incidentData.status !== 'closed' && incidentData.status !== 'aborted') {
-      console.warn(`[ARCHIVE] Cannot archive active incident ${incidentId}. Current status: ${incidentData.status}`);
+    if (alertData.status !== 'resolved' && alertData.status !== 'closed' && alertData.status !== 'aborted' && alertData.status !== 'cancelled') {
+      console.warn(`[ARCHIVE] Cannot archive active incident ${incidentId}. Current status: ${alertData.status}`);
       return false;
     }
     
-    // 3. Move to Cold Archive Collection
-    const archiveRef = doc(db, 'incident_archive', incidentId);
-    await setDoc(archiveRef, {
-      ...incidentData,
-      archivedAt: serverTimestamp()
-    });
+    const updatedMetadata = {
+      ...alertData.metadata,
+      status: alertData.status,
+      closureReason: closureReason || 'citizen_standdown'
+    };
     
-    // 4. Delete from Hot Data
-    await deleteDoc(alertRef);
-    console.log(`🗄️ [ARCHIVE] Successfully moved incident ${incidentId} to Cold Archive.`);
+    const { error: insertError } = await supabase
+      .from('incident_archive')
+      .insert({
+        id: alertData.id,
+        victim_uid: alertData.victim_uid,
+        victim_name: alertData.victim_name,
+        status: alertData.status,
+        location: alertData.location,
+        metadata: updatedMetadata,
+        timestamp: alertData.timestamp
+      });
+      
+    if (insertError) {
+      // If it is a duplicate key conflict (23505), it means another call already archived it.
+      // We can safely proceed to delete from alerts hot table to finish cleanup.
+      if (insertError.code === '23505') {
+        console.log(`🗄️ [ARCHIVE] Incident ${incidentId} already archived (duplicate key). Proceeding to hot table cleanup.`);
+      } else {
+        console.error(`[ARCHIVE] Failed to insert to Supabase archive:`, insertError);
+        return false;
+      }
+    }
+    
+    const { error: deleteError } = await supabase
+      .from('alerts')
+      .delete()
+      .eq('id', incidentId);
+      
+    if (deleteError) {
+      console.error(`[ARCHIVE] Failed to delete from Supabase alerts:`, deleteError);
+      return false;
+    }
+    
+    console.log(`🗄️ [ARCHIVE] Successfully moved incident ${incidentId} to Supabase Cold Archive.`);
     return true;
   } catch (error) {
     console.error(`❌ [ARCHIVE] Failed to archive incident ${incidentId}:`, error);

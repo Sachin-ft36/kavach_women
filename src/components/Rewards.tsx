@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Shield, Award, Download, Share2, CheckCircle2, Zap, Lock, Map, LayoutDashboard, User } from 'lucide-react';
+import { Trophy, Star, Shield, Award, Download, Share2, CheckCircle2, Zap, Lock, Map, LayoutDashboard, User, Calendar, Heart, Phone, Edit2, Check, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth, db } from '../firebase';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -14,20 +15,70 @@ export default function Rewards() {
   const [showCertificate, setShowCertificate] = useState(false);
   const [displayPhotoUrl, setDisplayPhotoUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [dob, setDob] = useState('');
+  const [bloodGroup, setBloodGroup] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const user = auth.currentUser;
 
   useEffect(() => {
     if (!user) return;
+
+    const syncSupabaseProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.uid)
+          .single();
+
+        if (data) {
+          const meta = data.metadata || {};
+          const fullData = {
+            uid: data.id,
+            email: data.email,
+            role: data.role,
+            isVerified: !!data.is_verified,
+            ...meta
+          };
+          setUserData(fullData);
+          setPoints(meta.xp || data.xp || 0);
+          setDisplayPhotoUrl(prev => prev || meta.displayPhotoUrl || meta.photoUrl || meta.photoURL || '');
+          if (!dob) setDob(meta.dob || '');
+          if (!bloodGroup) setBloodGroup(meta.bloodGroup || '');
+        }
+      } catch (err) {
+        console.error("Failed to sync profile from Supabase:", err);
+      }
+    };
+
+    syncSupabaseProfile();
+
+    const channel = supabase
+      .channel(`rewards-profile-${user.uid}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'profiles',
+        filter: `id=eq.${user.uid}`
+      }, () => {
+        syncSupabaseProfile();
+      })
+      .subscribe();
+
     const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
       if (doc.exists()) {
         const data = doc.data();
-        setUserData(data);
-        setPoints(data.xp || 0);
-        setDisplayPhotoUrl(prev => prev || data.displayPhotoUrl || data.photoUrl || '');
+        setUserData(prev => prev ? { ...prev, ...data } : data);
       }
+    }, (err) => {
+      console.warn("Firestore profile sync warning (permission-denied/missing):", err);
     });
-    return () => unsubscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      unsubscribe();
+    };
   }, [user]);
 
   const badges = [
@@ -73,13 +124,32 @@ export default function Rewards() {
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         setDisplayPhotoUrl(compressedBase64);
         
-        // Auto-save to Firestore
+        // Auto-save to Firestore and Supabase
         if (user) {
           setIsSaving(true);
           try {
             await updateDoc(doc(db, 'users', user.uid), {
               displayPhotoUrl: compressedBase64
-            });
+            }).catch(fsErr => console.warn("Firestore photo update deferred:", fsErr));
+
+            // Fetch and merge current metadata in Supabase
+            const { data: currentProfile } = await supabase
+              .from('profiles')
+              .select('metadata')
+              .eq('id', user.uid)
+              .single();
+
+            const existingMeta = currentProfile?.metadata || {};
+
+            await supabase.from('profiles').update({
+              metadata: {
+                ...existingMeta,
+                displayPhotoUrl: compressedBase64,
+                photoUrl: compressedBase64,
+                photoURL: compressedBase64
+              }
+            }).eq('id', user.uid);
+
             toast.success("Profile Photo Updated", { icon: '📸' });
           } catch (err) {
             console.error(err);
@@ -93,10 +163,216 @@ export default function Rewards() {
     reader.readAsDataURL(file);
   };
 
+  const handleSaveDetails = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        dob,
+        bloodGroup
+      }).catch(fsErr => console.warn("Firestore details update deferred:", fsErr));
+
+      // Fetch and merge current metadata in Supabase
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('metadata')
+        .eq('id', user.uid)
+        .single();
+
+      const existingMeta = currentProfile?.metadata || {};
+
+      await supabase.from('profiles').update({
+        metadata: {
+          ...existingMeta,
+          dob,
+          bloodGroup
+        }
+      }).eq('id', user.uid);
+
+      toast.success("Profile Details Updated", { icon: '✅' });
+      setIsEditingProfile(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update details.");
+    }
+    setIsSaving(false);
+  };
+
+  if (!userData) {
+    const cachedRole = localStorage.getItem('kavach_role') || 'citizen';
+    return (
+      <div className={cn("min-h-screen flex items-center justify-center pb-24", cachedRole === 'citizen' ? "bg-[#F8FAFC]" : "bg-[#0F172A]")}>
+        <div className={cn("w-8 h-8 border-4 rounded-full animate-spin", cachedRole === 'citizen' ? "border-blue-200 border-t-blue-600" : "border-slate-700 border-t-blue-500")}></div>
+      </div>
+    );
+  }
+
+  if (userData?.role === 'citizen') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans">
+        {/* Top Header */}
+        <div className="bg-white px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-50">
+          <div className="flex items-center gap-3">
+            <img src="/emblem-dark.png" className="h-10 opacity-90" alt="Emblem" />
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold text-slate-800 leading-tight">भारत सरकार</span>
+              <span className="text-[9px] font-semibold text-slate-600 tracking-wider">GOVERNMENT OF INDIA</span>
+            </div>
+          </div>
+          <img src="/digitalindia.png" className="h-8 object-contain" alt="Digital India" />
+        </div>
+
+        <div className="px-4 mt-4 space-y-4 max-w-lg mx-auto">
+          {/* Blue Banner & Profile Card Container */}
+          <div className="relative pt-[60px]">
+            {/* Blue Banner Background */}
+            <div className="absolute top-0 left-0 right-0 h-[110px] bg-[#0D2852] rounded-t-xl overflow-hidden shadow-sm border-b border-blue-900/50">
+              <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-400 via-transparent to-transparent" />
+              <div className="p-4 flex items-center gap-2 relative z-10">
+                <Shield className="text-white/90" size={20} />
+                <span className="text-white font-semibold tracking-wider text-sm">MY PROFILE</span>
+              </div>
+            </div>
+
+            {/* Main Profile White Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative flex flex-col items-center">
+              {/* Profile Image overlapping */}
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2">
+                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <div className="w-[100px] h-[100px] rounded-full bg-gray-50 border-[5px] border-white shadow-md overflow-hidden flex items-center justify-center">
+                    {displayPhotoUrl ? (
+                      <img src={displayPhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={36} className="text-gray-300" />
+                    )}
+                  </div>
+                  {isSaving && (
+                    <div className="absolute inset-0 bg-black/20 rounded-full flex items-center justify-center backdrop-blur-[1px]">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Space for the overlapping avatar */}
+              <div className="h-10" />
+
+              {/* Change Photo Button */}
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 text-[#2563EB] font-bold text-xs hover:text-blue-800 transition-colors mb-3"
+              >
+                <Camera size={14} /> Change profile photo
+              </button>
+
+              {/* Name */}
+              <h1 className="text-[22px] font-black text-[#1E293B] mb-4 tracking-tight">{userData?.name || (user?.uid ? 'Verified Citizen' : 'Citizen')}</h1>
+
+              {/* Edit Button */}
+              <button 
+                onClick={() => isEditingProfile ? handleSaveDetails() : setIsEditingProfile(true)}
+                className="flex items-center gap-2 border-2 border-[#2563EB] text-[#2563EB] px-10 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-50 transition-colors active:scale-95"
+              >
+                {isEditingProfile ? <><Check size={16} /> SAVE DETAILS</> : <><Edit2 size={16} /> EDIT PROFILE</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Detail Cards List */}
+          <div className="space-y-3 pt-2">
+            {/* Date of Birth Card */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <Calendar size={18} className="text-blue-500" />
+                </div>
+                <span className="text-sm font-bold text-[#1E293B]">Date of Birth</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-px h-6 bg-gray-100" />
+                {isEditingProfile ? (
+                  <input
+                    type="date"
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm font-bold text-[#1E293B] outline-none w-32"
+                  />
+                ) : (
+                  <span className="text-sm font-bold text-[#1E293B] min-w-[80px] text-right">{userData?.dob || 'Not set'}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Blood Group Card */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                  <Heart size={18} className="text-red-500" />
+                </div>
+                <span className="text-sm font-bold text-[#1E293B]">Blood Group</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-px h-6 bg-gray-100" />
+                {isEditingProfile ? (
+                  <select
+                    value={bloodGroup}
+                    onChange={(e) => setBloodGroup(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm font-bold text-[#1E293B] outline-none w-32"
+                  >
+                    <option value="">Select</option>
+                    {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm font-bold text-red-500 min-w-[80px] text-right">{userData?.bloodGroup || 'Not set'}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Mobile Number Card */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
+                  <Phone size={18} className="text-green-500" />
+                </div>
+                <span className="text-sm font-bold text-[#1E293B]">Mobile Number</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-px h-6 bg-gray-100" />
+                <span className="text-sm font-bold text-[#1E293B] min-w-[80px] text-right">
+                  {user?.phoneNumber || userData?.phoneNumber || userData?.phone || 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            {/* Security Info Card */}
+            <div className="bg-[#F0F5FE] p-4 rounded-xl border border-blue-100 flex items-center justify-between gap-3 mt-4">
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
+                <Shield size={16} className="text-[#0D2852]" />
+              </div>
+              <p className="text-[10px] sm:text-xs font-semibold text-[#0D2852] leading-tight flex-1">
+                Your information is secure and encrypted.<br />
+                It is used only for emergency assistance.
+              </p>
+              <Lock size={16} className="text-[#0D2852] shrink-0" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0F172A] p-4 sm:p-6 space-y-8 pb-24">
+    <div className="min-h-screen bg-[#0F172A] p-4 sm:p-6 flex flex-col pb-24 gap-2">
+      {/* Simple GOV text outside border */}
+      <div className="w-full text-center">
+        <span className="text-[10px] font-bold text-slate-500 tracking-[0.3em] uppercase">GOV</span>
+      </div>
+
       {/* Instagram-Style Profile Header */}
-      <section className="bg-[#1E293B] border border-white/10 p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm relative overflow-hidden flex flex-col items-center text-center">
+      <section className={cn("bg-[#1E293B] border border-white/10 p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm relative overflow-hidden flex flex-col items-center text-center", userData?.role === 'citizen' ? "flex-1" : "")}>
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -133,14 +409,92 @@ export default function Rewards() {
           Change profile photo
         </button>
 
-        <h1 className="text-2xl font-black text-white tracking-tight">{userData?.name || 'Authorized Protector'}</h1>
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{currentRank.name}</p>
-      </section>
-      {/* Safety Merit Score Hero */}
-      <section className="bg-[#1E293B] border border-white/10 p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-lg relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-6 sm:p-10 text-[#2563EB]/5 pointer-events-none group-hover:scale-110 transition-transform">
-          <Trophy size={100} className="sm:size-[140px]" />
+        <h1 className="text-2xl font-black text-white tracking-tight">{userData?.name || (user?.uid ? 'Verified User' : 'Authorized Protector')}</h1>
+        {userData?.role !== 'citizen' && (
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">{currentRank.name}</p>
+        )}
+        {userData?.role === 'citizen' && (
+          <div className="mb-6"></div>
+        )}
+
+        {/* Instagram-Style Edit Profile Button */}
+        <button 
+          onClick={() => isEditingProfile ? handleSaveDetails() : setIsEditingProfile(true)}
+          className={cn(
+            "mt-2 px-8 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 w-full max-w-[200px] mx-auto",
+            isEditingProfile ? "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20" : "bg-white/10 text-white hover:bg-white/20"
+          )}
+        >
+          {isEditingProfile ? <><Check size={16} /> Save Profile</> : <><Edit2 size={16} /> Edit Profile</>}
+        </button>
+
+        {/* Sleek Profile Details List */}
+        <div className="w-full mt-8 space-y-3">
+          {/* DOB Row */}
+          <div className="flex items-center justify-between p-4 bg-[#0F172A]/50 rounded-2xl border border-white/5 hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-3 text-slate-300">
+              <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                <Calendar size={16} />
+              </div>
+              <span className="text-sm font-medium">Date of Birth</span>
+            </div>
+            {isEditingProfile ? (
+              <input
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-bold text-white outline-none w-32 sm:w-auto"
+              />
+            ) : (
+              <span className="text-sm font-bold text-white">{userData?.dob || 'Not set'}</span>
+            )}
+          </div>
+
+          {/* Blood Group Row */}
+          <div className="flex items-center justify-between p-4 bg-[#0F172A]/50 rounded-2xl border border-white/5 hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-3 text-slate-300">
+              <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                <Heart size={16} />
+              </div>
+              <span className="text-sm font-medium">Blood Group</span>
+            </div>
+            {isEditingProfile ? (
+              <select
+                value={bloodGroup}
+                onChange={(e) => setBloodGroup(e.target.value)}
+                className="bg-slate-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-bold text-white outline-none w-32 sm:w-auto"
+              >
+                <option value="">Select</option>
+                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                  <option key={bg} value={bg}>{bg}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-bold text-red-400">{userData?.bloodGroup || 'Not set'}</span>
+            )}
+          </div>
+
+          {/* Phone Row (Read Only) */}
+          <div className="flex items-center justify-between p-4 bg-[#0F172A]/50 rounded-2xl border border-white/5 hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-3 text-slate-300">
+              <div className="w-9 h-9 rounded-full bg-green-500/10 flex items-center justify-center text-green-400">
+                <Phone size={16} />
+              </div>
+              <span className="text-sm font-medium">Mobile Number</span>
+            </div>
+            <span className="text-sm font-bold text-white font-mono">
+              {user?.phoneNumber || userData?.phoneNumber || userData?.phone || 'Not available'}
+            </span>
+          </div>
         </div>
+      </section>
+      {/* Safety Merit Score Hero (Only for Protectors/Admins) */}
+      {userData?.role !== 'citizen' && (
+        <>
+          <section className="bg-[#1E293B] border border-white/10 p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-lg relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 sm:p-10 text-[#2563EB]/5 pointer-events-none group-hover:scale-110 transition-transform">
+              <Trophy size={100} className="sm:size-[140px]" />
+            </div>
         <div className="relative z-10 space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
@@ -218,6 +572,8 @@ export default function Rewards() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Certificate Modal */}
       <AnimatePresence>

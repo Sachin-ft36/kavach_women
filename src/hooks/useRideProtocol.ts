@@ -44,10 +44,16 @@ export function useRideProtocol() {
     // Fetch optimal routing polyline if not already mapped
     if (!rideData.path || rideData.path.length === 0) {
       const initRoute = async () => {
-        const startLng = userPosRef.current[1];
-        const startLat = userPosRef.current[0];
-        const endLng = targetCoordinates[0];
-        const endLat = targetCoordinates[1];
+        const startLng = userPosRef.current?.lng;
+        const startLat = userPosRef.current?.lat;
+        const endLng = targetCoordinates?.[0];
+        const endLat = targetCoordinates?.[1];
+
+        if (!startLng || !startLat || !endLng || !endLat || isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+          console.warn("🛰️ KAVACH Geofencing: Skipping route generation due to invalid or missing coordinates:", { startLng, startLat, endLng, endLat });
+          return;
+        }
+
         console.log("🛰️ Fetching Tactical Route Polyline for Geofencing via Mapbox (Web CORS Fallback)...");
         const path = await fetchMapboxRoute(startLng, startLat, endLng, endLat);
         if (path) {
@@ -92,21 +98,21 @@ export function useRideProtocol() {
         return;
       }
 
-      const currentPos = userPosRef.current; // [lat, lng]
-      if (!currentPos || !currentPos[0] || !currentPos[1]) return;
+      const currentPos = userPosRef.current;
+      if (!currentPos || !currentPos.lat || !currentPos.lng) return;
 
       let deviation = 0;
       const path = useKavachStore.getState().rideData?.path;
 
       if (path && path.length > 0) {
         // High-accuracy Polyline Geofencing
-        // currentPos is [lat, lng], distanceToPolyline expects (px=lng, py=lat)
-        const distanceMeters = distanceToPolylineMeters(currentPos[1], currentPos[0], path.map(p => [p.lng, p.lat] as [number, number]));
+        // currentPos is { lat, lng }, distanceToPolyline expects (px=lng, py=lat)
+        const distanceMeters = distanceToPolylineMeters(currentPos.lng, currentPos.lat, path.map(p => [p.lng, p.lat] as [number, number]));
         deviation = distanceMeters / 1000; // Convert to KM
       } else {
         // Fallback: Anchor Mode (Linear drift)
         const distToTarget = calculateHaversineDistance(
-          currentPos[0], currentPos[1],
+          currentPos.lat, currentPos.lng,
           targetCoordinates[1], targetCoordinates[0] // Note: target is [lng, lat]
         );
         if (baselineDistRef.current !== null) {
@@ -125,7 +131,7 @@ export function useRideProtocol() {
       // 🚨 STATIONARY MONITORING & SPEED PROFILING
       if (lastPosRef.current) {
         const distanceMovedSinceLastCheck = calculateHaversineDistance(
-          currentPos[0], currentPos[1],
+          currentPos.lat, currentPos.lng,
           lastPosRef.current[0], lastPosRef.current[1]
         );
 
@@ -186,7 +192,7 @@ export function useRideProtocol() {
         }
       }
 
-      lastPosRef.current = [currentPos[0], currentPos[1]];
+      lastPosRef.current = [currentPos.lat, currentPos.lng];
     }, 10000);
 
     function triggerDeadMansSwitch(reason: 'ROUTE_DEVIATION_BREACH' | 'STATIONARY_SUSPICIOUS_STOP') {

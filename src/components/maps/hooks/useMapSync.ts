@@ -11,7 +11,9 @@ export function useMapSync(
   isNavigating: boolean,
   isInterceptMode: boolean,
   metrics: any,
-  setIsMapLoaded: (loaded: boolean) => void
+  setIsMapLoaded: (loaded: boolean) => void,
+  isCarHUD?: boolean,
+  isProtectorHUD?: boolean
 ) {
   const currentStyleRef = useRef<'streets' | 'satellite' | 'dark'>('streets');
 
@@ -84,7 +86,20 @@ export function useMapSync(
     if (!markersRef.current.user) {
       const el = document.createElement('div');
       el.className = 'user-pos-marker';
-      el.innerHTML = `<div style="width: 16px; height: 16px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);"></div>`;
+      
+      let markerHtml = `<div style="width: 16px; height: 16px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);"></div>`;
+      
+      if (isCarHUD) {
+        markerHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; pointer-events: auto; transform: rotate(${(window as any)._last_calculated_bearing || 0}deg);">
+                 <div style="width: 32px; height: 32px; background: #0284c7; border: 2.5px solid white; border-radius: 50%; display: flex; items-center; justify-content: center; font-size: 18px; box-shadow: 0 0 15px rgba(2, 132, 199, 0.7); line-height: 28px; text-align: center;">🚔</div>
+               </div>`;
+      } else if (isProtectorHUD) {
+        markerHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; pointer-events: auto; transform: rotate(${(window as any)._last_calculated_bearing || 0}deg);">
+                 <div style="width: 32px; height: 32px; background: #059669; border: 2.5px solid white; border-radius: 50%; display: flex; items-center; justify-content: center; font-size: 18px; box-shadow: 0 0 15px rgba(5, 150, 105, 0.7); line-height: 28px; text-align: center;">🏍️</div>
+               </div>`;
+      }
+      
+      el.innerHTML = markerHtml;
 
       markersRef.current.user = new mapboxgl.Marker(el)
         .setLngLat(coords)

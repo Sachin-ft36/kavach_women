@@ -15,7 +15,7 @@ export default function SafeTimerSetupView({
   inputHrs, inputMins, setInputHrs, setInputMins, handleMinsBlur, setShowConfirmation
 }: Props) {
   return (
-    <motion.div 
+    <motion.div
       key="setup"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -57,7 +57,7 @@ export default function SafeTimerSetupView({
 
         <div className="flex justify-center gap-2 flex-wrap">
           {[15, 30, 45, 60].map(m => (
-            <button 
+            <button
               key={m}
               onClick={() => {
                 setInputHrs(Math.floor(m / 60));
@@ -65,12 +65,12 @@ export default function SafeTimerSetupView({
               }}
               className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-[9px] font-black text-gray-400 uppercase tracking-widest hover:bg-white hover:text-black hover:border-white transition-all active:scale-95"
             >
-              {m >= 60 ? (m % 60 === 0 ? `${m/60} Hr` : `${Math.floor(m/60)}H ${m%60}M`) : `${m} Min`}
+              {m >= 60 ? (m % 60 === 0 ? `${m / 60} Hr` : `${Math.floor(m / 60)}H ${m % 60}M`) : `${m} Min`}
             </button>
           ))}
         </div>
       </div>
-      <button 
+      <button
         onClick={() => setShowConfirmation(true)}
         className="w-full py-5 bg-white text-black rounded-[24px] text-[10px] font-black uppercase tracking-[3px] flex items-center justify-center gap-3 shadow-2xl"
       >

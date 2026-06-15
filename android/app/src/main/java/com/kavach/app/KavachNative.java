@@ -584,7 +584,21 @@ public class KavachNative extends Plugin {
                 Intent si = new Intent(getContext(), KavachService.class);
                 si.setAction("com.kavach.app.ACTION_STOP_VOICE");
                 getContext().startService(si);
+
+                if ("protector".equals(role)) {
+                    Intent scanIntent = new Intent(getContext(), KavachService.class);
+                    scanIntent.setAction("com.kavach.app.ACTION_START_BLE_SCAN");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        getContext().startForegroundService(scanIntent);
+                    } else {
+                        getContext().startService(scanIntent);
+                    }
+                }
             } else {
+                Intent stopScan = new Intent(getContext(), KavachService.class);
+                stopScan.setAction("com.kavach.app.ACTION_STOP_BLE_SCAN");
+                getContext().startService(stopScan);
+
                 Intent si = new Intent(getContext(), KavachService.class);
                 si.setAction("com.kavach.app.ACTION_START_VOICE");
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -824,6 +838,74 @@ public class KavachNative extends Plugin {
             SecuritySentinel.verifyPlayIntegrity(getContext(), nonce, gcpProjectNumber, call);
         } catch (Exception e) {
             call.reject("Play Integrity error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startBleSOSAdvertising(PluginCall call) {
+        String victimUid = call.getString("victimUid");
+        Double latitude = call.getDouble("latitude");
+        Double longitude = call.getDouble("longitude");
+
+        if (victimUid == null || latitude == null || longitude == null) {
+            call.reject("Missing required params: victimUid, latitude, longitude");
+            return;
+        }
+
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_START_BLE_ADV");
+            si.putExtra("victim_uid", victimUid);
+            si.putExtra("latitude", latitude);
+            si.putExtra("longitude", longitude);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(si);
+            } else {
+                getContext().startService(si);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to start BLE advertising: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopBleSOSAdvertising(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_STOP_BLE_ADV");
+            getContext().startService(si);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to stop BLE advertising: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startBleSOSScanning(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_START_BLE_SCAN");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(si);
+            } else {
+                getContext().startService(si);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to start BLE scanning: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopBleSOSScanning(PluginCall call) {
+        try {
+            Intent si = new Intent(getContext(), KavachService.class);
+            si.setAction("com.kavach.app.ACTION_STOP_BLE_SCAN");
+            getContext().startService(si);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to stop BLE scanning: " + e.getMessage());
         }
     }
 }

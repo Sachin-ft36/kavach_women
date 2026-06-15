@@ -42,6 +42,18 @@ export interface UserProfile {
   respondingToAlertId?: string;
 
   // Additional Meta
+  isRegistered?: boolean;
+  xp?: number;
+  rating?: number;
+  ratingCount?: number;
+  level?: string;
+  livesHelped?: number;
+  successRate?: number;
+  avgResponse?: string;
+  photoUrl?: string;
+  photoURL?: string;
+  badgeId?: string;
+  thanaName?: string;
   protectorVetting?: {
     occupation?: string;
   };

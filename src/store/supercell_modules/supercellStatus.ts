@@ -87,6 +87,16 @@ export const updateIncidentStatusLogic = async (
   
   // Phase 7: Telemetry Scaling (Hot Data -> Cold Archive)
   if (newStatus === 'RESOLVED' || newStatus === 'CLOSED') {
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../../firebase');
+      await updateDoc(doc(db, 'alerts', incidentId), {
+        status: newStatus.toLowerCase(),
+        lastUpdateAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Failed to update status in Firestore before archiving", e);
+    }
     await archiveIncident(incidentId);
   }
 

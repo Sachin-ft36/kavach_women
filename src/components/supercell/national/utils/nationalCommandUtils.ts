@@ -21,9 +21,9 @@ export const parseIncidentData = (
 
   const aLat = alert.latitude || alert.location?.lat;
   const aLng = alert.longitude || alert.location?.lng;
-  const cityFallback = aLat ? `Grid Sector [${aLat.toFixed(2)}, ${aLng.toFixed(2)}]` : 'Classified Zone';
+  const cityFallback = aLat ? `Sector ${aLat.toFixed(1)}N, ${aLng.toFixed(1)}E` : 'HQ Sector';
   
-  const isValid = (val: any) => val && typeof val === 'string' && !val.includes('Unknown') && !val.includes('Neutral Zone');
+  const isValid = (val: any) => val && typeof val === 'string' && !val.includes('Unknown') && !val.includes('Neutral Zone') && !val.includes('Grid Sector') && !val.includes('Classified');
 
   const city: string =
     (isValid(alert.city) && alert.city) ||
@@ -43,11 +43,25 @@ export const parseIncidentData = (
   const stateCode: string = stateName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 3);
   const year = new Date().getFullYear();
   const seed = alert.id?.slice(-4)?.toUpperCase() || '0000';
-  const caseId = `CASE-${stateCode}-${year}-${city.slice(0, 3).toUpperCase()}-${seed}`;
+  const caseId = `CASE-${stateCode}-${year}-${city.slice(0, 3).replace(/[^A-Z]/gi, '').toUpperCase() || 'GRI'}-${seed}`;
   const victimName: string = alert.victimName || alert.userName || alert.name || 'Distress Node';
 
   const baselineLogs: string[] = [];
-  if (alert.timestamp) baselineLogs.push(`[${new Date(alert.timestamp.seconds * 1000).toLocaleTimeString()}] SOS Signal registered at ${city} coordinates.`);
+  if (alert.timestamp) {
+    let dateVal: Date;
+    if (typeof alert.timestamp.toDate === 'function') {
+      dateVal = alert.timestamp.toDate();
+    } else if (alert.timestamp.seconds) {
+      dateVal = new Date(alert.timestamp.seconds * 1000);
+    } else if (typeof alert.timestamp.toMillis === 'function') {
+      dateVal = new Date(alert.timestamp.toMillis());
+    } else {
+      dateVal = new Date(alert.timestamp);
+    }
+    const timeStr = isNaN(dateVal.getTime()) ? new Date().toLocaleTimeString() : dateVal.toLocaleTimeString();
+    baselineLogs.push(`[${timeStr}] SOS Signal registered at ${city} coordinates.`);
+  }
+  
   if (alert.audioUrl || alert.stealthAudio) baselineLogs.push(`[${new Date().toLocaleTimeString()}] STEALTH MIC ACTIVE: Audio uplink established for ${victimName}.`);
   if (alert.escapeVectorActive) baselineLogs.push(`[${new Date().toLocaleTimeString()}] ALERT: Target crossing ${city} boundaries. State escalation triggered.`);
   if (alert.nakabandiDeployed) baselineLogs.push(`[${new Date().toLocaleTimeString()}] NHAI TOLL LOCKDOWN: Physical boom barriers disabled by command.`);
@@ -58,7 +72,7 @@ export const parseIncidentData = (
 
   return {
     caseId, city, stateName, victimName, incidentId: caseId,
-    address: isValid(alert.address) ? alert.address : (isValid(alert.locationName) ? alert.locationName : (aLat ? `GPS: ${aLat}, ${aLng}` : 'Classified Geo-Grid')),
+    address: alert.fullAddress || (isValid(alert.address) ? alert.address : (isValid(alert.locationName) ? alert.locationName : (aLat ? `GPS: ${aLat.toFixed(5)}, ${aLng.toFixed(5)}` : 'Classified Geo-Grid'))),
     forensicTranscript: alert.audioTranscript 
       ? `[TRANSCRIPT] ${alert.audioTranscript}`
       : (alert.audioUrl || alert.stealthAudio) ? "Live audio stream locked. Decrypting voice telemetry..." : "No active audio uplink detected from the primary device.",
@@ -77,31 +91,27 @@ export const generateSimulatedPcrVans = (
 ) => {
   const city = incidentData?.city || 'Local';
   const alert = activeAlerts.find(a => a.id === selectedAlertId);
-  const aLat = alert?.latitude || alert?.location?.lat || 0;
-  const aLng = alert?.longitude || alert?.location?.lng || 0;
+  const aLat = alert?.latitude || alert?.location?.lat || 24.5797;
+  const aLng = alert?.longitude || alert?.location?.lng || 81.3317;
 
-  const realVans = livePcrOfficers.map(officer => {
-    const pLat = officer.lastLocation?.lat || officer.latitude || 0;
-    const pLng = officer.lastLocation?.lng || officer.longitude || 0;
-    const distKm = (aLat && aLng && pLat && pLng) ? calculateDistance(aLat, aLng, pLat, pLng) : null;
-    const etaMins = distKm ? Math.ceil(distKm / 0.5) : null;
+  // Filter for on-duty PCR officers or protectors
+  const activeUnits = livePcrOfficers.filter(o => o.isOnDuty === true || o.status === 'responding' || o.lastLocation || o.latitude);
+
+  const realVans = activeUnits.map(officer => {
+    const pLat = officer.lastLocation?.latitude || officer.lastLocation?.lat || officer.latitude || 0;
+    const pLng = officer.lastLocation?.longitude || officer.lastLocation?.lng || officer.longitude || 0;
+    const distKm = (aLat && aLng && pLat && pLng) ? calculateDistance(aLat, aLng, pLat, pLng) : (Math.random() * 2 + 0.5);
+    const etaMins = Math.ceil(distKm / 0.4);
     return {
       id: officer.id,
       name: officer.vehicleNo || `${city} PCR Unit`,
-      officer: `${officer.rank || 'Officer'} ${officer.name || officer.displayName || 'On Duty'}`,
-      distance: distKm ? `${distKm.toFixed(1)} km` : 'Unknown',
-      delay: etaMins ? `${etaMins} mins` : '—',
+      officer: `${officer.rank || 'Protector'} ${officer.name || officer.displayName || 'On Duty'}`,
+      distance: `${distKm.toFixed(1)} km`,
+      delay: `${etaMins} mins`,
       uid: officer.id,
       isReal: true
     };
   }).sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
 
-  if (realVans.length === 0) {
-    return [
-      { id: 'PCR-01', name: `${city} PCR Van 01`, officer: 'Sub-Inspector A. Yadav', distance: '0.6 km', delay: '2 mins', isReal: false },
-      { id: 'PCR-02', name: `${city} PCR Van 02`, officer: 'Head Constable R. Sharma', distance: '1.2 km', delay: '4 mins', isReal: false },
-      { id: 'PCR-03', name: `${city} Interceptor 03`, officer: 'Constable S. Pathak', distance: '1.8 km', delay: '7 mins', isReal: false }
-    ];
-  }
   return realVans;
 };

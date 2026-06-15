@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, Radio, MapPin, Search, ChevronRight, Activity, AlertTriangle, Phone, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../firebase';
 
 interface ProtectorHQHubProps {
   profile: any;
@@ -13,6 +15,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportText, setReportText] = useState('');
   const [pcrEta, setPcrEta] = useState(5); // Simulated starting ETA in minutes
+  const [realPcrUnits, setRealPcrUnits] = useState<any[]>([]);
 
   // Simulate PCR van moving closer
   React.useEffect(() => {
@@ -24,12 +27,47 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
     }
   }, [activeInterceptAlert, pcrEta]);
 
-  // Mock PCR vehicles for demonstration
-  const pcrVehicles = [
-    { id: 'PCR-7A', name: 'Sector 62 Beat Car', status: 'Patrolling', distance: '1.2 km', crew: 3 },
-    { id: 'PCR-9B', name: 'Central Bypass Unit', status: 'Responding', distance: '3.4 km', crew: 4 },
-    { id: 'PCR-2C', name: 'Highway Intercept', status: 'Standby', distance: '5.1 km', crew: 2 },
-  ];
+  // Query actual on-duty PCR units / protectors from database
+  React.useEffect(() => {
+    const q = query(
+      collection(db, 'users'),
+      where('role', 'in', ['pcr_officer', 'protector'])
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => {
+        const data = doc.data() as any;
+        const pLat = data.lastLocation?.latitude || data.lastLocation?.lat || data.latitude || 0;
+        const pLng = data.lastLocation?.longitude || data.lastLocation?.lng || data.longitude || 0;
+        
+        let distKm = 0;
+        if (userPos && userPos.lat && userPos.lng && pLat && pLng) {
+          const R = 6371;
+          const dLat = (pLat - userPos.lat) * Math.PI / 180;
+          const dLon = (pLng - userPos.lng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(userPos.lat * Math.PI / 180) * Math.cos(pLat * Math.PI / 180) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          distKm = R * c;
+        }
+
+        return {
+          id: doc.id,
+          name: data.vehicleNo || `${data.role === 'pcr_officer' ? 'PCR Unit' : 'Protector'} - ${data.name || data.displayName || 'Active'}`,
+          status: data.isOnDuty ? 'Active Patrol' : 'Standby',
+          distance: distKm > 0 ? `${distKm.toFixed(1)} km` : 'Near you',
+          distVal: distKm,
+          crew: data.crewSize || (data.role === 'pcr_officer' ? 2 : 1)
+        };
+      });
+      // Filter out self if applicable
+      const filtered = list.filter(u => u.id !== profile?.uid);
+      setRealPcrUnits(filtered.sort((a, b) => a.distVal - b.distVal).slice(0, 5));
+    }, () => {
+      setRealPcrUnits([]);
+    });
+    return () => unsub();
+  }, [userPos, profile?.uid]);
 
   const handleRequestBackup = () => {
     toast.success('Backup request sent to Central HQ. A PCR unit is being dispatched to your coordinates.');
@@ -134,29 +172,35 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
              </motion.div>
           )}
 
-          {pcrVehicles.map((pcr, i) => (
-            <motion.div 
-              key={pcr.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
-                  {pcr.id.split('-')[1]}
+          {realPcrUnits.length === 0 ? (
+            <div className="py-6 text-center opacity-40 border border-dashed border-slate-200 rounded-xl bg-slate-50">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Nearby Active Units</p>
+            </div>
+          ) : (
+            realPcrUnits.map((pcr, i) => (
+              <motion.div 
+                key={pcr.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase">
+                    {pcr.id.includes('-') ? pcr.id.split('-')[1].slice(0, 3) : pcr.id.slice(0, 3)}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black text-slate-800 uppercase">{pcr.name}</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 mt-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${pcr.status.toLowerCase().includes('active') ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      {pcr.status} • {pcr.distance}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[11px] font-black text-slate-800 uppercase">{pcr.name}</p>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 mt-0.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${pcr.status === 'Patrolling' ? 'bg-emerald-500' : pcr.status === 'Responding' ? 'bg-rose-500' : 'bg-amber-500'}`} />
-                    {pcr.status} • {pcr.distance}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight size={14} className="text-slate-400" />
-            </motion.div>
-          ))}
+                <ChevronRight size={14} className="text-slate-400" />
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
 

@@ -177,7 +177,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     }
   };
 
-  const userPhoto = userData?.photoUrl || userData?.photoURL || user?.photoURL;
+  const userPhoto = userData?.displayPhotoUrl || userData?.photoUrl || userData?.photoURL || user?.photoURL;
   const uid = userData?.aadhaarMasked || 'XXXX-XXXX-XXXX';
   const gender = userData?.gender || 'female';
   const displayName = user?.displayName || userData?.name || t('kavach_user');
@@ -198,7 +198,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     <div className={cn(
       "font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative",
       role === 'super_cell' ? "h-screen overflow-hidden p-0" : 
-      role === 'protector' || role === 'pcr_officer' ? "min-h-screen overflow-x-hidden pb-10 bg-[#0F172A] text-white" : 
+      role === 'protector' || role === 'pcr_officer' || (activeTab === 'rewards' && role !== 'citizen') ? "min-h-screen overflow-x-hidden pb-10 bg-[#0F172A] text-white" : 
       "min-h-screen overflow-x-hidden pb-10 text-gray-900 bg-[#F8FAFC]"
     )}>
 

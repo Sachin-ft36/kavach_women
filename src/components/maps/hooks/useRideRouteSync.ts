@@ -17,6 +17,7 @@ export function useRideRouteSync(
 
     if (isRideModeActive && rideData?.path && rideData.path.length > 0) {
       const updateRideRoute = (coordinates: any[]) => {
+        if (!m || !m.isStyleLoaded()) return;
         if (!m.getSource('ride-route')) {
           m.addSource('ride-route', {
             type: 'geojson',

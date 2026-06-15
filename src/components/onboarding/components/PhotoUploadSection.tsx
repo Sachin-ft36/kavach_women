@@ -102,7 +102,7 @@ export function PhotoUploadSection({
             ) : (
               <button
                 type="button" onClick={startCamera}
-                className="w-full py-2.5 bg-[#000080] text-white rounded-sm text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform"
+                className="w-full py-2.5 bg-[#000080] text-white rounded-sm text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(0,0,128,0.2)] hover:bg-blue-900 transition-all cursor-pointer border-none"
               >
                 <Camera size={14} /> OPEN CAMERA
               </button>

@@ -11,7 +11,8 @@ export function useVictimRouteSync(
   activeAlerts: any[],
   isNavigating: boolean,
   isCarHUD: boolean,
-  isAutoTracking: React.MutableRefObject<boolean>
+  isAutoTracking: React.MutableRefObject<boolean>,
+  onVictimClick?: () => void
 ) {
   useEffect(() => {
     const m = map.current;
@@ -23,7 +24,14 @@ export function useVictimRouteSync(
       const vLng = activeAlert.longitude || activeAlert.location?.longitude || activeAlert.location?.lng;
 
       if (vLat && vLng) {
-        const vCoords: [number, number] = [vLng, vLat];
+        let targetLat = vLat;
+        let targetLng = vLng;
+        if (Math.abs(targetLat - activePos[0]) < 0.00001 && Math.abs(targetLng - activePos[1]) < 0.00001) {
+          targetLat += 0.0005;
+          targetLng += 0.0005;
+        }
+        
+        const vCoords: [number, number] = [targetLng, targetLat];
         const uCoords: [number, number] = [activePos[1], activePos[0]];
 
         if (!markersRef.current.victim) {
@@ -33,11 +41,17 @@ export function useVictimRouteSync(
           markersRef.current.victim = new mapboxgl.Marker(el)
             .setLngLat(vCoords)
             .addTo(m);
+            
+          if (onVictimClick) {
+            el.addEventListener('click', () => onVictimClick());
+            el.style.cursor = 'pointer';
+          }
         } else {
           markersRef.current.victim.setLngLat(vCoords);
         }
 
         const updateMapboxRoute = (coordinates: any[]) => {
+          if (!m || !m.isStyleLoaded()) return;
           if (!m.getSource('route')) {
             m.addSource('route', {
               type: 'geojson',
@@ -182,5 +196,5 @@ export function useVictimRouteSync(
         }
       }
     }
-  }, [activePos, activeAlerts, map, markersRef, isMapLoaded, isNavigating, isCarHUD, isAutoTracking]);
+  }, [activePos, activeAlerts, map, markersRef, isMapLoaded, isNavigating, isCarHUD, isAutoTracking, onVictimClick]);
 }

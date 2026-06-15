@@ -6,15 +6,20 @@ import { KavachSafe } from '../../services/KavachNative';
 
 const savedIsRegistered = localStorage.getItem('kavach_is_registered') === 'true';
 const savedIsVerified = localStorage.getItem('kavach_is_verified') === 'true';
+const savedGender = (localStorage.getItem('kavach_gender') as 'female' | 'male') || 'female';
+const savedRoleRaw = localStorage.getItem('kavach_user_role') || localStorage.getItem('kavach_role') || 'citizen';
+// 🔒 FORCED MALE RULE: Apply at store init so first render is already correct
+const savedRole = (savedGender === 'male' && savedRoleRaw === 'citizen') ? 'protector' : savedRoleRaw;
 
 export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState, 'user' | 'profile' | 'role' | 'gender' | 'isRegistered' | 'isVerified' | 'safetyPin' | 'setUser' | 'setProfile' | 'setRole' | 'setGender' | 'setRegistered' | 'setVerified' | 'setSafetyPin'>> = (set, get) => ({
   user: null,
   profile: null,
-  role: (localStorage.getItem('kavach_user_role') as any) || 'citizen',
-  gender: 'female',
+  role: savedRole as any,
+  gender: savedGender,
   isRegistered: savedIsRegistered,
   isVerified: savedIsVerified,
   safetyPin: localStorage.getItem('kavach_safety_pin'),
+
 
   setUser: async (user) => {
     set({ user });
@@ -24,9 +29,17 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
 
       let lastSyncedData = "";
       const syncProfile = async (firebaseData: any) => {
+        let finalRole = firebaseData.role || 'citizen';
+        const finalGender = firebaseData.gender || 'female';
+        
+        // 🔒 FORCED MALE RULE: Male accounts can never be citizens. Force role to protector.
+        if (finalGender === 'male' && finalRole === 'citizen') {
+          finalRole = 'protector';
+        }
+
         const syncString = JSON.stringify({
           n: firebaseData.name,
-          r: firebaseData.role,
+          r: finalRole,
           v: firebaseData.isVerified || firebaseData.verified,
           xp: firebaseData.xp
         });
@@ -40,8 +53,8 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
             id: user.uid,
             email: user.email,
             display_name: firebaseData.name || user.displayName || 'Kavach Citizen',
-            role: firebaseData.role || 'citizen',
-            gender: firebaseData.gender || 'female',
+            role: finalRole,
+            gender: finalGender,
             is_verified: !!(firebaseData.isVerified || firebaseData.verified),
             xp: firebaseData.xp || 0
           });
@@ -63,6 +76,19 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
             return;
           }
 
+          let finalRole = data.role || 'citizen';
+          const finalGender = data.gender || 'female';
+          if (finalGender === 'male' && finalRole === 'citizen') {
+            finalRole = 'protector';
+          }
+          localStorage.setItem('kavach_user_role', finalRole);
+          localStorage.setItem('kavach_role', finalRole);
+          localStorage.setItem('kavach_gender', finalGender); // 🔒 Cache gender for instant next-load
+
+          // Sync verification state to localStorage to prevent refresh flicker
+          const verified = !!(data.isVerified || data.verified) || localStorage.getItem('kavach_is_verified') === 'true';
+          localStorage.setItem('kavach_is_verified', verified.toString());
+
           set({
             isSOSBlocked: !!data.isSOSBlocked,
             isPermanentlyBlocked: !!data.isPermanentlyBlocked,
@@ -70,8 +96,10 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
             sosStrikeCount: data.sosStrikeCount || 0,
             hasPendingWarning: !!data.hasPendingWarning,
             warningMessage: data.warningMessage || null,
-            profile: data as UserProfile,
-            isVerified: !!(data.isVerified || data.verified)
+            profile: { ...data, role: finalRole } as UserProfile,
+            isVerified: verified,
+            role: finalRole,
+            gender: finalGender
           });
 
           syncProfile(data);
@@ -90,7 +118,11 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
         }, (payload) => {
           console.log('⚡ SUPABASE: Real-time update', payload);
           if (payload.new) {
+          const newData = payload.new as any;
+            const verified = !!(newData?.is_verified || newData?.isVerified) || localStorage.getItem('kavach_is_verified') === 'true';
+            localStorage.setItem('kavach_is_verified', verified.toString());
             set((state) => ({
+              isVerified: verified,
               profile: { ...state.profile, ...payload.new as any }
             }));
           }
@@ -101,6 +133,7 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
   setProfile: (profile) => set({ profile }),
   setRole: (role) => {
     localStorage.setItem('kavach_user_role', role);
+    localStorage.setItem('kavach_role', role);
     KavachSafe.setUserRole({ role });
     set({ role });
   },

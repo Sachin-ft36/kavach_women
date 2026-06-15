@@ -40,28 +40,32 @@ export function useDashboardLogic() {
 
     const q = query(
       collection(db, 'alerts'),
-      where('userId', '==', currentUser.uid),
-      where('status', '==', 'resolved'),
-      where('isRated', '!=', true),
-      orderBy('isRated'), // required for != query
-      orderBy('timestamp', 'desc'),
-      limit(1)
+      where('userId', '==', currentUser.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const alertData = snapshot.docs[0].data();
-        const alertId = snapshot.docs[0].id;
-        
-        // Ensure there are responders to rate
+      const resolvedUnrated = snapshot.docs
+        .map(d => {
+          const data = d.data();
+          return { id: d.id, ...data, timestamp: data.timestamp?.seconds ? data.timestamp.seconds * 1000 : data.timestamp };
+        })
+        .filter((d: any) => d.status === 'resolved' && d.isRated !== true)
+        .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      if (resolvedUnrated.length > 0) {
+        const alertData = resolvedUnrated[0] as any;
         const responders = alertData.responders || alertData.acceptedBy || [];
         
         if (responders.length > 0) {
-          setRatingAlert({ id: alertId, responders });
+          setRatingAlert({ id: alertData.id, responders });
+        } else {
+          setRatingAlert(null);
         }
       } else {
         setRatingAlert(null);
       }
+    }, (error) => {
+      console.warn("KAVACH: Rating alerts listener error:", error);
     });
 
     return () => unsubscribe();

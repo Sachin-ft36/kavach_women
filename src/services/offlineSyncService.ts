@@ -4,7 +4,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { cryptoService } from './cryptoService';
 import { Preferences } from '@capacitor/preferences';
 
-export type SyncPayloadType = 'TELEMETRY' | 'EVIDENCE_NODE' | 'SOS_TRIGGER' | 'ACK_STATUS';
+export type SyncPayloadType = 'TELEMETRY' | 'EVIDENCE_NODE' | 'SOS_TRIGGER' | 'ACK_STATUS' | 'EVIDENCE_UPLOAD';
 
 export interface OfflinePayload {
   id: string;
@@ -93,6 +93,9 @@ export const offlineSyncService = {
           if (item.type === 'EVIDENCE_NODE') {
             const docRef = await addDoc(collection(db, 'incident_audit_ledger'), item.data);
             if (!docRef.id) throw new Error("No Firestore ACK received");
+          } else if (item.type === 'EVIDENCE_UPLOAD') {
+            const { error } = await supabase.from('evidence').insert([item.data]);
+            if (error) throw error;
           } else if (item.type === 'TELEMETRY' || item.type === 'SOS_TRIGGER' || item.type === 'ACK_STATUS') {
             const { error } = await supabase.from('offline_sync_buffer').insert([
               { payload_type: item.type, payload_data: item.data, created_at: new Date(item.timestamp).toISOString() }

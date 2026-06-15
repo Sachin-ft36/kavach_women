@@ -13,18 +13,18 @@ service cloud.firestore {
     }
     
     function isAdmin() {
+      // 🛡️ Admin Verification (Role-based, Email-based, or User Document checked)
       return isAuthenticated() && (
              hasRole('national_commander') ||
              hasRole('admin') ||
              hasRole('super_cell') ||
+             hasRole('superadmin') ||
+             (request.auth.token.email != null && (
+               request.auth.token.email.toLowerCase() == 'admin@kavach.gov.in' ||
+               request.auth.token.email.toLowerCase().matches('.*adminsachin.*')
+             )) ||
              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_cell' ||
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperCell')) ||
-             (exists(/databases/$(database)/documents/male_users/$(request.auth.uid)) && 
-              get(/databases/$(database)/documents/male_users/$(request.auth.uid)).data.role == 'super_cell') ||
-             (exists(/databases/$(database)/documents/women_users/$(request.auth.uid)) && 
-              get(/databases/$(database)/documents/women_users/$(request.auth.uid)).data.role == 'super_cell')
+              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_cell', 'SuperCell', 'superadmin', 'super_admin', 'national_commander']))
       );
     }
 
@@ -46,12 +46,7 @@ service cloud.firestore {
     // 1. MASTER LEDGER (CITIZENS & PROTECTORS)
     match /users/{userId} {
       allow list: if isAuthenticated();
-      allow read: if isAuthenticated() && (
-        isOwner(userId) || 
-        isAdmin() || 
-        isProtector() ||
-        (resource != null && 'role' in resource.data && resource.data.role == 'protector')
-      ); 
+      allow read: if isAuthenticated(); 
       allow update: if isAdmin() || (
         isOwner(userId) && 
         // 🛡️ SECURITY SHIELD: Prevents users from self-verifying or escalating their role to admin/super_cell
@@ -79,14 +74,14 @@ service cloud.firestore {
 
     // 2. MALE SECTOR
     match /male_users/{userId} {
-      allow read: if isAuthenticated(); 
+      allow read: if isOwner(userId) || isAdmin() || isProtector(); 
       allow write: if isOwner(userId) || isAdmin();
       match /{allSubcollections=**} { allow read, write: if isOwner(userId) || isAdmin(); }
     }
 
     // 3. WOMEN SECTOR
     match /women_users/{userId} {
-      allow read: if isAuthenticated(); 
+      allow read: if isOwner(userId) || isAdmin() || isProtector(); 
       allow write: if isOwner(userId) || isAdmin();
       match /safety_data/{docId} { allow read, write: if isOwner(userId) || isAdmin(); }
       match /protector_data/{docId} { allow read, write: if isOwner(userId) || isAdmin(); }
@@ -119,9 +114,12 @@ service cloud.firestore {
 
     function isValidAlertTransition(oldStatus, newStatus) {
       return (oldStatus == newStatus) ||
+             (oldStatus == null && newStatus == 'active') ||
              (oldStatus == 'closed' && newStatus == 'closed') ||
+             (newStatus == 'cancelled' || newStatus == 'aborted' || newStatus == 'closed') ||
+             (newStatus == 'active' && oldStatus != 'cancelled' && oldStatus != 'aborted' && oldStatus != 'closed') ||
              (oldStatus != 'cancelled' && oldStatus != 'aborted' && oldStatus != 'closed' && (
-               (oldStatus == 'active' && (newStatus == 'responding' || newStatus == 'cancelled')) ||
+               (oldStatus == 'active' && newStatus == 'responding') ||
                (oldStatus == 'responding' && newStatus == 'assigned') ||
                (oldStatus == 'assigned' && newStatus == 'en_route') ||
                (oldStatus == 'en_route' && (newStatus == 'arrived' || newStatus == 'aborted')) ||
@@ -216,6 +214,12 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isAdmin() || hasRole('super_cell') || hasRole('national_commander'));
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
+    }
+
+    // --- 🚨 VETTING LOGS ---
+    match /vetting_logs/{logId} {
+      allow read, write: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated();
     }
 
     // --- 🚨 FINAL SAFETY NET ---

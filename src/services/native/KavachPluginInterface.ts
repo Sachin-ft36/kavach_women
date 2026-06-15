@@ -46,6 +46,12 @@ export interface KavachPlugin {
   // 🔐 Storage Crypto
   encryptQueue(options: { data: string }): Promise<{ ciphertext: string; iv: string; version: number }>;
   decryptQueue(options: { ciphertext: string; iv: string }): Promise<{ data: string }>;
+
+  // 📡 BLE Mesh SOS Relays
+  startBleSOSAdvertising(options: { victimUid: string; latitude: number; longitude: number }): Promise<void>;
+  stopBleSOSAdvertising(): Promise<void>;
+  startBleSOSScanning(): Promise<void>;
+  stopBleSOSScanning(): Promise<void>;
 }
 
 export const KavachNative = registerPlugin<KavachPlugin>('KavachPlugin');

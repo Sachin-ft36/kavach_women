@@ -38,8 +38,7 @@ export function useNationalCommand(activeAlerts: any[], selectedState: string) {
   useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      where('role', '==', 'pcr_officer'),
-      where('isOnDuty', '==', true)
+      where('role', 'in', ['pcr_officer', 'protector'])
     );
     const unsub = onSnapshot(q, (snap) => {
       setLivePcrOfficers(snap.docs.map(d => ({ id: d.id, ...d.data() as any })));

@@ -14,8 +14,12 @@ export default function MapplsVictimMap({
   isNavigating = false,
   onToggleNav,
   onResolve,
+  onAbort,
   distance = '---',
-  onFallback
+  onFallback,
+  onVictimClick,
+  isCarHUD = false,
+  isProtectorHUD = false
 }: any) {
   const { userPos } = useKavachStore();
   const { initiateCall } = useCall();
@@ -23,7 +27,7 @@ export default function MapplsVictimMap({
   const activeAlert = activeAlerts.find((a: any) => a.status === 'active' || a.status === 'responding');
 
   const { mapRef, isLoaded, mapId } = useMapplsInit(userPos, onFallback);
-  useMapplsSync(mapRef, isLoaded, userPos, activeAlert, isNavigating);
+  useMapplsSync(mapRef, isLoaded, userPos, activeAlert, isNavigating, onVictimClick, isCarHUD, isProtectorHUD);
   const { handleRecenter, handleZoom } = useMapplsControls(mapRef, userPos);
 
   return (
@@ -119,6 +123,11 @@ export default function MapplsVictimMap({
                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{distance}</p>
               </div>
               <div className="flex items-center gap-2">
+                {onAbort && (
+                  <button onClick={onAbort} className="px-4 py-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all">
+                    Stand Down
+                  </button>
+                )}
                 <button onClick={onToggleNav} className={cn("px-4 py-3 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 shadow-sm transition-all active:scale-95", isNavigating ? "bg-red-50 text-red-600 border border-red-100" : "bg-blue-600 text-white shadow-blue-600/20")}>
                   <Navigation size={12} fill={isNavigating ? "currentColor" : "none"} />
                   <span>{isNavigating ? "Stop" : "Navigate"}</span>

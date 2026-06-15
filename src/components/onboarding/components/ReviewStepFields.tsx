@@ -37,46 +37,6 @@ export function DetailedInfoGrid({
         )}
       </div>
 
-      {/* Row 2: DOB & Blood Group (Grid layout) */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-          <div className="flex items-center gap-1 text-slate-500 mb-0.5">
-            <Calendar size={11} />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Date of Birth</span>
-          </div>
-          {isEditing ? (
-            <input
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 w-full"
-            />
-          ) : (
-            <span className="font-bold text-slate-900 text-xs text-left w-full">{dob || "N/A"}</span>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-          <div className="flex items-center gap-1 text-slate-500 mb-0.5">
-            <Heart size={11} />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Blood Group</span>
-          </div>
-          {isEditing ? (
-            <select
-              value={bloodGroup}
-              onChange={(e) => setBloodGroup(e.target.value)}
-              className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 w-full"
-            >
-              <option value="">Select</option>
-              {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
-                <option key={bg} value={bg}>{bg}</option>
-              ))}
-            </select>
-          ) : (
-            <span className="font-bold text-red-600 text-xs text-left w-full">{bloodGroup || "N/A"}</span>
-          )}
-        </div>
-      </div>
 
       {/* Row 3: Gender */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
