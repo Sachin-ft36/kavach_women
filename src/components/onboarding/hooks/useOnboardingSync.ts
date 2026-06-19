@@ -152,18 +152,49 @@ export function useOnboardingSync(
           const guardianCol = collection(db, 'users', user.uid, 'guardians');
           const localGuardians = guardians.map(g => ({
             name: g.name,
-            phone: `+91${g.phone.replace(/\D/g, '')}`,
+            phone: `+91${g.phone.replace(/\D/g, '').slice(-10)}`,
             relation: g.relation
           }));
           localStorage.setItem('kavach_guardian_cache', JSON.stringify(localGuardians));
 
           for (const g of guardians) {
             if (g.name && g.phone) {
-              const cleanPhone = g.phone.replace(/\D/g, '');
+              const cleanPhone = g.phone.replace(/\D/g, '').slice(-10);
+              const fullCleanPhone = `+91${cleanPhone}`;
               await addDoc(guardianCol, {
-                name: g.name, phone: `+91${cleanPhone}`, relation: g.relation || 'Guardian', createdAt: serverTimestamp()
+                name: g.name, phone: fullCleanPhone, relation: g.relation || 'Guardian', createdAt: serverTimestamp()
               }).catch(() => { });
+
+              // 🛡️ Create pending link for the guardian
+              await setDoc(doc(db, 'guardian_pending_links', fullCleanPhone), {
+                citizenUid: user.uid,
+                citizenName: userProfile.name,
+                citizenPhone: userProfile.phoneNumber,
+                relationship: g.relation || 'Guardian',
+                createdAt: serverTimestamp()
+              }, { merge: true }).catch(() => { });
             }
+          }
+        }
+
+        // 🛡️ Auto-resolve pending links if registering as a Guardian
+        if (userProfile.role === 'guardian') {
+          const cleanPhone = userProfile.phoneNumber;
+          try {
+            const claimSnap = await getDoc(doc(db, 'guardian_pending_links', cleanPhone));
+            if (claimSnap.exists()) {
+              const claimData = claimSnap.data();
+              userProfile.protectorVetting = {
+                ...(userProfile.protectorVetting || {}),
+                isGuardian: true,
+                familyPhone: claimData.citizenPhone,
+                linkedFamilyName: claimData.citizenName
+              };
+              // Update local state copy
+              cleanProfile.protectorVetting = userProfile.protectorVetting;
+            }
+          } catch (e) {
+            console.error("Error reading pending links:", e);
           }
         }
 

@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useKavachStore } from '../../../store/useKavachStore';
 import { fetchRouteMappls } from '../../../services/MapplsService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../firebase';
 
 export function useVictimRouteSync(
   map: React.MutableRefObject<mapboxgl.Map | null>,
@@ -14,11 +16,33 @@ export function useVictimRouteSync(
   isAutoTracking: React.MutableRefObject<boolean>,
   onVictimClick?: () => void
 ) {
+  const { role } = useKavachStore();
+  const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
+  const responderUid = activeAlert?.responderUid;
+  const [responderPos, setResponderPos] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    if (!responderUid || role === 'protector') {
+      setResponderPos(null);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, 'users', responderUid), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const lat = data.lastLocation?.lat || data.latitude || data.location?.latitude;
+        const lng = data.lastLocation?.lng || data.longitude || data.location?.longitude;
+        if (lat && lng) {
+          setResponderPos([lat, lng]);
+        }
+      }
+    });
+    return () => unsub();
+  }, [responderUid, role]);
+
   useEffect(() => {
     const m = map.current;
     if (!m || !activePos || !isMapLoaded) return;
 
-    const activeAlert = activeAlerts.find(a => a.status === 'active' || a.status === 'responding');
     if (activeAlert) {
       const vLat = activeAlert.latitude || activeAlert.location?.latitude || activeAlert.location?.lat;
       const vLng = activeAlert.longitude || activeAlert.location?.longitude || activeAlert.location?.lng;
@@ -26,13 +50,17 @@ export function useVictimRouteSync(
       if (vLat && vLng) {
         let targetLat = vLat;
         let targetLng = vLng;
-        if (Math.abs(targetLat - activePos[0]) < 0.00001 && Math.abs(targetLng - activePos[1]) < 0.00001) {
+        
+        // Use responderPos as the route start if available and role is not protector
+        const routeStartPos = (responderPos && role !== 'protector') ? responderPos : activePos;
+
+        if (Math.abs(targetLat - routeStartPos[0]) < 0.00001 && Math.abs(targetLng - routeStartPos[1]) < 0.00001) {
           targetLat += 0.0005;
           targetLng += 0.0005;
         }
         
         const vCoords: [number, number] = [targetLng, targetLat];
-        const uCoords: [number, number] = [activePos[1], activePos[0]];
+        const uCoords: [number, number] = [routeStartPos[1], routeStartPos[0]];
 
         if (!markersRef.current.victim) {
           const el = document.createElement('div');
@@ -196,5 +224,5 @@ export function useVictimRouteSync(
         }
       }
     }
-  }, [activePos, activeAlerts, map, markersRef, isMapLoaded, isNavigating, isCarHUD, isAutoTracking, onVictimClick]);
+  }, [activePos, activeAlerts, map, markersRef, isMapLoaded, isNavigating, isCarHUD, isAutoTracking, onVictimClick, responderPos, role]);
 }

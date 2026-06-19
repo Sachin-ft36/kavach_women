@@ -109,20 +109,34 @@ export function useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone 
 
       const filePath = `avatars/${Math.random().toString(36).slice(2)}_${Date.now()}.jpeg`;
       let ok = false;
+      
       try {
-        const { error } = await supabase.storage.from('evidence').upload(filePath, compressedFile, { upsert: true });
+        const { error } = await Promise.race([
+          supabase.storage.from('evidence').upload(filePath, compressedFile, { upsert: true }),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 3000))
+        ]);
         if (!error) {
           const { data: { publicUrl } } = supabase.storage.from('evidence').getPublicUrl(filePath);
-          setPhotoUrl(publicUrl); ok = true;
+          setPhotoUrl(publicUrl);
+          ok = true;
         }
-      } catch {}
+      } catch (err) {
+        console.warn("Supabase upload failed or timed out:", err);
+      }
+
       if (!ok) {
         try {
           const uid = auth.currentUser?.uid || 'anon';
           const fileRef = ref(storage, `avatars/${uid}_${Date.now()}.jpg`);
-          await uploadBytes(fileRef, compressedFile);
-          setPhotoUrl(await getDownloadURL(fileRef)); ok = true;
-        } catch {}
+          await Promise.race([
+            uploadBytes(fileRef, compressedFile),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Firebase Timeout')), 3000))
+          ]);
+          setPhotoUrl(await getDownloadURL(fileRef));
+          ok = true;
+        } catch (err) {
+          console.warn("Firebase upload failed or timed out:", err);
+        }
       }
     } catch (err) {
       console.error("Compression/Upload error:", err);
@@ -162,20 +176,34 @@ export function useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone 
       const filePath = `avatars/${Math.random().toString(36).slice(2)}_${Date.now()}.jpeg`;
       const file = new File([blob], filePath, { type: 'image/jpeg' });
       let ok = false;
+      
       try {
-        const { error } = await supabase.storage.from('evidence').upload(filePath, file, { upsert: true });
+        const { error } = await Promise.race([
+          supabase.storage.from('evidence').upload(filePath, file, { upsert: true }),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 3000))
+        ]);
         if (!error) {
           const { data: { publicUrl } } = supabase.storage.from('evidence').getPublicUrl(filePath);
-          setPhotoUrl(publicUrl); ok = true;
+          setPhotoUrl(publicUrl);
+          ok = true;
         }
-      } catch {}
+      } catch (err) {
+        console.warn("Supabase upload failed or timed out:", err);
+      }
+
       if (!ok) {
         try {
           const uid = auth.currentUser?.uid || 'anon';
           const fileRef = ref(storage, `avatars/${uid}_${Date.now()}.jpg`);
-          await uploadBytes(fileRef, blob);
-          setPhotoUrl(await getDownloadURL(fileRef)); ok = true;
-        } catch {}
+          await Promise.race([
+            uploadBytes(fileRef, blob),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Firebase Timeout')), 3000))
+          ]);
+          setPhotoUrl(await getDownloadURL(fileRef));
+          ok = true;
+        } catch (err) {
+          console.warn("Firebase upload failed or timed out:", err);
+        }
       }
       setIsUploading(false);
     }, 'image/jpeg', 0.5);

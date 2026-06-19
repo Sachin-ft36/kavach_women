@@ -50,7 +50,7 @@ export function BottomNavBar({ isNavVisible }: Props) {
             <NavButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<User size={20} />} label="Profile" />
           </>
         )}
-        {(effectiveRole === 'protector' || effectiveRole === 'pcr_officer') && (
+        {effectiveRole === 'protector' && (
           <>
             <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<MapPin size={20} />} label="Response" />
             <NavButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon={<BookOpen size={20} />} label="Safety Tips" />

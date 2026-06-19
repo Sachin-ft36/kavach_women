@@ -120,8 +120,8 @@ export default function DashboardScreen() {
               </div>
             </div>
             <span className="text-base sm:text-xl font-black text-white tracking-tighter leading-tight">112</span>
-            <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Call For Help</span>
-            <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Emergency</span>
+            <span className="text-[6px] sm:text-[8px] font-bold text-white uppercase tracking-wider sm:tracking-widest leading-none">Emergency Helplines</span>
+            <span className="text-[5px] sm:text-[7px] text-white/50 font-medium uppercase tracking-widest mt-0.5">Direct Call</span>
           </button>
           <button
             onClick={() => KavachSafe.initiateEmergencyCall({ number: gender === 'female' ? '1091' : '100' })}
@@ -131,7 +131,7 @@ export default function DashboardScreen() {
               {gender === 'female' ? <User size={14} className="sm:size-[20px]" /> : <Shield size={14} className="sm:size-[20px]" />}
             </div>
             <span className="text-base sm:text-xl font-black text-[#1E293B] tracking-tighter leading-tight">{gender === 'female' ? '1091' : '100'}</span>
-            <span className="text-[6px] sm:text-[8px] font-bold text-gray-500 uppercase tracking-wider sm:tracking-widest leading-none">{gender === 'female' ? 'Women Helpline' : 'Police Helpline'}</span>
+            <span className="text-[6px] sm:text-[8px] font-bold text-gray-500 uppercase tracking-wider sm:tracking-widest leading-none">{gender === 'female' ? 'Women Support' : 'Emergency Line'}</span>
             <span className="text-[5px] sm:text-[7px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Tap To Call</span>
           </button>
         </div>
@@ -143,8 +143,8 @@ export default function DashboardScreen() {
           <ActionCard icon={<MapPin />} title="Safe Journey" desc="Live travel protection" tint="#EFF6FF" iconColor="#0EA5E9" onClick={() => toggleOverlay(setIsRideSafeOpen, true)} />
           <ActionCard
             icon={<FileText />}
-            title="Digital Complaint"
-            desc="Online FIR support"
+            title="Digital Vault"
+            desc="Encrypted logs support"
             tint="#F8FAFC"
             iconColor="#64748B"
             onClick={() => {
@@ -154,7 +154,7 @@ export default function DashboardScreen() {
           />
           <ActionCard icon={<PhoneCall />} title="FakeCall" desc="Quick exit assistance" tint="#FFF7ED" iconColor="#F59E0B" onClick={() => toggleOverlay(setIsFakeCallHubOpen, true)} />
           <ActionCard icon={<Clock />} title="Safe Timer" desc="Reach home safely" tint="#FFF4EE" iconColor="#F97316" onClick={() => toggleOverlay(setIsSafeTimerOpen, true)} />
-          <ActionCard className="col-span-2 border border-rose-100/50 hover:border-rose-200/50 transition-all duration-300" icon={<Activity />} title="Medical Hub" desc="Ambulance & Emergency Trauma Center triangulation" tint="#FEF2F2" iconColor="#EF4444" onClick={() => toggleOverlay(setIsMedicalHubOpen, true)} />
+          <ActionCard className="col-span-2 border border-rose-100/50 hover:border-rose-200/50 transition-all duration-300" icon={<Activity />} title="Medical Locator" desc="Trauma Center locator triangulation" tint="#FEF2F2" iconColor="#EF4444" onClick={() => toggleOverlay(setIsMedicalHubOpen, true)} />
         </div>
 
       </main>

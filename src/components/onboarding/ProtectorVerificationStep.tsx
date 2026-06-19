@@ -7,7 +7,7 @@ import { useHomeBaseLocation } from './hooks/useHomeBaseLocation';
 import { PcrSpecificFields, LocationField, ServiceNumberInput } from './components/VerificationFields';
 
 interface ProtectorVerificationStepProps {
-  role: 'citizen' | 'protector' | 'pcr_officer' | null;
+  role: 'citizen' | 'protector' | 'guardian' | null;
   data: {
     fullName: string;
     address: string;
@@ -48,7 +48,7 @@ const POLICE_RANKS = [
 ];
 
 export default function ProtectorVerificationStep({ role, data, setData }: ProtectorVerificationStepProps) {
-  const isPcrRoute = role === 'pcr_officer';
+  const isPcrRoute = false;
 
   const { checking, checkResult } = useServiceNumberCheck(data, setData);
   const { isLocating, handleFetchLocation } = useHomeBaseLocation(data, setData, isPcrRoute);

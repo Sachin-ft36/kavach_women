@@ -17,7 +17,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
   const [pcrEta, setPcrEta] = useState(5); // Simulated starting ETA in minutes
   const [realPcrUnits, setRealPcrUnits] = useState<any[]>([]);
 
-  // Simulate PCR van moving closer
+  // Simulate protector moving closer
   React.useEffect(() => {
     if (activeInterceptAlert && pcrEta > 1) {
       const timer = setInterval(() => {
@@ -27,11 +27,11 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
     }
   }, [activeInterceptAlert, pcrEta]);
 
-  // Query actual on-duty PCR units / protectors from database
+  // Query actual on-duty protectors from database
   React.useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      where('role', 'in', ['pcr_officer', 'protector'])
+      where('role', '==', 'protector')
     );
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map(doc => {
@@ -53,11 +53,11 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
 
         return {
           id: doc.id,
-          name: data.vehicleNo || `${data.role === 'pcr_officer' ? 'PCR Unit' : 'Protector'} - ${data.name || data.displayName || 'Active'}`,
+          name: `Protector - ${data.name || data.displayName || 'Active'}`,
           status: data.isOnDuty ? 'Active Patrol' : 'Standby',
           distance: distKm > 0 ? `${distKm.toFixed(1)} km` : 'Near you',
           distVal: distKm,
-          crew: data.crewSize || (data.role === 'pcr_officer' ? 2 : 1)
+          crew: 1
         };
       });
       // Filter out self if applicable
@@ -70,7 +70,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
   }, [userPos, profile?.uid]);
 
   const handleRequestBackup = () => {
-    toast.success('Backup request sent to Central HQ. A PCR unit is being dispatched to your coordinates.');
+    toast.success('Backup request sent to nearby volunteers. Responders are being notified.');
   };
 
   const handleSubmitReport = () => {
@@ -80,7 +80,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
     }
     setIsSubmittingReport(true);
     setTimeout(() => {
-      toast.success('Patrol report submitted to HQ successfully.');
+      toast.success('Patrol report logged successfully.');
       setReportText('');
       setIsSubmittingReport(false);
     }, 1500);
@@ -93,10 +93,10 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-[100px] z-0 opacity-50" />
         <div className="relative z-10">
           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-            <MapPin size={10} /> Active Jurisdiction
+            <MapPin size={10} /> Active Zone
           </p>
           <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-            {profile?.zone || profile?.city || 'Sector Alpha Beat'}
+            {profile?.zone || profile?.city || 'Sector Beat'}
           </h3>
           <div className="flex items-center gap-3 mt-3">
             <div className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-bold border border-emerald-100 flex items-center gap-1">
@@ -119,8 +119,8 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
             <Shield size={20} className="text-blue-400" />
           </div>
           <div className="text-center">
-            <span className="block text-xs font-black uppercase tracking-widest">HQ Backup</span>
-            <span className="block text-[9px] text-slate-400">Request Unit</span>
+            <span className="block text-xs font-black uppercase tracking-widest">Request Backup</span>
+            <span className="block text-[9px] text-slate-400">Alert Nearby</span>
           </div>
         </button>
 
@@ -132,23 +132,23 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
             <Phone size={20} className="text-rose-500" />
           </div>
           <div className="text-center">
-            <span className="block text-xs font-black uppercase tracking-widest">Control Room</span>
-            <span className="block text-[9px] text-rose-400">Direct Line (112)</span>
+            <span className="block text-xs font-black uppercase tracking-widest">Emergency Line</span>
+            <span className="block text-[9px] text-rose-400">Direct Call (112)</span>
           </div>
         </button>
       </div>
 
-      {/* ACTIVE PCR UNITS */}
+      {/* ACTIVE PROTECTORS */}
       <div className="bg-white rounded-[24px] p-5 shadow-lg border border-slate-100">
         <div className="flex justify-between items-center mb-4">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-            <Radio size={12} className="text-blue-500" /> Nearby PCR Units
+            <Radio size={12} className="text-blue-500" /> Nearby Active Protectors
           </p>
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
         </div>
 
         <div className="space-y-3">
-          {/* DYNAMIC PCR RESPONDING TO YOUR ALERT */}
+          {/* DYNAMIC PROTECTOR RESPONDING TO YOUR ALERT */}
           {activeInterceptAlert && (
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }}
@@ -161,7 +161,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                      <AlertTriangle size={10} /> Dispatched to your location
                    </p>
-                   <h4 className="text-sm font-black text-slate-800 uppercase">PCR Van DL-1C</h4>
+                   <h4 className="text-sm font-black text-slate-800 uppercase">Protector Unit Active</h4>
                    <p className="text-xs font-bold text-slate-600 mt-0.5">Assigned to: {activeInterceptAlert.userName || 'Victim'}</p>
                  </div>
                  <div className="text-right">
@@ -187,7 +187,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase">
-                    {pcr.id.includes('-') ? pcr.id.split('-')[1].slice(0, 3) : pcr.id.slice(0, 3)}
+                    PRO
                   </div>
                   <div>
                     <p className="text-[11px] font-black text-slate-800 uppercase">{pcr.name}</p>
@@ -207,12 +207,12 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
       {/* SHIFT / PATROL LOGGING */}
       <div className="bg-white rounded-[24px] p-5 shadow-lg border border-slate-100">
         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-          <FileText size={12} className="text-blue-500" /> Quick Patrol Log
+          <FileText size={12} className="text-blue-500" /> Quick Status Log
         </p>
         <textarea
           value={reportText}
           onChange={(e) => setReportText(e.target.value)}
-          placeholder="Log suspicious activity, sector clearance, or handover notes to HQ..."
+          placeholder="Log suspicious activity, sector clearance, or status updates..."
           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 font-medium placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize-none h-20 mb-3"
         />
         <button 
@@ -220,7 +220,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
           disabled={isSubmittingReport}
           className="w-full py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-blue-500/30 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          {isSubmittingReport ? 'Submitting to HQ...' : 'Submit Log to Command'}
+          {isSubmittingReport ? 'Submitting Log...' : 'Log Status Info'}
         </button>
       </div>
 

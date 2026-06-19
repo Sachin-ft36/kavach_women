@@ -15,7 +15,7 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [roleSubStep, setRoleSubStep] = useState<'select' | 'vetting'>('select');
   const [isIdentityVerified, setIsIdentityVerified] = useState(false);
-  const [role, setRole] = useState<'citizen' | 'protector' | 'pcr_officer' | null>(null);
+  const [role, setRole] = useState<'citizen' | 'protector' | 'guardian' | null>(null);
   const [gender, setGender] = useState<'female' | 'male' | null>(null);
   const [aadhaar, setAadhaar] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -36,7 +36,10 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
     badgeId: '',
     vehicleNo: '',
     rank: '',
-    thanaName: ''
+    thanaName: '',
+    isGuardian: false,
+    familyPhone: '',
+    linkedFamilyName: ''
   });
 
   useEffect(() => {

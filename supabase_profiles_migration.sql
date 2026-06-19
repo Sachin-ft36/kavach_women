@@ -41,6 +41,7 @@ ALTER TABLE public.profiles
     ADD COLUMN IF NOT EXISTS is_on_duty BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS is_registered BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS is_guardian BOOLEAN DEFAULT FALSE,   -- ← NEW: Guardian flag
     ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS last_location GEOGRAPHY(Point, 4326),
     ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
@@ -51,10 +52,23 @@ ALTER TABLE public.profiles
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
+-- 3b. Guardian pending links table
+-- When a Guardian registers but their family member isn't on Kavach yet,
+-- we store a pending link here. When the family member onboards, they claim it.
+CREATE TABLE IF NOT EXISTS guardian_pending_links (
+    family_phone   TEXT PRIMARY KEY,
+    guardian_uid   TEXT NOT NULL,
+    guardian_name  TEXT,
+    guardian_phone TEXT,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+
 -- 4. GiST Spatial Index for fast geospatial queries
 CREATE INDEX IF NOT EXISTS profiles_last_location_gist_idx ON public.profiles USING gist(last_location);
 CREATE INDEX IF NOT EXISTS profiles_role_verified_idx ON public.profiles(role, is_verified);
 CREATE INDEX IF NOT EXISTS profiles_last_seen_idx ON public.profiles(last_seen);
+CREATE INDEX IF NOT EXISTS profiles_is_guardian_idx ON public.profiles(is_guardian);  -- ← NEW
 
 -- 5. Auto-update updated_at trigger
 CREATE OR REPLACE FUNCTION update_modified_column()
@@ -74,11 +88,12 @@ CREATE TRIGGER update_profiles_modtime
 -- 6. RLS Policies (safe DROP + CREATE pattern)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Anyone can read protector profiles (for radar/map discovery)
+-- Anyone can read protector/guardian profiles (for radar/map discovery)
 DROP POLICY IF EXISTS "Allow public select for active protectors" ON profiles;
 CREATE POLICY "Allow public select for active protectors"
 ON profiles FOR SELECT
-USING (role = 'protector' OR auth.uid()::text = id);
+USING (role IN ('protector', 'pcr_officer') OR is_guardian = TRUE OR auth.uid()::text = id);
+
 
 -- Users can insert their own profile
 DROP POLICY IF EXISTS "Allow users to insert their own profile" ON profiles;

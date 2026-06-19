@@ -4,7 +4,7 @@ import { GeoPoint, UserProfile } from '../../types';
 export interface KavachState {
   user: FirebaseUser | null;
   profile: UserProfile | null;
-  role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell';
+  role: 'citizen' | 'protector' | 'guardian' | 'admin' | 'super_cell';
   gender: 'female' | 'male' | null;
   isRegistered: boolean;
   isVerified: boolean;
@@ -65,7 +65,7 @@ export interface KavachState {
   setGuardianCache: (guardians: any[]) => void;
   setUser: (user: FirebaseUser | null) => Promise<void>;
   setProfile: (profile: UserProfile | null) => void;
-  setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell') => void;
+  setRole: (role: 'citizen' | 'protector' | 'guardian' | 'admin' | 'super_cell') => void;
   setGender: (gender: 'female' | 'male') => void;
   setRegistered: (registered: boolean) => void;
   setVerified: (verified: boolean) => void;

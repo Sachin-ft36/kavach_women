@@ -4,8 +4,8 @@ import { Camera as CapCamera, CameraResultType } from '@capacitor/camera';
 interface UseReviewLogicProps {
   gender: 'female' | 'male' | null;
   setGender: (gender: 'female' | 'male' | null) => void;
-  role: 'citizen' | 'protector' | 'pcr_officer' | null;
-  setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | null) => void;
+  role: 'citizen' | 'protector' | 'guardian' | null;
+  setRole: (role: 'citizen' | 'protector' | 'guardian' | null) => void;
   name: string;
   phone: string;
   setPhotoUrl: (url: string) => void;

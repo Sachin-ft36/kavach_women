@@ -72,7 +72,7 @@ export function DetailedInfoGrid({
         </span>
         {isEditing ? (
           <div className="flex flex-wrap gap-1.5 w-full sm:w-auto justify-end sm:justify-end justify-start">
-            {(['citizen', 'protector', 'pcr_officer'] as const).map(r => {
+            {(['citizen', 'protector', 'guardian'] as const).map(r => {
               const allowed = r !== 'citizen' || gender === 'female';
               return (
                 <button
@@ -87,14 +87,14 @@ export function DetailedInfoGrid({
                     !allowed && "opacity-40 cursor-not-allowed hover:bg-white"
                   )}
                 >
-                  {r === 'citizen' ? "Citizen" : r === 'protector' ? "Rakshak" : "PCR Patrol"}
+                  {r === 'citizen' ? "Citizen" : r === 'protector' ? "Rakshak" : "Family Guardian"}
                 </button>
               );
             })}
           </div>
         ) : (
           <span className="font-bold text-blue-700 uppercase bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100 text-xs tracking-tight w-full sm:w-auto text-left">
-            {role === 'citizen' ? "Citizen (Women Shield)" : role === 'protector' ? "Civic Protector" : role === 'pcr_officer' ? "PCR Patrol" : "Not Selected"}
+            {role === 'citizen' ? "Citizen (Women Shield)" : role === 'protector' ? "Civic Protector" : role === 'guardian' ? "Family Guardian" : "Not Selected"}
           </span>
         )}
       </div>

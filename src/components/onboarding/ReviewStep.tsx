@@ -18,8 +18,8 @@ interface ReviewStepProps {
   setBloodGroup: (group: string) => void;
   gender: 'female' | 'male' | null;
   setGender: (gender: 'female' | 'male' | null) => void;
-  role: 'citizen' | 'protector' | 'pcr_officer' | null;
-  setRole: (role: 'citizen' | 'protector' | 'pcr_officer' | null) => void;
+  role: 'citizen' | 'protector' | 'guardian' | null;
+  setRole: (role: 'citizen' | 'protector' | 'guardian' | null) => void;
   aadhaar: string;
   tosChecked: { terms: boolean; permissions: boolean };
   setTosChecked: React.Dispatch<React.SetStateAction<{ terms: boolean; permissions: boolean }>>;
@@ -168,7 +168,7 @@ export default function ReviewStep({
               <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-[10px] font-medium text-amber-800 leading-snug">
                 <strong className="block mb-0.5 uppercase tracking-wide text-[9px]">Action Required</strong>
-                Citizen Safety Shield is reserved for Females. Please select <b>Civic Protector</b> or <b>PCR Patrol</b>.
+                Citizen Safety Shield is reserved for Females. Please select <b>Civic Protector</b> or <b>Family Guardian</b>.
               </p>
             </div>
           </motion.div>
