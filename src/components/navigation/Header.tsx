@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, LogOut, Zap, Shield, Eye, Bell } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useKavachStore } from '../../store/useKavachStore';
+import { db } from '../../firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 interface HeaderProps {
   role: string;
@@ -29,7 +32,30 @@ export function Header({
   handleRoleSwitch,
   handleLogout
 }: HeaderProps) {
-  const { activeAlertsCount } = useKavachStore();
+  const { activeAlertsCount, setRole: setStoreRole } = useKavachStore();
+  const [hasGuardianAccess, setHasGuardianAccess] = React.useState(role === 'guardian');
+
+  React.useEffect(() => {
+    if (role === 'guardian') {
+      setHasGuardianAccess(true);
+      return;
+    }
+    const phone = userData?.phoneNumber || userData?.phone;
+    if (!phone) return;
+    const clean = phone.replace(/\D/g, '').slice(-10);
+    const cleanPhone = `+91${clean}`;
+    
+    const q = query(
+      collection(db, 'users'),
+      where('primaryGuardian.phone', 'in', [phone, cleanPhone])
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        setHasGuardianAccess(true);
+      }
+    });
+    return () => unsub();
+  }, [userData, role]);
 
   return (
     <header className={cn("fixed top-0 left-0 right-0 z-[150] flex justify-between items-center w-full px-4 py-2.5 sm:py-3", role === 'citizen' ? "bg-[#F8FAFC]" : "bg-[#0F172A]")}>
@@ -63,7 +89,7 @@ export function Header({
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-900 text-lg leading-tight">{displayName}</h3>
-                      <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'pcr_officer' ? 'PCR PATROL UNIT' : role === 'protector' ? 'VERIFIED PROTECTOR' : 'VERIFIED CITIZEN'}</p>
+                      <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'protector' ? 'VOLUNTEER PROTECTOR' : role === 'guardian' ? 'FAMILY GUARDIAN' : 'VERIFIED CITIZEN'}</p>
                     </div>
                   </div>
                   <div className="space-y-3 py-4 border-y border-gray-100">
@@ -72,7 +98,21 @@ export function Header({
                     <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gender</span><span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">{userData?.gender || 'FEMALE'}</span></div>
                   </div>
                   <div className="space-y-3">
-                    {gender === 'female' && (
+                    {hasGuardianAccess && (
+                      <button 
+                        onClick={() => {
+                          const targetRole = role === 'guardian' ? (userData?.gender === 'male' ? 'protector' : 'citizen') : 'guardian';
+                          setStoreRole(targetRole);
+                          setIsProfileOpen(false);
+                          toast.success(`Switched to ${targetRole === 'guardian' ? 'Guardian Mode' : 'Standard Mode'}`);
+                        }} 
+                        className="w-full py-4 bg-indigo-650 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-650/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Shield size={14} /> 
+                        {role === 'guardian' ? 'Exit Guardian Dashboard' : 'Open Guardian HUD'}
+                      </button>
+                    )}
+                    {gender === 'female' && role !== 'guardian' && (
                       <button onClick={handleRoleSwitch} className="w-full py-4 bg-[#2563EB] text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#1D4ED8] shadow-lg shadow-[#2563EB]/20 transition-all flex items-center justify-center gap-2">
                         {role === 'citizen' ? <><Zap size={14} /> Join Protector Network</> : <><Shield size={14} /> Return to Home</>}
                       </button>

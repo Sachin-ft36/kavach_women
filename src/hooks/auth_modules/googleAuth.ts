@@ -38,9 +38,11 @@ export const handleGoogleAuthMethod = async (
   } catch (popupErr: any) {
     console.warn("⚠️ Popup blocked or security policy conflict. Redirecting to Google Login page...", popupErr);
     try {
+      sessionStorage.setItem('kavach_google_redirect_pending', 'true');
       await signInWithRedirect(auth, provider);
     } catch (redirectErr: any) {
       console.error("Redirect auth failed:", redirectErr);
+      sessionStorage.removeItem('kavach_google_redirect_pending');
       toast.error("Google sign-in is unavailable. Check network or try email/password.");
       setLoading(false);
     }

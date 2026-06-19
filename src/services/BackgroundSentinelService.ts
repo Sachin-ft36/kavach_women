@@ -51,7 +51,7 @@ export const initializeBackgroundSentinel = async () => {
       if (isCritical) {
         // 🚨 TACTICAL SIREN: Only for Patrolling Units & Command (PCR / SuperCell / Admin)
         // Regular protectors ONLY get silent lock screen push notifications.
-        if (role === 'pcr_officer' || role === 'super_cell' || role === 'admin') {
+        if (role === 'guardian' || role === 'super_cell' || role === 'admin') {
           KavachSafe.startContinuousSiren();
           if (platform === 'ios') KavachSafe.triggerHapticPulse();
         } else if (role === 'protector') {

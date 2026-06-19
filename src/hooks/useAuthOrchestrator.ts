@@ -18,8 +18,13 @@ export function useAuthOrchestrator() {
 
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
+    let userChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    if (!Capacitor.isNativePlatform()) {
+    // 🔑 Only check redirect result if we actually initiated a Google redirect sign-in.
+    // Calling getRedirectResult unconditionally causes a spurious identitytoolkit accounts:lookup
+    // 400 error on every cold start, which floods the console and can block loading.
+    if (!Capacitor.isNativePlatform() && sessionStorage.getItem('kavach_google_redirect_pending') === 'true') {
+      sessionStorage.removeItem('kavach_google_redirect_pending');
       getRedirectResult(auth).then((result) => {
         if (result?.user) {
           console.log('✅ KAVACH: Redirect sign-in success:', result.user.email);
@@ -35,6 +40,10 @@ export function useAuthOrchestrator() {
       if (unsubProfile) {
         unsubProfile();
         unsubProfile = null;
+      }
+      if (userChannel) {
+        supabase.removeChannel(userChannel);
+        userChannel = null;
       }
 
       if (firebaseUser) {
@@ -70,7 +79,7 @@ export function useAuthOrchestrator() {
               .from('profiles')
               .select('*')
               .eq('id', firebaseUser.uid)
-              .single();
+              .maybeSingle();
 
             if (data) {
               const meta = data.metadata || {};
@@ -102,6 +111,7 @@ export function useAuthOrchestrator() {
                 email: data.email,
                 role: currentRole,
                 isVerified: isVerifiedProfile,
+                isGuardian: !!(data.is_guardian || meta.isGuardian || meta.protectorVetting?.isGuardian),
                 ...meta
               });
               if (meta.safetyPin) setSafetyPin(meta.safetyPin);
@@ -112,7 +122,7 @@ export function useAuthOrchestrator() {
         };
 
         // Real-time changes for Supabase profile
-        const userChannel = supabase
+        userChannel = supabase
           .channel(`user-profile-${firebaseUser.uid}`)
           .on('postgres_changes', { 
             event: '*', 
@@ -160,6 +170,7 @@ export function useAuthOrchestrator() {
                   email: firebaseUser.email || data.email || "",
                   role: data.role || 'citizen',
                   is_verified: !!(data.isVerified || data.verified),
+                  is_guardian: !!(data.isGuardian || data.protectorVetting?.isGuardian),
                   gender: data.gender || 'female',
                   xp: data.xp || 0,
                   metadata: data
@@ -199,11 +210,21 @@ export function useAuthOrchestrator() {
             console.warn("KAVACH Background Guardian Sync failed:", err);
           });
       } else {
+        // 🛡️ BLANK SCREEN FIX: Firebase says no user.
+        // If we have a stale kavach_user_uid in localStorage (from a previous session that
+        // was signed out server-side), clear it and force loading to false immediately.
+        // Without this, the app waits for an optimistic timeout that causes blank screen.
         setUser(null);
         setRegistered(false);
-        if (!localStorage.getItem('kavach_user_uid')) {
-          setLoading(false);
+        if (localStorage.getItem('kavach_user_uid')) {
+          console.warn('⚠️ KAVACH: Stale user UID in cache — session expired. Clearing and showing login.');
+          localStorage.removeItem('kavach_user_uid');
+          localStorage.removeItem('kavach_is_registered');
+          localStorage.removeItem('kavach_hardware_synced');
+          localStorage.removeItem('kavach_user_role');
+          localStorage.removeItem('kavach_is_verified');
         }
+        setLoading(false);
       }
     });
 
@@ -211,6 +232,7 @@ export function useAuthOrchestrator() {
       try {
         unsubscribe();
         if (unsubProfile) unsubProfile();
+        if (userChannel) supabase.removeChannel(userChannel);
       } catch (e) {
         console.warn("Auth Cleanup Interrupted:", e);
       }
@@ -229,6 +251,8 @@ export function useAuthOrchestrator() {
       } else {
         const isMobileBrowser = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
         if (isMobileBrowser) {
+          // Set flag BEFORE redirect so getRedirectResult is called on return
+          sessionStorage.setItem('kavach_google_redirect_pending', 'true');
           await signInWithRedirect(auth, googleProvider);
         } else {
           try {
@@ -236,6 +260,7 @@ export function useAuthOrchestrator() {
           } catch (popupErr: any) {
             if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
               toast.info("Popup blocked. Redirecting to Google...");
+              sessionStorage.setItem('kavach_google_redirect_pending', 'true');
               await signInWithRedirect(auth, googleProvider);
             } else {
               throw popupErr;

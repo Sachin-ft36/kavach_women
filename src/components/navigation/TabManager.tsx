@@ -8,6 +8,7 @@ const MapplsVictimMap = React.lazy(() => import('../maps/MapplsVictimMap'));
 const EvidenceVault = React.lazy(() => import('../EvidenceVault'));
 const EmergencyContacts = React.lazy(() => import('../EmergencyContacts'));
 const ProtectorDashboard = React.lazy(() => import('../ProtectorDashboard'));
+const GuardianDashboard = React.lazy(() => import('../guardian/GuardianDashboard'));
 const SuperCellDashboard = React.lazy(() => import('../SuperCellDashboard'));
 const Rewards = React.lazy(() => import('../Rewards'));
 const DashboardScreen = React.lazy(() => import('../../screens/DashboardScreen'));
@@ -36,12 +37,15 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
   const renderTab = (tab: string) => {
     const isVisible = activeTab === tab;
 
-    if ((effectiveRole === 'protector' || effectiveRole === 'pcr_officer') && tab === 'sos') return null;
+    if ((effectiveRole === 'protector' || effectiveRole === 'guardian') && tab === 'sos') return null;
 
     switch (tab) {
       case 'dashboard':
         if (isVisible) {
-          if ((effectiveRole === 'protector' || effectiveRole === 'pcr_officer') && !isVerified && !useKavachStore.getState().isSOSActive) {
+          if (effectiveRole === 'guardian') {
+            return <div key="dashboard" className="block"><GuardianDashboard /></div>;
+          }
+          if (effectiveRole === 'protector' && !isVerified && !useKavachStore.getState().isSOSActive) {
             return (
               <div key="pending" className="min-h-screen bg-white flex flex-col items-center justify-center p-12 text-center space-y-8 animate-in fade-in duration-700">
                 <div className="relative w-32 h-32">
@@ -57,7 +61,7 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
               </div>
             );
           }
-          return <div key="dashboard" className="block">{(effectiveRole === 'protector' || effectiveRole === 'pcr_officer') ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
+          return <div key="dashboard" className="block">{effectiveRole === 'protector' ? <ProtectorDashboard /> : isSystemAdmin ? <SuperCellDashboard /> : <DashboardScreen />}</div>;
         }
         return null;
       case 'map': return isVisible ? <div key="map" className="block h-[calc(100vh-210px)] w-full">{!useMapboxFallback ? <MapplsVictimMap onFallback={() => setUseMapboxFallback(true)} /> : <VictimMap />}</div> : null;
@@ -67,7 +71,7 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
       case 'radar': return isVisible ? <div key="radar" className="w-full"><ProtectorsRadarScreen /></div> : null;
       case 'rewards': return isVisible ? <div key="rewards" className="w-full min-h-screen bg-[#0F172A]"><div className="max-w-2xl mx-auto"><Rewards /></div></div> : null;
       case 'history': return isVisible ? <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div> : null;
-      case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{(effectiveRole === 'protector' || effectiveRole === 'pcr_officer') ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
+      case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{effectiveRole === 'protector' ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
       case 'grievance': return isVisible ? <div key="grievance" className="max-w-4xl mx-auto px-4"><ProtectorGrievanceScreen /></div> : null;
       case 'protector_history': return isVisible ? <div key="protector_history" className="max-w-4xl mx-auto px-4"><ProtectorHistoryScreen /></div> : null;
       default: return null;
@@ -76,9 +80,14 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
 
   const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history', 'rewards'];
   const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history'];
+  const guardianStack = ['dashboard', 'history'];
   const adminStack = ['dashboard', 'map', 'vault', 'history'];
 
-  const currentStack = (effectiveRole === 'protector' || effectiveRole === 'pcr_officer') ? protectorStack : effectiveRole === 'admin' ? adminStack : citizenStack;
+  const currentStack = 
+    effectiveRole === 'guardian' ? guardianStack :
+    effectiveRole === 'protector' ? protectorStack : 
+    effectiveRole === 'admin' ? adminStack : 
+    citizenStack;
 
   return (
     <div className="relative w-full h-full overflow-hidden">

@@ -40,7 +40,7 @@ export function useProtectorSentinel() {
     const currentPos = userPosRef.current;
     const currentProfile = profileRef.current;
 
-    if (!currentPos || !currentPos[0] || !currentPos[1] || role !== 'protector' || !currentProfile?.isVerified || isSOSBlocked) {
+    if (!currentPos || !currentPos.lat || !currentPos.lng || role !== 'protector' || !currentProfile?.isVerified || isSOSBlocked) {
       return;
     }
 
@@ -58,7 +58,7 @@ export function useProtectorSentinel() {
       if (!vLat || !vLng) return;
 
       // Compute exact distance delta from current position
-      const distance = calculateHaversineDistance(currentPos[0], currentPos[1], vLat, vLng);
+      const distance = calculateHaversineDistance(currentPos.lat, currentPos.lng, vLat, vLng);
       const maxAllowedRadius = alertData.dispatchRadius || 1.0;
       
       // Elite responders get an expanded 5km dispatch perimeter

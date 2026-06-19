@@ -96,7 +96,7 @@ export interface UserProfile {
   uid: string;
   name?: string;
   email?: string;
-  role: 'citizen' | 'protector' | 'pcr_officer' | 'admin' | 'super_cell';
+  role: 'citizen' | 'protector' | 'guardian' | 'admin' | 'super_cell';
   gender?: 'female' | 'male' | string;
   isVerified?: boolean;
   isRegistered?: boolean;

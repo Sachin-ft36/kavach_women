@@ -60,7 +60,7 @@ export const useProtectorHandlers = (
 
       // 🔒 Workload Capacity Guard
       const activeMissionsCount = userData.activeMissionsCount || 0;
-      const maxMissionCapacity = userData.maxMissionCapacity || (userData.role === 'pcr_officer' ? 3 : 1);
+      const maxMissionCapacity = userData.maxMissionCapacity || 1;
       if (activeMissionsCount >= maxMissionCapacity) {
         throw new Error("🚨 Active mission capacity exceeded. Complete pending missions first.");
       }
@@ -104,7 +104,7 @@ export const useProtectorHandlers = (
             joinedAt: now,
             acceptedAt: now,
             freezeLockExpiresAt: now + 30000,
-            trustTier: state.profile?.trustTier || (state.profile?.role === 'pcr_officer' ? 'gold' : 'blue'),
+            trustTier: state.profile?.trustTier || 'blue',
             completedMissions: state.profile?.completedMissions || 0,
           };
 

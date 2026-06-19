@@ -3,20 +3,18 @@ import { motion } from 'motion/react';
 import { 
   Shield, 
   UserCheck, 
-  Car, 
   ArrowRight,
   Landmark,
-  CheckCircle2
+  CheckCircle2,
+  Users
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { citizenFeatures, pcrFeatures, protectorFeatures } from './constants/roleFeatures';
-import PcrAuthModal from './PcrAuthModal';
-import { usePcrAuth } from './hooks/usePcrAuth';
+import { citizenFeatures, guardianFeatures, protectorFeatures } from './constants/roleFeatures';
 
 interface RoleStepProps {
-  role: 'citizen' | 'protector' | 'pcr_officer' | null;
-  setRole: (val: 'citizen' | 'protector' | 'pcr_officer') => void;
+  role: 'citizen' | 'protector' | 'guardian' | null;
+  setRole: (val: 'citizen' | 'protector' | 'guardian') => void;
   gender: 'female' | 'male' | null;
   onNext: () => void;
   isKeyboardOpen?: boolean;
@@ -24,14 +22,6 @@ interface RoleStepProps {
 
 export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen }: RoleStepProps) {
   const { t } = useLanguage();
-  const {
-    showAuth,
-    passcode,
-    setPasscode,
-    handleAuthSubmit,
-    handleAuthCancel,
-    handleCardClick
-  } = usePcrAuth(role, setRole);
 
   return (
     <motion.div 
@@ -66,7 +56,7 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
           {/* 1. Citizen / Women Safety Card */}
           {gender !== 'male' && (
             <button
-              onClick={() => handleCardClick('citizen')}
+              onClick={() => setRole('citizen')}
               className={cn(
                 "w-full text-left p-4 rounded-md border transition-all duration-300 relative overflow-hidden group select-none cursor-pointer flex flex-col gap-3",
                 role === 'citizen'
@@ -117,7 +107,7 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
           {/* 2. Civic Protector Card */}
           {gender !== 'female' && (
             <button
-              onClick={() => handleCardClick('protector')}
+              onClick={() => setRole('protector')}
               className={cn(
                 "w-full text-left p-4 rounded-md border transition-all duration-300 relative overflow-hidden group select-none cursor-pointer flex flex-col gap-3",
                 role === 'protector'
@@ -165,47 +155,43 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
             </button>
           )}
 
-          {/* 3. Official Police / PCR Patrol Card */}
+          {/* 3. Family Guardian Card */}
           <button
-            onClick={() => handleCardClick('pcr_officer')}
+            onClick={() => setRole('guardian')}
             className={cn(
               "w-full text-left p-4 rounded-md border transition-all duration-300 relative overflow-hidden group select-none cursor-pointer flex flex-col gap-3",
-              role === 'pcr_officer'
+              role === 'guardian'
                 ? "border-[#000080] bg-blue-50/40 shadow-sm"
                 : "bg-white border-slate-300 hover:border-blue-300 hover:bg-slate-50"
             )}
           >
-            {role === 'pcr_officer' && (
+            {role === 'guardian' && (
               <div className="absolute top-0 right-0 bg-[#000080] text-white p-1 rounded-bl-md">
                 <CheckCircle2 size={14} strokeWidth={3} />
               </div>
             )}
             
-            <div className="absolute top-0 right-0 text-[7px] font-black uppercase tracking-widest px-2 py-0.5 bg-red-100 text-red-700 border-b border-l border-red-200 rounded-bl-md">
-              Restricted
-            </div>
-            
             <div className="flex items-start gap-3 relative z-10 w-full">
               <div className={cn(
                 "w-10 h-10 rounded-sm flex items-center justify-center shrink-0 border",
-                role === 'pcr_officer' ? "bg-[#000080] text-white border-[#000080]" : "bg-slate-100 text-[#000080] border-slate-200"
+                role === 'guardian' ? "bg-[#000080] text-white border-[#000080]" : "bg-slate-100 text-[#000080] border-slate-200"
               )}>
-                <Car size={20} strokeWidth={2} />
+                <Users size={20} strokeWidth={2} />
               </div>
               <div className="flex-1 min-w-0 pt-0.5">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="text-[12px] font-black text-[#000080] tracking-widest uppercase">
-                    Law Enforcement
+                    Family Guardian
                   </h3>
                 </div>
                 <p className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide">
-                  Police • PCR Patrol
+                  Command Center • Protect Loved Ones
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200/80">
-              {pcrFeatures.map((feat, idx) => (
+              {guardianFeatures.map((feat, idx) => (
                 <div key={idx} className="flex flex-col items-center text-center gap-1">
                   <div className={cn("w-6 h-6 rounded-sm flex items-center justify-center", feat.iconBg, feat.iconColor)}>
                     {feat.icon}
@@ -240,14 +226,6 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
           <ArrowRight size={16} strokeWidth={2.5} />
         </motion.button>
       </div>
-
-      <PcrAuthModal
-        isOpen={showAuth}
-        passcode={passcode}
-        setPasscode={setPasscode}
-        onSubmit={handleAuthSubmit}
-        onCancel={handleAuthCancel}
-      />
     </motion.div>
   );
 }

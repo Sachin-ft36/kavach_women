@@ -243,12 +243,11 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
         const phones = guardians.map((g: any) => g.phone).filter(Boolean);
         const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
 
+        const playStoreLink = "https://play.google.com/store/apps/details?id=com.kavach.app";
         const message = `🚨 SOS! ${user?.displayName?.split(' ')[0] || 'User'} is in danger!
-📍 Loc: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
-🚔 Near Police Station: ${nearestPS}
-🔗 Nav: ${psMapsLink}
-🔴 Track: ${alertLink}
-PIN: ${data?.handshakeCode || 'N/A'}`;
+📍 Location: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
+🔴 Track Web: ${alertLink}
+📲 Install KAVACH App for Live HUD Tracking, Audio Stream & Status updates: ${playStoreLink}`;
 
         console.log(`🛡️ KAVACH DISPATCH: Guardian discovery complete. Found ${phones.length} active nodes.`);
 

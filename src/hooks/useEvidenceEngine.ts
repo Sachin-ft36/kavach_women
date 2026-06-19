@@ -138,11 +138,15 @@ export const useEvidenceEngine = () => {
               const audioBlob = new Blob(chunks, { type: audioMime || 'audio/webm' });
               const timestamp = Date.now();
               const fileName = `aud_${timestamp}.webm`;
+              // Hoist variables so catch block can reference them
+              let cloudUrl = '';
+              let forensicHash = '';
+              let digitalSignature = '';
 
               try {
-                const forensicHash = await generateForensicHash(audioBlob);
-                const digitalSignature = await cryptoService.signPayload(forensicHash);
-                const cloudUrl = await uploadToCloud(audioBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
+                forensicHash = await generateForensicHash(audioBlob);
+                digitalSignature = await cryptoService.signPayload(forensicHash);
+                cloudUrl = await uploadToCloud(audioBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
 
                 const evidenceData = {
                   id: Math.random().toString(36).substring(2, 15),
@@ -154,7 +158,7 @@ export const useEvidenceEngine = () => {
                   metadata: {
                     fileName,
                     sizeBytes: audioBlob.size,
-                    coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                    coords: userPosRef.current?.lat && userPosRef.current?.lng ? `POINT(${userPosRef.current.lng} ${userPosRef.current.lat})` : null,
                     mode: 'TACTICAL_AUDIO',
                     storage: 'Firebase',
                     compressed: true,
@@ -178,17 +182,17 @@ export const useEvidenceEngine = () => {
                 }
               } catch (e) {
                 console.error('Audio upload failed, queueing to offline sync vault:', e);
-                const evidenceData = {
+                const fallbackData = {
                   id: Math.random().toString(36).substring(2, 15),
                   alert_id: activeAlertId,
                   type: 'Audio Log',
-                  url: cloudUrl || '',
+                  url: cloudUrl,
                   hash: forensicHash,
                   digital_signature: digitalSignature,
                   metadata: {
                     fileName,
                     sizeBytes: audioBlob.size,
-                    coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                    coords: userPosRef.current?.lat && userPosRef.current?.lng ? `POINT(${userPosRef.current.lng} ${userPosRef.current.lat})` : null,
                     mode: 'TACTICAL_AUDIO',
                     storage: 'Firebase',
                     compressed: true,
@@ -198,7 +202,7 @@ export const useEvidenceEngine = () => {
                   },
                   timestamp: new Date().toISOString()
                 };
-                await offlineSyncService.queuePayload('EVIDENCE_UPLOAD', evidenceData);
+                await offlineSyncService.queuePayload('EVIDENCE_UPLOAD', fallbackData);
                 audioCountRef.current += 1;
               }
             };
@@ -325,16 +329,22 @@ export const useEvidenceEngine = () => {
                   return;
                 }
                 const timestamp = Date.now();
+                // Hoist variables so catch block can reference them
+                let compressedBlob: Blob = rawBlob;
+                let fileName = `snap_${timestamp}.jpg`;
+                let cloudUrl = '';
+                let forensicHash = '';
+                let digitalSignature = '';
 
                 try {
                   // Compress to 320x240, JPEG 0.3 -> ~5-8KB
-                  const compressedBlob = await compressSnapshot(rawBlob);
-                  const fileName = `snap_${timestamp}.jpg`;
-                  const forensicHash = await generateForensicHash(compressedBlob);
-                  const digitalSignature = await cryptoService.signPayload(forensicHash);
+                  compressedBlob = await compressSnapshot(rawBlob);
+                  fileName = `snap_${timestamp}.jpg`;
+                  forensicHash = await generateForensicHash(compressedBlob);
+                  digitalSignature = await cryptoService.signPayload(forensicHash);
 
                   // Upload compressed snapshot to Firebase Storage
-                  const cloudUrl = await uploadToCloud(compressedBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
+                  cloudUrl = await uploadToCloud(compressedBlob, `kavach_evidence/${activeAlertId}/${fileName}`);
                   
                   const evidenceData = {
                     id: Math.random().toString(36).substring(2, 15),
@@ -346,7 +356,7 @@ export const useEvidenceEngine = () => {
                     metadata: {
                       fileName,
                       sizeBytes: compressedBlob.size,
-                      coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                      coords: userPosRef.current?.lat && userPosRef.current?.lng ? `POINT(${userPosRef.current.lng} ${userPosRef.current.lat})` : null,
                       mode: 'SNAPSHOT',
                       storage: 'Firebase',
                       compressed: true,
@@ -373,17 +383,17 @@ export const useEvidenceEngine = () => {
                   }
                 } catch (e) {
                   console.error('Snapshot upload failed, queueing to offline sync vault:', e);
-                  const evidenceData = {
+                  const fallbackData = {
                     id: Math.random().toString(36).substring(2, 15),
                     alert_id: activeAlertId,
                     type: 'Snapshot',
-                    url: cloudUrl || '',
+                    url: cloudUrl,
                     hash: forensicHash,
                     digital_signature: digitalSignature,
                     metadata: {
                       fileName,
                       sizeBytes: compressedBlob.size,
-                      coords: `POINT(${userPosRef.current[1]} ${userPosRef.current[0]})`,
+                      coords: userPosRef.current?.lat && userPosRef.current?.lng ? `POINT(${userPosRef.current.lng} ${userPosRef.current.lat})` : null,
                       mode: 'SNAPSHOT',
                       storage: 'Firebase',
                       compressed: true,
@@ -396,7 +406,7 @@ export const useEvidenceEngine = () => {
                     },
                     timestamp: new Date().toISOString()
                   };
-                  await offlineSyncService.queuePayload('EVIDENCE_UPLOAD', evidenceData);
+                  await offlineSyncService.queuePayload('EVIDENCE_UPLOAD', fallbackData);
                   snapshotCountRef.current += 1;
                 }
 

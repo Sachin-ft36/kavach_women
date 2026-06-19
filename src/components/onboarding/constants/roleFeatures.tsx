@@ -32,34 +32,34 @@ export const citizenFeatures = [
   }
 ];
 
-export const pcrFeatures = [
+export const guardianFeatures = [
   {
     icon: <MapPin size={11} className="stroke-[2.5]" />,
     iconBg: "bg-slate-100",
     iconColor: "text-slate-600",
     title1: "Live",
-    title2: "Maps"
+    title2: "Tracking"
   },
   {
     icon: <Radio size={11} className="stroke-[2.5]" />,
     iconBg: "bg-slate-100",
     iconColor: "text-slate-600",
-    title1: "Auto",
-    title2: "Dispatch"
+    title1: "Remote",
+    title2: "Triggers"
   },
   {
     icon: <Siren size={11} className="stroke-[2.5]" />,
     iconBg: "bg-slate-100",
     iconColor: "text-slate-600",
-    title1: "Emergency",
-    title2: "Routing"
+    title1: "Evidence",
+    title2: "Feeds"
   },
   {
-    icon: <Clipboard size={11} className="stroke-[2.5]" />,
+    icon: <Users size={11} className="stroke-[2.5]" />,
     iconBg: "bg-slate-100",
     iconColor: "text-slate-600",
-    title1: "Patrol",
-    title2: "Management"
+    title1: "Mobilize",
+    title2: "Protectors"
   }
 ];
 

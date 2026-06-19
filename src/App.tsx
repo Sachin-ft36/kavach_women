@@ -37,6 +37,13 @@ const TrackScreen = React.lazy(() => import('./screens/TrackScreen'));
 const LanguageStep = React.lazy(() => import('./components/onboarding/LanguageStep'));
 const SuperCellDashboard = React.lazy(() => import('./components/SuperCellDashboard'));
 
+// ══════════════════════════════════════════════════════════════
+// 🚀 LAUNCH FEATURE FLAGS
+// Set ENABLE_GOV_FEATURES = true when government integration is
+// complete and you're ready to expose SuperCell / PCR dashboards.
+// ══════════════════════════════════════════════════════════════
+const ENABLE_GOV_FEATURES = false;
+
 export default function App() {
   const {
     isAIChatOpen, setIsAIChatOpen, isInterceptActive, isSOSActive,
@@ -226,7 +233,7 @@ export default function App() {
               }} />
             ) : !user ? (
               <AuthScreen handleLogin={handleLogin} onResetLanguage={() => setIsLanguageSelected(false)} />
-            ) : ((role as any) === 'admin' || (role as any) === 'super_cell') ? (
+            ) : ENABLE_GOV_FEATURES && ((role as any) === 'admin' || (role as any) === 'super_cell') ? (
               <Layout
                 isGhostMode={isGhostMode} onToggleGhost={onToggleGhost}
                 activeTab={activeTab === 'dashboard' ? 'COMMAND' : activeTab}
@@ -234,11 +241,27 @@ export default function App() {
               >
                 <SuperCellDashboard viewMode={activeTab === 'dashboard' ? 'COMMAND' : activeTab as any} onTabChange={setActiveTab} />
               </Layout>
+            ) : !ENABLE_GOV_FEATURES && ((role as any) === 'admin' || (role as any) === 'super_cell') ? (
+              // 🚀 LAUNCH MODE: Government dashboard not yet available
+              <div className="min-h-[100svh] bg-[#060B14] flex flex-col items-center justify-center p-8 text-center font-['Outfit']">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-900/10 border border-orange-500/20 flex items-center justify-center mb-6">
+                  <Shield size={36} className="text-orange-400" />
+                </div>
+                <h1 className="text-2xl font-black text-white tracking-tight mb-2">Command Center</h1>
+                <p className="text-orange-400 font-bold text-sm uppercase tracking-widest mb-4">Government Integration</p>
+                <p className="text-gray-400 text-sm max-w-xs leading-relaxed mb-8">
+                  यह feature सरकारी onboarding के बाद activate होगी।<br />
+                  <span className="text-gray-500 text-xs">This dashboard will be enabled after official government partnership.</span>
+                </p>
+                <div className="px-6 py-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                  <p className="text-orange-300 text-xs font-bold uppercase tracking-widest">Coming Soon — Phase II</p>
+                </div>
+              </div>
             ) : (!isRegistered || !isHardwareSynced) ? (
               <div className="w-full h-full">
                 <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
               </div>
-            ) : (!isVerified && localStorage.getItem('kavach_is_verified') !== 'true' && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'protector' && (effectiveRole as any) !== 'pcr_officer') ? (
+            ) : (!isVerified && localStorage.getItem('kavach_is_verified') !== 'true' && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'protector' && (effectiveRole as any) !== 'guardian') ? (
               <VerificationPendingGate user={user} profile={profile} />
             ) : (
               <>
@@ -274,7 +297,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (effectiveRole as any) !== 'admin' && !trackId && isRegistered && isHardwareSynced && (isVerified || (effectiveRole as any) === 'admin' || (effectiveRole as any) === 'super_cell' || (effectiveRole as any) === 'protector' || (effectiveRole as any) === 'pcr_officer')) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'guardian' && !trackId && isRegistered && isHardwareSynced && (isVerified || (effectiveRole as any) === 'protector')) && createPortal(
         <>
           <BottomNavBar isNavVisible={isNavVisible} />
 

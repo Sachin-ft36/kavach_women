@@ -324,23 +324,22 @@ export function useAppInitialization(trackId: string | null) {
   }, [loading]);
 
   useEffect(() => {
-    const cachedUid = localStorage.getItem('kavach_user_uid');
+    // Show 'Continue Offline' button quickly — stale UID is now cleared at auth layer
     const timer = setTimeout(() => {
       if (loading) setShowFailSafe(true);
-    }, cachedUid ? 2500 : 1000);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [loading]);
 
   useEffect(() => {
-    const cachedUid = localStorage.getItem('kavach_user_uid');
-    const delay = cachedUid ? 5000 : 3000;
-
+    // Hard bypass: if loading is STILL true after 2.5s, it's a genuine network failure.
+    // Stale-UID blank screen is fixed in useAuthOrchestrator (clears cache on no-user).
     const loadingTimeout = setTimeout(() => {
       if (useKavachStore.getState().loading) {
-        console.warn("🛰️ KAVACH: Optimistic startup bypass engaged to prevent network blocking.");
+        console.warn("🛠️ KAVACH: Auth timeout — forcing login screen.");
         setLoading(false);
       }
-    }, delay);
+    }, 2500);
 
     return () => clearTimeout(loadingTimeout);
   }, [setLoading]);
