@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Trash2, Phone, ShieldCheck, AlertCircle, Contact as ContactIcon } from 'lucide-react';
+import { UserPlus, Trash2, Phone, ShieldCheck, AlertCircle, Contact as ContactIcon, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
+import { toast } from 'sonner';
 
-import { collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import QuickPairQr from './guardian/QuickPairQr';
+import { KavachSafe } from '../services/KavachNative';
 
 interface Contact {
   id: string;
@@ -18,6 +21,7 @@ export default function EmergencyContacts() {
   const { t } = useLanguage();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -61,18 +65,66 @@ export default function EmergencyContacts() {
     }
 
     try {
+      // 1. Save standard guardian entry
       await addDoc(collection(db, 'users', auth.currentUser.uid, 'guardians'), {
         name: newName,
-        phone: `+91${cleanedPhone}`,
+        phone: fullPhone,
         relation: newRelation || 'Friend',
         createdAt: serverTimestamp()
       });
+
+      // 2. Create pending link for the guardian
+      await setDoc(doc(db, 'guardian_pending_links', fullPhone), {
+        citizenUid: auth.currentUser.uid,
+        citizenName: auth.currentUser.displayName || 'Kavach Citizen',
+        citizenPhone: auth.currentUser.phoneNumber || '',
+        relationship: newRelation || 'Guardian',
+        createdAt: serverTimestamp()
+      }, { merge: true }).catch(() => { });
+
+      // 3. Silent Handshake Protocol
+      const q = query(collection(db, 'users'), where('phoneNumber', '==', fullPhone));
+      const snap = await getDocs(q);
+
+      if (snap.docs.length > 0) {
+        const guardianUid = snap.docs[0].id;
+        console.log(`✉️ SILENT HANDSHAKE: Guardian ${newName} (${fullPhone}) exists (UID: ${guardianUid}). Dispatching high-priority push notification...`);
+        
+        // Push notification inside app notifications collection
+        await addDoc(collection(db, 'users', guardianUid, 'notifications'), {
+          type: 'circle_add_invite',
+          title: 'New Safety Circle Invitation',
+          body: `${auth.currentUser.displayName || 'A family member'} has added you to their Safety Circle. Tap to accept.`,
+          senderUid: auth.currentUser.uid,
+          senderName: auth.currentUser.displayName || 'Kavach Citizen',
+          senderPhone: auth.currentUser.phoneNumber || '',
+          createdAt: serverTimestamp(),
+          status: 'unread'
+        }).catch(() => {});
+
+        toast.success("Silent Handshake Activated: Guardian is registered. Notification sent in-app.");
+      } else {
+        console.log(`✉️ SMS BRIDGE: Guardian ${newName} (${fullPhone}) is not registered. Dispatched standard SMS invite link.`);
+        
+        const playStoreLink = "https://play.google.com/store/apps/details?id=com.kavach.app";
+        const message = `🚨 Kavach Safety Network: ${auth.currentUser.displayName || 'A family member'} wants to add you as their Guardian. Tap here to register: ${playStoreLink}`;
+        
+        try {
+          await KavachSafe.broadcastEmergencySMS({ numbers: [fullPhone], message });
+        } catch (smsErr) {
+          console.warn("Failed to dispatch SMS, likely running on web simulator:", smsErr);
+        }
+
+        toast.info("SMS Bridge Engaged: Standard SMS invitation link dispatched to the guardian.");
+      }
+
       setNewName('');
       setNewPhone('');
       setNewRelation('');
       setIsAdding(false);
     } catch (err) {
       console.error("Error adding guardian:", err);
+      toast.error("Failed to add contact. Please verify details.");
     }
   };
 
@@ -117,6 +169,13 @@ export default function EmergencyContacts() {
           <p className="text-sm font-medium text-gray-500 uppercase tracking-widest mt-1">Manage Emergency Contacts</p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setShowQrModal(true)}
+            className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+            title="Pair Guardian via QR"
+          >
+            <QrCode size={22} />
+          </button>
           <button 
             onClick={importContacts}
             className="w-12 h-12 rounded-2xl bg-white border border-[#E5E7EB] flex items-center justify-center text-gray-400 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm"
@@ -259,6 +318,20 @@ export default function EmergencyContacts() {
           </p>
         </div>
       </div>
+      
+      <AnimatePresence>
+        {showQrModal && (
+          <QuickPairQr 
+            mode="generate" 
+            onClose={() => setShowQrModal(false)} 
+            currentUserProfile={{
+              uid: auth.currentUser?.uid,
+              name: auth.currentUser?.displayName || 'Kavach Citizen',
+              phoneNumber: auth.currentUser?.phoneNumber || ''
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

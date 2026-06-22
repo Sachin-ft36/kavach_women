@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Radio, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Radio, ShieldCheck, Clock, CheckCircle2, Car } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { cn } from '../../lib/utils';
@@ -14,7 +14,6 @@ interface ProtectorAlertListProps {
 }
 
 export default function ProtectorAlertList({ activeAlerts, profile, setActiveInterceptAlert, setActiveTab, setIsNearbyHubOpen, setIsMedicalHubOpen }: ProtectorAlertListProps) {
-  const isPcrOfficer = profile?.role === 'pcr_officer';
 
   const getTriggerLabel = (type: string) => {
     if (!type) return 'APP SOS TRIGGER';
@@ -35,10 +34,10 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
             <div>
               <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {isPcrOfficer ? 'National Emergency Response Network' : 'Community Shield Network'}
+                Community Shield Network
               </p>
               <h3 className="text-base font-black text-white uppercase tracking-tight">
-                {isPcrOfficer ? 'Active Surveillance' : 'Monitoring Area'}
+                Monitoring Area
               </h3>
             </div>
             <ShieldCheck size={28} className="text-emerald-500 opacity-90" />
@@ -51,18 +50,16 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
               <Radio size={24} className="text-slate-700" />
             </div>
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-1.5">
-              {isPcrOfficer ? 'Sector Status: Secure' : 'Area Status: Safe'}
+              Area Status: Safe
             </h4>
             <p className="text-xs text-slate-500 max-w-[220px] leading-relaxed font-medium">
-              {isPcrOfficer 
-                ? 'No active emergencies reported in your jurisdiction. Stay alert and ready to respond.'
-                : 'No active emergencies reported nearby. Thank you for keeping your community safe.'}
+              No active emergencies reported nearby. Thank you for keeping your community safe.
             </p>
           </div>
           
           <div className="bg-slate-100 py-3 text-center border-t border-slate-200">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-              {isPcrOfficer ? 'Govt. of India • Local Jurisdiction' : 'Verified Protector • Kavach Safety Network'}
+              Verified Protector • Kavach Safety Network
             </p>
           </div>
         </div>
@@ -99,6 +96,14 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
                     <div>
                       <p className="text-xs font-black text-slate-800">{name}</p>
                       <p className={cn("text-[9px] font-bold uppercase mt-0.5", isUserRespondingToThis ? "text-blue-600" : "text-rose-600")}>{isUserRespondingToThis ? "Active Intercept" : getTriggerLabel(alert.type)}</p>
+                      {alert.vehicleNo && (
+                        <div className="mt-2 p-2 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 animate-pulse">
+                          <Car size={14} className="text-rose-600" />
+                          <span className="text-[12px] font-black text-rose-700 tracking-wider font-mono">
+                            VEHICLE NO: {alert.vehicleNo}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">

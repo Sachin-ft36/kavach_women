@@ -13,7 +13,7 @@ import { toast } from 'sonner';
  * Thread-safe location checking with low-impact tracking loops.
  */
 export function useProtectorSentinel() {
-  const { role, userPos, isRegistered, profile, isSOSBlocked } = useKavachStore();
+  const { role, userPos, isRegistered, profile, isSOSBlocked, user } = useKavachStore();
   
   // High-performance operational state tracking references
   const activeAlertsRef = useRef<Set<string>>(new Set());
@@ -39,10 +39,22 @@ export function useProtectorSentinel() {
   const evaluatePerimeterBreaches = () => {
     const currentPos = userPosRef.current;
     const currentProfile = profileRef.current;
+    const currentUser = useKavachStore.getState().user;
 
     if (!currentPos || !currentPos.lat || !currentPos.lng || role !== 'protector' || !currentProfile?.isVerified || isSOSBlocked) {
       return;
     }
+
+    // 🚫 Load aborted/blacklisted victims from localStorage
+    let abortedList: Record<string, number> = {};
+    try {
+      const stored = localStorage.getItem(`kavach_aborted_victims_${currentUser?.uid || 'anon'}`);
+      abortedList = stored ? JSON.parse(stored) : {};
+    } catch {}
+    const now = Date.now();
+
+    // 🔕 Check silent notifications preference
+    const isSilent = localStorage.getItem('kavach_silent_notifications_enabled') === 'true';
 
     // 🎖️ PROTECTOR ELITE STATUS DETERMINATION
     const occupation = (currentProfile as any)?.protectorVetting?.occupation || '';
@@ -53,6 +65,27 @@ export function useProtectorSentinel() {
     let activeBreachIdentified = false;
 
     alertsDatabaseRef.current.forEach((alertData, alertId) => {
+      // 🚫 1. Ignore if alert is resolved/cancelled/inactive
+      if (alertData.status !== 'active') {
+        return;
+      }
+
+      // 🚫 2. Own SOS alert check (Cannot respond to your own SOS)
+      const alertVictimUid = alertData.victimUid || alertData.uid;
+      const isOwnSOS = currentUser?.uid && alertVictimUid && (String(alertVictimUid) === String(currentUser.uid));
+      const isOwnSOSAlternative = currentUser?.uid && alertId && (String(alertId) === String(currentUser.uid));
+      if (isOwnSOS || isOwnSOSAlternative) {
+        return;
+      }
+
+      // 🚫 3. Aborted victim cooldown check (3 hours blacklist)
+      if (alertVictimUid && abortedList[alertVictimUid]) {
+        const expiry = abortedList[alertVictimUid];
+        if (now < expiry) {
+          return; // Still within cooldown
+        }
+      }
+
       const vLat = alertData.location?.latitude || alertData.coords?.[0];
       const vLng = alertData.location?.longitude || alertData.coords?.[1];
       if (!vLat || !vLng) return;
@@ -69,7 +102,7 @@ export function useProtectorSentinel() {
 
         if (!activeAlertsRef.current.has(alertId)) {
           activeAlertsRef.current.add(alertId);
-          triggerBreachHardwareAlert(alertId, distance, isElite);
+          triggerBreachHardwareAlert(alertId, distance, isElite, isSilent);
         }
       } else {
         // Automatically remove the alert if the responder moves out of range
@@ -80,7 +113,7 @@ export function useProtectorSentinel() {
     });
 
     // Automatically manage siren hardware state based on active alerts
-    if (!activeBreachIdentified && isSirenPlayingRef.current) {
+    if ((!activeBreachIdentified || isSilent) && isSirenPlayingRef.current) {
       isSirenPlayingRef.current = false;
       if (Capacitor.isNativePlatform()) {
         KavachNative.stopContinuousSiren().catch(() => {});
@@ -88,7 +121,7 @@ export function useProtectorSentinel() {
     }
   };
 
-  const triggerBreachHardwareAlert = (alertId: string, distance: number, isElite: boolean) => {
+  const triggerBreachHardwareAlert = (alertId: string, distance: number, isElite: boolean, isSilent: boolean) => {
     const distanceInMeters = Math.round(distance * 1000);
     console.warn(`🚨 KAVACH SENTINEL: DISTRESS PERIMETER BREACH -> ID: ${alertId} | DISTANCE: ${distanceInMeters}m`);
 
@@ -96,23 +129,25 @@ export function useProtectorSentinel() {
     useKavachStore.getState().setActiveTab('dashboard');
 
     if (Capacitor.isNativePlatform()) {
-      if (!isSirenPlayingRef.current) {
+      if (!isSirenPlayingRef.current && !isSilent) {
         isSirenPlayingRef.current = true;
         KavachNative.startContinuousSiren().catch(() => {});
       }
-      KavachNative.triggerHapticPulse().catch(() => {});
+      if (!isSilent) {
+        KavachNative.triggerHapticPulse().catch(() => {});
+      }
       KavachNative.showUrgentNotification({
         title: isElite ? "🚨 ELITE OVERRIDE: IMMEDIATE SOS" : "🚨 RAKSHAK ALERT: NEARBY DISTRESS",
         body: `Intercept target detected ${distanceInMeters}m away. Deploy immediately!`,
         id: alertId,
-        sound: 'siren'
+        sound: isSilent ? 'none' : 'siren'
       }).catch(() => {});
     }
 
     toast.error(isElite ? "ELITE OVERRIDE: SOS DETECTED" : "MISSION CRITICAL: NEARBY SOS", {
       description: `Distress signal tracking within perimeter. Distance: ${distanceInMeters}m.`,
       duration: 15000,
-      icon: '🚨',
+      icon: isSilent ? '🔕' : '🚨',
       action: {
         label: 'INTERCEPT',
         onClick: () => {
@@ -160,7 +195,7 @@ export function useProtectorSentinel() {
         }
       }
     };
-  }, [role, isRegistered, isSOSBlocked, profile?.isVerified]);
+  }, [role, isRegistered, isSOSBlocked, profile?.isVerified, user]);
 
   return null;
 }

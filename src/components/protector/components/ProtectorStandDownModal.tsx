@@ -2,11 +2,18 @@ import React, { useState } from 'react';
 import { AlertTriangle, X, ShieldOff, ChevronRight } from 'lucide-react';
 
 const PRESET_REASONS = [
-  { id: 'emergency', emoji: '🚨', label: 'Personal emergency', short: 'PERSONAL_EMERGENCY' },
+  { id: 'emergency', emoji: '🚨', label: 'Personal / family emergency', short: 'PERSONAL_EMERGENCY' },
   { id: 'vehicle', emoji: '🚗', label: 'Vehicle breakdown / no transport', short: 'VEHICLE_ISSUE' },
-  { id: 'far', emoji: '📍', label: 'Location too far away', short: 'TOO_FAR' },
-  { id: 'health', emoji: '🏥', label: 'Feeling unwell / health issue', short: 'HEALTH_ISSUE' },
-  { id: 'resolved', emoji: '✅', label: 'Victim confirmed safe by another', short: 'RESOLVED_BY_OTHER' },
+  { id: 'traffic', emoji: '🚦', label: 'Heavy traffic congestion / blocked road', short: 'TRAFFIC_JAM' },
+  { id: 'far', emoji: '📍', label: 'Location too far away / out of reach', short: 'TOO_FAR' },
+  { id: 'health', emoji: '🏥', label: 'Feeling unwell / medical issue', short: 'HEALTH_ISSUE' },
+  { id: 'police', emoji: '🚓', label: 'Police/PCR team already reached the spot', short: 'POLICE_ARRIVED' },
+  { id: 'accidental', emoji: '⚠️', label: 'Accidental SOS trigger by victim', short: 'ACCIDENTAL_SOS' },
+  { id: 'wrong_loc', emoji: '🗺️', label: 'Incorrect / inaccurate location coordinates', short: 'WRONG_LOCATION' },
+  { id: 'danger', emoji: '🛡️', label: 'Threat level high / require official backup', short: 'HIGH_THREAT' },
+  { id: 'battery', emoji: '🔋', label: 'Low battery / phone turning off', short: 'LOW_BATTERY' },
+  { id: 'weather', emoji: '⛈️', label: 'Severe weather conditions (heavy rain/storm)', short: 'BAD_WEATHER' },
+  { id: 'resolved', emoji: '✅', label: 'Victim confirmed safe by another protector', short: 'RESOLVED_BY_OTHER' },
   { id: 'other', emoji: '✏️', label: 'Other reason (please specify)', short: 'OTHER' },
 ];
 

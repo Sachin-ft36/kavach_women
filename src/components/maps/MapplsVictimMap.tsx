@@ -28,11 +28,32 @@ export default function MapplsVictimMap({
 
   const { mapRef, isLoaded, mapId } = useMapplsInit(userPos, onFallback);
   useMapplsSync(mapRef, isLoaded, userPos, activeAlert, isNavigating, onVictimClick, isCarHUD, isProtectorHUD);
-  const { handleRecenter, handleZoom } = useMapplsControls(mapRef, userPos);
+  const { handleRecenter, handleZoom, toggleMapStyle } = useMapplsControls(mapRef, userPos);
+
+  React.useEffect(() => {
+    const handleRecenterEvent = () => {
+      handleRecenter();
+    };
+    const handleToggleStyleEvent = () => {
+      toggleMapStyle();
+    };
+
+    window.addEventListener('recenter-map', handleRecenterEvent);
+    window.addEventListener('toggle-map-style', handleToggleStyleEvent);
+
+    return () => {
+      window.removeEventListener('recenter-map', handleRecenterEvent);
+      window.removeEventListener('toggle-map-style', handleToggleStyleEvent);
+    };
+  }, [handleRecenter, toggleMapStyle]);
 
   return (
     <div className="w-full h-full relative overflow-hidden bg-[#0F172A]">
       <style>{`
+        /* 🌑 Optimized Dark Mode Filter to Keep Streets & Alleys White */
+        .mapboxgl-canvas, .mappls-map-canvas, canvas {
+          filter: invert(0.88) hue-rotate(195deg) brightness(1.25) contrast(1.35) saturate(0.7) !important;
+        }
         .pulse-marker-victim {
           width: 20px; height: 20px;
           background: #EF4444; border: 3px solid white;
@@ -68,24 +89,26 @@ export default function MapplsVictimMap({
       <div id={`direction-container-${mapId}`} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: '1px', height: '1px', overflow: 'hidden' }} />
 
       {/* 🚀 BULLETPROOF REACT MAP CONTROLS - VERTICALLY CENTERED */}
-      <div className="absolute top-1/2 -translate-y-1/2 right-4 z-[20] flex flex-col gap-3 pointer-events-auto">
-        {/* Layer Switcher Removed */}
+      {!isProtectorHUD && (
+        <div className="absolute top-1/2 -translate-y-1/2 right-4 z-[20] flex flex-col gap-3 pointer-events-auto">
+          {/* Layer Switcher Removed */}
 
-        {/* Zoom Controls */}
-        <div className="flex flex-col bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 overflow-hidden">
-          <button onClick={() => handleZoom('in')} className="w-12 h-12 flex items-center justify-center active:bg-gray-100 border-b border-gray-100 transition-colors">
-            <span className="text-gray-700 text-xl font-medium leading-none">+</span>
-          </button>
-          <button onClick={() => handleZoom('out')} className="w-12 h-12 flex items-center justify-center active:bg-gray-100 transition-colors">
-            <span className="text-gray-700 text-3xl font-medium leading-none mb-1">-</span>
+          {/* Zoom Controls */}
+          <div className="flex flex-col bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 overflow-hidden">
+            <button onClick={() => handleZoom('in')} className="w-12 h-12 flex items-center justify-center active:bg-gray-100 border-b border-gray-100 transition-colors">
+              <span className="text-gray-700 text-xl font-medium leading-none">+</span>
+            </button>
+            <button onClick={() => handleZoom('out')} className="w-12 h-12 flex items-center justify-center active:bg-gray-100 transition-colors">
+              <span className="text-gray-700 text-3xl font-medium leading-none mb-1">-</span>
+            </button>
+          </div>
+
+          {/* Recenter / My Location */}
+          <button onClick={handleRecenter} className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center active:scale-90 transition-all mt-1">
+            <Crosshair size={22} className="text-blue-600" />
           </button>
         </div>
-
-        {/* Recenter / My Location */}
-        <button onClick={handleRecenter} className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center active:scale-90 transition-all mt-1">
-          <Crosshair size={22} className="text-blue-600" />
-        </button>
-      </div>
+      )}
 
       {/* TACTICAL HUD */}
       {isInterceptMode && (

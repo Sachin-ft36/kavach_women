@@ -42,6 +42,9 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
     linkedFamilyName: ''
   });
 
+  const [isInviteLinked, setIsInviteLinked] = useState(false);
+  const [inviteData, setInviteData] = useState<any>(null);
+
   useEffect(() => {
     if (isReturningUser) {
       setStep(5);
@@ -80,7 +83,7 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
   } = useHardwarePermissions(step);
 
   const { nextStep, handleBack, getVisualStepInfo } = useOnboardingNavigation(
-    step, setStep, role, gender, roleSubStep, setRoleSubStep
+    step, setStep, role, gender, roleSubStep, setRoleSubStep, isInviteLinked
   );
 
   const { isFinishing, setIsFinishing, finishOnboarding } = useOnboardingSync(
@@ -203,6 +206,8 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
     checkDuplicatePhone,
     nextStep,
     handleBack,
-    getVisualStepInfo
+    getVisualStepInfo,
+    isInviteLinked, setIsInviteLinked,
+    inviteData, setInviteData
   };
 };

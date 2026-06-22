@@ -80,7 +80,11 @@ export const handleAdminAuth = async (
         uid: 'mock_dev_uid_123',
         email: 'admin@kavach.gov.in',
         username: 'Developer Admin',
-        role: 'admin' as const,
+        state_flags: {
+          is_citizen: false,
+          is_guardian: false,
+          is_protector: true
+        },
         isRegistered: true,
         isVerified: true,
         gender: 'male'

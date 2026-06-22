@@ -138,8 +138,11 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
 
     if (isSOSActive) {
       const state = get();
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isDebug = localStorage.getItem('kavach_debug_mode') === 'true' || isLocalhost;
+      
       const isAdmin = state.role === 'admin' || state.role === 'super_cell';
-      const isAuthorized = isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
+      const isAuthorized = isDebug || isAdmin || (state.isRegistered && state.isHardwareSynced && state.isVerified);
       if (!isAuthorized) {
         console.warn("🛡️ KAVACH GUARD: SOS activation blocked. Profile must be registered, synced, and approved by the Command Center.");
         return;
@@ -153,7 +156,7 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
       }
 
       const lastCancel = localStorage.getItem('kavach_last_cancellation_time');
-      const isOverride = (method === 'duress' || (window as any)._kavach_sos_override === true);
+      const isOverride = (method === 'duress' || method === 'ride' || state.isRideModeActive || (window as any)._kavach_sos_override === true);
       
       if (lastCancel && !isOverride) {
         const timeSinceCancel = Date.now() - parseInt(lastCancel, 10);
@@ -231,8 +234,40 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
 
         try {
           // 📡 Initialize Firestore Alert Document
+          // FIRST: Cancel any existing active/responding Firestore alerts for this user
+          // (ghost cleanup — prevents old stale alerts from showing on Guardian HUD)
           const { db } = await import('../../firebase');
-          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+          const { doc, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+          
+          try {
+            const ghostQuery = query(
+              collection(db, 'alerts'),
+              where('victimUid', '==', currentUid)
+            );
+            const ghostSnap = await getDocs(ghostQuery);
+            if (!ghostSnap.empty) {
+              const batch = writeBatch(db);
+              let count = 0;
+              ghostSnap.docs.forEach(ghostDoc => {
+                const status = ghostDoc.data().status;
+                if (ghostDoc.id !== alertId && ['active', 'responding', 'supercell_dispatched', 'rescued_pending_victim_clearance'].includes(status)) {
+                  batch.update(ghostDoc.ref, {
+                    status: 'cancelled',
+                    closedAt: serverTimestamp(),
+                    closureReason: 'superseded_by_new_sos'
+                  });
+                  count++;
+                }
+              });
+              if (count > 0) {
+                await batch.commit();
+                console.log(`🧹 [FIRESTORE] Cleaned ${count} ghost alert(s) before new SOS.`);
+              }
+            }
+          } catch (ghostErr) {
+            console.warn('⚠️ [FIRESTORE] Ghost cleanup failed (non-fatal):', ghostErr);
+          }
+
           const finalUser = (get().user || auth.currentUser) as any;
           await setDoc(doc(db, 'alerts', alertId), {
             id: alertId,
@@ -286,33 +321,104 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
       localStorage.setItem('kavach_last_cancellation_time', Date.now().toString());
       
       const closedAlertId = get().activeAlertId;
+      const wasRideActive = get().isRideModeActive;
 
       // ⚡ IMMEDIATE SYNCHRONOUS STATE UPDATE: Switch active tab and turn off active SOS immediately
-      set({
-        isSOSActive: false,
-        activeAlertId: null,
-        isHandshakeVerified: false,
-        handshakeCode: null,
-        isDuressTriggered: false,
-        isShadowActive: false,
-        activeTab: 'dashboard'
-      });
+      if (wasRideActive && get().rideData) {
+        const updatedRide = { ...get().rideData, status: 'active' as const };
+        set({
+          isSOSActive: false,
+          activeAlertId: null,
+          isHandshakeVerified: false,
+          handshakeCode: null,
+          isDuressTriggered: false,
+          isShadowActive: false,
+          activeTab: 'dashboard',
+          rideData: updatedRide
+        });
+        localStorage.setItem('kavach_ride_data', JSON.stringify(updatedRide));
+      } else {
+        set({
+          isSOSActive: false,
+          activeAlertId: null,
+          isHandshakeVerified: false,
+          handshakeCode: null,
+          isDuressTriggered: false,
+          isShadowActive: false,
+          activeTab: 'dashboard'
+        });
+      }
 
-      if (closedAlertId && auth.currentUser) {
+       if (closedAlertId && auth.currentUser) {
          // Run DB calls asynchronously in the background so UI doesn't wait
          (async () => {
+           const currentUid = auth.currentUser!.uid;
+
+           if (wasRideActive) {
+             try {
+               const { db } = await import('../../firebase');
+               const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+               const journeyRef = doc(db, 'journeys', currentUid);
+               await updateDoc(journeyRef, {
+                 status: 'active',
+                 lastUpdated: serverTimestamp()
+               });
+               console.log("📡 KAVACH: Reverted journey status to active on SOS close");
+             } catch (err) {
+               console.warn("⚠️ KAVACH: Failed to revert journey state on SOS close:", err);
+             }
+           }
+
            // 📡 Update Firestore Alert Document Status
            try {
              const { db } = await import('../../firebase');
-             const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-             await updateDoc(doc(db, 'alerts', closedAlertId), {
-               status: 'cancelled',
-               closedAt: serverTimestamp(),
-               closureReason: closureReason || 'citizen_standdown'
-             });
-             console.log(`🔥 [FIRESTORE] Successfully updated alert ${closedAlertId} to cancelled`);
+             const { doc, updateDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+             
+             // Step 1: Cancel the specific alert
+             try {
+               await updateDoc(doc(db, 'alerts', closedAlertId), {
+                 status: 'cancelled',
+                 closedAt: serverTimestamp(),
+                 closureReason: closureReason || 'citizen_standdown'
+               });
+               console.log(`🔥 [FIRESTORE] Successfully updated alert ${closedAlertId} to cancelled`);
+             } catch (specificErr) {
+               console.warn("⚠️ [FIRESTORE] Failed to update specific alert:", specificErr);
+             }
+
+             // Step 2: Ghost cleanup — cancel ALL remaining active/responding Firestore alerts for this user
+             // Querying only by victimUid (no compound index required) and filtering in memory.
+             try {
+               const ghostQuery = query(
+                 collection(db, 'alerts'),
+                 where('victimUid', '==', currentUid)
+               );
+               const ghostSnap = await getDocs(ghostQuery);
+               if (!ghostSnap.empty) {
+                 const batch = writeBatch(db);
+                 let count = 0;
+                 ghostSnap.docs.forEach(ghostDoc => {
+                   const status = ghostDoc.data().status;
+                   if (['active', 'responding', 'supercell_dispatched', 'rescued_pending_victim_clearance'].includes(status)) {
+                     batch.update(ghostDoc.ref, {
+                       status: 'cancelled',
+                       closedAt: serverTimestamp(),
+                       closureReason: 'ghost_cleanup_on_close'
+                     });
+                     count++;
+                   }
+                 });
+                 if (count > 0) {
+                   await batch.commit();
+                   console.log(`🧹 [FIRESTORE] Ghost cleanup: cancelled ${count} stale alert(s).`);
+                 }
+               }
+             } catch (ghostErr) {
+               console.warn('⚠️ [FIRESTORE] Ghost cleanup on close failed (non-fatal):', ghostErr);
+             }
+
            } catch (fsErr) {
-             console.warn("⚠️ [FIRESTORE] Failed to update alert status to cancelled in Firestore:", fsErr);
+             console.warn("⚠️ [FIRESTORE] Alert close flow failed:", fsErr);
            }
 
            try {
@@ -330,7 +436,7 @@ export const createSOSSlice: StateCreator<KavachState, [], [], Pick<KavachState,
              const { data: ghosts } = await supabase
                .from('alerts')
                .select('id')
-               .eq('victim_uid', auth.currentUser.uid)
+               .eq('victim_uid', currentUid)
                .in('status', ['active', 'responding']);
 
              if (ghosts && ghosts.length > 0) {

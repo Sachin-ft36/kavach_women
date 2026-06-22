@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../../../firebase';
-import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { useKavachStore } from '../../../store/useKavachStore';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
@@ -54,7 +54,24 @@ export function useOnboardingSync(
       } catch (geoError) { }
 
       const isCitizen = role === 'citizen';
-      const isPcr = role === 'pcr_officer';
+      const rawPhone = userPhone || existingData.phoneNumber || user.phoneNumber || "";
+      const cleanDigits = rawPhone.replace(/\D/g, '').slice(-10);
+      const cleanPhone = cleanDigits ? `+91${cleanDigits}` : "";
+
+      let isLinkedGuardian = false;
+      let linkedGuardianData: any = null;
+
+      if (role === 'guardian' && cleanPhone) {
+        try {
+          const claimSnap = await getDoc(doc(db, 'guardian_pending_links', cleanPhone));
+          if (claimSnap.exists()) {
+            isLinkedGuardian = true;
+            linkedGuardianData = claimSnap.data();
+          }
+        } catch (e) {
+          console.error("Error reading pending links:", e);
+        }
+      }
 
       const userProfile = {
         uid: user.uid,
@@ -69,17 +86,14 @@ export function useOnboardingSync(
         address: address || existingData.address || "",
         bloodGroup: bloodGroup || existingData.bloodGroup || "",
         dob: dob || existingData.dob || "",
-        isVerified: user.role === 'admin' || user.role === 'super_cell' ? true : false,
-        verificationStatus: user.role === 'admin' || user.role === 'super_cell' ? 'approved' : 'pending',
+        isVerified: (user.role === 'admin' || user.role === 'super_cell' || (role === 'guardian' && isLinkedGuardian)) ? true : false,
+        verificationStatus: (user.role === 'admin' || user.role === 'super_cell')
+          ? 'approved'
+          : (role === 'guardian')
+            ? (isLinkedGuardian ? 'approved' : 'waiting_guardian_assignment')
+            : 'pending',
         aadhaarMask: aadhaar ? `XXXX-XXXX-${aadhaar.slice(-4)}` : (existingData.aadhaarMask || null),
         aadhaarHash: aadhaar ? await crypto.subtle.digest('SHA-256', new TextEncoder().encode(aadhaar)).then(b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('')) : (existingData.aadhaarHash || null),
-
-        vehicleNo: isPcr ? (protectorData.vehicleNo || 'PCR-TBD') : (existingData.vehicleNo || null),
-        badgeId: isPcr ? (protectorData.badgeId || 'BADGE-TBD') : (existingData.badgeId || null),
-        rank: isPcr ? (protectorData.rank || 'Officer') : (existingData.rank || null),
-        thanaName: isPcr ? (protectorData.thanaName || 'Headquarters') : (existingData.thanaName || null),
-        isOnDuty: isPcr ? true : (existingData.isOnDuty || false),
-        currentDispatchStatus: isPcr ? 'idle' : (existingData.currentDispatchStatus || null),
 
         lastLocation: initialLocation,
         locationData: {
@@ -107,6 +121,17 @@ export function useOnboardingSync(
       };
 
       const syncTasks = async () => {
+        // 🛡️ Auto-resolve pending links if registering as a Guardian
+        if (userProfile.role === 'guardian' && isLinkedGuardian && linkedGuardianData) {
+          userProfile.protectorVetting = {
+            ...(userProfile.protectorVetting || {}),
+            isGuardian: true,
+            familyPhone: linkedGuardianData.citizenPhone,
+            linkedFamilyName: linkedGuardianData.citizenName
+          };
+          await deleteDoc(doc(db, 'guardian_pending_links', cleanPhone)).catch(() => { });
+        }
+
         const cleanProfile = Object.fromEntries(
           Object.entries(userProfile).filter(([_, v]) => v !== undefined && v !== null && v !== "")
         );
@@ -173,28 +198,33 @@ export function useOnboardingSync(
                 relationship: g.relation || 'Guardian',
                 createdAt: serverTimestamp()
               }, { merge: true }).catch(() => { });
-            }
-          }
-        }
 
-        // 🛡️ Auto-resolve pending links if registering as a Guardian
-        if (userProfile.role === 'guardian') {
-          const cleanPhone = userProfile.phoneNumber;
-          try {
-            const claimSnap = await getDoc(doc(db, 'guardian_pending_links', cleanPhone));
-            if (claimSnap.exists()) {
-              const claimData = claimSnap.data();
-              userProfile.protectorVetting = {
-                ...(userProfile.protectorVetting || {}),
-                isGuardian: true,
-                familyPhone: claimData.citizenPhone,
-                linkedFamilyName: claimData.citizenName
-              };
-              // Update local state copy
-              cleanProfile.protectorVetting = userProfile.protectorVetting;
+              // ✉️ SILENT HANDSHAKE PROTOCOL: Verify if the guardian's phone number is already a registered Kavach user
+              try {
+                const q = query(collection(db, 'users'), where('phoneNumber', '==', fullCleanPhone));
+                const snap = await getDocs(q);
+                if (snap.docs.length > 0) {
+                  const guardianUid = snap.docs[0].id;
+                  console.log(`✉️ SILENT HANDSHAKE: Guardian ${g.name} (${fullCleanPhone}) exists (UID: ${guardianUid}). Dispatching high-priority push notification...`);
+                  
+                  // Fire notification document in guardian's collection
+                  await addDoc(collection(db, 'users', guardianUid, 'notifications'), {
+                    type: 'circle_add_invite',
+                    title: 'New Safety Circle Invitation',
+                    body: `${userProfile.name} has added you to their Safety Circle. Tap to accept.`,
+                    senderUid: user.uid,
+                    senderName: userProfile.name,
+                    senderPhone: userProfile.phoneNumber,
+                    createdAt: serverTimestamp(),
+                    status: 'unread'
+                  }).catch(() => {});
+                } else {
+                  console.log(`✉️ SMS BRIDGE: Guardian ${g.name} (${fullCleanPhone}) is not registered. Dispatched standard SMS invite link.`);
+                }
+              } catch (e) {
+                console.error("Failed to run Silent Handshake query:", e);
+              }
             }
-          } catch (e) {
-            console.error("Error reading pending links:", e);
           }
         }
 

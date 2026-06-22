@@ -28,6 +28,7 @@ import KavachAIChat from './components/KavachAIChat';
 import { TabManager } from './components/navigation/TabManager';
 import { BottomNavBar } from './components/navigation/BottomNavBar';
 import { VerificationPendingGate } from './components/onboarding/VerificationPendingGate';
+import { GuardianWaitingGate } from './components/onboarding/GuardianWaitingGate';
 
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
 const FakeCallUI = React.lazy(() => import('./components/FakeCallUI'));
@@ -42,7 +43,7 @@ const SuperCellDashboard = React.lazy(() => import('./components/SuperCellDashbo
 // Set ENABLE_GOV_FEATURES = true when government integration is
 // complete and you're ready to expose SuperCell / PCR dashboards.
 // ══════════════════════════════════════════════════════════════
-const ENABLE_GOV_FEATURES = false;
+const ENABLE_GOV_FEATURES = true;
 
 export default function App() {
   const {
@@ -73,8 +74,18 @@ export default function App() {
   }, [lastScrollY]);
 
   useEffect(() => {
-    const path = window.location.pathname;
-    if (path.startsWith('/track/')) setTrackId(path.split('/')[2]);
+    const handleLocationChange = () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/track/')) {
+        setTrackId(path.split('/')[2]);
+      } else {
+        setTrackId(null);
+      }
+    };
+
+    handleLocationChange();
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('pushstate_changed', handleLocationChange);
 
     // Expose SOS Timer trigger method to window for development/testing
     (window as any).triggerSOSTimer = (method: any = 'button') => {
@@ -82,6 +93,8 @@ export default function App() {
     };
 
     return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('pushstate_changed', handleLocationChange);
       delete (window as any).triggerSOSTimer;
     };
   }, []);
@@ -261,6 +274,8 @@ export default function App() {
               <div className="w-full h-full">
                 <Onboarding user={user} onComplete={handleOnboardingComplete} isReturningUser={isRegistered && !isHardwareSynced} />
               </div>
+            ) : (effectiveRole === 'guardian' && profile?.verificationStatus === 'waiting_guardian_assignment') ? (
+              <GuardianWaitingGate user={user} profile={profile} />
             ) : (!isVerified && localStorage.getItem('kavach_is_verified') !== 'true' && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'protector' && (effectiveRole as any) !== 'guardian') ? (
               <VerificationPendingGate user={user} profile={profile} />
             ) : (
@@ -297,7 +312,7 @@ export default function App() {
         )}
       </React.Suspense>
 
-      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && (effectiveRole as any) !== 'guardian' && !trackId && isRegistered && isHardwareSynced && (isVerified || (effectiveRole as any) === 'protector')) && createPortal(
+      {(!isGhostMode && !isSOSActive && !pendingSOS && !isInterceptActive && !isOverlayActive && !isSOSBlocked && !isFakeCallActive && user && (effectiveRole as any) !== 'admin' && (effectiveRole as any) !== 'super_cell' && !trackId && isRegistered && isHardwareSynced && (isVerified || (effectiveRole as any) === 'protector' || ((effectiveRole as any) === 'guardian' && profile?.verificationStatus !== 'waiting_guardian_assignment'))) && createPortal(
         <>
           <BottomNavBar isNavVisible={isNavVisible} />
 

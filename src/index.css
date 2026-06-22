@@ -292,3 +292,14 @@ html.supercell-active {
   animation: none !important;
   transform: none !important;
 }
+
+@keyframes scanner-laser {
+  0% { top: 0%; }
+  50% { top: 100%; }
+  100% { top: 0%; }
+}
+
+.animate-scanner-laser {
+  animation: scanner-laser 2s infinite linear !important;
+  position: absolute;
+}

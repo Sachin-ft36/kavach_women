@@ -65,7 +65,7 @@ export const useSosMission = () => {
     if (isSOSActive) {
       const q = query(
         collection(db, 'users'),
-        where('role', 'in', ['protector', 'pcr_officer'])
+        where('role', 'in', ['protector'])
       );
 
       unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +73,6 @@ export const useSosMission = () => {
           .map(doc => ({ id: doc.id, ...doc.data() }))
           .filter((p: any) => {
             if (p.role === 'protector') return p.isVerified === true;
-            if (p.role === 'pcr_officer') return p.isOnDuty === true;
             return false;
           });
         setRawUsers(docs);

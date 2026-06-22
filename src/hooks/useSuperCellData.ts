@@ -200,12 +200,67 @@ export function useSuperCellData() {
       }
     );
 
+    const unsubscribeUsers = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const mappedUsers: Record<string, UserProfile> = {};
+        const vProts: UserProfile[] = [];
+        const pProts: UserProfile[] = [];
+
+        snap.docs.forEach((doc) => {
+          const meta = doc.data();
+          const mapped: UserProfile = {
+            id: doc.id,
+            uid: doc.id,
+            name: meta.name || 'Kavach Citizen',
+            email: meta.email || '',
+            role: (meta.role || 'citizen') as any,
+            gender: meta.gender || 'female',
+            isVerified: !!meta.isVerified,
+            isRegistered: meta.isRegistered !== false,
+            xp: meta.xp || 0,
+            phoneNumber: meta.phoneNumber || 'DATA_NOT_SYNCED',
+            phone: meta.phoneNumber || 'DATA_NOT_SYNCED',
+            lastLocation: meta.lastLocation || undefined,
+            state: meta.state || 'ALL',
+            city: meta.city || 'Sector Unknown',
+            address: meta.address || 'Sector Unknown',
+            fullAddress: meta.fullAddress || meta.address || 'Sector Unknown',
+            isOnDuty: !!meta.isOnDuty,
+            protectorVetting: meta.protectorVetting || undefined,
+            photoUrl: meta.photoUrl || undefined,
+            photoURL: meta.photoUrl || undefined
+          };
+          mappedUsers[doc.id] = mapped;
+
+          if (mapped.role?.toLowerCase() === 'protector') {
+            if (mapped.isVerified) vProts.push(mapped);
+            else pProts.push(mapped);
+          }
+        });
+
+        setUserStatusMap(prev => ({ ...prev, ...mappedUsers }));
+        setVerifiedProtectors(prev => {
+          const seen = new Set(vProts.map(p => p.id));
+          return [...vProts, ...prev.filter(p => !seen.has(p.id))];
+        });
+        setPendingProtectors(prev => {
+          const seen = new Set(pProts.map(p => p.id));
+          return [...pProts, ...prev.filter(p => !seen.has(p.id))];
+        });
+      },
+      (err) => {
+        console.warn("Firestore profiles sync warning:", err);
+      }
+    );
+
     return () => {
       supabase.removeChannel(profilesChannel);
       supabase.removeChannel(alertsChannel);
       supabase.removeChannel(archiveChannel);
       unsubscribeFirs();
       unsubJourneys();
+      unsubscribeUsers();
     };
   }, []);
 

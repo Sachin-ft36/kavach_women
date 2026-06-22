@@ -5,8 +5,13 @@ import { useKavachStore } from '../store/useKavachStore';
 import { toast } from 'sonner';
 import { KavachSafe } from '../services/KavachNative';
 
+import { useCommandListener } from '../hooks/useCommandListener';
+
 export default function RemoteCommandListener() {
   const { activeAlertId, isSOSActive, user, setSOSActive } = useKavachStore();
+  
+  // Wire up the new commands listener hook
+  useCommandListener();
 
   useEffect(() => {
     if (!user?.uid) return;

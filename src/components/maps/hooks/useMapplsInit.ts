@@ -66,6 +66,7 @@ export function useMapplsInit(userPos: { lat: number; lng: number } | null, onFa
     const Mappls = (window as any).mappls;
     const container = document.getElementById(mapId);
     if (Mappls && !mapRef.current && container) {
+      container.innerHTML = '';
       mapRef.current = new Mappls.Map(mapId, {
         center: [userPos?.lat || 28.61, userPos?.lng || 77.23],
         zoom: 17,

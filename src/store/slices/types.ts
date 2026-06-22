@@ -24,6 +24,7 @@ export interface KavachState {
     status: 'linked' | 'displacement_only' | 'active' | 'monitored' | 'emergency';
     warningsIssued: number;
     path?: { lng: number; lat: number }[];
+    plannedRoute?: { lng: number; lat: number }[];
     emergencyTriggeredAt?: number;
     alertLevel?: string;
   } | null;

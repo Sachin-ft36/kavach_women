@@ -96,7 +96,19 @@ export interface UserProfile {
   uid: string;
   name?: string;
   email?: string;
-  role: 'citizen' | 'protector' | 'guardian' | 'admin' | 'super_cell';
+  /** @deprecated DO NOT USE. Use state_flags instead */
+  role?: never;
+  state_flags: {
+    is_citizen: boolean;
+    is_guardian: boolean;
+    is_protector: boolean;
+  };
+  os_lifelines?: {
+    battery_exempt: boolean;
+    overlay_granted: boolean;
+    mic_loc_active: boolean;
+  };
+  account_status?: 'PROVISIONAL' | 'VERIFIED' | string;
   gender?: 'female' | 'male' | string;
   isVerified?: boolean;
   isRegistered?: boolean;
@@ -138,4 +150,12 @@ export interface UserProfile {
   missionHistory?: MissionActivity[];
   trustTier?: string;
   completedMissions?: number;
+  verificationStatus?: 'approved' | 'pending' | 'rejected' | 'waiting_guardian_assignment' | string | null;
+  protectorVetting?: {
+    isGuardian?: boolean;
+    familyPhone?: string;
+    linkedFamilyName?: string;
+    fullName?: string;
+    [key: string]: any;
+  } | null;
 }

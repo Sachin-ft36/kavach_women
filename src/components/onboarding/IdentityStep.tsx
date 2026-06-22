@@ -21,16 +21,20 @@ interface IdentityStepProps {
   setGender: (val: 'female' | 'male' | null) => void;
   isGoogleLogin: boolean;
   isKeyboardOpen?: boolean;
+  isInviteLinked?: boolean;
+  inviteData?: any;
+  onInviteFound?: (inviteData: any) => void;
 }
 
 export default function IdentityStep({
   phone, setPhone, userName, setUserName, setIsVerified, onNext, checkDuplicatePhone,
-  photoUrl, setPhotoUrl, gender, setGender, isGoogleLogin, isKeyboardOpen
+  photoUrl, setPhotoUrl, gender, setGender, isGoogleLogin, isKeyboardOpen,
+  isInviteLinked = false, inviteData = null, onInviteFound
 }: IdentityStepProps) {
   const {
     phoneState, setPhoneState, phoneOtp, setPhoneOtp, isUploading, isCameraActive, celebration,
     videoRef, fileInputRef, handleGalleryClick, handleFileChange, startCamera, capturePhoto, handleSendOTP, handleVerifyOTP
-  } = useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone });
+  } = useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone, onInviteFound });
 
   // Only mandatory: photo + name + phone verified + gender
   React.useEffect(() => {
@@ -94,6 +98,20 @@ export default function IdentityStep({
           </div>
 
           <div className="p-4 sm:p-5">
+            {isInviteLinked && inviteData && (
+              <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200/80 flex flex-col gap-1 text-center shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#000080]">
+                  🔗 Link Invitation Detected
+                </span>
+                <p className="text-xs font-bold text-slate-800">
+                  {inviteData.citizenName} has selected you as her Guardian.
+                </p>
+                <p className="text-[9.5px] text-slate-400 font-semibold uppercase mt-0.5">
+                  Gender/Role screens will be automatically bypassed.
+                </p>
+              </div>
+            )}
+
             {!(userName.trim() && phoneState === 'verified' && gender) ? (
               <IdentityFields
                 userName={userName}
@@ -108,6 +126,7 @@ export default function IdentityStep({
                 setGender={setGender}
                 handleSendOTP={handleSendOTP}
                 handleVerifyOTP={handleVerifyOTP}
+                isInviteLinked={isInviteLinked}
               />
             ) : (
               <PhotoUploadSection

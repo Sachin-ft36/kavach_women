@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import SOSCancelPreview from './previews/SOSCancelPreview';
 import CalcVaultPreview from './previews/CalcVaultPreview';
 import TimerCancelPreview from './previews/TimerCancelPreview';
-import WeatherDecoyPreview from './previews/WeatherDecoyPreview';
 
 interface SecurityPinStepProps {
   pin: string;
@@ -23,7 +22,6 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
   const [showSosPreview, setShowSosPreview] = useState(false);
   const [showCalcPreview, setShowCalcPreview] = useState(false);
   const [showTimerPreview, setShowTimerPreview] = useState(false);
-  const [showClimatePreview, setShowClimatePreview] = useState(false);
 
   const handlePress = (val: string) => {
     if (localPin.length < 4) {
@@ -168,30 +166,13 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
             </div>
 
             <div className="space-y-3 flex-col flex shrink-0">
-              {/* Module 1: Weather Decoy */}
-              <div className="bg-white border border-slate-300 rounded-sm p-3.5 sm:p-4 shadow-sm hover:border-[#000080] transition-colors shrink-0">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-sm bg-sky-50 flex items-center justify-center text-sky-600 shrink-0 border border-sky-100">
-                    <Eye size={12} className="sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
-                  </div>
-                  <h4 className="text-[10px] sm:text-[11px] font-black text-[#000080] uppercase tracking-wider">Module 1: Weather Decoy</h4>
-                </div>
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 leading-relaxed mt-2.5">
-                  Disguises the grid as a weather forecast. Tap eye icon next to profile; enter PIN to disable decoy.
-                </p>
-                <button type="button" onClick={() => setShowClimatePreview(true)}
-                  className="w-full mt-3 py-2 bg-slate-100 hover:bg-slate-200 text-[#000080] border border-slate-300 rounded-sm text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-widest transition-all">
-                  [ WATCH TUTORIAL ]
-                </button>
-              </div>
-
-              {/* Module 2: Stop SOS Alarm */}
+              {/* Module 1: Stop SOS Alarm */}
               <div className="bg-white border border-slate-300 rounded-sm p-3.5 sm:p-4 shadow-sm hover:border-red-600 transition-colors shrink-0">
                 <div className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-sm bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100">
                     <Power size={12} className="sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                   </div>
-                  <h4 className="text-[10px] sm:text-[11px] font-black text-red-800 uppercase tracking-wider">Module 2: Stop SOS Alarm</h4>
+                  <h4 className="text-[10px] sm:text-[11px] font-black text-red-800 uppercase tracking-wider">Module 1: Stop SOS Alarm</h4>
                 </div>
                 <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 leading-relaxed mt-2.5">
                   PIN is strictly required to terminate active SOS tracking, silence sirens, and stand down police response.
@@ -202,13 +183,13 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </button>
               </div>
 
-              {/* Module 3: Calculator Vault */}
+              {/* Module 2: Calculator Vault */}
               <div className="bg-white border border-slate-300 rounded-sm p-3.5 sm:p-4 shadow-sm hover:border-[#000080] transition-colors shrink-0">
                 <div className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-sm bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 border border-blue-100">
                     <Calculator size={12} className="sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                   </div>
-                  <h4 className="text-[10px] sm:text-[11px] font-black text-[#000080] uppercase tracking-wider">Module 3: Calculator Vault</h4>
+                  <h4 className="text-[10px] sm:text-[11px] font-black text-[#000080] uppercase tracking-wider">Module 2: Calculator Vault</h4>
                 </div>
                 <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 leading-relaxed mt-2.5">
                   Masks the safety grid as a standard calculator. Input your Security PIN directly on the keypad to unlock.
@@ -219,13 +200,13 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
                 </button>
               </div>
 
-              {/* Module 4: Standby Timer */}
+              {/* Module 3: Standby Timer */}
               <div className="bg-white border border-slate-300 rounded-sm p-3.5 sm:p-4 shadow-sm hover:border-amber-600 transition-colors shrink-0">
                 <div className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-sm bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 border border-amber-100">
                     <Timer size={12} className="sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                   </div>
-                  <h4 className="text-[10px] sm:text-[11px] font-black text-amber-800 uppercase tracking-wider">Module 4: Standby Timer</h4>
+                  <h4 className="text-[10px] sm:text-[11px] font-black text-amber-800 uppercase tracking-wider">Module 3: Standby Timer</h4>
                 </div>
                 <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 leading-relaxed mt-2.5">
                   Input PIN to abort the automatic safety countdown timer before an emergency broadcast is triggered.
@@ -275,7 +256,6 @@ export default function SecurityPinStep({ pin, setPin, onNext, isKeyboardOpen }:
       {showSosPreview && <SOSCancelPreview onClose={() => setShowSosPreview(false)} />}
       {showCalcPreview && <CalcVaultPreview onClose={() => setShowCalcPreview(false)} localPin={localPin} />}
       {showTimerPreview && <TimerCancelPreview onClose={() => setShowTimerPreview(false)} />}
-      {showClimatePreview && <WeatherDecoyPreview onClose={() => setShowClimatePreview(false)} />}
     </div>
   );
 }

@@ -56,7 +56,9 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     checkDuplicatePhone,
     nextStep,
     handleBack,
-    getVisualStepInfo
+    getVisualStepInfo,
+    isInviteLinked, setIsInviteLinked,
+    inviteData, setInviteData
   } = useOnboardingLogic(user, onComplete, isReturningUser);
 
   const visualStepInfo = getVisualStepInfo();
@@ -88,6 +90,16 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
               setGender={(g) => { setGender(g); setStoreGender(g); }}
               isGoogleLogin={!!user?.displayName}
               isKeyboardOpen={isKeyboardOpen}
+              isInviteLinked={isInviteLinked}
+              inviteData={inviteData}
+              onInviteFound={(data) => {
+                setIsInviteLinked(true);
+                setInviteData(data);
+                setRole('guardian');
+                setGender('male');
+                setStoreRole('guardian');
+                setStoreGender('male');
+              }}
             />
           )}
 

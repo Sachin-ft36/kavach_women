@@ -88,19 +88,23 @@ export function useMapplsSync(
           victimMarkerRef.current.setPosition(vCoords);
         }
 
-        handleMapplsTracking(
-          mapRef.current, userPos, routingLat, routingLng,
-          isNavigating, Mappls, directionPluginRef, routePolylineRef, vEloc
-        );
+        if (!isProtectorHUD) {
+          handleMapplsTracking(
+            mapRef.current, userPos, routingLat, routingLng,
+            isNavigating, Mappls, directionPluginRef, routePolylineRef, vEloc
+          );
+        }
       }
     }
 
-    const { isRideModeActive, rideData } = useKavachStore.getState();
-    handleMapplsHybridRide(
-      mapRef.current, userPos, isRideModeActive, rideData,
-      ridePolylineRef, isNavigating, Mappls
-    );
-  }, [userPos, activeAlert, isLoaded, isNavigating, useKavachStore.getState().rideData?.targetCoords]);
+    if (!isProtectorHUD) {
+      const { isRideModeActive, rideData } = useKavachStore.getState();
+      handleMapplsHybridRide(
+        mapRef.current, userPos, isRideModeActive, rideData,
+        ridePolylineRef, isNavigating, Mappls
+      );
+    }
+  }, [userPos, activeAlert, isLoaded, isNavigating, useKavachStore.getState().rideData?.targetCoords, isProtectorHUD]);
 
   return { userMarkerRef, victimMarkerRef, directionPluginRef, ridePolylineRef };
 }

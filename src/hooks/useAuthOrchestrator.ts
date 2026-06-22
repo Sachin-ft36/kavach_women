@@ -19,6 +19,7 @@ export function useAuthOrchestrator() {
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
     let userChannel: ReturnType<typeof supabase.channel> | null = null;
+    let logoutDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     // 🔑 Only check redirect result if we actually initiated a Google redirect sign-in.
     // Calling getRedirectResult unconditionally causes a spurious identitytoolkit accounts:lookup
@@ -150,6 +151,12 @@ export function useAuthOrchestrator() {
               setVerified(true);
               localStorage.setItem('kavach_is_verified', 'true');
             }
+            if (data.isRegistered) {
+              setRegistered(true);
+              setIsHardwareSynced(true);
+              localStorage.setItem('kavach_is_registered', 'true');
+              localStorage.setItem('kavach_hardware_synced', 'true');
+            }
 
             if (data.isPermanentlyBlocked) {
               console.warn("🚨 KAVACH: Terminal lockout active. Session revoked.");
@@ -165,22 +172,28 @@ export function useAuthOrchestrator() {
             // Auto-migrate to Supabase if registered in Firestore but missing/out-of-sync in Supabase
             if (data.isRegistered) {
               try {
-                const supabasePayload: any = {
-                  id: firebaseUser.uid,
-                  email: firebaseUser.email || data.email || "",
-                  role: data.role || 'citizen',
-                  is_verified: !!(data.isVerified || data.verified),
-                  is_guardian: !!(data.isGuardian || data.protectorVetting?.isGuardian),
-                  gender: data.gender || 'female',
-                  xp: data.xp || 0,
-                  metadata: data
-                };
-                if (data.lastLocation?.lat || data.lastLocation?.latitude) {
-                  const lat = data.lastLocation.lat ?? data.lastLocation.latitude;
-                  const lng = data.lastLocation.lng ?? data.lastLocation.longitude;
-                  supabasePayload.last_location = `POINT(${lng} ${lat})`;
+                const sessionRes = await supabase.auth.getSession();
+                if (sessionRes?.data?.session) {
+                  const supabasePayload: any = {
+                    id: firebaseUser.uid,
+                    email: firebaseUser.email || data.email || "",
+                    role: data.role || 'citizen',
+                    is_verified: !!(data.isVerified || data.verified),
+                    is_guardian: !!(data.isGuardian || data.protectorVetting?.isGuardian),
+                    gender: data.gender || 'female',
+                    xp: data.xp || 0,
+                    metadata: data
+                  };
+                  if (data.lastLocation?.lat || data.lastLocation?.latitude) {
+                    const lat = data.lastLocation.lat ?? data.lastLocation.latitude;
+                    const lng = data.lastLocation.lng ?? data.lastLocation.longitude;
+                    supabasePayload.last_location = `POINT(${lng} ${lat})`;
+                  }
+                  await supabase.from('profiles').upsert(supabasePayload);
+                } else {
+                  // Session is not active in Supabase (we are authenticated with Firebase), skip to avoid RLS error
+                  console.log("ℹ️ [SUPABASE] Session inactive; skipping profiles auto-migration to avoid RLS policy block.");
                 }
-                await supabase.from('profiles').upsert(supabasePayload);
               } catch (supabaseErr) {
                 console.warn("Auto-migration to Supabase failed:", supabaseErr);
               }
@@ -210,27 +223,36 @@ export function useAuthOrchestrator() {
             console.warn("KAVACH Background Guardian Sync failed:", err);
           });
       } else {
-        // 🛡️ BLANK SCREEN FIX: Firebase says no user.
-        // If we have a stale kavach_user_uid in localStorage (from a previous session that
-        // was signed out server-side), clear it and force loading to false immediately.
-        // Without this, the app waits for an optimistic timeout that causes blank screen.
-        setUser(null);
-        setRegistered(false);
-        if (localStorage.getItem('kavach_user_uid')) {
-          console.warn('⚠️ KAVACH: Stale user UID in cache — session expired. Clearing and showing login.');
-          localStorage.removeItem('kavach_user_uid');
-          localStorage.removeItem('kavach_is_registered');
-          localStorage.removeItem('kavach_hardware_synced');
-          localStorage.removeItem('kavach_user_role');
-          localStorage.removeItem('kavach_is_verified');
-        }
-        setLoading(false);
+        // 🛡️ DEBOUNCED LOGOUT: Firebase token refresh emits a transient null user
+        // event via _onStorageEvent/_poll during auth token cycling. We debounce this
+        // by 800ms — if the user re-authenticates within that window we skip logout.
+        // This prevents the dashboard → login redirect loop on every token refresh.
+        if (logoutDebounceTimer) clearTimeout(logoutDebounceTimer);
+        logoutDebounceTimer = setTimeout(() => {
+          // Double-check: if Firebase Auth now has a user (token refresh completed), skip
+          if (auth.currentUser) {
+            console.log('✅ KAVACH: Transient null auth event — user restored by token refresh. Skipping logout.');
+            return;
+          }
+          setUser(null);
+          setRegistered(false);
+          if (localStorage.getItem('kavach_user_uid')) {
+            console.warn('⚠️ KAVACH: Stale user UID in cache — session expired. Clearing and showing login.');
+            localStorage.removeItem('kavach_user_uid');
+            localStorage.removeItem('kavach_is_registered');
+            localStorage.removeItem('kavach_hardware_synced');
+            localStorage.removeItem('kavach_user_role');
+            localStorage.removeItem('kavach_is_verified');
+          }
+          setLoading(false);
+        }, 800);
       }
     });
 
     return () => {
       try {
         unsubscribe();
+        if (logoutDebounceTimer) clearTimeout(logoutDebounceTimer);
         if (unsubProfile) unsubProfile();
         if (userChannel) supabase.removeChannel(userChannel);
       } catch (e) {

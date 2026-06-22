@@ -19,7 +19,6 @@ export function useNearbyHubData(userPos: { lat: number; lng: number } | null) {
   const [loading, setLoading] = useState(true);
   const [policeStations, setPoliceStations] = useState<HubNode[]>([]);
   const [protectors, setProtectors] = useState<any[]>([]);
-  const [livePcrs, setLivePcrs] = useState<any[]>([]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; // km
@@ -208,34 +207,6 @@ export function useNearbyHubData(userPos: { lat: number; lng: number } | null) {
         console.error("Protector sync failed:", e);
       }
 
-      const pcrList: any[] = [];
-      try {
-        const pcrRef = collection(db, 'users');
-        const qPcr = query(pcrRef, where('role', '==', 'pcr_officer'), where('isOnDuty', '==', true));
-        const pcrSnap = await getDocs(qPcr);
-        pcrSnap.docs.forEach(doc => {
-          const data = doc.data();
-          const pLat = data.lastLocation?.lat || data.latitude || (data.coords && data.coords[0]);
-          const pLng = data.lastLocation?.lng || data.longitude || (data.coords && data.coords[1]);
-          if (pLat && pLng && userPos) {
-            const d = calculateDistance(userPos.lat, userPos.lng, pLat, pLng);
-            pcrList.push({
-              id: doc.id,
-              name: data.vehicleNo || `PCR Unit - ${data.name || 'Patrol'}`,
-              dist: d < 1 ? `${(d * 1000).toFixed(0)}m` : `${d.toFixed(1)}km`,
-              distVal: d,
-              status: "🚨 ACTIVE MOBILE PATROL",
-              phone: data.phone || "112",
-              lat: pLat,
-              lng: pLng
-            });
-          }
-        });
-      } catch (e) {
-        console.error("Live PCR fetching failed:", e);
-      }
-      setLivePcrs(pcrList.sort((a, b) => a.distVal - b.distVal).slice(0, 5));
-
     } catch (e) {
       console.error("Police Grid Error:", e);
     } finally {
@@ -243,5 +214,5 @@ export function useNearbyHubData(userPos: { lat: number; lng: number } | null) {
     }
   };
 
-  return { loading, policeStations, protectors, livePcrs, fetchRealData };
+  return { loading, policeStations, protectors, fetchRealData };
 }

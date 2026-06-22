@@ -39,20 +39,7 @@ export function VettingDataGrid({ user: u }: Props) {
         </div>
       </div>
 
-      {/* PCR Officer Credentials */}
-      {u.role === 'pcr_officer' && (
-        <div className="bg-white/[0.01] border border-white/[0.04] rounded-2xl p-4 space-y-3 col-span-1 md:col-span-2">
-          <h3 className="text-[10px] text-orange-400 font-extrabold uppercase tracking-widest">Official Police Patrol Credentials</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {[['Badge ID', u.badgeId || 'TBD'], ['Vehicle No.', u.vehicleNo || 'TBD'], ['Rank', u.rank || 'Officer'], ['Thana / HQ', u.thanaName || 'Headquarters']].map(([k, v]) => (
-              <div key={k} className="space-y-1">
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{k}</p>
-                <p className="text-xs font-black text-slate-200">{v}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* Protector Vetting Details */}
       {u.role === 'protector' && u.protectorVetting && (() => {

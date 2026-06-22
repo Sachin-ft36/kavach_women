@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { auth, storage } from '../../firebase';
+import { auth, storage, db } from '../../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface UseIdentityOnboardingProps {
   phone: string;
   setPhotoUrl: (url: string) => void;
   checkDuplicatePhone?: (phone: string) => Promise<boolean>;
+  onInviteFound?: (inviteData: any) => void;
 }
 
-export function useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone }: UseIdentityOnboardingProps) {
+export function useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone, onInviteFound }: UseIdentityOnboardingProps) {
   const [phoneState, setPhoneState] = useState<'idle' | 'otp_sent' | 'verified'>(phone ? 'verified' : 'idle');
   const [phoneOtp, setPhoneOtp] = useState('');
   const [expectedOtp, setExpectedOtp] = useState('');
@@ -222,10 +223,24 @@ export function useIdentityOnboarding({ phone, setPhotoUrl, checkDuplicatePhone 
     toast.success(`OTP: ${otp}`, { duration: 15000 });
   };
 
-  const handleVerifyOTP = () => {
+  const handleVerifyOTP = async () => {
     if (phoneOtp !== expectedOtp) { toast.error("Invalid OTP"); return; }
     setPhoneState('verified');
     triggerCelebration('🔒 Signal Secured!');
+    
+    const cleanPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const docSnap = await getDoc(doc(db, 'guardian_pending_links', cleanPhone));
+      if (docSnap.exists()) {
+        const inviteData = docSnap.data();
+        if (onInviteFound) {
+          onInviteFound(inviteData);
+        }
+      }
+    } catch (e) {
+      console.warn("Invite lookup failed:", e);
+    }
   };
 
   return {

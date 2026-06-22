@@ -32,7 +32,8 @@ const VictimMap = React.memo(({
   customPos,
   isCarHUD = false,
   isProtectorHUD = false,
-  onVictimClick
+  onVictimClick,
+  guardianProtectors = []
 }: {
   activeAlerts?: any[],
   onClose?: () => void,
@@ -46,7 +47,8 @@ const VictimMap = React.memo(({
   customPos?: [number, number],
   isCarHUD?: boolean,
   isProtectorHUD?: boolean,
-  onVictimClick?: () => void
+  onVictimClick?: () => void,
+  guardianProtectors?: any[]
 }) => {
   const { userPos, rideData, isRideModeActive } = useKavachStore();
   const activePos = React.useMemo(() => {
@@ -65,7 +67,7 @@ const VictimMap = React.memo(({
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
 
   // Initialize Mapbox
-  useMapboxInit(map, mapContainer, activePos || null, setIsMapLoaded, isAutoTracking);
+  useMapboxInit(map, mapContainer, activePos || null, setIsMapLoaded, isAutoTracking, isProtectorHUD);
 
   // Sync map style, user location, and safety radius
   useMapSync(map, markersRef, isMapLoaded, mapStyle, activePos || null, isNavigating, isInterceptMode, metrics, setIsMapLoaded, isCarHUD, isProtectorHUD);
@@ -74,7 +76,7 @@ const VictimMap = React.memo(({
   useResponderTracking(map, markersRef, isMapLoaded);
 
   // Victim and Route Sync (Mappls integration)
-  useVictimRouteSync(map, markersRef, isMapLoaded, activePos || null, activeAlerts, isNavigating, isCarHUD, isAutoTracking, onVictimClick);
+  useVictimRouteSync(map, markersRef, isMapLoaded, activePos || null, activeAlerts, isNavigating, isCarHUD, isAutoTracking, onVictimClick, isProtectorHUD, guardianProtectors);
 
   // Ride Safe Route Sync
   useRideRouteSync(map, markersRef, isMapLoaded, isRideModeActive, activePos || null);
@@ -210,6 +212,11 @@ const VictimMap = React.memo(({
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
           70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
           100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        @keyframes guardian-sos-pulse {
+          0%   { transform: scale(0.9); opacity: 0.9; }
+          70%  { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(0.9); opacity: 0; }
         }
       `}</style>
     </div>

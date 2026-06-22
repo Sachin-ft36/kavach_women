@@ -144,12 +144,11 @@ export default function DashboardScreen() {
           <ActionCard
             icon={<FileText />}
             title="Digital Vault"
-            desc="Encrypted logs support"
+            desc="Coming Soon"
             tint="#F8FAFC"
             iconColor="#64748B"
             onClick={() => {
-              setActiveTab('vault');
-              setIsFirFlowActive(true);
+              toast.info("Digital Vault feature is coming soon!");
             }}
           />
           <ActionCard icon={<PhoneCall />} title="FakeCall" desc="Quick exit assistance" tint="#FFF7ED" iconColor="#F59E0B" onClick={() => toggleOverlay(setIsFakeCallHubOpen, true)} />

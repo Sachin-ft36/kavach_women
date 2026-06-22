@@ -66,78 +66,9 @@ export const useProtectorShift = (user: any, profile: any, activeAlerts: any[], 
       });
 
       if (targetState) {
-        if (profile?.role === 'pcr_officer') {
-          setShiftStartTime(new Date());
-          setShiftElapsedSeconds(0);
-          localStorage.setItem('kavach_shift_start_time', new Date().toISOString());
-          toast.success(`🚔 Shift Started — Vehicle: ${dynamicVehicleNo} | Zone: ${customJurisdiction}`);
-          if ('speechSynthesis' in window) {
-            const msg = new SpeechSynthesisUtterance(`Shift started. Patrol unit ${dynamicVehicleNo} is now active in ${customJurisdiction}.`);
-            window.speechSynthesis.speak(msg);
-          }
-        } else {
-          toast.success("Active Duty Started. You will now receive emergency alerts.");
-        }
+        toast.success("Active Duty Started. You will now receive emergency alerts.");
       } else {
-        if (profile?.role === 'pcr_officer') {
-          setIsCarScreenOpen(false);
-          setIsSirenActive(false);
-          setIsMegaphoneActive(false);
-
-        const elapsed = shiftElapsedSeconds;
-        const durationFormatted = formatShiftTime(elapsed);
-        const responses = activeAlerts.filter(a => a.responderUid === user.uid).length;
-
-        try {
-          await addDoc(collection(db, 'shift_logs'), {
-            officerUid: user.uid,
-            officerName: profile?.name || 'Officer',
-            officerBadge: profile?.badgeId || 'IND-POL-00000',
-            vehicleNo: dynamicVehicleNo,
-            zone: customJurisdiction,
-            partner: shiftPartner || 'Solo Patrol',
-            startTime: shiftStartTime ? shiftStartTime.toISOString() : new Date().toISOString(),
-            endTime: new Date().toISOString(),
-            duration: durationFormatted,
-            durationSeconds: elapsed,
-            responsesCount: responses,
-            state: (profile as any)?.state || 'Uttar Pradesh',
-            city: (profile as any)?.city || 'Rewa',
-            timestamp: serverTimestamp()
-          });
-        } catch (err) {
-          console.error("Failed to save shift log:", err);
-        }
-
-        setShiftStartTime(null);
-        setShiftElapsedSeconds(0);
-        localStorage.removeItem('kavach_shift_start_time');
-
-        if (assignedDispatch) {
-          try {
-            await updateDoc(doc(db, 'dispatches', assignedDispatch.id), {
-              status: 'pending',
-              officerUid: null,
-              officerName: null,
-              lastUpdated: serverTimestamp()
-            });
-          } catch (err) {}
-          setAssignedDispatch(null);
-        }
-
-        setShiftStats({
-          duration: durationFormatted,
-          responses: responses
-        });
-        setShowShiftCompleteModal(true);
-
-          if ('speechSynthesis' in window) {
-            const msg = new SpeechSynthesisUtterance("Shift ended. Vehicle released. Stay safe.");
-            window.speechSynthesis.speak(msg);
-          }
-        } else {
-          toast.success("Duty mode disabled. You are now on standby.");
-        }
+        toast.success("Duty mode disabled. You are now on standby.");
       }
     } catch (e) {
       toast.error("Duty sync failed.");

@@ -8,20 +8,21 @@ import { Capacitor } from '@capacitor/core';
  * Includes a low-pass filter to prevent false triggers from simple drops or running.
  */
 export function useShakeTrigger() {
-  const { isSOSActive, setPendingSOS, role, pendingSOS, isBriefingActive, isSOSBlocked, isVerified } = useKavachStore();
+  const { isSOSActive, setPendingSOS, profile, pendingSOS, isBriefingActive, isSOSBlocked, isVerified } = useKavachStore();
+  const isCitizen = profile?.state_flags?.is_citizen;
   
-  const lastShakeTimestampRef = useRef<number>(0);
-  const shakeCountRef = useRef<number>(0);
+  const spikeTimestampsRef = useRef<number[]>([]);
   const isListenerAttachedRef = useRef<boolean>(false);
+  const lastSpikeTimeRef = useRef<number>(0);
   
   // 🛡️ TACTICAL SENSOR CALIBRATION PARAMETERS
-  const ACCELERATION_FORCE_THRESHOLD = 55.0;  // Extremely high force to ignore casual sofa bounces
-  const MAX_SESSION_WINDOW_MS = 2000;         // Tightened back to 2s. 5 shakes in 2s is intentional.
-  const MIN_SHAKE_INTERVAL_MS = 250;          // Allowed fast frantic shaking (force handles false positives)
+  const G_FORCE_THRESHOLD = 3.5;              // 3.5G threshold to filter out standard motion
+  const SPIKE_WINDOW_MS = 600;                // 600ms window to catch violent flailing
+  const MIN_SPIKE_INTERVAL_MS = 100;          // Prevent double counting single spikes
 
   useEffect(() => {
-    // Structural gating checks
-    if (isSOSActive || pendingSOS || role !== 'citizen' || isBriefingActive || isSOSBlocked || !isVerified) {
+    // Structural gating checks - only active for verified citizens who don't have active warnings or SOS
+    if (isSOSActive || pendingSOS || !isCitizen || isBriefingActive || isSOSBlocked || !isVerified) {
       teardownKineticEngine();
       return;
     }
@@ -31,46 +32,48 @@ export function useShakeTrigger() {
       const acceleration = event.acceleration;
       if (!acceleration) return;
 
-      // Calculate total force vector via Euclidean norm formula
-      const forceMagnitude = Math.sqrt(
+      // Calculate total force vector via Euclidean norm formula (m/s^2)
+      const rawForceMagnitude = Math.sqrt(
         (acceleration.x || 0) ** 2 + 
         (acceleration.y || 0) ** 2 + 
         (acceleration.z || 0) ** 2
       );
 
-      if (forceMagnitude > ACCELERATION_FORCE_THRESHOLD) {
+      // Convert to G-force (1G = 9.80665 m/s^2)
+      const gForce = rawForceMagnitude / 9.80665;
+
+      if (gForce >= G_FORCE_THRESHOLD) {
         const currentTime = Date.now();
-        const timeDeltaSinceLastShake = currentTime - lastShakeTimestampRef.current;
-
-        // 🛡️ LOW-PASS FILTER GAUNTLET: Stop instant micro-vibrations from counting twice
-        if (timeDeltaSinceLastShake < MIN_SHAKE_INTERVAL_MS) {
-          return; 
+        
+        // Prevent double counting of the same shake action in ultra-rapid succession
+        if (currentTime - lastSpikeTimeRef.current < MIN_SPIKE_INTERVAL_MS) {
+          return;
         }
+        
+        lastSpikeTimeRef.current = currentTime;
+        
+        // Push the new verified violent movement spike timestamp in native memory
+        spikeTimestampsRef.current.push(currentTime);
+        
+        // Keep only the spikes within the 600ms window
+        spikeTimestampsRef.current = spikeTimestampsRef.current.filter(
+          timestamp => currentTime - timestamp <= SPIKE_WINDOW_MS
+        );
 
-        // Verify if this movement falls within the active tracking window
-        if (timeDeltaSinceLastShake < MAX_SESSION_WINDOW_MS) {
-          shakeCountRef.current += 1;
-          console.log(`📳 KINETIC SENTINEL: Verified movement [${shakeCountRef.current}/5] | Force: ${forceMagnitude.toFixed(1)} m/s²`);
+        console.log(`📳 KINETIC SENTINEL: Verified G-force: ${gForce.toFixed(2)}G | Spikes in 600ms: [${spikeTimestampsRef.current.length}/3]`);
 
-          if (shakeCountRef.current >= 5) {
-            console.error("🚨 KINETIC SENTINEL: VIOLENT PATTERN CONFIRMED. INITIALIZING SOS PROTOCOL.");
-            setPendingSOS(true, 'shake');
-            shakeCountRef.current = 0;
-          }
-        } else {
-          // The window expired, treat this as the first shake of a new pattern
-          shakeCountRef.current = 1;
-          console.log("📳 KINETIC SENTINEL: Tracking window reset. Starting new count.");
+        if (spikeTimestampsRef.current.length >= 3) {
+          console.error("🚨 KINETIC SENTINEL: VIOLENT 3.5G PATTERN CONFIRMED. DETONATING CRIMSON WINDOW.");
+          setPendingSOS(true, 'shake');
+          spikeTimestampsRef.current = [];
         }
-
-        lastShakeTimestampRef.current = currentTime;
       }
     }
 
     function initializeKineticEngine() {
       if (isListenerAttachedRef.current) return;
       
-      // On iOS devices inside a web container, skip auto-binding and wait for manual user initialization
+      // On iOS devices inside a web container, skip auto-binding and wait for manual user authorization
       if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
         return; 
       }
@@ -84,7 +87,7 @@ export function useShakeTrigger() {
       if (isListenerAttachedRef.current) {
         window.removeEventListener('devicemotion', handleMotionTelemetry, true);
         isListenerAttachedRef.current = false;
-        shakeCountRef.current = 0;
+        spikeTimestampsRef.current = [];
         console.log("🛑 KAVACH: Kinetic Engine Monitoring disabled.");
       }
     }
@@ -94,7 +97,7 @@ export function useShakeTrigger() {
     return () => {
       teardownKineticEngine();
     };
-  }, [isSOSActive, pendingSOS, role, isBriefingActive, isSOSBlocked, isVerified]);
+  }, [isSOSActive, pendingSOS, isCitizen, isBriefingActive, isSOSBlocked, isVerified]);
 
   return null;
 }

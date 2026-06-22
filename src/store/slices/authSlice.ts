@@ -47,20 +47,25 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
         if (syncString === lastSyncedData) return;
         lastSyncedData = syncString;
 
-        const { error } = await supabase
-          .from('profiles')
-          .upsert({
-            id: user.uid,
-            email: user.email,
-            display_name: firebaseData.name || user.displayName || 'Kavach Citizen',
-            role: finalRole,
-            gender: finalGender,
-            is_verified: !!(firebaseData.isVerified || firebaseData.verified),
-            xp: firebaseData.xp || 0
-          });
+        const sessionRes = await supabase.auth.getSession();
+        if (sessionRes?.data?.session) {
+          const { error } = await supabase
+            .from('profiles')
+            .upsert({
+              id: user.uid,
+              email: user.email,
+              display_name: firebaseData.name || user.displayName || 'Kavach Citizen',
+              role: finalRole,
+              gender: finalGender,
+              is_verified: !!(firebaseData.isVerified || firebaseData.verified),
+              xp: firebaseData.xp || 0
+            });
 
-        if (error) console.error("⚡ SUPABASE: Sync Error", error);
-        else console.log("⚡ SUPABASE: Profile Synced & Migrated.");
+          if (error) console.error("⚡ SUPABASE: Sync Error", error);
+          else console.log("⚡ SUPABASE: Profile Synced & Migrated.");
+        } else {
+          console.log("ℹ️ [SUPABASE] Session inactive; skipping profiles sync in authSlice to avoid RLS block.");
+        }
       };
 
       onSnapshot(doc(db, 'users', user.uid), async (snap) => {
@@ -89,6 +94,10 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
           const verified = !!(data.isVerified || data.verified) || localStorage.getItem('kavach_is_verified') === 'true';
           localStorage.setItem('kavach_is_verified', verified.toString());
 
+          if (data.safetyPin) {
+            localStorage.setItem('kavach_safety_pin', data.safetyPin);
+          }
+
           set({
             isSOSBlocked: !!data.isSOSBlocked,
             isPermanentlyBlocked: !!data.isPermanentlyBlocked,
@@ -99,7 +108,8 @@ export const createAuthSlice: StateCreator<KavachState, [], [], Pick<KavachState
             profile: { ...data, role: finalRole } as UserProfile,
             isVerified: verified,
             role: finalRole,
-            gender: finalGender
+            gender: finalGender,
+            safetyPin: data.safetyPin || null
           });
 
           syncProfile(data);

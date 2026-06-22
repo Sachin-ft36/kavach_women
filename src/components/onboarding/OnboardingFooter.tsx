@@ -27,11 +27,8 @@ export default function OnboardingFooter({
     (step === 2 && (
       roleSubStep === 'select'
         ? !role
-        : (role === 'pcr_officer'
-          ? (!protectorData.fullName || !protectorData.address || !protectorData.badgeId || !protectorData.vehicleNo || !protectorData.rank || !protectorData.agreement)
-          : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement ||
-            (['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) && (!protectorData.serviceNumber || !protectorData.isServiceNumberValid)))
-        )
+        : (!protectorData.fullName || !protectorData.address || !protectorData.occupation || !protectorData.agreement ||
+          (['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) && (!protectorData.serviceNumber || !protectorData.isServiceNumberValid)))
     )) ||
     (step === 3 && guardiansLength === 0);
 
@@ -39,11 +36,8 @@ export default function OnboardingFooter({
     (step === 2 && (
       roleSubStep === 'select'
         ? !!role
-        : (role === 'pcr_officer'
-          ? (protectorData.fullName && protectorData.address && protectorData.badgeId && protectorData.vehicleNo && protectorData.rank && protectorData.agreement)
-          : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement &&
-            (!['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) || (!!protectorData.serviceNumber && protectorData.isServiceNumberValid)))
-        )
+        : (protectorData.fullName && protectorData.address && protectorData.occupation && protectorData.agreement &&
+          (!['Army', 'Ex-Army', 'Police', 'Ex-Police'].includes(protectorData.occupation) || (!!protectorData.serviceNumber && protectorData.isServiceNumberValid)))
     )) ||
     (step === 3 && guardiansLength > 0);
 
