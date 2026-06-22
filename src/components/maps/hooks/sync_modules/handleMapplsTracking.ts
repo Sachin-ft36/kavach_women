@@ -11,6 +11,26 @@ export function handleMapplsTracking(
   routePolylineRef: React.MutableRefObject<any>,
   vEloc?: string
 ) {
+  // If not navigating, remove any active route and tracking, then exit
+  if (!isNavigating) {
+    if (routePolylineRef.current) {
+      try {
+        if (typeof routePolylineRef.current.remove === 'function') routePolylineRef.current.remove();
+        else if (typeof routePolylineRef.current.setMap === 'function') routePolylineRef.current.setMap(null);
+        else Mappls.remove({ map: map, layer: routePolylineRef.current });
+      } catch (e) {}
+      routePolylineRef.current = null;
+    }
+    if (directionPluginRef.current) {
+      try {
+        if (typeof directionPluginRef.current.remove === 'function') directionPluginRef.current.remove();
+      } catch (e) {}
+      directionPluginRef.current = null;
+    }
+    (window as any)._last_mappls_route_coords = null;
+    return;
+  }
+
   let shouldFetch = false;
   const prev = (window as any)._last_mappls_route_coords;
   const lastFetchTime = (window as any)._last_mappls_fetch_time || 0;

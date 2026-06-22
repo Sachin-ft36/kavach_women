@@ -18,6 +18,15 @@ export const initializeBackgroundSentinel = async () => {
     // 🛡️ INITIATE NATIVE HARDWARE SENTINEL (Background Persistence)
     await KavachSafe.startBackgroundSentinel();
 
+    // 🔒 REQUEST LOCK SCREEN & FULL SCREEN INTENT PERMISSIONS (For lock screen bypass alerts)
+    await KavachSafe.requestLockScreenPermission().catch(() => {});
+    try {
+      const fsIntent = await KavachSafe.hasFullScreenIntentPermission();
+      if (fsIntent && !fsIntent.granted) {
+        await KavachSafe.openFullScreenIntentSettings();
+      }
+    } catch {}
+
     // 🔋 REQUEST BATTERY EXEMPTION (Mandatory for Background Survival)
     const batteryStatus = await KavachSafe.isIgnoringBatteryOptimizations();
     if (!batteryStatus.isExempt) {
@@ -49,19 +58,22 @@ export const initializeBackgroundSentinel = async () => {
       const isCritical = data?.type === 'SOS_ALERT' || data?.priority === 'high' || data?.shadow === 'true';
 
       if (isCritical) {
-        // 🚨 TACTICAL SIREN: Only for Patrolling Units & Command (PCR / SuperCell / Admin)
-        // Regular protectors ONLY get silent lock screen push notifications.
-        if (role === 'guardian' || role === 'super_cell' || role === 'admin') {
-          KavachSafe.startContinuousSiren();
-          if (platform === 'ios') KavachSafe.triggerHapticPulse();
-        } else if (role === 'protector') {
-          // Force a Heads-Up Banner over other open apps (like WhatsApp) for Protectors
+        const isSilent = localStorage.getItem('kavach_silent_notifications_enabled') === 'true';
+
+        // 🚨 TACTICAL SIREN: Active for Patrolling Units, Protectors, & Command
+        if (role === 'guardian' || role === 'super_cell' || role === 'admin' || role === 'protector') {
+          if (!isSilent) {
+            KavachSafe.startContinuousSiren();
+            KavachSafe.triggerHapticPulse().catch(() => {});
+          }
+
+          // Force a Heads-Up Banner over other open apps / lock screen
           KavachSafe.showUrgentNotification({
-            title: "🚨 SOS ALERT: Emergency Triggered",
-            body: notification.body || "A protected citizen has triggered an SOS.",
+            title: "🚨 EMERGENCY ALERT: EXTREME",
+            body: notification.body || "A nearby citizen has triggered an active SOS distress signal. Deploy immediately!",
             id: notification.id || "kavach_sos",
-            sound: "default"
-          });
+            sound: isSilent ? "none" : "siren"
+          }).catch(() => {});
         }
 
         toast.info("🚨 TACTICAL ALERT: EMERGENCY IN PROGRESS", {

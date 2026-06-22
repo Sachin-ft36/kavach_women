@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, UserPlus, Trash2, Shield, Heart, Landmark, CheckCircle2, Info } from 'lucide-react';
+import { ShieldCheck, UserPlus, Trash2, Shield, Heart, Landmark, CheckCircle2, Info, QrCode } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
+import { db, auth } from '../../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import QuickPairQr from '../guardian/QuickPairQr';
 
 interface GuardiansStepProps {
   guardians: { name: string; phone: string; relation: string }[];
@@ -20,6 +23,23 @@ export default function GuardiansStep({
   
   const [draftPhone, setDraftPhone] = useState('');
   const [draftRelation, setDraftRelation] = useState('Father');
+  const [showQrModal, setShowQrModal] = useState(false);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const guardiansRef = collection(db, 'users', auth.currentUser.uid, 'guardians');
+    const unsubscribe = onSnapshot(guardiansRef, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        name: doc.data().name || 'Guardian',
+        phone: (doc.data().phone || '').replace(/\D/g, '').slice(-10),
+        relation: doc.data().relation || 'Guardian'
+      }));
+      if (list.length > 0) {
+        setGuardians(list);
+      }
+    });
+    return () => unsubscribe();
+  }, [setGuardians]);
 
   const handleAddClick = () => {
     if (draftPhone.length < 10) return;
@@ -79,6 +99,25 @@ export default function GuardiansStep({
           <p className="text-[9px] sm:text-[9.5px] font-bold text-[#000080] uppercase tracking-wide leading-relaxed">
             SOS alerts, live geolocation, and emergency evidence will be securely routed to these registered guardians.
           </p>
+        </div>
+
+        {/* Quick Pair via QR Banner */}
+        <div className="bg-indigo-50 border border-indigo-100 rounded-md p-3.5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-md">
+              <QrCode size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-black text-indigo-950 uppercase tracking-wider">Quick Pair via QR</p>
+              <p className="text-[9px] text-indigo-700 font-bold uppercase tracking-wide">Let your guardian scan you to link instantly</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setShowQrModal(true)}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-black uppercase tracking-widest rounded-sm transition-all active:scale-95 border-none cursor-pointer"
+          >
+            Show QR
+          </button>
         </div>
 
         {/* Official Form Container */}
@@ -192,6 +231,20 @@ export default function GuardiansStep({
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showQrModal && (
+          <QuickPairQr 
+            mode="generate" 
+            onClose={() => setShowQrModal(false)} 
+            currentUserProfile={{
+              uid: auth.currentUser?.uid,
+              name: auth.currentUser?.displayName || 'Kavach Citizen',
+              phoneNumber: auth.currentUser?.phoneNumber || ''
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

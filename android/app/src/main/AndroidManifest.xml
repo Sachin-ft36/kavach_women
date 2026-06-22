@@ -128,20 +128,7 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- WEATHER STEALTH LAUNCHER ALIAS -->
-        <activity-alias
-            android:name=".StealthActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_weather_launcher"
-            android:roundIcon="@mipmap/ic_weather_launcher_round"
-            android:label="WeatherPro"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
+
 
 
 

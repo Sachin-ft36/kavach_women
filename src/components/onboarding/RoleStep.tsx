@@ -47,7 +47,9 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
         
         {/* Step Indicator */}
         <div className="flex items-center justify-between border-b border-slate-300 pb-2 px-1">
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#000080]">Select Operating Role</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#000080]">
+            {gender === 'male' ? "What is your primary mission on Kavach?" : "Select Operating Role"}
+          </span>
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Step 2 of 2</span>
         </div>
 
@@ -131,11 +133,14 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
                 <div className="flex-1 min-w-0 pt-0.5">
                   <div className="flex items-center gap-2 mb-0.5">
                     <h3 className="text-[12px] font-black text-[#000080] tracking-widest uppercase">
-                      Civic Volunteer
+                      {gender === 'male' ? "Civic Volunteer (Protector)" : "Civic Volunteer"}
                     </h3>
                   </div>
                   <p className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide">
-                    Civilian • Rakshak Unit
+                    {gender === 'male' 
+                      ? "I want to volunteer to save lives in a 5km radius" 
+                      : "Civilian • Rakshak Unit"
+                    }
                   </p>
                 </div>
               </div>
@@ -185,7 +190,10 @@ export default function RoleStep({ role, setRole, gender, onNext, isKeyboardOpen
                   </h3>
                 </div>
                 <p className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide">
-                  Command Center • Protect Loved Ones
+                  {gender === 'male' 
+                    ? "I am here solely to secure my family" 
+                    : "Command Center • Protect Loved Ones"
+                  }
                 </p>
               </div>
             </div>

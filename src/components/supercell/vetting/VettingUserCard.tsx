@@ -41,7 +41,6 @@ export default function VettingUserCard({ user, isSelected, onSelect }: Props) {
           <span className={cn(
             'text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded-md',
             u.role === 'citizen' ? 'bg-pink-500/10 text-pink-400'
-              : u.role === 'pcr_officer' ? 'bg-orange-500/10 text-orange-400'
               : 'bg-blue-500/10 text-blue-400'
           )}>
             {u.role || 'citizen'}

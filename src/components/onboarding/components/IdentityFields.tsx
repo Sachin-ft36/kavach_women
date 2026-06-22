@@ -15,6 +15,7 @@ interface IdentityFieldsProps {
   setGender: (gender: 'female' | 'male' | null) => void;
   handleSendOTP: () => void;
   handleVerifyOTP: () => void;
+  isInviteLinked?: boolean;
 }
 
 export function IdentityFields({
@@ -29,7 +30,8 @@ export function IdentityFields({
   gender,
   setGender,
   handleSendOTP,
-  handleVerifyOTP
+  handleVerifyOTP,
+  isInviteLinked = false
 }: IdentityFieldsProps) {
   return (
     <div className="space-y-5">
@@ -133,39 +135,41 @@ export function IdentityFields({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex flex-col">
-          <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
-            Gender <span className="text-red-600">*</span>
-          </label>
+      {!isInviteLinked && (
+        <div className="space-y-1.5">
+          <div className="flex flex-col">
+            <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+              Gender <span className="text-red-600">*</span>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setGender('female')}
+              className={cn(
+                "py-3 rounded-sm border flex items-center justify-center gap-2 transition-all",
+                gender === 'female' 
+                  ? "bg-[#000080] border-[#000080] text-white shadow-sm" 
+                  : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <span className="text-[11px] font-black uppercase tracking-widest">Female</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGender('male')}
+              className={cn(
+                "py-3 rounded-sm border flex items-center justify-center gap-2 transition-all",
+                gender === 'male' 
+                  ? "bg-[#000080] border-[#000080] text-white shadow-sm" 
+                  : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <span className="text-[11px] font-black uppercase tracking-widest">Male</span>
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setGender('female')}
-            className={cn(
-              "py-3 rounded-sm border flex items-center justify-center gap-2 transition-all",
-              gender === 'female' 
-                ? "bg-[#000080] border-[#000080] text-white shadow-sm" 
-                : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            <span className="text-[11px] font-black uppercase tracking-widest">Female</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setGender('male')}
-            className={cn(
-              "py-3 rounded-sm border flex items-center justify-center gap-2 transition-all",
-              gender === 'male' 
-                ? "bg-[#000080] border-[#000080] text-white shadow-sm" 
-                : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            <span className="text-[11px] font-black uppercase tracking-widest">Male</span>
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

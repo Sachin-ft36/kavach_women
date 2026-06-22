@@ -36,6 +36,20 @@ export const handleGoogleAuthMethod = async (
     toast.success("Login successful.");
     setLoading(false);
   } catch (popupErr: any) {
+    const errCode = popupErr?.code || '';
+    const errMsg = popupErr?.message || '';
+
+    if (errCode === 'auth/popup-closed-by-user' || errMsg.includes('popup-closed-by-user')) {
+      toast.info("Google sign-in window was closed.");
+      setLoading(false);
+      return;
+    }
+
+    if (errCode === 'auth/cancelled-popup-request' || errMsg.includes('cancelled-popup-request')) {
+      setLoading(false);
+      return;
+    }
+
     console.warn("⚠️ Popup blocked or security policy conflict. Redirecting to Google Login page...", popupErr);
     try {
       sessionStorage.setItem('kavach_google_redirect_pending', 'true');

@@ -4,19 +4,19 @@ import { ShieldAlert, Timer, LifeBuoy, Gavel, FileText, X } from 'lucide-react';
 import { useKavachStore } from '../store/useKavachStore';
 
 export default function RestrictedSOSOverlay() {
-  const { user, sosStrikeCount, setSOSActive, setOverlayActive, isSOSActive, profile } = useKavachStore();
+  const { user, sosStrikeCount, setSOSActive, setOverlayActive, isSOSActive, profile, isRideModeActive } = useKavachStore();
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
 
   // Sync isOverlayActive status to store to hide bottom navbar
   useEffect(() => {
-    if (remainingTime !== null && remainingTime > 0 && !isSOSActive && !isDismissed) {
+    if (remainingTime !== null && remainingTime > 0 && !isSOSActive && !isDismissed && !isRideModeActive) {
       setOverlayActive(true);
     } else {
       setOverlayActive(false);
     }
     return () => setOverlayActive(false);
-  }, [remainingTime, setOverlayActive, isSOSActive, isDismissed]);
+  }, [remainingTime, setOverlayActive, isSOSActive, isDismissed, isRideModeActive]);
 
   // Progressive cooldown table based on strikes (Locked to 30 minutes)
   const COOLDOWN_TABLE: Record<number, number> = {
@@ -49,7 +49,7 @@ export default function RestrictedSOSOverlay() {
     return () => clearInterval(interval);
   }, [user?.uid, sosStrikeCount]);
 
-  if (isSOSActive || isDismissed || remainingTime === null || remainingTime <= 0) return null;
+  if (isSOSActive || isDismissed || remainingTime === null || remainingTime <= 0 || isRideModeActive) return null;
 
   const formatTime = (ms: number) => {
     const h = Math.floor(ms / 3600000);

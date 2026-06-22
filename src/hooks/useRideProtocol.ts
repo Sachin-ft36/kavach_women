@@ -42,7 +42,7 @@ export function useRideProtocol() {
     const warningsIssued = rideData.warningsIssued || 0;
 
     // Fetch optimal routing polyline if not already mapped
-    if (!rideData.path || rideData.path.length === 0) {
+    if (!rideData.plannedRoute || rideData.plannedRoute.length === 0) {
       const initRoute = async () => {
         const startLng = userPosRef.current?.lng;
         const startLat = userPosRef.current?.lat;
@@ -69,7 +69,7 @@ export function useRideProtocol() {
              // If the device does not ping back within ETA + 5 mins, SuperCell triggers a silent SOS automatically.
           }
 
-          updateRideData({ path: path.map(p => ({ lng: p[0], lat: p[1] })) });
+          updateRideData({ plannedRoute: path.map(p => ({ lng: p[0], lat: p[1] })) });
         }
       };
       initRoute();
@@ -102,12 +102,12 @@ export function useRideProtocol() {
       if (!currentPos || !currentPos.lat || !currentPos.lng) return;
 
       let deviation = 0;
-      const path = useKavachStore.getState().rideData?.path;
+      const plannedRoute = useKavachStore.getState().rideData?.plannedRoute;
 
-      if (path && path.length > 0) {
+      if (plannedRoute && plannedRoute.length > 0) {
         // High-accuracy Polyline Geofencing
         // currentPos is { lat, lng }, distanceToPolyline expects (px=lng, py=lat)
-        const distanceMeters = distanceToPolylineMeters(currentPos.lng, currentPos.lat, path.map(p => [p.lng, p.lat] as [number, number]));
+        const distanceMeters = distanceToPolylineMeters(currentPos.lng, currentPos.lat, plannedRoute.map(p => [p.lng, p.lat] as [number, number]));
         deviation = distanceMeters / 1000; // Convert to KM
       } else {
         // Fallback: Anchor Mode (Linear drift)
@@ -202,22 +202,22 @@ export function useRideProtocol() {
 
     function clearActiveTrackingEngine() {
       if (loopIntervalRef.current) {
-      clearInterval(loopIntervalRef.current);
-      loopIntervalRef.current = null;
+        clearInterval(loopIntervalRef.current);
+        loopIntervalRef.current = null;
+      }
+      
+      // Stop native background processes when ride is cleared
+      KavachSafe.stopBackgroundSentinel();
+      
+      lastPosRef.current = null;
+      baselineDistRef.current = null;
+      consecutiveStopsRef.current = 0;
     }
-    
-    // Stop native background processes when ride is cleared
-    KavachSafe.stopBackgroundSentinel();
-    
-    lastPosRef.current = null;
-    baselineDistRef.current = null;
-    consecutiveStopsRef.current = 0;
-  }
 
     return () => {
       clearActiveTrackingEngine();
     };
-  }, [isRideModeActive, rideData?.targetCoords, rideData?.path?.length, isSOSBlocked, isSOSActive]);
+  }, [isRideModeActive, rideData?.targetCoords, rideData?.plannedRoute?.length, isSOSBlocked, isSOSActive]);
 
   return null;
 }

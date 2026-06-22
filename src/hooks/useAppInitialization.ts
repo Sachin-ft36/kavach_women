@@ -335,11 +335,11 @@ export function useAppInitialization(trackId: string | null) {
     // Hard bypass: if loading is STILL true after 2.5s, it's a genuine network failure.
     // Stale-UID blank screen is fixed in useAuthOrchestrator (clears cache on no-user).
     const loadingTimeout = setTimeout(() => {
-      if (useKavachStore.getState().loading) {
-        console.warn("🛠️ KAVACH: Auth timeout — forcing login screen.");
-        setLoading(false);
-      }
-    }, 2500);
+       if (useKavachStore.getState().loading) {
+         console.warn("🛠️ KAVACH: Auth timeout — forcing login screen.");
+         setLoading(false);
+       }
+     }, 5000);
 
     return () => clearTimeout(loadingTimeout);
   }, [setLoading]);

@@ -103,7 +103,6 @@ export const VettingDesk: React.FC<VettingDeskProps> = ({
             <option value="all">ALL ROLES</option>
             <option value="citizen">CITIZENS</option>
             <option value="protector">PROTECTORS</option>
-            <option value="pcr_officer">PCR OFFICERS</option>
           </select>
         </div>
       </div>

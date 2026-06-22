@@ -239,7 +239,7 @@ service cloud.firestore {
         ownsFamilyPhone(familyPhone) ||
         (resource != null && 'guardianUid' in resource.data && resource.data.guardianUid == request.auth.uid)
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || ownsFamilyPhone(familyPhone);
     }
 
     // --- 📡 REMOTE COMMANDS (Guardian → Family Member) ---

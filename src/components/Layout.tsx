@@ -198,7 +198,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     <div className={cn(
       "font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative",
       role === 'super_cell' ? "h-screen overflow-hidden p-0" : 
-      role === 'protector' || role === 'guardian' || (activeTab === 'rewards' && role !== 'citizen') ? "min-h-screen overflow-x-hidden pb-10 bg-[#0F172A] text-white" : 
+      role === 'protector' || role === 'guardian' || (activeTab === 'rewards' && role !== 'citizen') ? "min-h-screen overflow-x-hidden pb-1 bg-[#0A0D14] text-white" : 
       "min-h-screen overflow-x-hidden pb-10 text-gray-900 bg-[#F8FAFC]"
     )}>
 
@@ -237,8 +237,8 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         />
       )}
 
-      <main className={cn("mx-auto pb-6 relative transition-all z-10", 
-        role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0 h-full w-full" : "max-w-7xl pt-[66px]"
+      <main className={cn("mx-auto pb-1 relative transition-all z-10", 
+        role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0 h-full w-full" : "max-w-7xl pt-[88px]"
       )}>
         {children}
 

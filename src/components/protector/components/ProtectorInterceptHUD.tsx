@@ -41,7 +41,7 @@ export function ProtectorInterceptHUD({
               setIsNavigating(false); 
             }}
             onAbort={onAbort}
-            isProtectorHUD={true}
+            isProtectorHUD={false}
             onFallback={() => setUseMapboxFallback(true)} 
           />
         ) : (
@@ -63,11 +63,11 @@ export function ProtectorInterceptHUD({
               setIsNavigating(false); 
             }}
             onAbort={onAbort}
-            isProtectorHUD={true}
+            isProtectorHUD={false}
           />
         )}
       </div>
-      <div className="absolute inset-x-0 top-0 pt-16 px-6 pointer-events-none">
+      <div className="absolute inset-x-0 top-0 pt-4 px-6 pointer-events-none">
         <div className={cn("backdrop-blur-xl rounded-[24px] p-5 border shadow-2xl flex items-center justify-between transition-all duration-700", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-50/95 border-emerald-200" : "bg-white/95 border-slate-200")}>
           <div className="flex items-center gap-4">
             <div className={cn("w-14 h-14 rounded-xl flex items-center justify-center text-white transition-all shadow-md", (parseInt(distanceToVictim[activeInterceptAlert.id]) < 15 || distanceToVictim[activeInterceptAlert.id] === '0m') ? "bg-emerald-600" : "bg-blue-600")}>

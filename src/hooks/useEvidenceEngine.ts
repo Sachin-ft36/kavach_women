@@ -59,6 +59,10 @@ export const useEvidenceEngine = () => {
   useEffect(() => { userPosRef.current = userPos; }, [userPos]);
 
   useEffect(() => {
+    // ℹ️ Disabled for initial Play Store release.
+    // Will be re-enabled during government integration.
+    return;
+
     const currentInstanceId = ++effectInstanceIdRef.current;
 
     const clearAll = () => {

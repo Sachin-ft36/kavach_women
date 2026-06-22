@@ -20,7 +20,7 @@ export function useVettingLogic({
   onSelectUser
 }: UseVettingLogicParams) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'citizen' | 'protector' | 'pcr_officer'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'citizen' | 'protector'>('all');
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [selectedUserId, setSelectedUserIdState] = useState<string | null>(initialSelectedUserId || null);
   const [rejectionReason, setRejectionReason] = useState('');

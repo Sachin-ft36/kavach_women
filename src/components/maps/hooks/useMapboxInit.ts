@@ -7,7 +7,8 @@ export function useMapboxInit(
   mapContainer: React.RefObject<HTMLDivElement>,
   activePos: [number, number] | null,
   setIsMapLoaded: (loaded: boolean) => void,
-  isAutoTracking: React.MutableRefObject<boolean>
+  isAutoTracking: React.MutableRefObject<boolean>,
+  isProtectorHUD?: boolean
 ) {
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -21,15 +22,18 @@ export function useMapboxInit(
     
     mapContainer.current.innerHTML = '';
     const initialCoords: [number, number] = activePos ? [activePos[1], activePos[0]] : [78.9629, 20.5937];
+    const initialStyle = isProtectorHUD
+      ? 'mapbox://styles/mapbox/dark-v11'
+      : 'mapbox://styles/mapbox/streets-v12';
 
     let resizeObserver: ResizeObserver | null = null;
     try {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: initialStyle,
         center: initialCoords,
-        zoom: 18,
-        pitch: 60,
+        zoom: isProtectorHUD ? 14.8 : 18,
+        pitch: isProtectorHUD ? 30 : 60,
         bearing: 0,
         antialias: true
       });

@@ -238,18 +238,113 @@ public class KavachService extends Service implements SensorEventListener {
 
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                 if (voskModel == null) {
-                    // 🇮🇳 Indian English Model loaded for perfect Hindi/Hinglish accuracy
-                    org.vosk.android.StorageService.unpack(this, "sync/vosk-model-small-en-in-0.4", "model",
-                        (model) -> {
-                            voskModel = model;
+                    java.io.File modelDir = new java.io.File(getFilesDir(), "model");
+                    if (modelDir.exists() && modelDir.isDirectory() && new java.io.File(modelDir, "uuid").exists()) {
+                        try {
+                            voskModel = new org.vosk.Model(modelDir.getAbsolutePath());
                             startVoiceSentinel();
-                        },
-                        (exception) -> Log.e(TAG, "Vosk Unpack Error: " + exception.getMessage()));
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Failed to load cached Vosk model: " + ex.getMessage());
+                            downloadAndInstallVoskModel();
+                        }
+                    } else {
+                        downloadAndInstallVoskModel();
+                    }
                 } else {
                     startVoiceSentinel();
                 }
             });
         } catch (Exception e) { Log.e(TAG, "Voice Sentinel Init Failed: " + e.getMessage()); }
+    }
+
+    private void downloadAndInstallVoskModel() {
+        Log.i(TAG, "🎙️ KAVACH SPEECH ENGINE: Initiating dynamic download of Vosk Model...");
+        new Thread(() -> {
+            java.io.File modelDir = new java.io.File(getFilesDir(), "model");
+            java.io.File tempZip = new java.io.File(getCacheDir(), "vosk-model.zip");
+            
+            try {
+                java.net.URL url = new java.net.URL("https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(30000);
+                conn.connect();
+                
+                if (conn.getResponseCode() != java.net.HttpURLConnection.HTTP_OK) {
+                    throw new java.io.IOException("Server returned HTTP " + conn.getResponseCode() + " " + conn.getResponseMessage());
+                }
+                
+                try (java.io.InputStream input = conn.getInputStream();
+                     java.io.OutputStream output = new java.io.FileOutputStream(tempZip)) {
+                    byte[] data = new byte[4096];
+                    int count;
+                    while ((count = input.read(data)) != -1) {
+                        output.write(data, 0, count);
+                    }
+                }
+                
+                if (modelDir.exists()) {
+                    deleteRecursive(modelDir);
+                }
+                modelDir.mkdirs();
+                
+                unzip(tempZip, getFilesDir());
+                
+                java.io.File extractedDir = new java.io.File(getFilesDir(), "vosk-model-small-en-in-0.4");
+                if (extractedDir.exists()) {
+                    extractedDir.renameTo(modelDir);
+                }
+                
+                if (tempZip.exists()) {
+                    tempZip.delete();
+                }
+                
+                Log.i(TAG, "🎙️ KAVACH SPEECH ENGINE: Vosk Model downloaded and unpacked successfully.");
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    try {
+                        voskModel = new org.vosk.Model(modelDir.getAbsolutePath());
+                        startVoiceSentinel();
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Failed to load newly downloaded model: " + ex.getMessage());
+                    }
+                });
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to download and unpack Vosk model dynamically: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private void unzip(java.io.File zipFile, java.io.File targetDirectory) throws java.io.IOException {
+        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(zipFile)))) {
+            java.util.zip.ZipEntry ze;
+            int count;
+            byte[] buffer = new byte[8192];
+            while ((ze = zis.getNextEntry()) != null) {
+                java.io.File file = new java.io.File(targetDirectory, ze.getName());
+                java.io.File dir = ze.isDirectory() ? file : file.getParentFile();
+                if (!dir.isDirectory() && !dir.mkdirs()) {
+                    throw new java.io.FileNotFoundException("Failed to ensure directory: " + dir.getAbsolutePath());
+                }
+                if (ze.isDirectory()) {
+                    continue;
+                }
+                try (java.io.FileOutputStream fout = new java.io.FileOutputStream(file)) {
+                    while ((count = zis.read(buffer)) != -1) {
+                        fout.write(buffer, 0, count);
+                    }
+                }
+            }
+        }
+    }
+
+    private void deleteRecursive(java.io.File fileOrDirectory) {
+        if (fileOrDirectory.isDirectory()) {
+            for (java.io.File child : fileOrDirectory.listFiles()) {
+                deleteRecursive(child);
+            }
+        }
+        fileOrDirectory.delete();
     }
 
     private void startVoiceSentinel() {

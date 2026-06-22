@@ -55,14 +55,14 @@ export default function ProtectorsRadarScreen() {
     return () => unsubscribe();
   }, []);
 
-  const [activeRadius, setActiveRadius] = useState(2.0);
+  const [activeRadius, setActiveRadius] = useState(5.0);
 
-  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Direct 2km scan
+  // 🎯 MULTI-LAYER ADAPTIVE FILTERING: Direct 5km scan
   useEffect(() => {
     if (!userPos || allProtectors.length === 0) return;
 
     let foundProtectors: any[] = [];
-    let currentRadius = 2.0;
+    let currentRadius = 5.0;
 
     const allWithDistance = allProtectors.map(p => {
       const lat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude || (p.coords && p.coords[0]);
@@ -75,10 +75,6 @@ export default function ProtectorsRadarScreen() {
       .filter(p => {
         if (p.distanceKm === null) return false;
         if (p.id === user?.uid || p.uid === user?.uid) return false;
-        const isElite = ['Army', 'Ex-Army', 'Police', 'Ex-Police', 'Doctor'].includes(p.protectorVetting?.occupation || p.profession) || p.role === 'pcr_officer';
-        if (isElite) {
-          return p.distanceKm <= 5.0;
-        }
         return p.distanceKm <= currentRadius;
       })
       .sort((a, b) => (a.distanceKm || Infinity) - (b.distanceKm || Infinity));
@@ -99,19 +95,19 @@ export default function ProtectorsRadarScreen() {
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className={cn("text-sm sm:text-lg font-bold tracking-tight flex items-center gap-1.5 leading-none", isCitizen ? "text-slate-800" : "text-white")}>
+            <h2 className={cn("text-sm sm:text-lg font-medium tracking-tight flex items-center gap-1.5 leading-none", isCitizen ? "text-slate-800" : "text-white")}>
               <Shield size={16} className="text-blue-400 shrink-0" />
               <span className="truncate">Protector Radar</span>
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-               <p className={cn("text-[7px] sm:text-[9px] font-bold uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>2KM Perimeter // Live</p>
+               <p className={cn("text-[7px] sm:text-[9px] font-medium uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>5KM Perimeter // Live</p>
             </div>
           </div>
         </div>
         <div className="px-2 sm:px-4 py-1.5 sm:py-2 bg-[#2563EB] rounded-lg sm:rounded-2xl flex items-center gap-1.5 sm:gap-3 shadow-lg shadow-[#2563EB]/10 shrink-0">
           <Zap size={12} className="text-white" />
-          <span className="text-[8px] sm:text-[10px] font-bold text-white uppercase tracking-widest">{nearbyProtectors.length} Units</span>
+          <span className="text-[8px] sm:text-[10px] font-medium text-white uppercase tracking-widest">{nearbyProtectors.length} Units</span>
         </div>
       </header>
 
@@ -135,14 +131,14 @@ export default function ProtectorsRadarScreen() {
         </div>
       </main>
 
-      {/* 📊 TACTICAL INTEL PANEL: PROTECTOR ROSTER */}
+       {/* 📊 TACTICAL INTEL PANEL: PROTECTOR ROSTER */}
       <section className={cn("h-[40vh] sm:h-[45vh] border-t flex flex-col shadow-[0_-10px_30px_rgba(0,0,0,0.2)] z-30", isCitizen ? "bg-[#F8FAFC] border-slate-200" : "bg-[#0F172A] border-white/10")}>
         <div className={cn("px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between shrink-0", isCitizen ? "bg-white border-slate-200" : "bg-[#1E293B] border-white/5")}>
           <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-[2px]">Mission Assets</span>
+            <span className="text-[9px] font-medium text-blue-400 uppercase tracking-[2px]">Mission Assets</span>
             <span className="text-[8px] text-slate-400 font-medium mt-0.5">Real-time Tactical Intercept</span>
           </div>
-          <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+          <div className="flex items-center gap-2 text-[9px] font-medium text-slate-500 uppercase tracking-widest">
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" /> Scanning
           </div>
         </div>
@@ -155,10 +151,10 @@ export default function ProtectorsRadarScreen() {
                 className="h-full flex flex-col items-center justify-center text-center py-12"
               >
                 <div className="w-12 h-12 border border-dashed border-white/20 rounded-full flex items-center justify-center mb-4">
-                   <Shield size={24} className="text-slate-600" />
+                   <Shield size={24} className="text-slate-650" />
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Zero Tactical Units in Radius</p>
-                <p className="text-[8px] mt-2 italic text-slate-600">Waiting for Handshake...</p>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Zero Tactical Units in Radius</p>
+                <p className="text-[8px] mt-2 italic text-slate-500">Waiting for Handshake...</p>
               </motion.div>
             ) : (
               nearbyProtectors.map((protector, idx) => {
@@ -182,7 +178,7 @@ export default function ProtectorsRadarScreen() {
                     )}
                   >
                     {isElite && (
-                       <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-400 text-white text-[6px] font-black uppercase tracking-widest rounded-bl-lg shadow-sm">
+                       <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-400 text-white text-[6px] font-medium uppercase tracking-widest rounded-bl-lg shadow-sm">
                           {protector.role === 'pcr_officer' ? "PCR PATROL" : "Elite"}
                        </div>
                     )}
@@ -206,7 +202,7 @@ export default function ProtectorsRadarScreen() {
                       
                       <div className="min-w-0">
                         <h4 className={cn(
-                          "text-sm font-bold flex items-center gap-1.5 truncate",
+                          "text-sm font-medium flex items-center gap-1.5 truncate",
                           isElite ? "text-amber-500" : (isCitizen ? "text-slate-800" : "text-white")
                         )}>
                           {protector.role === 'pcr_officer' 
@@ -216,7 +212,7 @@ export default function ProtectorsRadarScreen() {
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={cn(
-                            "text-[9px] font-bold uppercase tracking-wide truncate max-w-[120px]",
+                            "text-[9px] font-medium uppercase tracking-wide truncate max-w-[120px]",
                             isElite ? "text-amber-600" : (isCitizen ? "text-slate-500" : "text-slate-400")
                           )}>
                              {protector.role === 'pcr_officer' 
@@ -224,11 +220,11 @@ export default function ProtectorsRadarScreen() {
                                : (protector.protectorVetting?.occupation || protector.profession || 'RESPONDER')}
                           </span>
                           <span className={cn(
-                            "text-[9px] font-bold shrink-0",
+                            "text-[9px] font-medium shrink-0",
                             isCitizen ? "text-slate-400" : "text-slate-500"
                           )}>•</span>
                           <span className={cn(
-                            "text-[10px] font-bold tracking-tight",
+                            "text-[10px] font-medium tracking-tight",
                             isElite ? "text-amber-400" : (isCitizen ? "text-slate-600" : "text-slate-300")
                           )}>{distanceM}m</span>
                         </div>

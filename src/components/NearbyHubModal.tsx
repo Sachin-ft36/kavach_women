@@ -13,7 +13,8 @@ interface NearbyHubModalProps {
 
 export default function NearbyHubModal({ isOpen, onClose, viewMode = 'all' }: NearbyHubModalProps) {
   const { userPos } = useKavachStore();
-  const { loading, policeStations, protectors, livePcrs, fetchRealData } = useNearbyHubData(userPos);
+  const { loading, policeStations, protectors, fetchRealData } = useNearbyHubData(userPos);
+  const livePcrs = policeStations.filter(s => s.status === 'Patrol Active' || s.status === 'Immediate Response');
 
   useEffect(() => {
     if (isOpen) fetchRealData();
@@ -69,66 +70,30 @@ export default function NearbyHubModal({ isOpen, onClose, viewMode = 'all' }: Ne
             </div>
           )}
 
-          {/* 🚔 LIVE PCR PATROL CARS */}
+          {/* 🤝 COMMUNITY PROTECTORS */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-400">
-                <Car size={16} className="animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Live PCR Patrol Units</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
-                <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{livePcrs.length} Active</span>
-              </div>
+            <div className="flex items-center gap-2 text-amber-500">
+              <Users size={16} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Verified Community Responders</span>
             </div>
-
             <div className="grid gap-3">
-              {livePcrs.length > 0 ? livePcrs.map((pcr, idx) => (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  key={idx}
-                  className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl space-y-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px] flex items-center gap-2">
-                        🚔 {pcr.name}
-                      </h4>
-                      <p className="text-[9px] text-blue-400 font-bold uppercase mt-1.5 flex items-center gap-1.5">
-                        <MapPin size={10} /> {pcr.dist} AWAY • {pcr.status}
-                      </p>
+              {protectors.map((p, idx) => (
+                <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
+                      <Users size={18} />
+                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full" />
                     </div>
-                    <div className="px-2 py-1 bg-[#1A1A1D] border border-[#3A3A3D] rounded-md">
-                      <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">ON-DUTY</span>
+                    <div>
+                      <h4 className="text-xs font-black text-white uppercase italic">{p.name}</h4>
+                      <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-0.5">{p.profession} • {p.dist}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => window.open(`tel:${pcr.phone}`)} className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                      <Phone size={12} /> Emergency
-                    </button>
-                    <button
-                      onClick={() => {
-                        useKavachStore.getState().setPendingNavigationTarget({
-                          lat: pcr.lat,
-                          lng: pcr.lng,
-                          name: pcr.name
-                        });
-                      }}
-                      className="py-3 bg-[#1A1A1D] border border-[#3A3A3D] hover:bg-[#2A2A2D] text-white rounded-xl text-[9px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Navigation size={12} /> Track Route
-                    </button>
-                  </div>
-                </motion.div>
-              )) : (
-                <div className="p-10 border border-dashed border-white/5 rounded-3xl text-center">
-                  <p className="text-[10px] text-gray-600 font-bold uppercase italic">
-                    Searching live police networks...
-                  </p>
+                  <button className="px-5 py-2 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
+                    Alert
+                  </button>
                 </div>
-              )}
+              ))}
             </div>
           </section>
 
@@ -194,30 +159,33 @@ export default function NearbyHubModal({ isOpen, onClose, viewMode = 'all' }: Ne
             </section>
           )}
 
-          {/* 🤝 COMMUNITY PROTECTORS */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-amber-500">
-              <Users size={16} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Verified Community Responders</span>
+          {/* 🚔 LIVE PCR PATROL UNITS (COMING SOON) */}
+          <section className="space-y-4 relative">
+            <div className="flex items-center justify-between opacity-40">
+              <div className="flex items-center gap-2 text-blue-400">
+                <Car size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Live PCR Patrol Units</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">Coming Soon</span>
+              </div>
             </div>
-            <div className="grid gap-3">
-              {protectors.map((p, idx) => (
-                <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-[24px] flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
-                      <Users size={18} />
-                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white uppercase italic">{p.name}</h4>
-                      <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-0.5">{p.profession} • {p.dist}</p>
-                    </div>
-                  </div>
-                  <button className="px-5 py-2 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg">
-                    Alert
-                  </button>
+
+            <div className="relative rounded-3xl overflow-hidden border border-dashed border-white/10 p-8 text-center bg-white/[0.01]">
+              <div className="absolute inset-0 bg-[#0A0A0B]/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 z-10">
+                <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-[2px] italic mb-1.5 animate-pulse">
+                  Coming Soon
                 </div>
-              ))}
+                <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">
+                  Integrating Live Police PCR Telemetry
+                </p>
+              </div>
+              <div className="opacity-15 pointer-events-none select-none space-y-3">
+                <div className="p-4 bg-[#141416] border border-[#2A2A2D] rounded-2xl text-left">
+                  <h4 className="text-sm font-black text-white uppercase italic">🚔 PCR DELUXE-7</h4>
+                  <p className="text-[9px] text-blue-400 font-bold uppercase mt-1">1.2KM Away • Active Patrol</p>
+                </div>
+              </div>
             </div>
           </section>
         </div>

@@ -19,6 +19,7 @@ const ProtectorGuideScreen = React.lazy(() => import('../../screens/ProtectorGui
 const ProtectorsRadarScreen = React.lazy(() => import('../../screens/ProtectorsRadarScreen'));
 const ProtectorGrievanceScreen = React.lazy(() => import('../../screens/ProtectorGrievanceScreen'));
 const ProtectorHistoryScreen = React.lazy(() => import('../../screens/ProtectorHistoryScreen'));
+const GuardianHistoryScreen = React.lazy(() => import('../../screens/GuardianHistoryScreen'));
 
 interface TabManagerProps {
   isGhostMode: boolean;
@@ -70,7 +71,14 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
       case 'contacts': return isVisible ? <div key="contacts" className="max-w-2xl mx-auto"><EmergencyContacts /></div> : null;
       case 'radar': return isVisible ? <div key="radar" className="w-full"><ProtectorsRadarScreen /></div> : null;
       case 'rewards': return isVisible ? <div key="rewards" className="w-full min-h-screen bg-[#0F172A]"><div className="max-w-2xl mx-auto"><Rewards /></div></div> : null;
-      case 'history': return isVisible ? <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div> : null;
+      case 'history': 
+        if (isVisible) {
+          if (effectiveRole === 'guardian') {
+            return <div key="history" className="max-w-4xl mx-auto px-4"><GuardianHistoryScreen /></div>;
+          }
+          return <div key="history" className="max-w-4xl mx-auto px-4"><MissionHistoryScreen /></div>;
+        }
+        return null;
       case 'guide': return isVisible ? <div key="guide" className="max-w-4xl mx-auto px-4">{effectiveRole === 'protector' ? <ProtectorGuideScreen /> : <GuideScreen />}</div> : null;
       case 'grievance': return isVisible ? <div key="grievance" className="max-w-4xl mx-auto px-4"><ProtectorGrievanceScreen /></div> : null;
       case 'protector_history': return isVisible ? <div key="protector_history" className="max-w-4xl mx-auto px-4"><ProtectorHistoryScreen /></div> : null;
@@ -80,7 +88,7 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
 
   const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history', 'rewards'];
   const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history'];
-  const guardianStack = ['dashboard', 'history'];
+  const guardianStack = ['dashboard', 'radar', 'history', 'rewards'];
   const adminStack = ['dashboard', 'map', 'vault', 'history'];
 
   const currentStack = 

@@ -15,7 +15,7 @@ export function useRideRouteSync(
     const m = map.current;
     if (!m || !isMapLoaded) return;
 
-    if (isRideModeActive && rideData?.path && rideData.path.length > 0) {
+    if (isRideModeActive && (rideData?.plannedRoute || rideData?.path) && ((rideData.plannedRoute || rideData.path).length > 0)) {
       const updateRideRoute = (coordinates: any[]) => {
         if (!m || !m.isStyleLoaded()) return;
         if (!m.getSource('ride-route')) {
@@ -57,7 +57,8 @@ export function useRideRouteSync(
         }
       };
 
-      const geoJsonCoords = rideData.path.map((p: any) => p.lng !== undefined ? [p.lng, p.lat] : p);
+      const activeRoute = rideData.plannedRoute || rideData.path || [];
+      const geoJsonCoords = activeRoute.map((p: any) => p.lng !== undefined ? [p.lng, p.lat] : p);
       updateRideRoute(geoJsonCoords);
 
       if (rideData.targetCoords) {
@@ -91,5 +92,5 @@ export function useRideRouteSync(
       if (m.getSource('ride-route')) m.removeSource('ride-route');
       (window as any)._ride_route_fitted = false;
     }
-  }, [rideData?.path, isMapLoaded, isRideModeActive, activePos, map, markersRef]);
+  }, [rideData?.plannedRoute, rideData?.path, isMapLoaded, isRideModeActive, activePos, map, markersRef]);
 }

@@ -50,9 +50,11 @@ export function EmergencyPermissionsModule({
                 {isLifelineActive ? "Authorized" : "Action Required"}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-              Crucial hardware features required to capture media, map location, and contact dispatch.
-            </p>
+            <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg mt-2 text-[10px] text-slate-650 leading-relaxed font-semibold">
+              <span className="text-[#000080] font-bold block mb-1">📋 DPDP COMPLIANCE &amp; PLAY POLICY DISCLOSURE:</span>
+              To protect you during emergency situations, KAVACH requires continuous access to your device's <b>Location</b>, <b>Microphone</b>, <b>Camera</b>, and <b>SMS/Phone</b>. 
+              This data is strictly processed on-device (for shake &amp; offline speech recognition) and only transmitted to your designated guardians &amp; command grid when an active SOS alert is initiated.
+            </div>
           </div>
         </div>
 
