@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, X, ShieldCheck } from 'lucide-react';
 import KavachMap from '../../components/maps/KavachMap';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 export default function TacticalRadarModal({
   isMapModalOpen,

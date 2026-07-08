@@ -29,7 +29,7 @@ export default function ResponderHub({ activeAlertData, initiateCall }: Props) {
               {acceptedResponders.length} Protector{acceptedResponders.length > 1 ? "s" : ""} Responding
             </p>
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-ping" />
+              <div className="w-1.5 h-1.5 bg-blue-600 rounded-full " />
               <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function ResponderHub({ activeAlertData, initiateCall }: Props) {
                       <div className="flex items-center gap-1.5 text-[7px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
                         <span>{missionsCompleted} Successful Missions</span>
                         <span>•</span>
-                        <span className="text-rose-600 font-extrabold animate-pulse">ETA: 2-3 min</span>
+                        <span className="text-rose-600 font-extrabold ">ETA: 2-3 min</span>
                       </div>
                     </div>
                   </div>

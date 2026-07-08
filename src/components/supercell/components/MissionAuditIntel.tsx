@@ -23,7 +23,7 @@ export function MissionAuditIntel({
          </div>
          <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{user.name}</h3>
          <div className="flex items-center justify-center gap-3 mt-4">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <div className="w-2 h-2 bg-emerald-500 rounded-full " />
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{user.city || 'Sector Unknown'}</p>
          </div>
       </div>

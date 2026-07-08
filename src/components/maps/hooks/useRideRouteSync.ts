@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 
 export function useRideRouteSync(
   map: React.MutableRefObject<mapboxgl.Map | null>,

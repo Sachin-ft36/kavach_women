@@ -55,7 +55,7 @@ export default function RideSafeOverlay({
               <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Exit</span>
             </button>
             <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600/10 border border-blue-500/20 rounded-full">
-              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full " />
               <span className="text-[7px] sm:text-[8px] font-black text-blue-500 uppercase tracking-[2px]">Standby Grid</span>
             </div>
           </div>

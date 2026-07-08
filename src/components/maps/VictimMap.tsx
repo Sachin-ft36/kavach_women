@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { PhoneCall, X, CheckCircle2, Navigation, Phone } from 'lucide-react';
 import mapboxgl from 'mapbox-gl';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 import { useCall } from '../../contexts/CallContext';

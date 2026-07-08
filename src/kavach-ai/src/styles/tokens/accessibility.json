@@ -1,0 +1,14 @@
+{
+  "reduceMotion": {
+    "overrideDuration": 0,
+    "disableWaves": true,
+    "disableParticles": true
+  },
+  "highContrast": {
+    "borderRatio": 4.5,
+    "forceStrokeWidth": 2.5
+  },
+  "largeText": {
+    "minScale": 1.2
+  }
+}

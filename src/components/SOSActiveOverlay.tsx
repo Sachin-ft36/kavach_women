@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Lock, Activity, CheckCircle, ShieldAlert, Navigation, Zap, Shield, AlertTriangle } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import SecurityRadarMap from './maps/SecurityRadarMap';
 import MapplsSecurityRadarMap from './maps/MapplsSecurityRadarMap';
 import { db } from '../firebase';
@@ -63,7 +63,19 @@ export default function SOSActiveOverlay() {
     } catch(e) {}
 
     return onSnapshot(q, (snap) => {
-      setNearbyProtectors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const now = Date.now();
+      const fiveMinutesMs = 5 * 60 * 1000;
+      
+      const onlineProtectors = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((p: any) => {
+          if (p.status === 'offline') return false;
+          if (!p.lastActive) return false;
+          const lastActiveMs = p.lastActive.toMillis ? p.lastActive.toMillis() : new Date(p.lastActive).getTime();
+          return (now - lastActiveMs) < fiveMinutesMs;
+        });
+
+      setNearbyProtectors(onlineProtectors);
     });
   }, [isSOSActive]);
 

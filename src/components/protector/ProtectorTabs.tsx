@@ -16,7 +16,7 @@ export default function ProtectorTabs({ activeTab, setActiveTab, activeAlertsLen
         onClick={() => setActiveTab('map')}
         className={cn("flex-1 py-3 text-[11px] font-black uppercase tracking-[2px] transition-all duration-300 rounded-xl relative z-10 flex items-center justify-center gap-2", activeTab === 'map' ? "text-white" : "text-slate-500 hover:text-slate-300")}
       >
-        <Radio size={14} className={activeTab === 'map' ? "animate-pulse" : ""} />
+        <Radio size={14} className={activeTab === 'map' ? "" : ""} />
         RADAR
       </button>
       

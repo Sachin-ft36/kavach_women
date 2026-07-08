@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { X, Navigation, LocateFixed, ShieldCheck, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldX, AlertOctagon, Send, ShieldAlert, CheckCircle2, ChevronDown } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { db } from '../firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -51,7 +51,7 @@ export default function BannedOverlay() {
       <div className="relative w-full max-w-sm flex flex-col items-center z-[50001] pointer-events-auto">
         {/* 🛡️ Red Shield Icon */}
         <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20 relative">
-           <div className="absolute inset-0 bg-red-500/5 rounded-full animate-pulse" />
+           <div className="absolute inset-0 bg-red-500/5 rounded-full " />
            <ShieldAlert size={40} className="text-red-500 relative z-10" strokeWidth={1.5} />
         </div>
 

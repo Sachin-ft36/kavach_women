@@ -142,7 +142,7 @@ export default function MissionReadiness({
             <ShieldCheck className={cn("transition-transform duration-500", allShieldsActive ? "scale-110" : "scale-100")} size={32} />
             {allShieldsActive && (
               <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                
                 <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
               </span>
             )}
@@ -253,7 +253,7 @@ export default function MissionReadiness({
           </motion.button>
         ) : (
           <div className="w-full py-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-amber-500 " />
             <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
               Awaiting Mandatory Security Modules
             </span>

@@ -50,7 +50,7 @@ export default function ProtectorTrackSidebar({
         <div className="px-4 py-2 flex items-center justify-between">
           <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Active Pursuits</span>
           <div className="flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-3 py-1 rounded-full border border-rose-500/20">
-            <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+            <div className="w-1.5 h-1.5 bg-rose-500 rounded-full " />
             <span className="text-[8px] font-black uppercase tracking-widest">{filteredActiveMissions.length} LIVE</span>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { ShieldAlert, Activity } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'sonner';
-import { UserProfile } from '../../../domain/types';
+import { UserProfile } from '../../../state/slices/types';
 
 const WARNING_REASONS = [
   "Accidental SOS trigger without emergency.",

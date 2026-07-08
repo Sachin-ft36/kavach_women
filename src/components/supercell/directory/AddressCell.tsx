@@ -44,8 +44,8 @@ export default function AddressCell({ user, activeAlerts = [] }: Props) {
          "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
          activeAlert ? "bg-rose-600 text-white shadow-lg shadow-rose-600/40" : (lat && lng) ? "bg-rose-500/10 text-rose-500" : "bg-gray-100 text-gray-400"
        )}>
-          {activeAlert ? <AlertTriangle size={14} className="animate-pulse" /> : <MapPin size={14} className={(lat && lng) ? "animate-bounce" : ""} />}
-          {activeAlert && <span className="absolute inset-0 rounded-full bg-rose-500 animate-ping opacity-20" />}
+          {activeAlert ? <AlertTriangle size={14} className="" /> : <MapPin size={14} className={(lat && lng) ? "animate-bounce" : ""} />}
+          {activeAlert && <span className="absolute inset-0 rounded-full bg-rose-500 hidden opacity-20" />}
        </div>
        <div className="flex flex-col max-w-[220px]">
           <span className={cn(

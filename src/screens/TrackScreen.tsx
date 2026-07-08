@@ -219,8 +219,8 @@ export default function TrackScreen() {
     const avatarBorder = isEmergency ? 'border-red-500 bg-red-650' : 'border-white bg-sky-500';
     const avatarShadowColor = isEmergency ? 'rgba(239,68,68,0.9)' : 'rgba(14,165,233,0.8)';
     const avatarHtml = `
-      <div class="absolute w-12 h-12 rounded-full animate-ping pointer-events-none" style="animation-duration: 2.5s; background-color: ${avatarBg};"></div>
-      <div class="absolute w-8 h-8 rounded-full animate-ping pointer-events-none" style="animation-duration: 1.5s; background-color: ${avatarBgInner};"></div>
+      <div class="absolute w-12 h-12 rounded-full hidden pointer-events-none" style="animation-duration: 2.5s; background-color: ${avatarBg};"></div>
+      <div class="absolute w-8 h-8 rounded-full hidden pointer-events-none" style="animation-duration: 1.5s; background-color: ${avatarBgInner};"></div>
       <div class="w-6 h-6 border-2 rounded-full flex items-center justify-center text-white text-[9px] font-black uppercase ${avatarBorder}" style="box-shadow: 0 0 15px ${avatarShadowColor};">
         ${rideData.userName?.charAt(0) || 'K'}
       </div>
@@ -258,7 +258,7 @@ export default function TrackScreen() {
       const el = document.createElement('div');
       el.className = 'relative flex items-center justify-center';
       el.innerHTML = `
-        <div class="absolute w-10 h-10 bg-rose-500/10 rounded-full animate-pulse"></div>
+        <div class="absolute w-10 h-10 bg-rose-500/10 rounded-full "></div>
         <div class="w-5 h-5 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center shadow-lg shadow-rose-900/40">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4"><path d="M12 2v20M2 12h20"/></svg>
         </div>
@@ -329,21 +329,31 @@ export default function TrackScreen() {
       const lat1 = rideData.latitude;
       const lon1 = rideData.longitude;
 
-      const computed = pList.map((p) => {
-        const pLat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude;
-        const pLng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude || p.longitude;
-        let distance = 999;
-        if (pLat && pLng) {
-          distance = calculateDistance(lat1, lon1, pLat, pLng);
-        }
-        return {
-          ...p,
-          distance,
-          distanceStr: distance === 999 ? 'Unknown' : distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
-        };
-      })
-      .filter(p => p.distance < 5.0) // 5km scanning range
-      .sort((a, b) => a.distance - b.distance);
+      const now = Date.now();
+      const fiveMinutesMs = 5 * 60 * 1000;
+
+      const computed = pList
+        .filter((p: any) => {
+          if (p.status === 'offline') return false;
+          if (!p.lastActive) return false;
+          const lastActiveMs = p.lastActive.toMillis ? p.lastActive.toMillis() : new Date(p.lastActive).getTime();
+          return (now - lastActiveMs) < fiveMinutesMs;
+        })
+        .map((p) => {
+          const pLat = p.telemetry?.coords?.[0] || p.lastLocation?.lat || p.lastLocation?.latitude || p.latitude;
+          const pLng = p.telemetry?.coords?.[1] || p.lastLocation?.lng || p.lastLocation?.longitude || p.longitude;
+          let distance = 999;
+          if (pLat && pLng) {
+            distance = calculateDistance(lat1, lon1, pLat, pLng);
+          }
+          return {
+            ...p,
+            distance,
+            distanceStr: distance === 999 ? 'Unknown' : distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
+          };
+        })
+        .filter(p => p.distance < 5.0) // 5km scanning range
+        .sort((a, b) => a.distance - b.distance);
 
       setNearbyProtectors(computed);
       setLoadingProtectors(false);
@@ -375,7 +385,7 @@ export default function TrackScreen() {
         const el = document.createElement('div');
         el.className = 'relative flex items-center justify-center cursor-pointer';
         el.innerHTML = `
-          <div class="absolute w-8 h-8 bg-emerald-500/20 rounded-full animate-ping" style="animation-duration: 3s;"></div>
+          <div class="absolute w-8 h-8 bg-emerald-500/20 rounded-full " style="animation-duration: 3s;"></div>
           <div class="w-6 h-6 bg-emerald-600 border border-white rounded-full flex items-center justify-center shadow-lg text-white">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
@@ -429,7 +439,7 @@ export default function TrackScreen() {
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-12 text-center relative overflow-hidden font-sans">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.1),transparent_65%)]" />
         <div className="w-16 h-16 border-4 border-sky-500/10 border-t-sky-500 rounded-full animate-spin mb-8 shadow-[0_0_20px_rgba(14,165,233,0.2)]" />
-        <p className="text-[10px] font-black uppercase tracking-[6px] text-sky-400 animate-pulse italic">Establishing Secure Tactical Link...</p>
+        <p className="text-[10px] font-black uppercase tracking-[6px] text-sky-400  italic">Establishing Secure Tactical Link...</p>
       </div>
     );
   }
@@ -458,7 +468,7 @@ export default function TrackScreen() {
               <ChevronLeft size={16} />
             </button>
             <div className="w-12 h-12 bg-gradient-to-br from-sky-500/15 to-sky-500/5 border border-sky-500/30 rounded-2xl flex items-center justify-center text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.15)]">
-              <Shield size={22} className="animate-pulse" />
+              <Shield size={22} className="" />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-white italic uppercase tracking-tighter leading-none">
@@ -467,7 +477,7 @@ export default function TrackScreen() {
               <div className="flex items-center gap-2 mt-2 px-2.5 py-1 bg-white/5 border border-white/10 rounded-full w-fit backdrop-blur-sm">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className={cn(
-                    "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                    " absolute inline-flex h-full w-full rounded-full opacity-75",
                     rideData.status === 'emergency' ? "bg-red-400" : "bg-emerald-400"
                   )}></span>
                   <span className={cn(
@@ -508,7 +518,7 @@ export default function TrackScreen() {
             <div className="absolute top-3 left-3 z-[10] flex flex-col gap-2 pointer-events-none">
               <div className="px-2.5 py-1.5 bg-[#090D1A]/95 backdrop-blur-md rounded-full border border-white/5 flex items-center gap-1.5 shadow-xl">
                 <div className={cn(
-                  "w-1.5 h-1.5 rounded-full animate-pulse",
+                  "w-1.5 h-1.5 rounded-full ",
                   rideData.status === 'emergency' ? 'bg-red-500' : 'bg-emerald-500'
                 )} />
                 <span className="text-[7.5px] font-black text-white uppercase tracking-wider leading-none">
@@ -533,7 +543,7 @@ export default function TrackScreen() {
             {/* Map Vehicle & Destination Overlay (Bottom Left) */}
             <div className="absolute bottom-6 left-6 z-[10] flex flex-col gap-2 pointer-events-auto max-w-[280px]">
               <div className="px-4 py-2 bg-[#090D1A]/95 backdrop-blur-md rounded-xl border border-white/5 flex items-center gap-2 shadow-xl w-fit">
-                <Car size={13} className="text-sky-500 animate-pulse" />
+                <Car size={13} className="text-sky-500 " />
                 <div className="text-[9px] font-black uppercase text-slate-450 tracking-wider">
                   VEHICLE: <span className="text-white font-mono italic font-black text-[10px] ml-1">{rideData.vehicleNo || 'PCR-UNASSIGNED'}</span>
                 </div>
@@ -560,7 +570,7 @@ export default function TrackScreen() {
                 }}
                 className="p-3 bg-[#0D111E]/90 hover:bg-[#1C2030] text-sky-400 rounded-2xl border border-white/10 shadow-2xl transition-all active:scale-95"
               >
-                <RefreshCw size={14} className="animate-pulse" />
+                <RefreshCw size={14} className="" />
               </button>
             </div>
           </div>
@@ -699,7 +709,7 @@ export default function TrackScreen() {
               <div className="flex-1 overflow-y-auto py-4 space-y-4 custom-scrollbar">
                 {nearbyProtectors.length === 0 ? (
                   <div className="py-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
-                    <ShieldAlert size={32} className="text-slate-600 animate-pulse" />
+                    <ShieldAlert size={32} className="text-slate-600 " />
                     <p className="text-[10px] font-black uppercase tracking-wider">No protectors detected in 5km perimeter</p>
                   </div>
                 ) : (
@@ -752,7 +762,7 @@ export default function TrackScreen() {
       {/* 🔐 LEDGER METADATA FOOTER */}
       <footer className="bg-[#070913]/90 backdrop-blur-md py-4 px-6 border-t border-white/5 text-center shrink-0 z-20 absolute bottom-0 inset-x-0 flex flex-col sm:flex-row items-center justify-center gap-3">
         <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full w-fit">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 " />
           <span className="text-[8px] font-black uppercase tracking-widest text-red-400">SECURE UPLINK ACTIVE</span>
         </div>
         <p className="text-[8px] text-slate-400 font-black uppercase tracking-[3px] leading-relaxed max-w-xl">

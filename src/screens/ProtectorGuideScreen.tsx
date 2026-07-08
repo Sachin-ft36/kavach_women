@@ -4,7 +4,7 @@ import { Shield, BookOpen, GraduationCap, ShieldAlert, Zap, AlertTriangle, FileT
 import { db } from '../firebase';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 
 interface ProtectorGuide {
@@ -153,7 +153,7 @@ export default function ProtectorGuideScreen() {
      return (
        <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
          <div className="w-12 h-12 border-4 border-accent-blue/10 border-t-accent-blue rounded-full animate-spin" />
-         <p className="text-accent-blue font-bold text-[10px] animate-pulse tracking-[1px]">Loading safety guides...</p>
+         <p className="text-accent-blue font-bold text-[10px]  tracking-[1px]">Loading safety guides...</p>
        </div>
      );
   }

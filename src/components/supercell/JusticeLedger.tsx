@@ -18,7 +18,7 @@ export function JusticeLedger({ zeroFirs, viewMode, onViewFir, userStatusMap }: 
   return (
     <div className="w-full h-full min-h-[600px] bg-[#0A0E1A] border border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center p-8 relative overflow-hidden shadow-2xl">
       {/* Premium Ambient Radial Background Glows */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-blue-600/10 blur-[80px] rounded-full pointer-events-none animate-pulse" style={{ animationDuration: '4s' }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-blue-600/10 blur-[80px] rounded-full pointer-events-none " style={{ animationDuration: '4s' }} />
       <div className="absolute top-1/3 left-1/3 w-[150px] h-[150px] bg-cyan-500/5 blur-[50px] rounded-full pointer-events-none" />
 
       {/* Decorative Blockchain Grid watermark */}

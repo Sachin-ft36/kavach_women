@@ -191,7 +191,7 @@ export function NodesControl({
                 {protectorTab === 'QUEUE' ? (
                   <button 
                     onClick={() => onSelectPendingProtector?.(p.id)} 
-                    className="p-2.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 flex items-center gap-1.5 animate-pulse"
+                    className="p-2.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 flex items-center gap-1.5 "
                     title="Open Vetting Desk"
                   >
                     <Eye size={12} />

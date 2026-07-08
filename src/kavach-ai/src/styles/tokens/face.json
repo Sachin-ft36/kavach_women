@@ -1,0 +1,16 @@
+{
+  "eyes": {
+    "stroke": 6,
+    "blinkRate": 12,
+    "separation": 28
+  },
+  "mouth": {
+    "width": 24,
+    "height": 8,
+    "stroke": 5.5
+  },
+  "sparkle": {
+    "rotation": true,
+    "offsetY": -20
+  }
+}

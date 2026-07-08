@@ -10,6 +10,8 @@ import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import QuickPairQr from './guardian/QuickPairQr';
 import { KavachSafe } from '../services/KavachNative';
 
+import { useKavachStore } from '../state/useKavachStore';
+
 interface Contact {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ export default function EmergencyContacts() {
         ...doc.data()
       })) as Contact[];
       setContacts(gList);
+      useKavachStore.getState().setGuardianCache(gList);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `users/${auth.currentUser?.uid}/guardians`);
@@ -164,29 +167,29 @@ export default function EmergencyContacts() {
   return (
     <div className="space-y-6 pt-4 sm:pt-6 pb-24 px-4 sm:px-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Guardian Circle</h2>
-          <p className="text-sm font-medium text-gray-500 uppercase tracking-widest mt-1">Manage Emergency Contacts</p>
+        <div className="text-left">
+          <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Guardian Circle</h2>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[2px] mt-1">Manage Emergency Contacts</p>
         </div>
         <div className="flex gap-2">
           <button 
             onClick={() => setShowQrModal(true)}
-            className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+            className="w-11 h-11 rounded-2xl bg-indigo-650/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all shadow-lg active:scale-95 cursor-pointer"
             title="Pair Guardian via QR"
           >
-            <QrCode size={22} />
+            <QrCode size={18} />
           </button>
           <button 
             onClick={importContacts}
-            className="w-12 h-12 rounded-2xl bg-white border border-[#E5E7EB] flex items-center justify-center text-gray-400 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm"
+            className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:bg-white/10 hover:border-white/20 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
           >
-            <ContactIcon size={22} />
+            <ContactIcon size={18} />
           </button>
           <button 
             onClick={() => setIsAdding(!isAdding)}
-            className="w-12 h-12 rounded-2xl bg-[#2563EB] flex items-center justify-center text-white hover:bg-[#1D4ED8] transition-all shadow-lg shadow-[#2563EB]/20"
+            className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all shadow-lg active:scale-95 cursor-pointer"
           >
-            <UserPlus size={22} />
+            <UserPlus size={18} />
           </button>
         </div>
       </div>
@@ -198,34 +201,35 @@ export default function EmergencyContacts() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             onSubmit={addContact}
-            className="bg-gray-50 border border-[#E5E7EB] rounded-[32px] p-8 space-y-5 overflow-hidden shadow-inner"
+            className="bg-[#0D1233]/80 border border-white/[0.06] rounded-[28px] p-6 space-y-5 overflow-hidden shadow-2xl relative"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Guardian Name</label>
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 relative z-10">
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
                 <input 
                   type="text" 
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Full Name"
-                  className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-5 py-4 text-sm font-medium focus:ring-2 focus:ring-[#2563EB]/10 focus:border-[#2563EB] outline-none transition-all shadow-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-semibold text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Relation</label>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relation</label>
                 <input 
                   type="text" 
                   value={newRelation}
                   onChange={(e) => setNewRelation(e.target.value)}
                   placeholder="e.g. Brother, Family"
-                  className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-5 py-4 text-sm font-medium focus:ring-2 focus:ring-[#2563EB]/10 focus:border-[#2563EB] outline-none transition-all shadow-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-semibold text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Mobile Number</label>
+            <div className="space-y-2 text-left relative z-10">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
               <div className="relative flex items-center">
-                <span className="absolute left-5 text-gray-400 font-bold text-sm">+91</span>
+                <span className="absolute left-5 text-slate-400 font-bold text-sm">+91</span>
                 <input 
                   type="tel" 
                   value={newPhone}
@@ -234,21 +238,21 @@ export default function EmergencyContacts() {
                     setNewPhone(val);
                   }}
                   placeholder="10-digit number"
-                  className="w-full bg-white border border-[#E5E7EB] rounded-2xl pl-16 pr-5 py-4 text-sm font-bold focus:ring-2 focus:ring-[#2563EB]/10 focus:border-[#2563EB] outline-none transition-all shadow-sm tracking-wider"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-16 pr-5 py-4 text-sm font-bold text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all tracking-wider"
                 />
               </div>
             </div>
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-4 pt-4 relative z-10">
               <button 
                 type="submit"
-                className="flex-1 bg-[#2563EB] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-[#2563EB]/20 hover:bg-[#1D4ED8] transition-all"
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[2px] transition-all shadow-lg shadow-blue-500/20 active:scale-95"
               >
                 Save Guardian
               </button>
               <button 
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="px-8 bg-white border border-[#E5E7EB] rounded-2xl font-bold text-sm text-gray-500 hover:bg-gray-50 transition-all"
+                className="px-8 bg-white/5 border border-white/10 rounded-2xl font-bold text-sm text-slate-400 hover:bg-white/10 transition-all active:scale-95"
               >
                 Cancel
               </button>
@@ -259,12 +263,12 @@ export default function EmergencyContacts() {
 
       <div className="space-y-4">
         {contacts.length === 0 && !loading && (
-          <div className="text-center py-16 bg-white border border-dashed border-[#E5E7EB] rounded-[32px]">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-               <AlertCircle className="text-gray-300" size={32} />
+          <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-[28px] backdrop-blur-sm">
+            <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+               <AlertCircle className="text-slate-550" size={32} />
             </div>
-            <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">No Guardians Configured</p>
-            <p className="text-xs text-gray-300 mt-1">Add contacts to enable automatic SOS alerts.</p>
+            <p className="text-slate-300 text-sm font-bold uppercase tracking-widest">No Guardians Configured</p>
+            <p className="text-xs text-slate-500 mt-1">Add contacts to enable automatic SOS alerts.</p>
           </div>
         )}
         {contacts.map((contact) => (
@@ -273,17 +277,17 @@ export default function EmergencyContacts() {
             layout
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-[#E5E7EB] rounded-[28px] p-4 pr-6 flex items-center shadow-sm hover:shadow-md transition-all group"
+            className="bg-gradient-to-r from-[#1C1F5C] via-[#141747] to-[#0B0D2F] border border-white/10 rounded-[24px] p-4 pr-6 flex items-center shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:border-blue-500/30 transition-all group"
           >
-            <div className="flex items-center gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#2563EB]/5 border border-[#2563EB]/10 rounded-2xl flex items-center justify-center text-[#2563EB] shrink-0 shadow-sm">
-                <ShieldCheck size={24} />
+            <div className="flex items-center gap-4 min-w-0 flex-1 text-left">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 shrink-0 shadow-md">
+                <ShieldCheck size={24} className="drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
               </div>
               <div className="min-w-0">
-                <p className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">{contact.name}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full">{contact.relation}</span>
-                  <span className="text-[10px] sm:text-xs font-bold text-gray-400 font-mono tracking-tight">{contact.phone}</span>
+                <p className="font-bold text-white text-sm sm:text-base leading-tight truncate">{contact.name}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">{contact.relation}</span>
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 font-mono tracking-tight">{contact.phone}</span>
                 </div>
               </div>
             </div>
@@ -291,28 +295,28 @@ export default function EmergencyContacts() {
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               <a 
                 href={`tel:${contact.phone}`}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-[#2563EB]/5 border border-[#2563EB]/10 text-[#2563EB] flex items-center justify-center hover:bg-[#2563EB] hover:text-white active:scale-90 transition-all shadow-sm"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-blue-500 hover:bg-blue-400 text-white flex items-center justify-center active:scale-90 transition-all shadow-[0_0_15px_rgba(59,130,246,0.4)]"
               >
-                <Phone size={18} />
+                <Phone size={16} className="fill-current text-white" />
               </a>
               <button 
                 onClick={() => removeContact(contact.id)}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-red-50/50 border border-red-100 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white active:scale-90 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-600 hover:text-white active:scale-90 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
             </div>
           </motion.div>
         ))}
       </div>
 
-      <div className="bg-amber-50 border border-amber-100 p-6 rounded-[32px] flex gap-4">
-        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0 shadow-sm">
-           <AlertCircle size={24} />
+      <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-[28px] flex gap-4 backdrop-blur-md text-left">
+        <div className="w-10 h-10 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-400 shrink-0 shadow-sm">
+           <AlertCircle size={22} className="drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
         </div>
         <div>
-          <h3 className="font-bold text-amber-900 mb-1">Automatic Alerts Protocol</h3>
-          <p className="text-xs text-amber-700/80 leading-relaxed font-medium">
+          <h3 className="font-black text-amber-500 tracking-wider uppercase text-[11px] mb-1">Automatic Alerts Protocol</h3>
+          <p className="text-[11px] text-amber-200/70 leading-relaxed font-bold">
             When SOS is triggered, these contacts will receive an instant encrypted SMS with your live GPS location, 
             real-time audio recording link, and hardware status reports.
           </p>

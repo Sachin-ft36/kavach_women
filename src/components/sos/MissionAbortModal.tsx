@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldAlert, Gavel, CheckCircle2, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 interface Props {
   abortReason: string;

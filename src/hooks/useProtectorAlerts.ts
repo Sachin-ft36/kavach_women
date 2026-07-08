@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, getDoc, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { ShieldCheck } from 'lucide-react';

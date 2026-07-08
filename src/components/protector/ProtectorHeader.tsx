@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, CheckCircle2, Shield, ShieldCheck, Clock, Users, ChevronRight } from 'lucide-react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 interface ProtectorStats {
   rating: number;
@@ -99,7 +99,7 @@ export default function ProtectorHeader({ profile, user, isOnDuty, protectorStat
               </div>
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 " />
               ONLINE
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function ProtectorHeader({ profile, user, isOnDuty, protectorStat
               </span>
               <div className={`relative w-10 h-5 rounded-full transition-colors duration-300 ease-in-out ${isOnDuty ? 'bg-emerald-500' : 'bg-slate-700'} border border-white/10 shadow-inner`}>
                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ease-in-out flex items-center justify-center ${isOnDuty ? 'translate-x-5' : 'translate-x-0'}`}>
-                  {isOnDuty && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
+                  {isOnDuty && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full " />}
                 </div>
               </div>
             </div>

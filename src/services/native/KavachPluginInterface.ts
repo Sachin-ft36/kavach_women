@@ -52,6 +52,10 @@ export interface KavachPlugin {
   stopBleSOSAdvertising(): Promise<void>;
   startBleSOSScanning(): Promise<void>;
   stopBleSOSScanning(): Promise<void>;
+
+  // 🔆 Screen Hardware Control
+  setScreenBrightness(options: { level: number }): Promise<void>;
+  keepScreenOn(options: { enable: boolean }): Promise<void>;
 }
 
 export const KavachNative = registerPlugin<KavachPlugin>('KavachPlugin');

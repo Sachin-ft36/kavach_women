@@ -207,24 +207,28 @@ public class KavachService extends Service implements SensorEventListener {
         // 5. Phone State Listener for Call detection (Mic collision prevention)
         TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         if (telephonyManager != null) {
-            telephonyManager.listen(new PhoneStateListener() {
-                @Override
-                public void onCallStateChanged(int state, String phoneNumber) {
-                    if (state == TelephonyManager.CALL_STATE_RINGING || state == TelephonyManager.CALL_STATE_OFFHOOK) {
-                        Log.i(TAG, "📞 TELEPHONY: Call Active. Suspending Voice Sentinel...");
-                        if (speechService != null) {
-                            speechService.stop();
-                            speechService = null;
-                            isListening = false;
-                        }
-                    } else if (state == TelephonyManager.CALL_STATE_IDLE) {
-                        Log.i(TAG, "📞 TELEPHONY: Call Ended. Resuming Voice Sentinel...");
-                        if (!isListening && !isSOSMissionActive) {
-                            startVoiceSentinel();
+            try {
+                telephonyManager.listen(new PhoneStateListener() {
+                    @Override
+                    public void onCallStateChanged(int state, String phoneNumber) {
+                        if (state == TelephonyManager.CALL_STATE_RINGING || state == TelephonyManager.CALL_STATE_OFFHOOK) {
+                            Log.i(TAG, "📞 TELEPHONY: Call Active. Suspending Voice Sentinel...");
+                            if (speechService != null) {
+                                speechService.stop();
+                                speechService = null;
+                                isListening = false;
+                            }
+                        } else if (state == TelephonyManager.CALL_STATE_IDLE) {
+                            Log.i(TAG, "📞 TELEPHONY: Call Ended. Resuming Voice Sentinel...");
+                            if (!isListening && !isSOSMissionActive) {
+                                startVoiceSentinel();
+                            }
                         }
                     }
-                }
-            }, PhoneStateListener.LISTEN_CALL_STATE);
+                }, PhoneStateListener.LISTEN_CALL_STATE);
+            } catch (SecurityException e) {
+                Log.w(TAG, "Missing READ_PHONE_STATE permission for call detection. Voice collision protection disabled.");
+            }
         }
 
         Log.i(TAG, "KAVACH TACTICAL SERVICE: Initialized. Monitoring active.");

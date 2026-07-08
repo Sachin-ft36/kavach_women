@@ -20,7 +20,7 @@ export function NationalEscalationBanner({
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="bg-amber-500 text-slate-950 font-['Outfit'] font-black uppercase text-center py-2 text-[13px] tracking-[3px] flex items-center justify-center gap-3 relative z-30 shadow-lg border-b border-amber-600 animate-pulse shrink-0"
+          className="bg-amber-500 text-slate-950 font-['Outfit'] font-black uppercase text-center py-2 text-[13px] tracking-[3px] flex items-center justify-center gap-3 relative z-30 shadow-lg border-b border-amber-600  shrink-0"
         >
           <AlertTriangle size={14} />
           CRISIS STATE HQ ESCALATION: Target coordinates leaving {incidentData?.city || 'Local'} District boundaries. Escape vector active towards state border!

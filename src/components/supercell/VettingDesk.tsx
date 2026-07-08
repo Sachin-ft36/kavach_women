@@ -51,7 +51,7 @@ export const VettingDesk: React.FC<VettingDeskProps> = ({
       <div className="border-b border-slate-800 bg-[#0d1324] px-8 py-5 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2.5">
-            <ShieldCheck className="text-blue-500 w-6 h-6 animate-pulse" />
+            <ShieldCheck className="text-blue-500 w-6 h-6 " />
             Identity Vetting Desk
           </h1>
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">
@@ -115,7 +115,7 @@ export const VettingDesk: React.FC<VettingDeskProps> = ({
           <div className="p-4 space-y-2">
             {filteredUsers.length === 0 ? (
               <div className="text-center py-16 px-4 space-y-4 opacity-50">
-                <ShieldCheck size={48} className="mx-auto text-slate-600 animate-pulse" />
+                <ShieldCheck size={48} className="mx-auto text-slate-600 " />
                 <p className="text-xs font-black uppercase tracking-widest text-slate-500">No users found in this sector</p>
               </div>
             ) : filteredUsers.map((u: any) => (

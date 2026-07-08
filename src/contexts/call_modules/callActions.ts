@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { KavachSafe } from '../../services/KavachNative';
 import { loadZegoScript } from './zegoLoader';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 export const clearSignal = async (contextId?: string, activeAlertId?: string | null, activeContextId?: string | null) => {
   try {

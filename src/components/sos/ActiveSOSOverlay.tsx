@@ -1,7 +1,7 @@
 import React from 'react';
 import { Shield, Eye, MessageSquare, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { useSosMission } from '../../hooks/useSosMission';
 import { useCall } from '../../contexts/CallContext';
 import { useSOSScreenActions } from './hooks/useSOSScreenActions';

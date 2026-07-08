@@ -95,7 +95,7 @@ export default function FakeCallUI({
                 <span className="text-[13px] font-medium">Decline</span>
               </div>
               <div className="flex flex-col items-center gap-4">
-                <button onClick={() => setStatus('connected')} className="w-20 h-20 bg-[#34C759] rounded-full flex items-center justify-center animate-pulse"><Phone size={36} className="text-white" /></button>
+                <button onClick={() => setStatus('connected')} className="w-20 h-20 bg-[#34C759] rounded-full flex items-center justify-center "><Phone size={36} className="text-white" /></button>
                 <span className="text-[13px] font-medium">Accept</span>
               </div>
             </div>

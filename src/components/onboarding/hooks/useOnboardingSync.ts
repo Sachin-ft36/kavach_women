@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { db } from '../../../firebase';
 import { doc, setDoc, getDoc, serverTimestamp, collection, addDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 import { getReverseMetadata } from '../../../services/locationService';
@@ -23,9 +23,10 @@ export function useOnboardingSync(
   aadhaar: string,
   guardians: any[],
   protectorData: any,
-  onComplete: () => void
+  onComplete: () => void,
+  localGuardian?: any
 ) {
-  const { setRole: setStoreRole, setGender: setStoreGender } = useKavachStore();
+  const { setRole: setStoreRole, setGender: setStoreGender, setLocalGuardian } = useKavachStore();
   const [isFinishing, setIsFinishing] = useState(false);
 
   const finishOnboarding = async () => {
@@ -173,56 +174,98 @@ export function useOnboardingSync(
           }
         }
 
-        if (userProfile.role === 'citizen' && guardians.length > 0) {
+        if (userProfile.role === 'citizen') {
           const guardianCol = collection(db, 'users', user.uid, 'guardians');
-          const localGuardians = guardians.map(g => ({
-            name: g.name,
-            phone: `+91${g.phone.replace(/\D/g, '').slice(-10)}`,
-            relation: g.relation
-          }));
-          localStorage.setItem('kavach_guardian_cache', JSON.stringify(localGuardians));
+          
+          if (localGuardian && localGuardian.name && localGuardian.phone) {
+            const cleanLocalPhone = localGuardian.phone.replace(/\D/g, '').slice(-10);
+            const fullCleanLocalPhone = `+91${cleanLocalPhone}`;
+            
+            // Soft fallback logic for proximity detection
+            let proximityLevel: 'area' | 'city' | 'district' | 'none' = 'none';
+            const userDistrict = (locationMeta?.suburb || '').toLowerCase();
+            const userCity = (locationMeta?.city || '').toLowerCase();
+            const guardianAddress = (localGuardian.address || '').toLowerCase();
+            
+            if (guardianAddress.includes(userDistrict) && userDistrict) proximityLevel = 'area';
+            else if (guardianAddress.includes(userCity) && userCity) proximityLevel = 'city';
+            else if (userDistrict) proximityLevel = 'district';
+            
+            const processedLocalGuardian = {
+              name: localGuardian.name,
+              phone: fullCleanLocalPhone,
+              relation: localGuardian.relation || 'Local Guardian',
+              isLocal: true,
+              proximityLevel,
+              distanceKm: 1.8, // Default Mock Proximity for visual indicators
+              estimatedReachMin: 6,
+              createdAt: new Date().toISOString()
+            };
+            
+            await addDoc(guardianCol, processedLocalGuardian).catch(() => {});
+            
+            // Create pending link in Firestore
+            await setDoc(doc(db, 'guardian_pending_links', fullCleanLocalPhone), {
+              citizenUid: user.uid,
+              citizenName: userProfile.name,
+              citizenPhone: userProfile.phoneNumber,
+              relationship: localGuardian.relation || 'Local Guardian',
+              isLocal: true,
+              createdAt: serverTimestamp()
+            }, { merge: true }).catch(() => {});
+            
+            localStorage.setItem('kavach_local_guardian', JSON.stringify(processedLocalGuardian));
+            setLocalGuardian(processedLocalGuardian);
+          }
 
-          for (const g of guardians) {
-            if (g.name && g.phone) {
-              const cleanPhone = g.phone.replace(/\D/g, '').slice(-10);
-              const fullCleanPhone = `+91${cleanPhone}`;
-              await addDoc(guardianCol, {
-                name: g.name, phone: fullCleanPhone, relation: g.relation || 'Guardian', createdAt: serverTimestamp()
-              }).catch(() => { });
+          if (guardians.length > 0) {
+            const localGuardians = guardians.map(g => ({
+              name: g.name,
+              phone: `+91${g.phone.replace(/\D/g, '').slice(-10)}`,
+              relation: g.relation
+            }));
+            localStorage.setItem('kavach_guardian_cache', JSON.stringify(localGuardians));
 
-              // 🛡️ Create pending link for the guardian
-              await setDoc(doc(db, 'guardian_pending_links', fullCleanPhone), {
-                citizenUid: user.uid,
-                citizenName: userProfile.name,
-                citizenPhone: userProfile.phoneNumber,
-                relationship: g.relation || 'Guardian',
-                createdAt: serverTimestamp()
-              }, { merge: true }).catch(() => { });
+            for (const g of guardians) {
+              if (g.name && g.phone) {
+                const cleanPhone = g.phone.replace(/\D/g, '').slice(-10);
+                const fullCleanPhone = `+91${cleanPhone}`;
+                await addDoc(guardianCol, {
+                  name: g.name, phone: fullCleanPhone, relation: g.relation || 'Guardian', createdAt: serverTimestamp()
+                }).catch(() => { });
 
-              // ✉️ SILENT HANDSHAKE PROTOCOL: Verify if the guardian's phone number is already a registered Kavach user
-              try {
-                const q = query(collection(db, 'users'), where('phoneNumber', '==', fullCleanPhone));
-                const snap = await getDocs(q);
-                if (snap.docs.length > 0) {
-                  const guardianUid = snap.docs[0].id;
-                  console.log(`✉️ SILENT HANDSHAKE: Guardian ${g.name} (${fullCleanPhone}) exists (UID: ${guardianUid}). Dispatching high-priority push notification...`);
-                  
-                  // Fire notification document in guardian's collection
-                  await addDoc(collection(db, 'users', guardianUid, 'notifications'), {
-                    type: 'circle_add_invite',
-                    title: 'New Safety Circle Invitation',
-                    body: `${userProfile.name} has added you to their Safety Circle. Tap to accept.`,
-                    senderUid: user.uid,
-                    senderName: userProfile.name,
-                    senderPhone: userProfile.phoneNumber,
-                    createdAt: serverTimestamp(),
-                    status: 'unread'
-                  }).catch(() => {});
-                } else {
-                  console.log(`✉️ SMS BRIDGE: Guardian ${g.name} (${fullCleanPhone}) is not registered. Dispatched standard SMS invite link.`);
+                // 🛡️ Create pending link for the guardian
+                await setDoc(doc(db, 'guardian_pending_links', fullCleanPhone), {
+                  citizenUid: user.uid,
+                  citizenName: userProfile.name,
+                  citizenPhone: userProfile.phoneNumber,
+                  relationship: g.relation || 'Guardian',
+                  createdAt: serverTimestamp()
+                }, { merge: true }).catch(() => { });
+
+                // ✉️ SILENT HANDSHAKE PROTOCOL: Verify if the guardian's phone number is already a registered Kavach user
+                try {
+                  const q = query(collection(db, 'users'), where('phoneNumber', '==', fullCleanPhone));
+                  const snap = await getDocs(q);
+                  if (snap.docs.length > 0) {
+                    const guardianUid = snap.docs[0].id;
+                    console.log(`✉️ SILENT HANDSHAKE: Guardian ${g.name} (${fullCleanPhone}) exists (UID: ${guardianUid}). Dispatching high-priority push notification...`);
+                    
+                    // Fire notification document in guardian's collection
+                    await addDoc(collection(db, 'users', guardianUid, 'notifications'), {
+                      type: 'circle_add_invite',
+                      title: 'New Safety Circle Invitation',
+                      body: `${userProfile.name} has added you to their Safety Circle. Tap to accept.`,
+                      senderUid: user.uid,
+                      senderName: userProfile.name,
+                      senderPhone: userProfile.phoneNumber,
+                      createdAt: serverTimestamp(),
+                      status: 'unread'
+                    }).catch(() => {});
+                  }
+                } catch (e) {
+                  console.error("Failed to run Silent Handshake query:", e);
                 }
-              } catch (e) {
-                console.error("Failed to run Silent Handshake query:", e);
               }
             }
           }

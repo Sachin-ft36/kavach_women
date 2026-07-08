@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { useCallSignaling } from './call_modules/useCallSignaling';
 import { clearSignal, initiateCallAction, answerCallAction } from './call_modules/callActions';
 

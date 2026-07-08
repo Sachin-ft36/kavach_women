@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, MapPin, Phone, Navigation, ChevronRight, Users, Building2, Loader2, Car } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { useNearbyHubData } from '../hooks/useNearbyHubData';
 
 interface NearbyHubModalProps {
@@ -173,7 +173,7 @@ export default function NearbyHubModal({ isOpen, onClose, viewMode = 'all' }: Ne
 
             <div className="relative rounded-3xl overflow-hidden border border-dashed border-white/10 p-8 text-center bg-white/[0.01]">
               <div className="absolute inset-0 bg-[#0A0A0B]/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 z-10">
-                <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-[2px] italic mb-1.5 animate-pulse">
+                <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-[2px] italic mb-1.5 ">
                   Coming Soon
                 </div>
                 <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">

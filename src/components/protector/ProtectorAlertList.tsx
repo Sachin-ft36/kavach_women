@@ -33,7 +33,7 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
           <div className="bg-slate-800 p-5 border-b-4 border-emerald-600 flex justify-between items-center">
             <div>
               <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 " />
                 Community Shield Network
               </p>
               <h3 className="text-base font-black text-white uppercase tracking-tight">
@@ -46,7 +46,7 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
           <div className="p-8 flex flex-col items-center justify-center text-center bg-slate-50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 via-white to-green-500 opacity-20" />
             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-5 shadow-sm border border-slate-200 relative">
-              <div className="absolute inset-0 rounded-full border border-emerald-500/30 animate-ping" />
+              <div className="absolute inset-0 rounded-full border border-emerald-500/30 " />
               <Radio size={24} className="text-slate-700" />
             </div>
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-1.5">
@@ -68,14 +68,14 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
             <div className="flex justify-between items-start mb-4">
               <div className="relative z-10">
                 <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600 "></span>
                   Emergency Alert
                 </p>
                 <h3 className="text-lg font-black text-slate-800">{activeAlerts.length} Active SOS</h3>
                 <p className="text-[11px] text-slate-500 max-w-[160px] leading-snug">Immediate assistance required nearby.</p>
               </div>
               <div className="relative w-16 h-16 flex items-center justify-center mr-2 z-0">
-                <div className="absolute inset-0 rounded-full border border-rose-100 animate-ping" />
+                <div className="absolute inset-0 rounded-full border border-rose-100 " />
                 <div className="absolute inset-2 rounded-full border border-rose-200" />
                 <div className="w-8 h-8 bg-rose-50 rounded-full flex items-center justify-center relative z-10">
                   <AlertTriangle size={14} className="text-rose-600" fill="currentColor" />
@@ -97,7 +97,7 @@ export default function ProtectorAlertList({ activeAlerts, profile, setActiveInt
                       <p className="text-xs font-black text-slate-800">{name}</p>
                       <p className={cn("text-[9px] font-bold uppercase mt-0.5", isUserRespondingToThis ? "text-blue-600" : "text-rose-600")}>{isUserRespondingToThis ? "Active Intercept" : getTriggerLabel(alert.type)}</p>
                       {alert.vehicleNo && (
-                        <div className="mt-2 p-2 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 animate-pulse">
+                        <div className="mt-2 p-2 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 ">
                           <Car size={14} className="text-rose-600" />
                           <span className="text-[12px] font-black text-rose-700 tracking-wider font-mono">
                             VEHICLE NO: {alert.vehicleNo}

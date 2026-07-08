@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Cloud, Droplets, Sun, MapPin, EyeOff, User, LogOut, ThermometerSun, ThermometerSnowflake, Activity, Zap, Wind } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { usePinVerification } from '../hooks/usePinVerification';
 import { useWeatherSync } from '../hooks/useWeatherSync';
 import PinVerificationModal from './PinVerificationModal';
@@ -171,7 +171,7 @@ export default function WeatherScreen({ onClose, userPhoto, displayName, uid, on
                 );
               });
             })() : [1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="min-w-[76px] bg-white/5 backdrop-blur-xl border border-white/5 rounded-[24px] p-4 flex flex-col items-center gap-3 shadow-lg animate-pulse">
+              <div key={i} className="min-w-[76px] bg-white/5 backdrop-blur-xl border border-white/5 rounded-[24px] p-4 flex flex-col items-center gap-3 shadow-lg ">
                 <div className="h-3 w-8 bg-white/10 rounded-full"></div>
                 <div className="w-8 h-8 bg-white/10 rounded-full" />
                 <div className="h-4 w-6 bg-white/10 rounded-full"></div>

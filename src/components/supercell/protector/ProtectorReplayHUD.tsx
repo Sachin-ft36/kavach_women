@@ -40,7 +40,7 @@ export default function ProtectorReplayHUD({
               deviationReport.isBreached ? "bg-rose-500/20 border-rose-500/30 text-rose-500" : "bg-emerald-500/20 border-emerald-500/30 text-emerald-500"
             )}
           >
-            {deviationReport.isBreached ? <AlertTriangle size={14} className="animate-pulse" /> : <ShieldCheck size={14} />}
+            {deviationReport.isBreached ? <AlertTriangle size={14} className="" /> : <ShieldCheck size={14} />}
             <div>
               <p className="text-[7px] font-black uppercase tracking-widest leading-none mb-1 opacity-60">Route Integrity</p>
               <p className="text-[9px] font-black uppercase tracking-wider">{deviationReport.isBreached ? 'Breach Detected' : 'Route Normal'}</p>
@@ -91,7 +91,7 @@ export default function ProtectorReplayHUD({
 
                   <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 shrink-0">
                     <div className="flex flex-col items-center">
-                      <Heart size={14} className="text-rose-500 animate-pulse mb-1" />
+                      <Heart size={14} className="text-rose-500  mb-1" />
                       <span className="text-[9px] font-black text-white tabular-nums leading-none">74 BPM</span>
                       <span className="text-[6px] font-black text-gray-500 uppercase mt-0.5">Pulse</span>
                     </div>

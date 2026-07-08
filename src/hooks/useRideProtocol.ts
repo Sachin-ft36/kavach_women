@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { calculateHaversineDistance, distanceToPolylineMeters, fetchMapboxRoute } from '../utils/geoUtils';
 import { KavachSafe } from '../services/KavachNative';
 import { startBackgroundTracking } from '../services/locationService';

@@ -109,7 +109,7 @@ export default function JourneyPlaybackOverlay({ journey, onClose }: JourneyPlay
       const playEl = document.createElement('div');
       playEl.className = 'relative flex items-center justify-center w-8 h-8';
       playEl.innerHTML = `
-        <div class="absolute inset-0 bg-emerald-500/30 rounded-full animate-ping" style="animation-duration: 1.2s;"></div>
+        <div class="absolute inset-0 bg-emerald-500/30 rounded-full " style="animation-duration: 1.2s;"></div>
         <div class="w-4 h-4 bg-emerald-400 border-2 border-white rounded-full shadow-md z-10"></div>
       `;
       playMarker.current = new mapboxgl.Marker(playEl)

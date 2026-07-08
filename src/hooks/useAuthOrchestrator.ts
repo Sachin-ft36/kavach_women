@@ -8,7 +8,7 @@ import { auth, googleProvider, db } from '../firebase';
 import { supabase } from '../lib/supabase';
 import { KavachNative } from '../services/KavachNative';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 export function useAuthOrchestrator() {
   const {

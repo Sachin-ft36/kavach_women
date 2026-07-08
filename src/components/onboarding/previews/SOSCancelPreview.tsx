@@ -32,7 +32,7 @@ export default function SOSCancelPreview({ onClose }: Props) {
             {/* SOS Pulse Header */}
             <div className="flex items-center justify-between border-b border-red-500/20 pb-2 select-none shrink-0">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                 <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">SOS ACTIVE</span>
               </div>
               <span className="text-[8px] font-bold text-gray-500 uppercase">TIER 1 DISPATCH</span>
@@ -41,15 +41,15 @@ export default function SOSCancelPreview({ onClose }: Props) {
             {/* Radar Area */}
             <div className="flex-1 flex items-center justify-center relative my-3 rounded-2xl bg-[#050608] border border-white/5 overflow-hidden select-none">
               <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: `radial-gradient(#3B82F6 1px, transparent 1px)`, backgroundSize: `16px 16px` }} />
-              <div className="w-20 h-20 rounded-full border border-blue-500/10 flex items-center justify-center animate-pulse">
+              <div className="w-20 h-20 rounded-full border border-blue-500/10 flex items-center justify-center ">
                 <div className="w-12 h-12 rounded-full border border-blue-500/20 flex items-center justify-center">
-                  <div className="w-3.5 h-3.5 bg-blue-500/80 rounded-full animate-ping" />
+                  <div className="w-3.5 h-3.5 bg-blue-500/80 rounded-full" />
                 </div>
               </div>
             </div>
 
             {/* PIN Prompt Overlay */}
-            <div className="absolute inset-x-4 top-14 bg-[#111] border-2 border-blue-500 rounded-3xl p-4 sm:p-5 text-center shadow-[0_0_20px_rgba(37,99,235,0.3)] animate-pulse">
+            <div className="absolute inset-x-4 top-14 bg-[#111] border-2 border-blue-500 rounded-3xl p-4 sm:p-5 text-center shadow-[0_0_20px_rgba(37,99,235,0.3)] ">
               <Lock size={16} className="text-blue-500 mx-auto mb-1.5" />
               <h4 className="text-[11px] sm:text-xs font-black text-white uppercase tracking-wider">Identity Verification</h4>
               <p className="text-[7.5px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-0.5 leading-relaxed">Enter Security PIN to Abort SOS</p>

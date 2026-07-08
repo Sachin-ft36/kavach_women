@@ -36,7 +36,7 @@ export default function CalcVaultPreview({ onClose, localPin }: Props) {
             <div className="flex-1 flex flex-col p-4 sm:p-5 relative overflow-hidden text-white">
               <div className="flex items-center justify-between border-b border-red-500/20 pb-2 shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                   <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">SOS ACTIVE</span>
                 </div>
                 <span className="text-[8px] font-bold text-gray-500 uppercase">GRID LINK ACTIVE</span>
@@ -45,7 +45,7 @@ export default function CalcVaultPreview({ onClose, localPin }: Props) {
               <div className="relative z-10 flex items-center justify-between pt-2 shrink-0">
                 <button
                   onClick={() => setStep(2)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all rounded-full relative z-20 shadow-[0_0_15px_rgba(37,99,235,0.8)] border border-white animate-pulse"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all rounded-full relative z-20 shadow-[0_0_15px_rgba(37,99,235,0.8)] border border-white "
                 >
                   <Calculator size={12} className="text-white animate-bounce" />
                   <span className="text-[9px] font-black uppercase tracking-widest text-white">HIDE</span>
@@ -55,7 +55,7 @@ export default function CalcVaultPreview({ onClose, localPin }: Props) {
 
               <div className="flex-1 flex flex-col items-center justify-center space-y-3 sm:space-y-4">
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border border-red-500/20 bg-red-500/5 flex items-center justify-center">
-                  <ShieldCheck size={32} className="text-red-500 animate-pulse sm:w-9 sm:h-9" />
+                  <ShieldCheck size={32} className="text-red-500  sm:w-9 sm:h-9" />
                 </div>
                 <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest text-center leading-relaxed">
                   Responders can track your live GPS location.
@@ -90,7 +90,7 @@ export default function CalcVaultPreview({ onClose, localPin }: Props) {
                 <span className="text-xl sm:text-2xl font-bold text-white mt-1 leading-none">
                   {localPin || '3420'}
                 </span>
-                <div className="absolute -top-3 left-4 bg-[#38BDF8] text-[7px] sm:text-[7.5px] font-black text-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shadow-md shadow-[#38BDF8]/30 animate-pulse">
+                <div className="absolute -top-3 left-4 bg-[#38BDF8] text-[7px] sm:text-[7.5px] font-black text-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shadow-md shadow-[#38BDF8]/30 ">
                   Type security PIN to open
                 </div>
               </div>
@@ -139,7 +139,7 @@ export default function CalcVaultPreview({ onClose, localPin }: Props) {
             <div className="flex-1 flex flex-col p-4 sm:p-5 relative overflow-hidden text-white bg-black">
               <div className="flex items-center justify-between border-b border-red-500/20 pb-2 shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-red-500  shrink-0" />
                   <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">SOS ACTIVE</span>
                 </div>
                 <span className="text-[8px] font-bold text-gray-500">SECURE TERMINAL</span>

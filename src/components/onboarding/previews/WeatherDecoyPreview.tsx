@@ -42,7 +42,7 @@ export default function WeatherDecoyPreview({ onClose }: Props) {
                     onClick={() => setStep(2)}
                     className="w-6 h-6 sm:w-7 sm:h-7 bg-[#2563EB]/25 border-2 border-[#2563EB] rounded-full flex items-center justify-center cursor-pointer transition-transform active:scale-95 shadow-[0_0_12px_rgba(37,99,235,0.6)]"
                   >
-                    <Eye size={10} className="text-white animate-pulse sm:w-3 sm:h-3" />
+                    <Eye size={10} className="text-white  sm:w-3 sm:h-3" />
                   </button>
                   <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-500 overflow-hidden" />
                   <div className="absolute top-8 sm:top-9 right-0 bg-blue-600 text-[7px] sm:text-[8px] font-black text-white px-2 py-1.5 rounded-xl uppercase tracking-wider whitespace-nowrap shadow-lg z-20 border border-blue-400/30 animate-bounce">
@@ -75,7 +75,7 @@ export default function WeatherDecoyPreview({ onClose }: Props) {
             <div className="flex-1 flex flex-col p-4 sm:p-5 relative overflow-hidden bg-gradient-to-b from-[#1E3A8A] to-[#0F172A] text-white">
               <div className="flex items-center justify-between border-b border-white/10 pb-2 shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <CloudSun size={14} className="text-yellow-400 animate-pulse" />
+                  <CloudSun size={14} className="text-yellow-400 " />
                   <span className="text-[9px] font-black tracking-wider text-slate-200">Climate Pro</span>
                 </div>
                 <div className="flex items-center gap-2 relative">
@@ -83,7 +83,7 @@ export default function WeatherDecoyPreview({ onClose }: Props) {
                     onClick={() => setStep(3)}
                     className="w-6 h-6 sm:w-7 sm:h-7 bg-sky-500/25 border-2 border-sky-400 rounded-full flex items-center justify-center cursor-pointer transition-transform active:scale-95 shadow-[0_0_12px_rgba(56,189,248,0.6)]"
                   >
-                    <Eye size={10} className="text-white animate-pulse sm:w-3 sm:h-3" />
+                    <Eye size={10} className="text-white  sm:w-3 sm:h-3" />
                   </button>
                   <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-500/50 overflow-hidden" />
                   <div className="absolute top-8 sm:top-9 right-0 bg-sky-500 text-[7px] sm:text-[8px] font-black text-black px-2 py-1.5 rounded-xl uppercase tracking-wider whitespace-nowrap shadow-lg z-20 border border-sky-300/30 animate-bounce">

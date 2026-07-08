@@ -1,0 +1,12 @@
+{
+  "personality": {
+    "warmth": 0.95,
+    "professional": 0.85,
+    "playfulness": 0.15,
+    "urgency": {
+      "idle": 0,
+      "warning": 0.6,
+      "emergency": 1
+    }
+  }
+}

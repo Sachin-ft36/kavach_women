@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { supabase } from '../lib/supabase';
-import { IncidentRecord, UserProfile, ZeroFIRRecord, JourneyRecord } from '../domain/types';
+import { IncidentRecord, UserProfile, ZeroFIRRecord, JourneyRecord } from '../state/slices/types';
 import { toast } from 'sonner';
 
 export function useSuperCellData() {

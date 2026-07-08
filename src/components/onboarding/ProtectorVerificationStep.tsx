@@ -59,7 +59,7 @@ export default function ProtectorVerificationStep({ role, data, setData }: Prote
         <h2 className="text-xl font-black text-[#0F172A] flex items-center gap-2">
           {isPcrRoute ? (
             <>
-              <ShieldAlert className="text-rose-600 animate-pulse" size={22} />
+              <ShieldAlert className="text-rose-600 " size={22} />
               Police PCR Vetting
             </>
           ) : (

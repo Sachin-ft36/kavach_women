@@ -22,7 +22,7 @@ export default function EvidenceVault({ targetUid }: { targetUid?: string }) {
       {/* 🔒 Centered High-Tech Watermark Overlay */}
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-transparent pointer-events-auto">
         <div className="bg-[#0F172A]/95 border border-gray-200/20 backdrop-blur-md px-8 py-8 rounded-[28px] shadow-2xl text-center max-w-[340px] mx-auto transform hover:scale-[1.02] transition-all">
-          <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+          <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 ">
             <Lock size={20} className="text-red-500" />
           </div>
           <h2 className="text-white text-[16px] font-black uppercase tracking-[2px] leading-tight">

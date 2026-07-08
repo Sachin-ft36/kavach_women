@@ -36,7 +36,7 @@ export const IncidentWarRoom = ({
           <span className="text-[14px] text-gray-500 font-black uppercase tracking-widest block">Operational Case Code</span>
           <h4 className="text-sm font-black text-white tracking-wider font-mono text-cyan-400 italic">{incidentData.incidentId}</h4>
           <div className="flex items-center gap-1.5 mt-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 " />
             <span className="text-[11px] text-rose-400 font-bold uppercase tracking-wider">Live Node Intercept Active</span>
           </div>
         </div>
@@ -69,7 +69,7 @@ export const IncidentWarRoom = ({
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-black text-rose-400 uppercase tracking-widest">🚧 NHAI TOLL INTERDICT GRID</span>
                 <span className={cn(
-                  "px-1.5 py-0.5 rounded text-[5px] font-black uppercase tracking-widest animate-pulse",
+                  "px-1.5 py-0.5 rounded text-[5px] font-black uppercase tracking-widest ",
                   isNakabandiDeployed ? "bg-rose-500 text-white" : "bg-amber-500 text-slate-950"
                 )}>
                   {isNakabandiDeployed ? "GRID LOCKED" : "ONLINE / STANDBY"}
@@ -90,7 +90,7 @@ export const IncidentWarRoom = ({
                     <div className="text-right shrink-0">
                       <span className={cn(
                         "text-[11px] font-black uppercase tracking-widest block",
-                        isNakabandiDeployed ? "text-rose-500 animate-pulse" : "text-emerald-500"
+                        isNakabandiDeployed ? "text-rose-500 " : "text-emerald-500"
                       )}>
                         {isNakabandiDeployed ? "🚨 BARRIER LOCKED" : "🟢 AUTO-FASTAG"}
                       </span>
@@ -102,7 +102,7 @@ export const IncidentWarRoom = ({
 
               {/* ANPR Camera feed / fastag block status */}
               {isNakabandiDeployed ? (
-                <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-2.5 text-center space-y-1.5 animate-pulse">
+                <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-2.5 text-center space-y-1.5 ">
                   <span className="text-[6.5px] font-black text-rose-400 uppercase tracking-widest block">🔒 RFID FASTAG LOCKOUT ENGAGED</span>
                   <p className="text-[5.5px] text-rose-350 leading-relaxed font-bold uppercase">
                     Suspect vehicle flagged at central toll server. Dynamic boom barrier PLC relays disabled. Physical crash grid deployed.

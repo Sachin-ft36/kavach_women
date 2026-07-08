@@ -1,5 +1,5 @@
 import React from 'react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { X, Navigation, CheckCircle2, Crosshair, Activity } from 'lucide-react';
 import { useCall } from '../../contexts/CallContext';
 import { cn } from '../../lib/utils';

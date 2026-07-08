@@ -3,7 +3,7 @@ import { Shield, MapPin, PhoneCall, ArrowLeft, Zap, Navigation, CheckCircle2, Us
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { useCall } from '../contexts/CallContext';
 import { cn } from '../lib/utils';
 import KavachMap from '../components/maps/KavachMap';
@@ -100,7 +100,7 @@ export default function ProtectorsRadarScreen() {
               <span className="truncate">Protector Radar</span>
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
-               <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+               <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-emerald-400 rounded-full " />
                <p className={cn("text-[7px] sm:text-[9px] font-medium uppercase tracking-widest leading-none truncate", isCitizen ? "text-slate-500" : "text-slate-400")}>5KM Perimeter // Live</p>
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function ProtectorsRadarScreen() {
             <span className="text-[8px] text-slate-400 font-medium mt-0.5">Real-time Tactical Intercept</span>
           </div>
           <div className="flex items-center gap-2 text-[9px] font-medium text-slate-500 uppercase tracking-widest">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" /> Scanning
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full " /> Scanning
           </div>
         </div>
 

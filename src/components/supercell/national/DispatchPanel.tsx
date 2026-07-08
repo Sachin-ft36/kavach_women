@@ -46,11 +46,11 @@ export const DispatchPanel = ({
     >
       <div className="flex items-center justify-between px-1">
          <div className="flex items-center gap-1.5">
-            <Mic size={14} className="text-rose-500 animate-pulse" />
+            <Mic size={14} className="text-rose-500 " />
             <span className="text-[13px] font-black text-white uppercase tracking-widest">Stealth Mic Feed</span>
          </div>
          <div className="flex items-center gap-1">
-            <div className={cn("w-1.5 h-1.5 rounded-full", isAudioPlaying ? "bg-rose-500 animate-ping" : "bg-gray-500")} />
+            <div className={cn("w-1.5 h-1.5 rounded-full", isAudioPlaying ? "bg-rose-500 " : "bg-gray-500")} />
             <span className="text-[14px] text-gray-500 font-bold uppercase tracking-wider">{isAudioPlaying ? "LIVE CONNECTION" : "MUTED"}</span>
          </div>
       </div>
@@ -60,10 +60,10 @@ export const DispatchPanel = ({
         {/* 🚨 PERSISTENT ESCALATION BANNER FOR INACTIVE UNIT */}
         {activeAlerts.find(a => a.id === selectedAlertId)?.inactivityEscalated && (
           <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl " />
             <div className="flex items-start gap-3 relative z-10">
               <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
-                <Activity className="text-rose-500 animate-pulse" size={14} />
+                <Activity className="text-rose-500 " size={14} />
               </div>
               <div>
                 <h4 className="text-[14px] font-black text-rose-500 uppercase tracking-widest">Unit Inactivity Detected</h4>
@@ -88,7 +88,7 @@ export const DispatchPanel = ({
               <span className="text-[14px] text-gray-500 font-black uppercase tracking-widest block">VOIP Stealth Feed</span>
               <h4 className="text-[14px] font-black text-white uppercase mt-0.5 truncate">{incidentData.address}</h4>
               {isLiveStreamActive && (
-                <span className="text-[14px] text-emerald-400 font-bold uppercase tracking-widest block mt-1 animate-pulse">WebRTC Secured Link Active</span>
+                <span className="text-[14px] text-emerald-400 font-bold uppercase tracking-widest block mt-1 ">WebRTC Secured Link Active</span>
               )}
             </div>
             <button 
@@ -96,7 +96,7 @@ export const DispatchPanel = ({
               className={cn(
                 "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest border transition-all",
                 isAudioPlaying 
-                  ? "bg-rose-500/10 border-rose-500 text-rose-500 animate-pulse font-bold" 
+                  ? "bg-rose-500/10 border-rose-500 text-rose-500  font-bold" 
                   : "bg-white/5 border-white/10 text-white hover:bg-white/10 font-bold"
               )}
             >
@@ -127,7 +127,7 @@ export const DispatchPanel = ({
         <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
             <div className="flex items-center gap-1.5">
-              <Car size={12} className="text-cyan-400 animate-pulse" />
+              <Car size={12} className="text-cyan-400 " />
               <span className="text-[11px] font-black text-white uppercase tracking-widest">Nearest PCR Patrol Vans</span>
             </div>
             <div className="flex items-center gap-2">
@@ -170,11 +170,11 @@ export const DispatchPanel = ({
                       className={cn(
                         "px-2.5 py-1.5 rounded-lg text-[14px] font-black uppercase tracking-widest border transition-all flex items-center gap-1",
                         activePcoRadio === pcr.id
-                          ? "bg-rose-500/20 border-rose-500 text-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse"
+                          ? "bg-rose-500/20 border-rose-500 text-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] "
                           : "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
                       )}
                     >
-                      <Phone size={8} className={activePcoRadio === pcr.id ? "animate-pulse" : ""} />
+                      <Phone size={8} className={activePcoRadio === pcr.id ? "" : ""} />
                       {activePcoRadio === pcr.id ? "ON CALL" : "RADIO PCO"}
                     </button>
 

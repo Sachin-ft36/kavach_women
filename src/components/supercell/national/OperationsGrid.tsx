@@ -57,7 +57,7 @@ export const OperationsGrid = ({
               animate={{ opacity: 1, x: 0 }}
               className="px-2.5 py-1 bg-[#2563EB]/10 border border-[#2563EB]/20 rounded-xl backdrop-blur-md flex items-center gap-2 text-[#60A5FA]"
             >
-              <Activity size={10} className="animate-pulse" />
+              <Activity size={10} className="" />
               <span className="text-[14px] font-black uppercase tracking-widest leading-none">Rerouting Engaged: Polyline (OSRM via Mappls)</span>
             </motion.div>
           )}

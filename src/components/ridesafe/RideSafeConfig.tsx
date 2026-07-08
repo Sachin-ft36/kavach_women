@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck, Activity, MapPin, Car, Lock, Smartphone } from 'lucide-react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { auth, db } from '../../firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -89,7 +89,7 @@ export default function RideSafeConfig({
     <div className="pointer-events-auto">
       <div className="text-center space-y-3 sm:space-y-4 mb-4 sm:mb-0">
         <div className="relative inline-block">
-          <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-20 animate-pulse" />
+          <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-20 " />
           <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl sm:rounded-[30px] flex items-center justify-center mx-auto shadow-2xl border border-white/20">
             <ShieldCheck size={32} className="text-white sm:size-[40px]" />
           </div>

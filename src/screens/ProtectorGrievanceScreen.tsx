@@ -5,7 +5,7 @@ import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import KavachAIChat from '../components/KavachAIChat';
 
 export default function ProtectorGrievanceScreen() {

@@ -178,28 +178,42 @@ export function useNearbyHubData(userPos: { lat: number; lng: number } | null) {
         const q = query(protectorsRef, where('role', '==', 'protector'), where('isVerified', '==', true), limit(10));
         const querySnapshot = await getDocs(q);
 
-        const realProtectors = querySnapshot.docs.map(doc => {
-          const data = doc.data() as any;
-          const pLat = data.telemetry?.coords?.[0] || data.lastLocation?.lat;
-          const pLng = data.telemetry?.coords?.[1] || data.lastLocation?.lng;
-          let distVal = 999;
-          let distStr = "Positioning...";
+        const now = Date.now();
+        const fiveMinutesMs = 5 * 60 * 1000;
 
-          if (userPos && pLat && pLng) {
-            const d = calculateDistance(userPos.lat, userPos.lng, pLat, pLng);
-            distStr = d < 1 ? `${(d * 1000).toFixed(0)}m AWAY` : `${d.toFixed(1)}km AWAY`;
-            distVal = d;
-          }
+        const realProtectors = querySnapshot.docs
+          .map(doc => {
+            const data = doc.data() as any;
+            return { id: doc.id, ...data };
+          })
+          .filter((p: any) => {
+            if (p.id === auth.currentUser?.uid) return false;
+            if (p.status === 'offline') return false;
+            if (!p.lastActive) return false;
+            
+            const lastActiveMs = p.lastActive.toMillis ? p.lastActive.toMillis() : new Date(p.lastActive).getTime();
+            return (now - lastActiveMs) < fiveMinutesMs;
+          })
+          .map((data: any) => {
+            const pLat = data.telemetry?.coords?.[0] || data.lastLocation?.lat;
+            const pLng = data.telemetry?.coords?.[1] || data.lastLocation?.lng;
+            let distVal = 999;
+            let distStr = "Positioning...";
 
-          return {
-            id: doc.id,
-            name: data.name || "Verified Protector",
-            dist: distStr,
-            distVal: distVal,
-            profession: data.protectorVetting?.occupation || "RESPONDER"
-          };
-        })
-          .filter(p => p.id !== auth.currentUser?.uid)
+            if (userPos && pLat && pLng) {
+              const d = calculateDistance(userPos.lat, userPos.lng, pLat, pLng);
+              distStr = d < 1 ? `${(d * 1000).toFixed(0)}m AWAY` : `${d.toFixed(1)}km AWAY`;
+              distVal = d;
+            }
+
+            return {
+              id: data.id,
+              name: data.name || "Verified Protector",
+              dist: distStr,
+              distVal: distVal,
+              profession: data.protectorVetting?.occupation || "RESPONDER"
+            };
+          })
           .sort((a, b) => a.distVal - b.distVal);
 
         setProtectors(realProtectors.slice(0, 5));

@@ -137,14 +137,14 @@ export default function TransitInfraPanel({
           >
             <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between bg-white/5">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+                <div className="w-1.5 h-1.5 bg-rose-500 rounded-full " />
                 <span className="text-[8px] font-black text-white uppercase tracking-[4px]">LIVE CCTV FEED: {activeCCTVID}</span>
               </div>
               <button onClick={() => setActiveCCTVID(null)} className="text-gray-500 hover:text-white text-[9px] font-black uppercase tracking-widest">DISCONNECT</button>
             </div>
 
             <div className="relative aspect-video bg-neutral-950 flex items-center justify-center overflow-hidden border-b border-white/5">
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/[0.03] to-transparent pointer-events-none animate-pulse-slow" />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/[0.03] to-transparent pointer-events-none -slow" />
               <div className="absolute top-4 left-4 border-t-2 border-l-2 border-white/20 w-4 h-4" />
               <div className="absolute top-4 right-4 border-t-2 border-r-2 border-white/20 w-4 h-4" />
               <div className="absolute bottom-4 left-4 border-b-2 border-l-2 border-white/20 w-4 h-4" />
@@ -160,7 +160,7 @@ export default function TransitInfraPanel({
                 <p>SIG STRENGTH: 99.8%</p>
               </div>
               <div className={cn('w-full h-full flex flex-col items-center justify-center transition-all p-6', irMode ? 'bg-emerald-950/20 grayscale invert text-emerald-400' : 'bg-neutral-900 text-cyan-500')}>
-                <Eye size={40} className="opacity-40 animate-pulse mb-3" />
+                <Eye size={40} className="opacity-40  mb-3" />
                 <div className="text-center space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-widest text-white">Target Tracking Feed</p>
                   <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest">NOH-PLAZA BARRIER SECURE</p>
@@ -172,7 +172,7 @@ export default function TransitInfraPanel({
               <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-2 leading-none">Auto License Plate Scanner (ANPR)</span>
               <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar text-[8px] font-mono text-gray-400">
                 {anprLogs.map((log, i) => (
-                  <div key={i} className={cn('p-1.5 rounded bg-white/5 border border-white/5 truncate', log.includes('WANTED') || log.includes('VIOLATION') || log.includes('DRIFT') ? 'text-rose-400 border-rose-500/20 bg-rose-500/5 animate-pulse' : '')}>{log}</div>
+                  <div key={i} className={cn('p-1.5 rounded bg-white/5 border border-white/5 truncate', log.includes('WANTED') || log.includes('VIOLATION') || log.includes('DRIFT') ? 'text-rose-400 border-rose-500/20 bg-rose-500/5 ' : '')}>{log}</div>
                 ))}
               </div>
             </div>

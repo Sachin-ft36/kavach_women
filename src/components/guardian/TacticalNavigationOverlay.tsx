@@ -221,7 +221,7 @@ export default function TacticalNavigationOverlay({
       const guardEl = document.createElement('div');
       guardEl.className = 'relative flex items-center justify-center w-8 h-8';
       guardEl.innerHTML = `
-        <div class="absolute inset-0 bg-[#06B6D4]/30 rounded-full animate-pulse"></div>
+        <div class="absolute inset-0 bg-[#06B6D4]/30 rounded-full "></div>
         <div class="w-4 h-4 bg-[#06B6D4] border-2 border-white rounded-full shadow-md z-10"></div>
       `;
       const guardMarker = new mapboxgl.Marker(guardEl)
@@ -234,8 +234,8 @@ export default function TacticalNavigationOverlay({
     const victimEl = document.createElement('div');
     victimEl.className = 'relative flex items-center justify-center w-12 h-12';
     victimEl.innerHTML = `
-      <div class="absolute inset-0 bg-[#E53E3E]/30 rounded-full animate-ping" style="animation-duration: 1.5s;"></div>
-      <div class="absolute inset-2 bg-[#E53E3E]/20 rounded-full animate-pulse"></div>
+      <div class="absolute inset-0 bg-[#E53E3E]/30 rounded-full " style="animation-duration: 1.5s;"></div>
+      <div class="absolute inset-2 bg-[#E53E3E]/20 rounded-full "></div>
       <div class="w-6 h-6 bg-[#E53E3E] border-2 border-white rounded-full flex items-center justify-center shadow-lg z-10">
         <span class="text-white text-[9px] font-bold">▲</span>
       </div>
@@ -267,8 +267,8 @@ export default function TacticalNavigationOverlay({
           </div>
           <!-- Golden Pulse rings -->
           <div class="relative flex items-center justify-center w-11 h-11">
-            <div class="absolute inset-0 bg-[#F59E0B]/30 rounded-full animate-ping" style="animation-duration: 1.2s;"></div>
-            <div class="absolute inset-2 bg-[#F59E0B]/20 rounded-full animate-pulse"></div>
+            <div class="absolute inset-0 bg-[#F59E0B]/30 rounded-full " style="animation-duration: 1.2s;"></div>
+            <div class="absolute inset-2 bg-[#F59E0B]/20 rounded-full "></div>
             <!-- Star/Badge icon container -->
             <div class="w-9 h-9 bg-gradient-to-b from-[#FCD34D] to-[#F59E0B] border-2 border-white rounded-xl flex items-center justify-center shadow-xl z-10">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-black">
@@ -308,7 +308,7 @@ export default function TacticalNavigationOverlay({
       {/* 📡 HEADER: TACTICAL TELEMETRY HUD */}
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#070D19]/85 backdrop-blur-md relative z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#00E676] animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#00E676] ">
             <Compass size={20} className="animate-spin" style={{ animationDuration: '8s' }} />
           </div>
           <div>
@@ -390,7 +390,7 @@ export default function TacticalNavigationOverlay({
             <span className="text-[8px] text-slate-400 font-medium mt-0.5">Golden Markers represent accepted responders</span>
           </div>
           <div className="px-2.5 py-1 bg-amber-400/10 border border-amber-500/20 text-amber-400 rounded-lg text-[9px] font-medium uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" /> {respondedCount} Golden Units Active
+            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full " /> {respondedCount} Golden Units Active
           </div>
         </div>
 

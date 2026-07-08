@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, ChevronRight, MapPin, Clock, ShieldCheck, AlertCircle, Download, Send, Camera, Video, Plus, Trash2, Shield, Fingerprint, Mic, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 import { useZeroFIRLogic } from './zerofir/useZeroFIRLogic';
 import { VaultPicker } from './zerofir/VaultPicker';

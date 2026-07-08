@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { db } from '../firebase';
 import { toast } from 'sonner';
 import MapplsVictimMap from './maps/MapplsVictimMap';
@@ -320,7 +320,7 @@ export default function ProtectorDashboard() {
             <div className="flex items-center gap-3">
               {/* Glowing Shield Icon Container */}
               <div className="relative w-[36px] h-[36px] rounded-full bg-[#00E676]/10 border border-[#00E676]/30 flex items-center justify-center shadow-[0_0_12px_rgba(0,230,118,0.2)] backdrop-blur-md">
-                <div className="absolute inset-0 rounded-full border border-[#00E676]/50 animate-ping opacity-15" />
+                <div className="absolute inset-0 rounded-full border border-[#00E676]/50 hidden opacity-15" />
                 <ShieldCheck size={18} className="text-[#00E676] drop-shadow-[0_0_6px_rgba(0,230,118,0.7)]" strokeWidth={2.2} />
               </div>
 
@@ -358,7 +358,7 @@ export default function ProtectorDashboard() {
 
               {/* Radar Tracking Dots */}
               <div className="absolute left-[20px] top-[90px] w-[4px] h-[4px] rounded-full bg-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-              <div className="absolute right-[40px] top-[50px] w-[5px] h-[5px] rounded-full bg-[#00E676] shadow-[0_0_10px_rgba(0,230,118,0.8)] animate-pulse" />
+              <div className="absolute right-[40px] top-[50px] w-[5px] h-[5px] rounded-full bg-[#00E676] shadow-[0_0_10px_rgba(0,230,118,0.8)] " />
             </div>
 
             {/* Premium 4K High-Fidelity Smartphone Mockup */}
@@ -383,7 +383,7 @@ export default function ProtectorDashboard() {
 
                   {/* Center Shield */}
                   <div className="relative flex flex-col items-center justify-center mt-[4px] z-10">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-7 h-7 bg-[#00E676]/30 blur-[8px] rounded-full pointer-events-none animate-pulse" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-7 h-7 bg-[#00E676]/30 blur-[8px] rounded-full pointer-events-none " />
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M12 2C12 2 20 5.5 20 11V16L12 22L4 16V11C4 5.5 12 2 12 2Z" fill="url(#neon-green-grad-v2)" />
                       <path d="M9 12L11 14L15 9" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -464,7 +464,7 @@ export default function ProtectorDashboard() {
                     </div>
                   )}
                 </div>
-                <div className="absolute inset-0 rounded-full border-2 border-[#FF3B30]/40 animate-ping opacity-30" />
+                <div className="absolute inset-0 rounded-full border-2 border-[#FF3B30]/40 hidden opacity-30" />
               </div>
 
               <div className="flex flex-col justify-center">
@@ -682,7 +682,7 @@ export default function ProtectorDashboard() {
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" className="text-gray-400"><path d="M12 1C8.676 1 6 3.676 6 7v2H4v14h16V9h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
                 </div>
               )}
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", respondingToId ? (isNavigating ? "bg-blue-600 text-white animate-pulse" : "bg-blue-500/10 text-blue-400") : "bg-white/5 text-gray-600")}>
+              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", respondingToId ? (isNavigating ? "bg-blue-600 text-white " : "bg-blue-500/10 text-blue-400") : "bg-white/5 text-gray-600")}>
                 <Compass size={18} />
               </div>
               <div>

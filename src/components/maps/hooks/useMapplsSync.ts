@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { drawMapplsRadiusCircle } from './sync_modules/drawMapplsRadiusCircle';
 import { handleMapplsTracking } from './sync_modules/handleMapplsTracking';
 import { handleMapplsHybridRide } from './sync_modules/handleMapplsHybridRide';

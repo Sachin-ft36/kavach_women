@@ -7,7 +7,7 @@ import { toast } from 'sonner';
  * 🛰️ STRATEGIC BACKGROUND SENTINEL
  * Ensures that SOS alerts trigger hardware alarms even if the app is in the background.
  */
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 export const initializeBackgroundSentinel = async () => {
   if (!Capacitor.isNativePlatform()) return;

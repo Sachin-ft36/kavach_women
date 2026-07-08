@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../../services/KavachNative';
 import { stopVoiceSentinel, startVoiceSentinel } from '../../hooks/KavachVoiceEngine';
 import { startWebSiren, stopWebSiren } from '../../utils/sirenUtils';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 export default function AcousticPanicController() {
   return (

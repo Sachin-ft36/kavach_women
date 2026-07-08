@@ -53,6 +53,7 @@
     "luxon": "^3.7.2",
     "mapbox-gl": "^3.22.0",
     "motion": "^12.23.24",
+    "pixi.js": "^8.19.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",

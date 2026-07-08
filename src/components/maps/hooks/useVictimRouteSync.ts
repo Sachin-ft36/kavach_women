@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { fetchRouteMappls } from '../../../services/MapplsService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebase';

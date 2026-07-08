@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Phone, Clock, Zap, X, ChevronRight, User, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { toast } from 'sonner';
 
 export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -135,7 +135,7 @@ export default function FakeCallModal({ isOpen, onClose }: { isOpen: boolean; on
         <div className="p-4 sm:p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl sm:rounded-[32px] flex items-center gap-4">
            <div className="relative">
               <ShieldCheck size={18} className="text-amber-500 sm:size-[20px]" />
-              <div className="absolute inset-0 bg-amber-500 rounded-full animate-ping opacity-20" />
+              <div className="absolute inset-0 bg-amber-500 rounded-full hidden opacity-20" />
            </div>
            <div className="text-left">
               <p className="text-[8px] sm:text-[9px] text-amber-700 font-black uppercase tracking-widest leading-none">Safety Background Sync Active</p>

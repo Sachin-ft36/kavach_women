@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Shield, ShieldAlert, Volume2, Target } from 'lucide-react';
 import { cn } from '../../../lib/utils';
-import { IncidentRecord, UserProfile } from '../../../domain/types';
+import { IncidentRecord, UserProfile } from '../../../state/slices/types';
 
 interface Props {
   activeAlerts: IncidentRecord[];
@@ -72,7 +72,7 @@ export function NationalTacticalStrip({
             className={cn(
               "px-4 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border",
               isSirenActiveOnVictim
-                ? "bg-amber-500 border-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 animate-pulse font-black"
+                ? "bg-amber-500 border-amber-500 text-slate-950 shadow-lg shadow-amber-500/20  font-black"
                 : "bg-white/5 border-white/10 text-white hover:bg-white/10"
             )}
           >

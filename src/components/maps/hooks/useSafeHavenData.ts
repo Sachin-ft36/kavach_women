@@ -16,8 +16,16 @@ export function useSafeHavenData(userPos: { lat: number; lng: number } | null) {
 
     const q = query(collection(db, 'users'), where('role', '==', 'protector'), where('isVerified', '==', true));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      const now = Date.now();
+      const fiveMinutesMs = 5 * 60 * 1000;
       const allFound = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-      setProtectors(allFound.filter(p => p.coords));
+      setProtectors(allFound.filter(p => {
+        if (!p.coords) return false;
+        if (p.status === 'offline') return false;
+        if (!p.lastActive) return false;
+        const lastActiveMs = p.lastActive.toMillis ? p.lastActive.toMillis() : new Date(p.lastActive).getTime();
+        return (now - lastActiveMs) < fiveMinutesMs;
+      }));
     });
 
     return () => unsubscribe();

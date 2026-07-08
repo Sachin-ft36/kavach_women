@@ -53,7 +53,7 @@ export function EvidenceVisualGallery({
                       <video controls className="w-full h-full object-cover"><source src={blobSrc} type={item.mimeType || 'video/webm'} /></video>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-2 opacity-50">
-                        <Video size={24} className="text-blue-500 animate-pulse" />
+                        <Video size={24} className="text-blue-500 " />
                         <p className="text-[8px] font-black uppercase tracking-widest text-gray-400 text-center">Local Only</p>
                       </div>
                     )

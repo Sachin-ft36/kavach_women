@@ -222,7 +222,7 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
         }
       })(),
 
-      // 2. Physical Signals (Local Tunnel)
+      // 2. Physical Signals (Local Tunnel - Parallel Dispatch for Family & Local Guardians)
       (async () => {
         let guardiansStr = localStorage.getItem('kavach_guardian_cache');
         let guardians = guardiansStr ? JSON.parse(guardiansStr) : [];
@@ -240,34 +240,59 @@ export const executeEmergencyBlast = async (user: any, userPos: GeoPoint, data?:
           }
         }
 
-        const phones = guardians.map((g: any) => g.phone).filter(Boolean);
-        const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
+        // Fetch Local Guardian
+        let localGuardianObj: any = null;
+        try {
+          const cachedLocal = localStorage.getItem('kavach_local_guardian');
+          if (cachedLocal) {
+            localGuardianObj = JSON.parse(cachedLocal);
+          }
+        } catch (e) {}
 
+        const familyPhones = guardians.map((g: any) => g.phone).filter(Boolean);
+        const alertLink = `https://gen-lang-client-0115433512.web.app/track/${victimId}`;
         const playStoreLink = "https://play.google.com/store/apps/details?id=com.kavach.app";
-        const message = `🚨 SOS! ${user?.displayName?.split(' ')[0] || 'User'} is in danger!
+
+        const victimFirstName = user?.displayName?.split(' ')[0] || 'User';
+
+        const standardMsg = `🚨 SOS! ${victimFirstName} is in danger!
 📍 Location: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
 🔴 Track Web: ${alertLink}
-📲 Install KAVACH App for Live HUD Tracking, Audio Stream & Status updates: ${playStoreLink}`;
+📲 Install KAVACH App for Live HUD Tracking: ${playStoreLink}`;
 
-        console.log(`🛡️ KAVACH DISPATCH: Guardian discovery complete. Found ${phones.length} active nodes.`);
+        console.log(`🛡️ KAVACH DISPATCH: Guardian discovery complete. Family: ${familyPhones.length} nodes.`);
 
-        if (phones.length > 0) {
-          await KavachSafe.broadcastEmergencySMS({ numbers: phones, message: message });
-        } else {
-          console.warn("⚠️ KAVACH: No guardians found to notify via SMS.");
+        const alertPromises: Promise<any>[] = [];
+
+        // Dispatch Family Guardians SMS
+        if (familyPhones.length > 0) {
+          alertPromises.push(KavachSafe.broadcastEmergencySMS({ numbers: familyPhones, message: standardMsg }));
         }
 
-        if (data?.source === 'power') {
-          console.warn("⚠️ KAVACH: Power Button trigger detected. Skipping auto-call to Guardian to protect Native 112 call.");
+        // Dispatch Local Guardian SMS & Priority Call in Parallel
+        if (localGuardianObj && localGuardianObj.phone) {
+          const localPhone = localGuardianObj.phone;
+          const localMsg = `🚨 PRIORITY SOS! ${victimFirstName} is in danger near you!
+Estimated Reach: ${localGuardianObj.estimatedReachMin || 6} mins (${localGuardianObj.distanceKm || 1.8} KM).
+📍 Location: https://maps.google.com/?q=${userPos.lat},${userPos.lng}
+🔴 Track Web: ${alertLink}
+Please respond immediately!`;
+          
+          console.log(`🛡️ KAVACH DISPATCH: Local Guardian alert engaged for ${localGuardianObj.name} (+91 ${localPhone})`);
+          alertPromises.push(KavachSafe.broadcastEmergencySMS({ numbers: [localPhone], message: localMsg }));
+          
+          if (data?.source !== 'power') {
+            alertPromises.push(KavachSafe.initiateEmergencyCall({ number: localPhone }));
+          }
         } else {
+          // If no local guardian, fallback to calling primary family guardian
           const primaryGuardian = guardians.find((g: any) => g.phone);
-          if (primaryGuardian) {
-            await KavachSafe.initiateEmergencyCall({ number: primaryGuardian.phone });
-          } else {
-            console.warn("⚠️ KAVACH: No primary guardian found for auto-call.");
+          if (primaryGuardian && data?.source !== 'power') {
+            alertPromises.push(KavachSafe.initiateEmergencyCall({ number: primaryGuardian.phone }));
           }
         }
 
+        await Promise.allSettled(alertPromises);
         return true;
       })(),
 

@@ -4,7 +4,7 @@ import { Clock, RefreshCw, LogOut, Shield, ChevronRight, UserCheck, ArrowRight, 
 import { doc, updateDoc, getDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { supabase } from '../../lib/supabase';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { toast } from 'sonner';
 
 interface GuardianWaitingGateProps {

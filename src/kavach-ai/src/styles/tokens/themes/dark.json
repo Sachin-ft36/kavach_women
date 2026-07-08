@@ -1,0 +1,13 @@
+{
+  "theme": {
+    "mode": "dark",
+    "primary": "#8B5CF6",
+    "surface": "#0C0F1D",
+    "background": "#05060F",
+    "textPrimary": "#FFFFFF",
+    "textSecondary": "#B5B5C3",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444"
+  }
+}

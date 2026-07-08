@@ -1,0 +1,14 @@
+{
+  "states": {
+    "idle": false,
+    "listening": "soft_start",
+    "thinking": "ambient_loop",
+    "success": "confirm",
+    "warning": "caution_tone",
+    "emergency": "alert_tone"
+  },
+  "volume": {
+    "effects": 0.8,
+    "ambient": 0.4
+  }
+}

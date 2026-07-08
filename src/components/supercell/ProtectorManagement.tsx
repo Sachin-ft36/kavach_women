@@ -122,7 +122,7 @@ export function ProtectorManagement({
                          <div>
                             <div className="flex items-center gap-3 mb-2">
                                <span className="text-[14px] font-black text-blue-400 uppercase tracking-[4px]">Verified Grid Node</span>
-                               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                               <div className="w-2 h-2 bg-emerald-500 rounded-full " />
                             </div>
                             <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic leading-none">{selectedProt.name}</h1>
                             <div className="flex items-center gap-4 mt-6">

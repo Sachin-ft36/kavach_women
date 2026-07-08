@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { cn } from '../../lib/utils';
 import { LocateFixed, Navigation } from 'lucide-react';
 
@@ -234,7 +234,7 @@ export default function MapplsCommandMap({
           className={cn(
             "w-12 h-12 backdrop-blur-md border rounded-full flex items-center justify-center transition-all group relative",
             isCockpitMode
-              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.6)] animate-pulse"
+              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.6)] "
               : "bg-gray-900/80 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.4)]"
           )}
           title="Cockpit Lock"

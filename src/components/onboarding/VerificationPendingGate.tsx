@@ -4,7 +4,7 @@ import { Clock, RefreshCw, XCircle, AlertTriangle, ChevronRight, LogOut, CheckCi
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { supabase } from '../../lib/supabase';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { toast } from 'sonner';
 
 interface VerificationPendingGateProps {
@@ -263,7 +263,7 @@ export const VerificationPendingGate: React.FC<VerificationPendingGateProps> = (
                           <CheckCircle2 size={16} className="text-emerald-600" />
                         ) : isActive ? (
                           <div className="w-4 h-4 bg-blue-50 border border-[#2563EB] rounded-full flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 bg-[#2563EB] rounded-full animate-ping" />
+                            <div className="w-1.5 h-1.5 bg-[#2563EB] rounded-full " />
                           </div>
                         ) : (
                           <div className="w-4 h-4 border border-slate-200 rounded-full bg-white" />

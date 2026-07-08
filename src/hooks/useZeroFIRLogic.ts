@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { db, auth } from '../firebase';
 import { getReverseMetadata } from '../services/locationService';
 import { fetchNearbyPoliceMappls } from '../services/MapplsService';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 export function useZeroFIRLogic(evidenceLogs: any[]) {
   const [isGenerating, setIsGenerating] = useState(false);

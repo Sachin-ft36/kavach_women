@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, LogOut, Zap, Shield, Eye, Bell, ShieldCheck } from 'lucide-react';
+import { User, LogOut, Zap, Shield, Eye, Bell, ShieldCheck, X, Phone, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -32,7 +32,7 @@ export function Header({
   handleRoleSwitch,
   handleLogout
 }: HeaderProps) {
-  const { activeAlertsCount, setRole: setStoreRole } = useKavachStore();
+  const { activeAlertsCount, setRole: setStoreRole, setActiveTab } = useKavachStore();
   const [hasGuardianAccess, setHasGuardianAccess] = React.useState(role === 'guardian');
 
   React.useEffect(() => {
@@ -60,89 +60,202 @@ export function Header({
   const isProtector = role === 'protector';
   const isOnDuty = userData?.isOnDuty || false;
 
+  const currentHour = new Date().getHours();
+  const isNight = currentHour >= 18 || currentHour < 5;
+
   return (
-    <header className={cn("fixed top-0 left-0 right-0 z-[150] flex justify-between items-center w-full px-4 pt-8 pb-3.5 sm:pt-9 sm:pb-4 border-b transition-all duration-300", role === 'citizen' ? "bg-[#F8FAFC] border-slate-100" : "bg-[#0A0D14] border-white/5")}>
-      
-      {/* LEFT: Logo and Name */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className={cn("w-9 h-9 rounded-full flex items-center justify-center overflow-hidden border shadow-sm", role === 'citizen' ? "border-slate-100" : "border-white/10")}>
-          <img src="/logo.jpeg" alt="KAVACH" className="w-full h-full object-cover rounded-full" />
-        </div>
-        <div className="flex flex-col justify-center">
-          <h1 className={cn("text-[15px] font-black tracking-tight leading-tight", role === 'citizen' ? "text-slate-900" : "text-white")}>KAVACH</h1>
-          <p className={cn("text-[6.5px] font-bold uppercase tracking-[1.5px] mt-0.5", role === 'citizen' ? "text-slate-500" : "text-slate-400")}>women safety network</p>
-        </div>
-      </div>
-
-      {/* RIGHT: Notifications & Profile */}
-      <div className="flex items-center gap-3 shrink-0">
-        {isProtector && (
-          <div className="relative cursor-pointer hover:opacity-85 transition-all">
-            <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-              <Bell size={16} />
-            </div>
-            {activeAlertsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#FF3B30] text-white text-[8px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-[#090D16] animate-pulse">
-                {activeAlertsCount}
-              </span>
-            )}
+    <header className="fixed top-0 left-0 right-0 z-[150] flex justify-center pointer-events-none">
+      <div className={`w-full max-w-md border-b rounded-none px-4 py-2.5 flex items-center justify-between shadow-lg pointer-events-auto relative ${isNight ? 'bg-gradient-to-r from-[#141235]/95 via-[#0e0c24]/95 to-[#09081a]/95 border-white/5' : 'bg-white/95 border-slate-200'}`}>
+        
+        {/* LEFT: Logo and Name */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative w-9 h-9 shrink-0 flex items-center justify-center">
+            <div className="absolute inset-0 bg-purple-500/10 rounded-full blur-sm" />
+            <svg className="w-full h-full drop-shadow-[0_0_6px_rgba(140,124,255,0.4)]" viewBox="0 0 100 100" fill="none">
+              {/* Shield path */}
+              <path d="M50 10C68 18 78 20 85 24V52C85 71.5 50 88 50 88C50 88 15 71.5 15 52V24C22 20 32 18 50 10Z" fill="url(#shieldGrad)" stroke="#8c7cff" strokeWidth="2.5" />
+              {/* Woman Face Profile Silhouette */}
+              <path d="M42 30C36.5 33.5 34 39.5 34 47.5C34 55.5 36.5 61.5 42 65C39.5 60 39.5 55 42 50C44.5 45 48.5 42.5 53.5 42C51 40.5 49.5 38 50 35C50.5 32 53 30 56.5 30C54.5 28.5 52.5 28 50 28C46.5 28 44 30 42 30Z" fill="#d8b4fe" />
+              <defs>
+                <linearGradient id="shieldGrad" x1="50" y1="10" x2="50" y2="88" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#1e184c" />
+                  <stop offset="1" stopColor="#0e0a26" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
-        )}
+          <div className="flex flex-col text-left">
+            <h1 className={`text-[14px] font-black tracking-tight leading-none ${isNight ? 'text-white' : 'text-slate-900'}`}>
+              KAVACH
+            </h1>
+            <p className={`text-[6.5px] font-extrabold uppercase tracking-[0.14em] mt-0.5 ${isNight ? 'text-[#8c7cff]' : 'text-slate-500'}`}>
+              women safety network
+            </p>
+            <div className="flex items-center gap-1 mt-1.5 w-max">
+              <ShieldCheck className="w-3 h-3 text-[#10b981]" strokeWidth={2.5} />
+              <span className="text-[10px] font-extrabold text-[#10b981] leading-none">You are Protected</span>
+              <span className="w-1.5 h-1.5 bg-[#10b981] rounded-full ml-0.5" />
+            </div>
+          </div>
+        </div>
 
-        {role === 'citizen' && (
-          <button onClick={onToggleGhost} className="w-9 h-9 border rounded-lg flex items-center justify-center transition-all shadow-sm bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-100">
-            <Eye size={16} />
-          </button>
-        )}
+        {/* MIDDLE/RIGHT: Monitor, Alerts & Profile */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          
+          {/* Monitor Card Button */}
+          {role === 'citizen' && (
+            <button 
+              onClick={onToggleGhost} 
+              className={`w-[48px] h-[44px] rounded-[12px] flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer border ${isNight ? 'bg-white/[0.03] border-white/5 hover:bg-white/10 text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'}`}
+            >
+              <Eye size={16} strokeWidth={2} />
+              <span className={`text-[8px] font-semibold ${isNight ? 'text-gray-300' : 'text-slate-500'}`}>Monitor</span>
+            </button>
+          )}
 
-        <div className="relative">
-          <button onClick={() => setIsProfileOpen(!isProfileOpen)} className={cn("w-9 h-9 rounded-xl shadow-sm transition-all border flex items-center justify-center overflow-hidden", role === 'citizen' ? "border-slate-200 hover:border-slate-300 bg-slate-50" : "border-white/10 hover:border-white/20 bg-white/5")}>
-            {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={16} className={role === 'citizen' ? "text-slate-400" : "text-slate-500"} />}
+          {/* Alerts Card Button */}
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`relative w-[48px] h-[44px] rounded-[12px] flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer border ${isNight ? 'bg-white/[0.03] border-white/5 hover:bg-white/10 text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'}`}
+          >
+            <Bell size={16} strokeWidth={2} />
+            <span className={`text-[8px] font-semibold ${isNight ? 'text-gray-300' : 'text-slate-500'}`}>Alerts</span>
+            <div className="absolute -top-1 -right-1 bg-[#ef4444] text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-lg border border-[#0d0c24]">
+              3
+            </div>
           </button>
-          <AnimatePresence>
-            {isProfileOpen && (
-              <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-3 w-72 bg-white border border-[#E5E7EB] rounded-[32px] p-6 shadow-2xl z-[100]">
-                <div className="space-y-6">
-                  <div className="flex flex-col items-center text-center space-y-3">
-                    <div className="w-20 h-20 rounded-[28px] bg-[#2563EB]/5 border-2 border-[#2563EB]/10 flex items-center justify-center overflow-hidden shadow-inner">
-                      {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={36} className="text-[#2563EB]/40" />}
+
+          {/* Profile Dropdown */}
+          <div className="relative ml-0.5">
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)} 
+              className="flex flex-col items-center gap-0.5 cursor-pointer border-none bg-transparent"
+            >
+              <div className="relative">
+                <div className="w-[32px] h-[32px] rounded-full border border-[#8c7cff]/40 overflow-hidden bg-[#1e1e38] flex items-center justify-center">
+                  {userPhoto ? (
+                    <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
+                  ) : (
+                    <User size={14} className="text-slate-300" />
+                  )}
+                </div>
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00e676] rounded-full border border-[#09081a]" />
+              </div>
+              <div className="flex items-center gap-0.5 mt-0.5">
+                <span className={`text-[8.5px] font-extrabold leading-none tracking-wide ${isNight ? 'text-white' : 'text-slate-800'}`}>{displayName?.split(' ')[0] || 'User'}</span>
+                <svg className={`w-2 h-2 ${isNight ? 'text-gray-400' : 'text-slate-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {isProfileOpen && (
+              <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-3.5 w-[330px] bg-white border border-[#E5E7EB] rounded-[36px] p-5 shadow-2xl z-[200] flex flex-col items-center">
+                {/* Close Button */}
+                <button 
+                  onClick={() => setIsProfileOpen(false)}
+                  className="absolute top-4.5 right-4.5 w-7 h-7 rounded-full bg-gray-100/80 hover:bg-gray-200 flex items-center justify-center text-gray-500 cursor-pointer transition-colors border-none"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {/* Squircle Profile Avatar */}
+                <div className="relative mt-2">
+                  <div className="w-24 h-24 rounded-[32px] overflow-hidden border-2 border-white shadow-[0_4px_15px_rgba(0,0,0,0.08)] bg-slate-50 flex items-center justify-center">
+                    {userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" /> : <User size={40} className="text-gray-300" />}
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#5e3cf6] border-[2px] border-white flex items-center justify-center shadow-lg">
+                    <ShieldCheck className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                </div>
+
+                {/* Name & Pill Badge */}
+                <div className="text-center mt-3.5 flex flex-col items-center">
+                  <h3 className="text-[20px] font-black text-gray-900 leading-tight tracking-tight">{displayName}</h3>
+                  <div className="bg-[#ece9ff] text-[#5e3cf6] text-[10px] font-black tracking-wider uppercase px-4 py-1.5 rounded-full mt-2 w-max leading-none">
+                    {role === 'admin' ? 'ADMINISTRATOR' : role === 'protector' ? 'VOLUNTEER PROTECTOR' : role === 'guardian' ? 'FAMILY GUARDIAN' : 'VERIFIED CITIZEN'}
+                  </div>
+                </div>
+
+                {/* Info Rows */}
+                <div className="w-full mt-5 space-y-4 pt-4 border-t border-gray-100/80">
+                  {/* Phone Row */}
+                  <div className="flex items-center justify-between text-[13px] font-semibold text-gray-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#ece9ff] text-[#5e3cf6] flex items-center justify-center shrink-0">
+                        <Phone className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Phone</span>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-lg leading-tight">{displayName}</h3>
-                      <p className="text-[9px] text-[#2563EB] font-bold uppercase tracking-[2px] mt-1">{role === 'admin' ? 'ADMINISTRATOR' : role === 'protector' ? 'VOLUNTEER PROTECTOR' : role === 'guardian' ? 'FAMILY GUARDIAN' : 'VERIFIED CITIZEN'}</p>
+                    <span className="text-[13.5px] font-bold text-gray-800">{userData?.phoneNumber ? `+91 ${userData.phoneNumber.slice(-10)}` : 'UNLINKED'}</span>
+                  </div>
+
+                  {/* Shield Status Row */}
+                  <div className="flex items-center justify-between text-[13px] font-semibold text-gray-800 border-t border-gray-100/80 pt-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#ece9ff] text-[#5e3cf6] flex items-center justify-center shrink-0">
+                        <Shield className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Shield Status</span>
                     </div>
+                    <span className="text-[13.5px] font-bold text-[#10b981] flex items-center gap-1">
+                      SECURE <ShieldCheck className="w-3.5 h-3.5 text-[#10b981]" strokeWidth={2.5} />
+                    </span>
                   </div>
-                  <div className="space-y-3 py-4 border-y border-gray-100">
-                    <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone</span><span className="text-[10px] font-bold text-gray-900">{userData?.phoneNumber ? `+91 ${userData.phoneNumber.slice(-10)}` : 'UNLINKED'}</span></div>
-                    <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Shield Status</span><span className="text-[10px] font-bold text-accent-green uppercase tracking-widest">SECURE</span></div>
-                    <div className="flex justify-between items-center"><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gender</span><span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">{userData?.gender || 'FEMALE'}</span></div>
+
+                  {/* Gender Row */}
+                  <div className="flex items-center justify-between text-[13px] font-semibold text-gray-800 border-t border-gray-100/80 pt-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#ece9ff] text-[#5e3cf6] flex items-center justify-center shrink-0">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="10" r="5" />
+                          <path d="M12 15v7M9 19h6" />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Gender</span>
+                    </div>
+                    <span className="text-[13.5px] font-bold text-gray-800 uppercase tracking-wide">{userData?.gender || 'FEMALE'}</span>
                   </div>
-                  <div className="space-y-3">
-                    {hasGuardianAccess && (
-                      <button 
-                        onClick={() => {
-                          const targetRole = role === 'guardian' ? (userData?.gender === 'male' ? 'protector' : 'citizen') : 'guardian';
-                          setStoreRole(targetRole);
-                          setIsProfileOpen(false);
-                          toast.success(`Switched to ${targetRole === 'guardian' ? 'Guardian Mode' : 'Standard Mode'}`);
-                        }} 
-                        className="w-full py-4 bg-indigo-650 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-650/20 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Shield size={14} /> 
-                        {role === 'guardian' ? 'Exit Guardian Dashboard' : 'Open Guardian HUD'}
-                      </button>
-                    )}
-                    {gender === 'female' && role !== 'guardian' && (
-                      <button onClick={handleRoleSwitch} className="w-full py-4 bg-[#2563EB] text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#1D4ED8] shadow-lg shadow-[#2563EB]/20 transition-all flex items-center justify-center gap-2">
-                        {role === 'citizen' ? <><Zap size={14} /> Join Protector Network</> : <><Shield size={14} /> Return to Home</>}
-                      </button>
-                    )}
-                    <button onClick={handleLogout} className="w-full py-4 bg-gray-50 text-gray-400 border border-gray-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center justify-center gap-2"><LogOut size={14} /> System Logout</button>
-                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div className="w-full mt-6 space-y-3">
+                  {hasGuardianAccess && (
+                    <button 
+                      onClick={() => {
+                        const targetRole = role === 'guardian' ? (userData?.gender === 'male' ? 'protector' : 'citizen') : 'guardian';
+                        setStoreRole(targetRole);
+                        setIsProfileOpen(false);
+                        toast.success(`Switched to ${targetRole === 'guardian' ? 'Guardian Mode' : 'Standard Mode'}`);
+                      }} 
+                      className="w-full py-3.5 bg-[#4c1d95] text-white rounded-2xl text-[11.5px] font-bold uppercase tracking-wider hover:bg-[#5b21b6] transition-all flex items-center justify-center gap-2 cursor-pointer border-none"
+                    >
+                      <Shield size={14} /> 
+                      {role === 'guardian' ? 'Exit Guardian Dashboard' : 'Open Guardian HUD'}
+                    </button>
+                  )}
+                  {role !== 'guardian' && (
+                    <button 
+                      onClick={() => {
+                        setActiveTab('rewards');
+                        setIsProfileOpen(false);
+                      }} 
+                      className="w-full py-3.5 bg-gradient-to-r from-[#5e3cf6] to-[#4d2ee0] hover:opacity-95 text-white rounded-2xl text-[12.5px] font-bold tracking-wide transition-all flex items-center justify-between px-5 cursor-pointer shadow-md shadow-[#5e3cf6]/10 active:scale-[0.98] border-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User size={15} className="text-white" />
+                        <span>View Profile</span>
+                      </div>
+                      <ChevronRight size={15} className="text-white/80" />
+                    </button>
+                  )}
+                  <button onClick={handleLogout} className="w-full py-3.5 bg-gray-50 border border-gray-200/80 text-gray-600 rounded-2xl text-[11.5px] font-bold tracking-wide hover:bg-gray-100 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"><LogOut size={15} /> <span>System Logout</span></button>
                 </div>
               </motion.div>
             )}
-          </AnimatePresence>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </header>

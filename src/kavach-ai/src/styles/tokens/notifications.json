@@ -1,0 +1,16 @@
+{
+  "notifications": {
+    "greeting": {
+      "priority": 1
+    },
+    "rideSafe": {
+      "priority": 2
+    },
+    "battery": {
+      "priority": 4
+    },
+    "sos": {
+      "priority": 10
+    }
+  }
+}

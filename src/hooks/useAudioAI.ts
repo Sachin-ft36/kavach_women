@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 /**
  * 🧠 KAVACH AUDIO AI (Advanced Visual Telemetry Simulation)

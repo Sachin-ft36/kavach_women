@@ -1,0 +1,8 @@
+{
+  "feedback": {
+    "tap": "light",
+    "success": "medium",
+    "warning": "medium",
+    "emergency": "heavy"
+  }
+}

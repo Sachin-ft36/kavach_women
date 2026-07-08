@@ -83,7 +83,7 @@ export function TransitIntelligence({
     <div className="h-full flex flex-col bg-white border border-gray-100 overflow-hidden">
       <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-blue-50/30">
         <h2 className="text-sm font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-          <Car size={16} className="animate-pulse" /> Transit Intelligence
+          <Car size={16} className="" /> Transit Intelligence
         </h2>
         <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black border border-blue-200">
           {(journeys?.length || 0)} LIVE TRANSITS
@@ -163,11 +163,11 @@ export function TransitIntelligence({
                      {journey.status === 'emergency' && (
                         <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 space-y-2">
                            <div className="flex justify-between items-center">
-                              <p className="text-[8px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                              <p className="text-[8px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1.5 ">
                                  <Shield size={10} className="text-red-500" /> Movement Synced Safeguards
                               </p>
                               {loadingPolice && (
-                                 <span className="text-[7px] font-black uppercase text-red-400 animate-pulse tracking-wider">
+                                 <span className="text-[7px] font-black uppercase text-red-400  tracking-wider">
                                     LOCATING...
                                  </span>
                               )}

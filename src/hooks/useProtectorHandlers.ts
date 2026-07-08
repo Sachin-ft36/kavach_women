@@ -2,7 +2,7 @@ import { doc, updateDoc, serverTimestamp, getDoc, arrayUnion, runTransaction, in
 import { db } from '../firebase';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 export const useProtectorHandlers = (
   user: any,

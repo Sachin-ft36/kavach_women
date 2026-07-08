@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { saveToVault } from '../../lib/forensicVault';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { toast } from 'sonner';
 import { Shield } from 'lucide-react';
 
