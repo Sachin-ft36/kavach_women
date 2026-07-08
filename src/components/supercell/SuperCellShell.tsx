@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { History } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { db, auth } from '../../firebase';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
-import { ZeroFIRRecord } from '../../domain/types';
+import { ZeroFIRRecord } from '../../state/slices/types';
 
 // Tactical Modules
 import KavachMap from '../maps/KavachMap';

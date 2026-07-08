@@ -2,7 +2,7 @@ import React from 'react';
 
 const KavachShieldLogo = () => (
   <div className="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto flex items-center justify-center select-none">
-    <div className="absolute inset-0 bg-[#2563EB]/8 rounded-full blur-xl animate-pulse" />
+    <div className="absolute inset-0 bg-[#2563EB]/8 rounded-full blur-xl " />
     <img
       src="/logo.jpeg"
       alt="KAVACH Logo"

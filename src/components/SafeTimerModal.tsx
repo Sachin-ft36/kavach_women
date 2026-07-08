@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Clock, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
@@ -131,7 +131,7 @@ export default function SafeTimerModal({ isOpen, onClose }: SafeTimerModalProps)
         <div className="relative">
           <div className={cn(
             "w-64 h-64 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-500",
-            isActive ? "border-accent-red animate-pulse bg-accent-red/5" : "border-white/10 bg-white/5"
+            isActive ? "border-accent-red  bg-accent-red/5" : "border-white/10 bg-white/5"
           )}>
             <Clock size={48} className={cn("mb-4", isActive ? "text-accent-red" : "text-gray-500")} />
             <h2 className="text-5xl font-black text-white italic tracking-tighter">

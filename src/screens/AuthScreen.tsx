@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 import LoginView from '../components/auth/LoginView';
 import SignupView from '../components/auth/SignupView';

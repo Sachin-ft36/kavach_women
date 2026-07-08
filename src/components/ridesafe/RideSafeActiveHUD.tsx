@@ -30,7 +30,7 @@ export default function RideSafeActiveHUD({
           >
             <div className="absolute inset-y-0 left-0 bg-red-800 transition-all duration-100 ease-linear z-0" style={{ width: `${holdProgress}%` }} />
             <div className="relative z-10 flex items-center gap-1.5 drop-shadow-md">
-              <ShieldAlert size={14} className={holdProgress > 0 ? "animate-ping" : ""} />
+              <ShieldAlert size={14} className={holdProgress > 0 ? "" : ""} />
               <span>{holdProgress > 0 ? "HOLDING..." : "Trigger SOS"}</span>
             </div>
           </button>

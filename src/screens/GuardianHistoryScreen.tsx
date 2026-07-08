@@ -28,7 +28,7 @@ export default function GuardianHistoryScreen() {
             Citizen Telemetry Logs // Active
           </p>
         </div>
-        <div className="bg-sky-450/10 border border-sky-400/20 px-3 py-1 rounded-full text-[10px] font-black text-sky-400 animate-pulse">
+        <div className="bg-sky-450/10 border border-sky-400/20 px-3 py-1 rounded-full text-[10px] font-black text-sky-400 ">
           {historicalJourneys.length} Rides
         </div>
       </div>

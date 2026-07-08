@@ -24,7 +24,7 @@ export default function VettingDetailPanel({
   if (!selectedUser) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center opacity-30 p-12 text-center space-y-4">
-        <ShieldAlert size={64} className="text-slate-500 animate-pulse" />
+        <ShieldAlert size={64} className="text-slate-500 " />
         <div className="space-y-1.5">
           <p className="text-sm font-black uppercase tracking-[5px] text-slate-400">Select an Identity File</p>
           <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto">

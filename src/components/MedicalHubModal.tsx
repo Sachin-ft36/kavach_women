@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, MapPin, Phone, Navigation, ChevronRight, Activity, Loader2, Heart, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { useMedicalHubData } from '../hooks/useMedicalHubData';
 
 interface MedicalHubModalProps {

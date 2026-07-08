@@ -93,7 +93,7 @@ export function TacticalComms() {
         <div className="p-5 border-b border-gray-100">
            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[3px] mb-4">Active Uplinks</h3>
            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-xl border border-blue-100">
-              <Activity size={10} className="text-blue-500 animate-pulse" />
+              <Activity size={10} className="text-blue-500 " />
               <span className="text-[8px] font-black uppercase tracking-widest text-blue-600">Sync Active</span>
            </div>
         </div>
@@ -148,7 +148,7 @@ export function TacticalComms() {
                        </h2>
                        <div className="flex items-center gap-4 mt-2">
                           <p className="text-[7px] text-blue-600 font-black uppercase tracking-[2px] flex items-center gap-1.5">
-                             <span className="w-1 h-1 bg-blue-600 rounded-full animate-pulse" />
+                             <span className="w-1 h-1 bg-blue-600 rounded-full " />
                              Active Link
                           </p>
                           {selectedUserData && (

@@ -62,8 +62,8 @@ export function EvidenceAudioLogs({ audioLogs, blobUrls }: any) {
                     </audio>
                   ) : (
                     <div className="py-3 px-4 bg-purple-500/10 rounded-xl border border-purple-500/20 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-xl bg-purple-400 animate-ping" />
-                      <span className="text-[10px] font-black text-purple-400/80 uppercase tracking-widest animate-pulse">Loading Buffer...</span>
+                      <div className="w-2 h-2 rounded-xl bg-purple-400 " />
+                      <span className="text-[10px] font-black text-purple-400/80 uppercase tracking-widest ">Loading Buffer...</span>
                     </div>
                   )}
                 </div>

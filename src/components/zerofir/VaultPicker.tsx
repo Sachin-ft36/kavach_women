@@ -4,7 +4,7 @@ import { X, Mic, ShieldCheck } from 'lucide-react';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { cn } from '../../lib/utils';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 
 interface VaultPickerProps {
   onClose: () => void;
@@ -54,7 +54,7 @@ export function VaultPicker({ onClose, onSelect, selectedIds }: VaultPickerProps
 
       <div className="flex-1 overflow-y-auto scrollbar-hide grid grid-cols-2 gap-4">
         {loading ? (
-          <div className="col-span-2 py-20 text-center text-[10px] font-black text-gray-500 uppercase animate-pulse tracking-widest">Accessing Secure Vault...</div>
+          <div className="col-span-2 py-20 text-center text-[10px] font-black text-gray-500 uppercase  tracking-widest">Accessing Secure Vault...</div>
         ) : items.length === 0 ? (
           <div className="col-span-2 py-20 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest">No Evidence Found in Vault</div>
         ) : (

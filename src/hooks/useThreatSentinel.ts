@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { KavachNative } from '../services/KavachNative';
 import { calculateHaversineDistance } from '../utils/geoUtils';

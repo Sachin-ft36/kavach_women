@@ -3,6 +3,19 @@ export interface GeoPoint {
   lng: number;
 }
 
+export interface Guardian {
+  uid?: string;
+  name: string;
+  phone: string;
+  relation: string;
+  isLocal?: boolean;
+  proximityLevel?: 'area' | 'city' | 'district' | 'none';
+  distanceKm?: number;
+  estimatedReachMin?: number;
+  lastKnownLocation?: GeoPoint;
+}
+
+
 export interface ProtectorRecord {
   uid: string;
   name: string;

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Activity } from 'lucide-react';
 import { useAudioAI } from '../hooks/useAudioAI';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 
 interface VoiceVisualizerProps {
@@ -54,7 +54,7 @@ const VoiceVisualizer = React.memo(({ isSOSActive }: VoiceVisualizerProps) => {
           "w-8 h-8 rounded-xl flex items-center justify-center transition-colors shadow-sm",
           isSOSActive ? "bg-accent-red/10 text-accent-red" : "bg-[#2563EB]/10 text-[#2563EB]"
         )}>
-          <Activity size={16} className={cn(volume > 10 && "animate-pulse")} />
+          <Activity size={16} className={cn(volume > 10 && "")} />
         </div>
         <div className="hidden xs:block">
           <span className="text-[10px] font-black text-gray-900 uppercase italic tracking-tight leading-none block">Voice SOS</span>

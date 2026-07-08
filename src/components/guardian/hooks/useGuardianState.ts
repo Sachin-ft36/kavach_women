@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { db } from '../../../firebase';
 import { 
   collection, query, where, onSnapshot, getDocs, doc, 

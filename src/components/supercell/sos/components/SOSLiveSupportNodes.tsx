@@ -39,7 +39,7 @@ export function SOSLiveSupportNodes({
          {/* 🚀 DYNAMIC EMERGENCY NODES (POLICE & HOSPITALS) */}
          {loadingNodes ? (
             <div className="py-2 text-center">
-               <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest animate-pulse">Scanning Nearby Grid...</p>
+               <p className="text-[12px] font-black text-gray-500 uppercase tracking-widest ">Scanning Nearby Grid...</p>
             </div>
          ) : (
             (nearbyPolice.length > 0 || nearbyHospitals.length > 0) && (

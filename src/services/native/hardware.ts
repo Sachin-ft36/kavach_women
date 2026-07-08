@@ -54,5 +54,25 @@ export const KavachSafeHardware = {
         console.error("🚨 NATIVE RINGTONE ERROR:", error);
       }
     }
+  },
+
+  setScreenBrightness: async (level: number): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.setScreenBrightness({ level });
+      } catch (error) {
+        console.error("🚨 HARDWARE ERROR: Unable to set screen brightness:", error);
+      }
+    }
+  },
+
+  keepScreenOn: async (enable: boolean): Promise<void> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        return await KavachNative.keepScreenOn({ enable });
+      } catch (error) {
+        console.error("🚨 HARDWARE ERROR: Unable to set keep screen awake:", error);
+      }
+    }
   }
 };

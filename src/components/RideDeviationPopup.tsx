@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, AlertTriangle, RouteOff, Clock } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { executeEmergencyBlast } from '../services/sosService';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';

@@ -22,7 +22,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { auth, db, resetKavachState } from '../firebase';
@@ -198,19 +198,19 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
     <div className={cn(
       "font-sans selection:bg-[#2563EB] selection:text-white transition-all duration-500 relative",
       role === 'super_cell' ? "h-screen overflow-hidden p-0" : 
-      role === 'protector' || role === 'guardian' || (activeTab === 'rewards' && role !== 'citizen') ? "min-h-screen overflow-x-hidden pb-1 bg-[#0A0D14] text-white" : 
-      "min-h-screen overflow-x-hidden pb-10 text-gray-900 bg-[#F8FAFC]"
+      role === 'protector' || role === 'guardian' || (activeTab === 'rewards' && role !== 'citizen') ? "min-h-screen overflow-x-hidden pb-1 bg-[#090B1F] text-white" : 
+      "min-h-screen overflow-x-hidden pb-1 text-gray-900 bg-[#090B1F]"
     )}>
 
       {/* 🏛️ GLOBAL INSTITUTIONAL WATERMARK (OVERLAY) */}
       <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center z-[150] overflow-hidden select-none">
         <span className={cn(
           "text-[22vw] font-black uppercase tracking-tighter rotate-[-15deg] whitespace-nowrap transition-all duration-500",
-          role === 'super_cell' ? "text-white/[0.008]" : "text-black/[0.03]"
+          role === 'super_cell' ? "text-white/[0.005]" : "text-black/[0.015]"
         )}>
           KAVACH
         </span>
-        <div className={cn("mt-4 transition-all duration-500", role === 'super_cell' ? "opacity-[0.05]" : "opacity-10")}>
+        <div className={cn("mt-4 transition-all duration-500", role === 'super_cell' ? "opacity-[0.03]" : "opacity-5")}>
           <span className={cn("text-[8px] sm:text-[9px] font-black uppercase tracking-[3px] sm:tracking-[4px]", role === 'super_cell' ? "text-white" : "text-gray-900")}>Your Safety, Our Responsibility</span>
         </div>
       </div>
@@ -222,7 +222,7 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         onConfirm={confirmProtectorEnrollment}
       />
 
-      {role !== 'super_cell' && !isInterceptActive && activeTab === 'dashboard' && !isOverlayActive && !isSOSBlocked && (
+      {role !== 'super_cell' && !isInterceptActive && !isOverlayActive && !isSOSBlocked && activeTab !== 'rewards' && (
         <Header 
           role={role}
           isProfileOpen={isProfileOpen}
@@ -237,8 +237,8 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         />
       )}
 
-      <main className={cn("mx-auto pb-1 relative transition-all z-10", 
-        role === 'super_cell' || activeTab !== 'dashboard' || isOverlayActive ? "max-w-none px-0 h-full w-full" : "max-w-7xl pt-[88px]"
+      <main className={cn("mx-auto pb-1 relative z-10", 
+        role === 'super_cell' || isOverlayActive ? "max-w-none px-0 h-full w-full" : (activeTab === 'rewards' ? "max-w-7xl pt-0" : "max-w-7xl pt-[64px]")
       )}>
         {children}
 

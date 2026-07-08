@@ -1,4 +1,4 @@
-import { LocationData, SystemLog } from '../domain/types';
+import { LocationData, SystemLog } from '../state/slices/types';
 
 /**
  * 🚀 KAVACH TELEMETRY BATCHER (Production Scalability)

@@ -1,7 +1,7 @@
 import React from 'react';
 import SOSButton from '../components/SOSButton';
 import { Lock, Eye, MessageSquare, Phone, Map, X, ShieldCheck, Shield } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import DeviceLockScreen from '../components/sos/DeviceLockScreen';
 import { ActiveSOSOverlay } from '../components/sos/ActiveSOSOverlay';
 

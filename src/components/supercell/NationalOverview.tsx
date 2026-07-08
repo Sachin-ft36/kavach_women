@@ -7,7 +7,7 @@ import { OperationsGrid } from './national/OperationsGrid';
 import { ProtectorControl } from './national/ProtectorControl';
 import { DispatchPanel } from './national/DispatchPanel';
 import { useNationalCommand } from './national/useNationalCommand';
-import { IncidentRecord, UserProfile, ZeroFIRRecord } from '../../domain/types';
+import { IncidentRecord, UserProfile, ZeroFIRRecord } from '../../state/slices/types';
 
 import { NationalTacticalStrip } from './national/NationalTacticalStrip';
 import { NationalEscalationBanner } from './national/NationalEscalationBanner';

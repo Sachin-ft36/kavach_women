@@ -15,7 +15,7 @@ export default function DeviceLockScreen({ handleManualUnlock, setShowPinOverlay
     <div className="min-h-screen bg-[#060000] flex flex-col items-center justify-center p-8 text-center">
       <div className="relative mb-12">
         <div className="relative w-24 h-24 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-accent-blue shadow-2xl">
-          <Lock size={48} className="animate-pulse" />
+          <Lock size={48} className="" />
         </div>
       </div>
       <h2 className="text-[44px] font-black italic uppercase tracking-tighter mb-4">{t('shield_locked')}</h2>

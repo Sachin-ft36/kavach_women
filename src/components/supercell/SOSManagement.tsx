@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { IncidentRecord, UserProfile } from '../../domain/types';
+import { IncidentRecord, UserProfile } from '../../state/slices/types';
 
 import { SOSHistoryPanel } from './panels/SOSHistoryPanel';
 import { EvidenceViewerModal } from './EvidenceViewerModal';

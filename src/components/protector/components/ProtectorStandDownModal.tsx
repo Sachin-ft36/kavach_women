@@ -145,7 +145,7 @@ export function ProtectorStandDownModal({ isOpen, onCancel, onConfirm, isAbortin
             }`}
           >
             {isAborting ? (
-              <span className="animate-pulse">Aborting…</span>
+              <span className="">Aborting…</span>
             ) : (
               <>
                 Confirm Abort <ChevronRight size={14} />

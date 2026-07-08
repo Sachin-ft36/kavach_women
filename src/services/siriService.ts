@@ -1,5 +1,5 @@
 import { registerPlugin, Capacitor } from '@capacitor/core';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { executeEmergencyBlast } from './sosService';
 
 // Fallback interface in case the plugin typing isn't fully exported

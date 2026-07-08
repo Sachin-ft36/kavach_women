@@ -908,4 +908,50 @@ public class KavachNative extends Plugin {
             call.reject("Failed to stop BLE scanning: " + e.getMessage());
         }
     }
+
+    private float originalBrightness = -1f;
+
+    @PluginMethod
+    public void setScreenBrightness(PluginCall call) {
+        Double level = call.getDouble("level");
+        getActivity().runOnUiThread(() -> {
+            try {
+                android.view.Window window = getActivity().getWindow();
+                android.view.WindowManager.LayoutParams layoutParams = window.getAttributes();
+                if (level != null && level >= 0.0) {
+                    if (originalBrightness == -1f) {
+                        originalBrightness = layoutParams.screenBrightness;
+                    }
+                    layoutParams.screenBrightness = level.floatValue();
+                } else {
+                    if (originalBrightness != -1f) {
+                        layoutParams.screenBrightness = originalBrightness;
+                        originalBrightness = -1f;
+                    }
+                }
+                window.setAttributes(layoutParams);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Failed to set screen brightness: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void keepScreenOn(PluginCall call) {
+        Boolean enable = call.getBoolean("enable", true);
+        getActivity().runOnUiThread(() -> {
+            try {
+                android.view.Window window = getActivity().getWindow();
+                if (enable != null && enable) {
+                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } else {
+                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Failed to set keep screen awake: " + e.getMessage());
+            }
+        });
+    }
 }

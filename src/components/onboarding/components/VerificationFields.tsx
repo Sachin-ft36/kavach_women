@@ -110,7 +110,7 @@ export function ServiceNumberInput({ data, setData, checking, checkResult }: any
         </span>
         
         {checking && (
-          <span className="text-[9px] font-black animate-pulse flex items-center gap-1 uppercase tracking-wider text-slate-500">
+          <span className="text-[9px] font-black  flex items-center gap-1 uppercase tracking-wider text-slate-500">
             <Loader2 size={10} className="animate-spin" /> Verifying...
           </span>
         )}

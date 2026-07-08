@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldAlert, Timer, LifeBuoy, Gavel, FileText, X } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 
 export default function RestrictedSOSOverlay() {
   const { user, sosStrikeCount, setSOSActive, setOverlayActive, isSOSActive, profile, isRideModeActive } = useKavachStore();

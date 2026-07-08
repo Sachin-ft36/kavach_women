@@ -144,7 +144,7 @@ export default function ProtectorHQHub({ profile, userPos, activeInterceptAlert 
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
             <Radio size={12} className="text-blue-500" /> Nearby Active Protectors
           </p>
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-emerald-500 " />
         </div>
 
         <div className="space-y-3">

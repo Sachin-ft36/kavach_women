@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../../../services/KavachNative';
 import { stopWebSiren } from '../../../utils/sirenUtils';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { useSosMission } from '../../../hooks/useSosMission';
 
 export function useSOSScreenActions(isAIChatOpen: boolean) {

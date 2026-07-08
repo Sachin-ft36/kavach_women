@@ -1,5 +1,5 @@
 import React from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { useLanguage } from '../contexts/LanguageContext';
 import { KavachNative } from '../services/KavachNative';
@@ -48,6 +48,7 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
     bloodGroup, setBloodGroup,
     dob, setDob,
     guardians, setGuardians,
+    localGuardian, setLocalGuardian,
     tosChecked, setTosChecked,
     isFinishing,
     protectorData, setProtectorData,
@@ -125,6 +126,8 @@ export default function Onboarding({ user, onComplete, isReturningUser = false }
             <GuardiansStep 
               guardians={guardians} 
               setGuardians={setGuardians} 
+              localGuardian={localGuardian}
+              setLocalGuardian={setLocalGuardian}
               userPhone={userPhone} 
             />
           )}

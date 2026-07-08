@@ -131,7 +131,7 @@ export function KavachDirectory({ womenUsers, protectors, selectedState, activeA
       </div>
 
       <div className="px-8 py-5 bg-white border-t border-gray-50 flex items-center justify-between no-print">
-         <div className="flex gap-10"><div className="flex items-center gap-3"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)]" /><span className="text-[10px] font-black text-gray-900 uppercase tracking-[2px]">National Grid Sync Active</span></div></div>
+         <div className="flex gap-10"><div className="flex items-center gap-3"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-full  shadow-[0_0_10px_rgba(16,185,129,0.4)]" /><span className="text-[10px] font-black text-gray-900 uppercase tracking-[2px]">National Grid Sync Active</span></div></div>
          <p className="text-[8px] text-gray-300 font-bold uppercase tracking-[4px]">Sovereign Intelligence Standard V5.5</p>
       </div>
 

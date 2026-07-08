@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { IncidentRecord, UserProfile } from '../../../domain/types';
+import { IncidentRecord, UserProfile } from '../../../state/slices/types';
 
 export function useSOSHistorySync(
   historicalAlerts: IncidentRecord[],

@@ -18,7 +18,7 @@ export function ProtectorSuccessModal({
       <div className="fixed inset-0 z-[3000000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 text-center text-slate-800">
         <div className="bg-white border border-slate-200 rounded-[32px] p-10 max-w-md w-full space-y-8 shadow-2xl relative">
           <div className="relative mx-auto w-32 h-32">
-            <div className="relative w-full h-full rounded-full border border-slate-100 flex items-center justify-center bg-blue-50 shadow-inner animate-pulse">
+            <div className="relative w-full h-full rounded-full border border-slate-100 flex items-center justify-center bg-blue-50 shadow-inner ">
               <Info size={64} className="text-blue-500" strokeWidth={1.5} />
             </div>
           </div>

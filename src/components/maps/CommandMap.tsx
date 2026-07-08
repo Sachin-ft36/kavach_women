@@ -68,7 +68,7 @@ export default function CommandMap({
         >
           <div className="bg-[#0F172A]/80 backdrop-blur-3xl border border-white/10 p-2.5 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-auto">
             <div className="w-7 h-7 bg-rose-500/10 rounded-lg flex items-center justify-center text-rose-500 border border-rose-500/20">
-              <AlertTriangle size={14} className="animate-pulse" />
+              <AlertTriangle size={14} className="" />
             </div>
             <div>
               <p className="text-[6px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Active SOS</p>
@@ -143,7 +143,7 @@ export default function CommandMap({
                 <div className="bg-black/25 p-3.5 rounded-2xl border border-white/10 space-y-2">
                   <div className="flex justify-between items-center text-white">
                     <span className="text-[7px] font-black text-white/50 uppercase tracking-widest">Intercept Vector</span>
-                    <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[5px] font-black rounded uppercase tracking-widest animate-pulse">PREDICTIVE</span>
+                    <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[5px] font-black rounded uppercase tracking-widest ">PREDICTIVE</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-center">
                     <div className="bg-white/5 p-2 rounded-xl border border-white/5">
@@ -164,7 +164,7 @@ export default function CommandMap({
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-rose-950/80 border border-rose-500/30 p-3 rounded-2xl flex items-center gap-2.5 shadow-lg shadow-rose-950/40 animate-pulse text-left"
+                      className="bg-rose-950/80 border border-rose-500/30 p-3 rounded-2xl flex items-center gap-2.5 shadow-lg shadow-rose-950/40  text-left"
                     >
                       <div className="w-6 h-6 bg-rose-500/20 rounded-lg flex items-center justify-center text-rose-500 shrink-0 border border-rose-500/20">
                         <AlertTriangle size={12} className="animate-spin" />
@@ -222,7 +222,7 @@ export default function CommandMap({
       {/* 🛰️ SYSTEM COMPASS / COORDINATES */}
       <div className="absolute left-8 bottom-8 pointer-events-none z-[100]">
         <div className="bg-black/50 backdrop-blur-xl border border-white/5 px-4 py-2 rounded-full flex items-center gap-3">
-          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full " />
           <span className="text-[8px] font-black text-white/50 uppercase tracking-[4px]">Mapbox V11 Strategic Engine</span>
         </div>
       </div>

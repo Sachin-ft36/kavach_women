@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldX, AlertOctagon, Lock, Gavel, Info, LogOut, Send, Clock, CheckCircle2 } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -106,7 +106,7 @@ export default function BanOverlay() {
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-full flex items-center justify-center shadow-2xl mb-1 relative">
                 <ShieldX size={40} className="text-rose-600" strokeWidth={2.5} />
                 <div className="absolute -top-1 -right-1">
-                    <div className="w-4 h-4 bg-rose-600 rounded-full animate-ping opacity-75" />
+                    <div className="w-4 h-4 bg-rose-600 rounded-full  opacity-75" />
                 </div>
               </div>
               <div className="space-y-1">
@@ -158,7 +158,7 @@ export default function BanOverlay() {
                   </div>
                 ) : hasAppealed ? (
                   <div className="bg-blue-50 border border-blue-100 rounded-[24px] p-6 flex flex-col items-center text-center gap-3">
-                    <Clock className="text-blue-600 animate-pulse" size={32} />
+                    <Clock className="text-blue-600 " size={32} />
                     <div className="space-y-1">
                        <p className="text-xs font-black text-blue-900 uppercase">Appeal Under Review</p>
                        <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest leading-relaxed">

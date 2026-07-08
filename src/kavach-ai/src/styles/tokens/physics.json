@@ -1,0 +1,10 @@
+{
+  "physics": {
+    "gravity": 0,
+    "levitation": 6,
+    "friction": 12,
+    "mass": 1,
+    "tension": 170,
+    "elasticity": 0.25
+  }
+}

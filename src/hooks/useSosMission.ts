@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, serverTimestamp, doc, setDoc, arrayUnion } from 'firebase/firestore';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../services/KavachNative';
 import { fetchNearbyPoliceMappls, isOfficialPoliceStation } from '../services/MapplsService';

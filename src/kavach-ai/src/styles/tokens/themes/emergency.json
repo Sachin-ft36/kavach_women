@@ -1,0 +1,13 @@
+{
+  "theme": {
+    "mode": "emergency",
+    "primary": "#EF4444",
+    "surface": "#1A0505",
+    "background": "#0F0202",
+    "textPrimary": "#FFFFFF",
+    "textSecondary": "#FDA4AF",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444"
+  }
+}

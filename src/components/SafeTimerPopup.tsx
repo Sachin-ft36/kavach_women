@@ -52,7 +52,7 @@ export default function SafeTimerPopup() {
                 <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest mb-1">
                   {timerStage === 'grace' ? 'Guardians Alert In' : 'SOS Alert In'}
                 </span>
-                <span className="text-4xl font-black text-red-500 tabular-nums tracking-tight animate-pulse">
+                <span className="text-4xl font-black text-red-500 tabular-nums tracking-tight ">
                   {formatTime(graceTimeLeft)}
                 </span>
               </div>

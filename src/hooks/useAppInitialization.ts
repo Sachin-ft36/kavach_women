@@ -8,7 +8,7 @@ import { siriEmergencyService } from '../services/siriService';
 import { initializeBackgroundSentinel } from '../services/BackgroundSentinelService';
 import { KavachSafe } from '../services/KavachNative';
 import { syncTelemetry, startBackgroundTracking, watchLiveLocation } from '../services/locationService';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { Shield } from 'lucide-react';
 
 /**
@@ -43,7 +43,7 @@ export default function StealthOverlay() {
 
         {/* 🎬 HIDDEN CAMERA VIEWPORT (Simulated) */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0">
-           <div className="w-full h-full bg-gray-900 animate-pulse" />
+           <div className="w-full h-full bg-gray-900 " />
         </div>
       </div>
     </motion.div>

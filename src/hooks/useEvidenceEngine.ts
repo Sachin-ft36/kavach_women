@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { Capacitor } from '@capacitor/core';
 import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';

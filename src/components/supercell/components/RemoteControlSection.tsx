@@ -28,7 +28,7 @@ export function RemoteControlSection({
           <div className="flex items-center gap-4 mb-6">
             <div className="px-4 py-1.5 bg-rose-600 text-white rounded-full text-[9px] font-black uppercase tracking-[4px]">Tactical Hardware Link</div>
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full " />
               <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">Protocol: KAVACH-NATIVE-V2</span>
             </div>
           </div>
@@ -107,7 +107,7 @@ export function RemoteControlSection({
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{cmd.desc}</p>
             <div className="mt-8 w-full h-[1px] bg-gray-50" />
             <div className="mt-4 flex items-center gap-2">
-              <div className={cn("w-1.5 h-1.5 rounded-full", activeTargetId ? "bg-emerald-500 animate-pulse" : "bg-gray-300")} />
+              <div className={cn("w-1.5 h-1.5 rounded-full", activeTargetId ? "bg-emerald-500 " : "bg-gray-300")} />
               <span className="text-[7px] font-black text-gray-400 uppercase tracking-widest">{activeTargetId ? 'Link Ready' : 'Awaiting Target'}</span>
             </div>
           </button>
@@ -118,7 +118,7 @@ export function RemoteControlSection({
         <div className="absolute inset-0 bg-rose-600/5 blur-3xl" />
         <div className="relative z-10 max-w-md">
           <div className="w-20 h-20 bg-rose-600/10 rounded-[32px] border border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto mb-8 shadow-2xl">
-            <Cpu size={40} className="animate-pulse" />
+            <Cpu size={40} className="" />
           </div>
           <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter mb-4">Authorized Control Status</h3>
           <div className="space-y-4">

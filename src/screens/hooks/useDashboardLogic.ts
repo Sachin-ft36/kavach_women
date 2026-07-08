@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { auth, db } from '../../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -55,7 +55,7 @@ export function useDashboardLogic() {
       if (resolvedUnrated.length > 0) {
         const alertData = resolvedUnrated[0] as any;
         const responders = alertData.responders || alertData.acceptedBy || [];
-        
+
         if (responders.length > 0) {
           setRatingAlert({ id: alertData.id, responders });
         } else {

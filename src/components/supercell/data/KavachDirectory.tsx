@@ -236,7 +236,7 @@ export function KavachDirectory({
       <div className="px-8 py-3 bg-gray-900 flex justify-between items-center text-white print-hidden">
          <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+               <div className="w-1.5 h-1.5 bg-green-500 rounded-full " />
                <span className="text-[8px] font-black uppercase tracking-widest">Real-Time Biometric Link</span>
             </div>
             <div className="w-px h-3 bg-white/20" />

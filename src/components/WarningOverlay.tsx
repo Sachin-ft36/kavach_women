@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, AlertTriangle, CheckCircle2, Gavel, FileText, Shield } from 'lucide-react';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { cn } from '../lib/utils';
 
 export default function WarningOverlay() {
@@ -106,7 +106,7 @@ export default function WarningOverlay() {
             >
               {isAcknowledgeLoading ? (
                 <>
-                  <Shield size={14} className="animate-pulse" />
+                  <Shield size={14} className="" />
                   Processing...
                 </>
               ) : (
@@ -118,7 +118,7 @@ export default function WarningOverlay() {
             </button>
 
             <div className="flex items-center justify-center gap-2 pt-1">
-              <div className="w-1 h-1 bg-[#22C55E] rounded-full animate-pulse" />
+              <div className="w-1 h-1 bg-[#22C55E] rounded-full " />
               <span className="text-[7px] font-black text-[#64748B] uppercase tracking-[2px]">National Security Protocol Active</span>
             </div>
           </div>

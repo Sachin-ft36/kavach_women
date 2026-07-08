@@ -1,5 +1,5 @@
 import React from 'react';
-import { IncidentRecord, UserProfile, ZeroFIRRecord, JourneyRecord } from '../domain/types';
+import { IncidentRecord, UserProfile, ZeroFIRRecord, JourneyRecord } from '../state/slices/types';
 
 // ── State abbreviation variations for smart matching ──
 const getStateVariations = (stateName: string): string[] => {

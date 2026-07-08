@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { KavachSafe } from '../services/KavachNative';
 
 export function useRideSafeLogic(isOpen: boolean, isRideActive: boolean, setIsRideActive: (active: boolean) => void, onClose: () => void) {

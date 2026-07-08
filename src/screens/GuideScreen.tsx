@@ -99,7 +99,7 @@ export default function GuideScreen() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 border-4 border-accent-blue/20 border-t-accent-blue rounded-full animate-spin" />
-        <p className="text-accent-blue font-black uppercase text-[10px] animate-pulse italic tracking-[4px]">Syncing Intelligence Hub...</p>
+        <p className="text-accent-blue font-black uppercase text-[10px]  italic tracking-[4px]">Syncing Intelligence Hub...</p>
       </div>
     );
   }
@@ -173,7 +173,7 @@ export default function GuideScreen() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <h3 className="font-black italic uppercase text-lg leading-tight tracking-tighter">{guide.title}</h3>
-                {guide.priority === 'HIGH' && <AlertTriangle size={14} className="text-accent-red animate-pulse" />}
+                {guide.priority === 'HIGH' && <AlertTriangle size={14} className="text-accent-red " />}
               </div>
               <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest line-clamp-2 leading-relaxed">
                 {guide.content}

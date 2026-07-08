@@ -15,6 +15,9 @@ public class MainActivity extends BridgeActivity {
         // 2. super.onCreate must be called next
         super.onCreate(savedInstanceState);
 
+        // 🛡️ SCREEN SECURITY: Prevent screenshots and screen recording (Black screen on record)
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+
         // 🛡️ SECURITY SENTINEL: Root Detection
         if (SecuritySentinel.isDeviceRooted(this)) {
             Log.e("KAVACH_SYS", "CRITICAL SECURITY BREACH: Device is rooted. Terminating.");

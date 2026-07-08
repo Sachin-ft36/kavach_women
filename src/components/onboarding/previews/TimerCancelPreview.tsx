@@ -37,7 +37,7 @@ export default function TimerCancelPreview({ onClose }: Props) {
 
             {/* Countdown Circle */}
             <div className="flex-1 flex flex-col items-center justify-center my-3 sm:my-4 relative">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-dashed border-amber-500/40 flex flex-col items-center justify-center animate-pulse">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-dashed border-amber-500/40 flex flex-col items-center justify-center ">
                 <span className="text-2xl sm:text-3xl font-black text-amber-500">00:42</span>
                 <span className="text-[6.5px] sm:text-[7px] font-bold text-slate-400 uppercase tracking-widest">SECONDS</span>
               </div>

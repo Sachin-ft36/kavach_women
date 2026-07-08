@@ -61,7 +61,7 @@ export const IncidentFeed = ({
                  className={cn(
                     "bg-[#1E293B]/40 border rounded-[1.25rem] p-3 group transition-all cursor-pointer relative overflow-hidden",
                     alert.inactivityEscalated 
-                      ? "border-amber-500 shadow-xl shadow-amber-500/10 bg-amber-950/20 animate-pulse"
+                      ? "border-amber-500 shadow-xl shadow-amber-500/10 bg-amber-950/20 "
                       : selectedAlertId === alert.id 
                         ? "border-rose-500 shadow-xl shadow-rose-500/10 bg-[#1E293B]/80" 
                         : "border-rose-500/10 hover:bg-[#1E293B]/60"
@@ -118,7 +118,7 @@ export const IncidentFeed = ({
                           <div className="flex flex-wrap gap-1.5">
                              {Object.values(alert.responders).map((res: any) => (
                                 <span key={res.uid} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-bold text-blue-200">
-                                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 " />
                                    {res.name} ({res.role || 'Rescuer'})
                                 </span>
                              ))}
@@ -164,7 +164,7 @@ export const IncidentFeed = ({
        <div className="mt-4 pt-4 border-t border-white/5 space-y-3">
           <div className="flex items-center justify-between">
              <div className="flex items-center gap-2 text-cyan-400">
-                <Fingerprint size={14} className="animate-pulse text-[#38BDF8]" />
+                <Fingerprint size={14} className=" text-[#38BDF8]" />
                 <span className="text-[14px] font-black uppercase tracking-widest text-[#38BDF8]">Zero FIR Legal Registry</span>
              </div>
              <span className="text-[12px] font-bold text-gray-500 uppercase tracking-widest">{zeroFirs?.length || 0} Logs</span>
@@ -189,7 +189,7 @@ export const IncidentFeed = ({
                 </div>
              )) : (
                  <div className="py-6 text-center opacity-30 border border-dashed border-white/10 rounded-xl">
-                    <Fingerprint size={16} className="mx-auto mb-2 text-[#38BDF8] animate-pulse" />
+                    <Fingerprint size={16} className="mx-auto mb-2 text-[#38BDF8] " />
                     <p className="text-[7.5px] font-black uppercase tracking-widest text-white">No Registered Zero FIRs</p>
                  </div>
               )}

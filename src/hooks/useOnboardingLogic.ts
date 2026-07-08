@@ -23,6 +23,7 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
   const [bloodGroup, setBloodGroup] = useState('');
   const [dob, setDob] = useState('');
   const [guardians, setGuardians] = useState<{ name: string; phone: string; relation: string }[]>([]);
+  const [localGuardian, setLocalGuardianState] = useState<any>(null);
   const [tosChecked, setTosChecked] = useState({ terms: false, permissions: false });
   const [protectorData, setProtectorData] = useState({
     fullName: '',
@@ -87,7 +88,7 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
   );
 
   const { isFinishing, setIsFinishing, finishOnboarding } = useOnboardingSync(
-    user, role, gender, userName, userPhone, safetyPin, photoUrl, address, bloodGroup, dob, aadhaar, guardians, protectorData, onComplete
+    user, role, gender, userName, userPhone, safetyPin, photoUrl, address, bloodGroup, dob, aadhaar, guardians, protectorData, onComplete, localGuardian
   );
 
   useEffect(() => {
@@ -198,6 +199,7 @@ export const useOnboardingLogic = (user: any, onComplete: () => void, isReturnin
     bloodGroup, setBloodGroup,
     dob, setDob,
     guardians, setGuardians,
+    localGuardian, setLocalGuardian: setLocalGuardianState,
     tosChecked, setTosChecked,
     isFinishing, setIsFinishing,
     protectorData, setProtectorData,

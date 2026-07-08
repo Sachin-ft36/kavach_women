@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { KavachSafe } from './KavachNative';
 import { toast } from 'sonner';
 

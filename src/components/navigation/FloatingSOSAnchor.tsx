@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { ShieldAlert } from 'lucide-react';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { auth } from '../../firebase';
 import { Capacitor } from '@capacitor/core';
 import { KavachSafe } from '../../services/KavachNative';
@@ -41,11 +41,10 @@ export default function FloatingSOSAnchor() {
         onClick={triggerEmergencySOS}
         className="relative w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-[0_4px_20px_rgba(220,38,38,0.4)] active:scale-95 transition-all border-4 border-white overflow-hidden group cursor-pointer"
       >
-        {/* Pulsating glowing ring animation */}
-        <span className="absolute inset-0 rounded-full border border-red-500 animate-ping opacity-75" />
+
         
         {/* Shield Alert Icon */}
-        <ShieldAlert size={24} className="relative z-10 animate-pulse text-white" />
+        <ShieldAlert size={24} className="relative z-10  text-white" />
       </button>
     </motion.div>
   );

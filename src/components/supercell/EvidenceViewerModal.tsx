@@ -51,7 +51,7 @@ export function EvidenceViewerModal({ alertId, isOpen, onClose }: EvidenceViewer
               <div>
                 <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white  leading-none">Forensic Evidence Vault</h2>
                 <p className="text-[10px] sm:text-[11px] font-black text-rose-400 uppercase tracking-[4px] mt-2 opacity-80 flex items-center gap-2">
-                  <Activity size={10} className="animate-pulse" /> Live Sync Active • Hash: 0x{alertId.toUpperCase()}
+                  <Activity size={10} className="" /> Live Sync Active • Hash: 0x{alertId.toUpperCase()}
                 </p>
               </div>
             </div>
@@ -64,7 +64,7 @@ export function EvidenceViewerModal({ alertId, isOpen, onClose }: EvidenceViewer
           <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-12">
             {loading ? (
               <div className="h-full flex flex-col items-center justify-center opacity-40">
-                <Shield size={80} className="text-blue-500 mb-6 animate-pulse" />
+                <Shield size={80} className="text-blue-500 mb-6 " />
                 <p className="text-[14px] font-black uppercase tracking-[8px] text-gray-400">Accessing Vault Data...</p>
               </div>
             ) : evidence.length === 0 ? (

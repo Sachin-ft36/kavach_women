@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { History, MapPin, Clock, ShieldAlert, ChevronRight, Calendar, AlertCircle } from 'lucide-react';
@@ -57,7 +57,7 @@ export default function MissionHistoryScreen() {
             {t('forensic_logs_active') || "FORENSIC NEURAL LOGS // ACTIVE"}
           </p>
         </div>
-        <div className="bg-accent-blue/10 border border-accent-blue/20 px-3 py-1 rounded-full text-[10px] font-black text-accent-blue animate-pulse">
+        <div className="bg-accent-blue/10 border border-accent-blue/20 px-3 py-1 rounded-full text-[10px] font-black text-accent-blue ">
           {logs.length} {t('incidents_recorded') || "INCIDENTS"}
         </div>
       </div>

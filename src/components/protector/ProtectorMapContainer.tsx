@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import MapplsVictimMap from '../maps/MapplsVictimMap';
 import { Users, AlertOctagon } from 'lucide-react';
 import { toast } from 'sonner';
-import { useKavachStore } from '../../store/useKavachStore';
+import { useKavachStore } from '../../state/useKavachStore';
 import { executeEmergencyBlast } from '../../services/sosService';
 
 interface ProtectorMapContainerProps {

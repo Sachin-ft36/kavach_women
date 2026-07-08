@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useKavachStore } from '../../../store/useKavachStore';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { KavachNative } from '../../../services/KavachNative';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';

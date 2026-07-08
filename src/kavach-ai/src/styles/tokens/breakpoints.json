@@ -1,0 +1,8 @@
+{
+  "breakpoints": {
+    "watch": 280,
+    "phone": 430,
+    "tablet": 900,
+    "desktop": 1200
+  }
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { IncidentRecord } from '../../../domain/types';
+import { IncidentRecord } from '../../../state/slices/types';
 
 export function useSOSLiveSync(
   selectedAlertId: string | null,

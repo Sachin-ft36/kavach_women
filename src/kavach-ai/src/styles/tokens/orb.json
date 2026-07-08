@@ -1,0 +1,39 @@
+{
+  "geometry": {
+    "size": {
+      "phone": 128,
+      "tablet": 160,
+      "watch": 72
+    },
+    "borderWidth": "2.8px",
+    "borderRadius": "100%"
+  },
+  "material": {
+    "glass": {
+      "ior": 1.45,
+      "roughness": 0.08,
+      "reflection": 0.42,
+      "opacity": 0.96,
+      "noise": 0.015
+    }
+  },
+  "rendering": {
+    "quality": {
+      "low": {
+        "particles": 12,
+        "waves": 2,
+        "blur": 40
+      },
+      "medium": {
+        "particles": 24,
+        "waves": 4,
+        "blur": 80
+      },
+      "high": {
+        "particles": 40,
+        "waves": 6,
+        "blur": 140
+      }
+    }
+  }
+}

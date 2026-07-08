@@ -1,0 +1,13 @@
+{
+  "layers": {
+    "background": 0,
+    "aurora": 1,
+    "waves": 2,
+    "particles": 3,
+    "glow": 4,
+    "rings": 5,
+    "orb": 6,
+    "face": 7,
+    "reflection": 8
+  }
+}

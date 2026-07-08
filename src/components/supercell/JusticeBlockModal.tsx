@@ -199,7 +199,7 @@ export function JusticeBlockModal({ fir, isOpen, onClose }: JusticeBlockModalPro
                         <div>
                           <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Filing Status</p>
                           <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                             <div className="w-2 h-2 bg-blue-500 rounded-full " />
                              <p className="text-sm font-black text-blue-400 uppercase italic tracking-tighter">{fir.status || 'Active Review'}</p>
                           </div>
                         </div>

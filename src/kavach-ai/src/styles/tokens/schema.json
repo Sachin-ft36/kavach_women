@@ -1,0 +1,10 @@
+{
+  "schema": "1.0.0",
+  "tokenVersion": "2026.01",
+  "platforms": [
+    "react",
+    "android",
+    "ios",
+    "figma"
+  ]
+}

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useKavachStore } from '../store/useKavachStore';
+import { useKavachStore } from '../state/useKavachStore';
 import { toast } from 'sonner';
 import { KavachSafe } from '../services/KavachNative';
 

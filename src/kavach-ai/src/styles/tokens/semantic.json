@@ -1,0 +1,10 @@
+{
+  "semantic": {
+    "primary": "orb.idle",
+    "interactive": "orb.listening",
+    "processing": "orb.thinking",
+    "positive": "orb.success",
+    "attention": "orb.warning",
+    "critical": "orb.emergency"
+  }
+}

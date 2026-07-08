@@ -1,0 +1,53 @@
+{
+  "states": {
+    "idle": {
+      "color": "orb.idle",
+      "motion": "float",
+      "face": "neutral",
+      "haptic": null,
+      "audio": null
+    },
+    "listening": {
+      "color": "orb.listening",
+      "motion": "listeningExpand",
+      "face": "listening",
+      "haptic": "tap",
+      "audio": "listening"
+    },
+    "thinking": {
+      "color": "orb.thinking",
+      "motion": "thinkingRotate",
+      "face": "thinking",
+      "haptic": null,
+      "audio": "thinking"
+    },
+    "speaking": {
+      "color": "orb.idle",
+      "motion": "pulse",
+      "face": "speaking",
+      "haptic": null,
+      "audio": null
+    },
+    "success": {
+      "color": "orb.success",
+      "motion": "pulse",
+      "face": "success",
+      "haptic": "success",
+      "audio": "success"
+    },
+    "warning": {
+      "color": "orb.warning",
+      "motion": "pulse",
+      "face": "warning",
+      "haptic": "warning",
+      "audio": "warning"
+    },
+    "emergency": {
+      "color": "orb.emergency",
+      "motion": "emergencyPulse",
+      "face": "emergency",
+      "haptic": "emergency",
+      "audio": "emergency"
+    }
+  }
+}
