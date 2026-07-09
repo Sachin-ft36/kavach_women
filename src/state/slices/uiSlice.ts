@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { KavachState } from './types';
 
-export const createUISlice: StateCreator<KavachState, [], [], Pick<KavachState, 'activeTab' | 'loading' | 'isGhostMode' | 'isShadowActive' | 'isBriefingActive' | 'isInterceptActive' | 'isOverlayActive' | 'isAIChatOpen' | 'activeRadius' | 'isFirFlowActive' | 'isSafeTimerAlertActive' | 'pendingNavigationTarget' | 'isFakeCallActive' | 'isVoiceTriggerActive' | 'setActiveTab' | 'setLoading' | 'setShadowActive' | 'setBriefingActive' | 'setInterceptActive' | 'setOverlayActive' | 'setIsAIChatOpen' | 'setActiveRadius' | 'setIsFirFlowActive' | 'setIsSafeTimerAlertActive' | 'setPendingNavigationTarget' | 'setFakeCallActive' | 'setVoiceTriggerActive'>> = (set, get) => ({
+export const createUISlice: StateCreator<KavachState, [], [], Pick<KavachState, 'activeTab' | 'loading' | 'isGhostMode' | 'isShadowActive' | 'isBriefingActive' | 'isInterceptActive' | 'isOverlayActive' | 'isAIChatOpen' | 'isCameraActive' | 'activeRadius' | 'isFirFlowActive' | 'isSafeTimerAlertActive' | 'pendingNavigationTarget' | 'isFakeCallActive' | 'isVoiceTriggerActive' | 'setActiveTab' | 'setLoading' | 'setShadowActive' | 'setBriefingActive' | 'setInterceptActive' | 'setOverlayActive' | 'setIsAIChatOpen' | 'setIsCameraActive' | 'setActiveRadius' | 'setIsFirFlowActive' | 'setIsSafeTimerAlertActive' | 'setPendingNavigationTarget' | 'setFakeCallActive' | 'setVoiceTriggerActive'>> = (set, get) => ({
   activeTab: 'dashboard',
   loading: true,
   isGhostMode: false,
@@ -10,6 +10,7 @@ export const createUISlice: StateCreator<KavachState, [], [], Pick<KavachState, 
   isInterceptActive: false,
   isOverlayActive: false,
   isAIChatOpen: false,
+  isCameraActive: false,
   activeRadius: 2.0,
   isFirFlowActive: false,
   isSafeTimerAlertActive: false,
@@ -24,6 +25,7 @@ export const createUISlice: StateCreator<KavachState, [], [], Pick<KavachState, 
   setInterceptActive: (active) => set({ isInterceptActive: active }),
   setOverlayActive: (active) => set({ isOverlayActive: active }),
   setIsAIChatOpen: (active) => set({ isAIChatOpen: active }),
+  setIsCameraActive: (active) => set({ isCameraActive: active }),
   setActiveRadius: (radius) => set({ activeRadius: radius }),
   setIsFirFlowActive: (active) => set({ isFirFlowActive: active }),
   setIsSafeTimerAlertActive: (active) => set({ isSafeTimerAlertActive: active }),

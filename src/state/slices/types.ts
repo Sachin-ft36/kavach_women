@@ -112,6 +112,8 @@ export interface KavachState {
   setOverlayActive: (active: boolean) => void;
   isAIChatOpen: boolean;
   setIsAIChatOpen: (open: boolean) => void;
+  isCameraActive: boolean;
+  setIsCameraActive: (active: boolean) => void;
   activeProtectorAlertId: string | null;
   setActiveProtectorAlert: (id: string | null) => void;
   activeAlertsCount: number;

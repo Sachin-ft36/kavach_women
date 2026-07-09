@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Flame, Check, RotateCcw, Zap, X, ChevronRight, Rocket } from 'lucide-react';
+import { Flame, Check, RotateCcw, Zap, X, ChevronRight, Rocket, Sparkles } from 'lucide-react';
 import { useTimeTheme } from '../../../hooks/useTimeTheme';
 import { useStreakData, MILESTONES } from '../hooks/useStreakData';
 import { StreakDetailSheet } from './StreakDetailSheet';
@@ -145,28 +145,24 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
         <img
           src={
             isNight
-              ? '/assets/dashboard_assets/streak.png'
+              ? '/assets/dashboard_assets/night/streak.png'
               : `/assets/dashboard_assets/${themeFolder}/streak.png`
           }
           alt="Streak background"
-          className={`absolute inset-0 w-full h-full object-cover object-[80%_center] pointer-events-none z-0 ${isNight ? 'opacity-90' : 'opacity-100'
-            }`}
-          style={{
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, transparent 28%, black 48%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, transparent 28%, black 48%, black 85%, transparent 100%)'
-          }}
+          className={`absolute inset-0 w-full h-full object-cover object-[80%_center] pointer-events-none z-0 ${isNight ? 'opacity-100' : 'opacity-100'
+            } [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
         />
 
         {/* Gradient overlay */}
         <div
           className={`absolute inset-0 pointer-events-none z-0 ${isNight
-              ? 'bg-gradient-to-br from-black/50 to-transparent'
-              : 'bg-gradient-to-br from-[#FFE8D6]/35 via-[#FFE8D6]/05 to-transparent'
+              ? 'bg-gradient-to-br from-black/40 via-transparent to-transparent'
+              : 'bg-gradient-to-br from-[#FFE8D6]/15 via-transparent to-transparent'
             }`}
         />
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col h-full p-4 pb-3">
+        <div className={`relative z-10 flex flex-col h-full p-4 pb-3 ${isNight ? 'drop-shadow-[0_2px_10px_rgba(0,0,0,1)]' : 'drop-shadow-sm'}`}>
 
           {/* Header */}
           <div className="flex items-center gap-1.5 mb-1 relative w-full">
@@ -187,7 +183,11 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
             {/* 🛠️ TEMPORARY DEBUG BUTTON TO RESET STREAK */}
             <button
               onClick={(e) => { e.stopPropagation(); restartStreak(); }}
-              className={`absolute right-0 text-[9px] font-bold px-2 py-0.5 rounded-md bg-white border border-blue-100 text-[#1a73e8] shadow-sm active:bg-blue-50 transition-colors z-50`}
+              className={`absolute right-0 text-[9px] font-bold px-2 py-0.5 rounded-md shadow-sm transition-colors z-50 ${
+                isNight 
+                  ? 'bg-[#1a113a]/80 border border-[#3b2b73] text-[#c4b5fd] hover:bg-[#23154f]' 
+                  : 'bg-white border border-blue-100 text-[#1a73e8] active:bg-blue-50'
+              }`}
             >
               Reset
             </button>
@@ -203,72 +203,104 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
                 Start your<br />safety journey!
               </h2>
 
-              <div className="flex flex-col gap-2 mb-3">
+              <div className="flex flex-col gap-2.5 mb-3">
                 {[
-                  'Complete your first check-in',
-                  'Add one family member',
-                  'Try Ride Safe',
+                  { title: 'Complete your first check-in', completed: true },
+                  { title: 'Add one family member', completed: false },
+                  { title: 'Try Ride Safe', completed: false },
                 ].map((task, i) => (
                   <div
                     key={i}
-                    className="group flex items-center gap-2 transition-all duration-300"
+                    className="group flex items-center gap-2.5 transition-all duration-300"
                   >
-                    {/* Premium Status Dot */}
+                    {/* Premium Status Circle */}
                     <div
                       className={`
-                        relative flex-none w-[8px] h-[8px] min-w-[8px] min-h-[8px] max-w-[8px] max-h-[8px] rounded-full
-                        transition-all duration-300
+                        relative flex items-center justify-center
+                        w-3 h-3 rounded-full overflow-hidden
+                        transition-all duration-300 shrink-0
                         ${
-                          isNight
-                            ? 'bg-gradient-to-br from-white/35 via-white/12 to-white/5 border border-white/20 shadow-[0_0_10px_rgba(255,255,255,0.12)]'
-                            : 'bg-gradient-to-br from-white via-slate-100 to-slate-200 border border-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]'
+                          task.completed
+                            ? isNight
+                              ? 'bg-gradient-to-br from-emerald-300 via-emerald-400 to-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.45)]'
+                              : 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 shadow-[0_3px_8px_rgba(16,185,129,0.28)]'
+                            : isNight
+                            ? 'bg-white/10 border border-white/20'
+                            : 'bg-white border border-slate-300'
                         }
                       `}
                     >
-                      {/* Inner Shine */}
-                      <div
-                        className={`
-                          absolute top-[1px] left-[1px]
-                          w-[2px] h-[2px] rounded-full
-                          ${
-                            isNight
-                              ? 'bg-white/70'
-                              : 'bg-white'
-                          }
-                        `}
-                      />
+                      {task.completed ? (
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="w-[7px] h-[7px]"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 12l4 4 10-10" />
+                        </svg>
+                      ) : (
+                        <>
+                          {/* Animated Ring */}
+                          <div
+                            className={`
+                              absolute inset-0 rounded-full
+                              border
+                              ${
+                                isNight
+                                  ? 'border-white/25'
+                                  : 'border-slate-300'
+                              }
+                            `}
+                          />
 
-                      {/* Soft Glow */}
-                      <div
-                        className={`
-                          absolute inset-0 rounded-full blur-[5px]
-                          ${
-                            isNight
-                              ? 'bg-white/15'
-                              : 'bg-slate-300/30'
-                          }
-                        `}
-                      />
+                          {/* Pulse */}
+                          <div
+                            className={`
+                              absolute inset-0 rounded-full animate-ping opacity-40
+                              ${
+                                isNight
+                                  ? 'bg-white/10'
+                                  : 'bg-slate-300/30'
+                              }
+                            `}
+                          />
+
+                          {/* Center Dot */}
+                          <div
+                            className={`
+                              w-[3px] h-[3px] rounded-full
+                              ${
+                                isNight
+                                  ? 'bg-white/80'
+                                  : 'bg-slate-500'
+                              }
+                            `}
+                          />
+                        </>
+                      )}
                     </div>
 
-                    {/* Text */}
+                    {/* Task */}
                     <span
                       className={`
                         text-[7px] font-semibold tracking-[0.015em]
-                        transition-all duration-300
+                        transition-colors duration-300
                         ${
-                          isNight
-                            ? 'text-white/82 group-hover:text-white'
-                            : 'text-[#424242] group-hover:text-[#111827]'
+                          task.completed
+                            ? isNight
+                              ? 'text-white'
+                              : 'text-slate-900'
+                            : isNight
+                            ? 'text-white/72'
+                            : 'text-slate-600'
                         }
                       `}
-                      style={{
-                        textShadow: isNight
-                          ? '0 0 10px rgba(255,255,255,0.12)'
-                          : '0 1px 2px rgba(255,255,255,0.9)',
-                      }}
                     >
-                      {task}
+                      {task.title}
                     </span>
                   </div>
                 ))}
@@ -277,10 +309,15 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
               <div className="mt-auto">
                 <button
                   onClick={(e) => { e.stopPropagation(); startJourney(); }}
-                  className="w-full flex items-center justify-center gap-1.5 py-[7px] rounded-[12px] bg-gradient-to-r from-[#2ecc71] to-[#27ae60] text-white text-[10.5px] font-bold shadow-[0_4px_14px_rgba(46,204,113,0.4)] active:scale-95 transition-transform"
+                  className={`w-full flex items-center justify-center gap-1.5 py-[7px] rounded-[12px] text-white text-[10.5px] font-bold active:scale-95 transition-transform ${
+                    isNight
+                      ? 'bg-gradient-to-r from-[#5a38f5] to-[#4054fc] shadow-[0_4px_14px_rgba(90,56,245,0.4)]'
+                      : 'bg-gradient-to-r from-[#2ecc71] to-[#27ae60] shadow-[0_4px_14px_rgba(46,204,113,0.4)]'
+                  }`}
                 >
-                  <Rocket size={12} fill="currentColor" />
+                  <Rocket size={12} fill={isNight ? "none" : "currentColor"} className={isNight ? "text-white" : ""} strokeWidth={isNight ? 2 : 1} />
                   Start Today!
+                  {isNight && <Sparkles size={11} className="text-white/80 ml-0.5" />}
                 </button>
               </div>
             </>

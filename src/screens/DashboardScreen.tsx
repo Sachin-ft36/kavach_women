@@ -346,7 +346,7 @@ export default function DashboardScreen() {
       <div className={`w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col pb-0 transition-colors duration-1000`} style={{ background: isNight ? '#0a0518' : 'transparent' }}>
 
         {/* Global Dashboard Background Image */}
-        <img src={isNight ? "/assets/dashboard_assets/background_image/night.png" : `/assets/dashboard_assets/${themeFolder}/background.${themeFolder === 'afternoon' ? 'png' : 'jpeg'}`} alt="Dashboard Background" className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-0 transition-opacity duration-1000 ${isNight ? 'opacity-[0.4]' : 'opacity-[0.85]'}`} />
+        <img src={isNight ? "/assets/dashboard_assets/night/livefeed.jpeg" : `/assets/dashboard_assets/${themeFolder}/background.${themeFolder === 'afternoon' ? 'png' : 'jpeg'}`} alt="Dashboard Background" className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-0 transition-opacity duration-1000 ${isNight ? 'opacity-100' : 'opacity-[0.85]'}`} />
 
         {/* Abstract Background Glows */}
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-[#1E1B4B]/30 to-transparent pointer-events-none" />
@@ -487,20 +487,6 @@ export default function DashboardScreen() {
               .animate-wave {
                 animation: wave 2.5s infinite;
               }
-              
-              /* 3D Orbit Keyframes */
-              @keyframes orbit-spin {
-                0% { transform: rotateZ(0deg); }
-                100% { transform: rotateZ(360deg); }
-              }
-              @keyframes orbit-spin-reverse {
-                0% { transform: rotateZ(360deg); }
-                100% { transform: rotateZ(0deg); }
-              }
-              
-              .orbit-1 { animation: orbit-spin 6s linear infinite; }
-              .orbit-2 { animation: orbit-spin-reverse 8s linear infinite; }
-              .orbit-3 { animation: orbit-spin 12s linear infinite; }
             `}} />
         </div>
 

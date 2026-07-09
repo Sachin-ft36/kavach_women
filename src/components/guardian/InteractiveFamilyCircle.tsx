@@ -31,17 +31,11 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
       <div
         className={`absolute inset-0 z-0 overflow-hidden ${isNight ? 'bg-[#0a0514]' : 'bg-[#FFF9F2]'}`}
       >
-        <div 
-          className="absolute inset-0"
-          style={{
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, transparent 28%, black 50%, black 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, transparent 28%, black 50%, black 100%)'
-          }}
-        >
+        <div className="absolute inset-0">
           <img
-            src={isNight ? "/assets/dashboard_assets/family.png" : `/assets/dashboard_assets/${themeFolder}/family.png`}
+            src={isNight ? "/assets/dashboard_assets/night/family.png" : `/assets/dashboard_assets/${themeFolder}/family.png`}
             alt="Family"
-            className={`absolute left-1/2 -translate-x-1/2 -top-13 w-[130%] h-auto ${isNight ? 'opacity-80' : 'opacity-90'}`}
+            className={`absolute left-1/2 -translate-x-1/2 -top-16 w-[130%] h-auto opacity-100 [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
             style={{
               WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)',
               maskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)'
@@ -49,7 +43,7 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
           />
         </div>
         {/* Subtle Gradient overlay for readability */}
-        <div className={`absolute inset-0 bg-gradient-to-b from-transparent ${isNight ? 'to-[#0a0514]/80' : 'to-transparent'}`} />
+        <div className={`absolute inset-0 bg-gradient-to-b ${isNight ? 'from-[#0a0514]/70 via-[#0a0514]/0 to-[#0a0514]/90' : 'from-white/15 via-transparent to-transparent'}`} />
       </div>
 
 
@@ -57,17 +51,25 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
       <div className="relative z-10 flex flex-col p-1.5 h-full justify-between">
 
         {/* TOP SECTION: Greeting & Titles */}
-        <div className="flex flex-col gap-1.5 mt-0 px-2 pt-2">
+        <div className={`flex flex-col gap-1.5 mt-0 px-2 pt-2`}>
+          
+          {/* Live Safe Circle Badge */}
+          <div className={`self-start inline-flex items-center gap-1 px-1.5 py-[2px] rounded-full ${isNight ? 'bg-white/10' : 'bg-white/80 shadow-sm'} backdrop-blur-md`}>
+            <div className="w-[3px] h-[3px] rounded-full bg-[#ea580c]" />
+            <span className={`text-[5px] font-extrabold tracking-wide ${isNight ? 'text-orange-400' : 'text-[#ea580c]'}`}>
+              Live Safe Circle
+            </span>
+          </div>
 
-          <h2 className={`text-[19px] font-black leading-tight tracking-tight mt-1 ${isNight ? 'text-white' : 'text-[#14234b]'}`}>
-            Family,<br />
-            <span className={`bg-gradient-to-r ${isNight ? 'from-[#b475ff] to-[#ff4081]' : 'from-[#e81cff] to-[#ff6b00]'} bg-clip-text text-transparent`}>
-              Together
+          <h2 className={`text-[15px] font-black leading-tight tracking-tight mt-1 drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] ${isNight ? 'text-white' : 'text-[#14234b]'}`}>
+            Your Family,<br />
+            <span className={isNight ? 'text-[#a855f7]' : 'bg-gradient-to-r from-[#e81cff] to-[#ff6b00] bg-clip-text text-transparent drop-shadow-none'}>
+              Protected
             </span>
           </h2>
 
-          <p className={`text-[7.5px] font-bold leading-tight max-w-[130px] ${isNight ? 'text-gray-300' : 'text-[#14234b]/70'}`}>
-            Everyone is protected today ❤️
+          <p className={`text-[6.5px] font-bold leading-tight max-w-[130px] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] ${isNight ? 'text-gray-200' : 'text-[#14234b]/70'}`}>
+            Together we stay safe.
           </p>
         </div>
 
@@ -102,14 +104,14 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
             >
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div
-                  className={`w-[14px] h-[14px] rounded-[4px] flex items-center justify-center flex-shrink-0 ${isNight
+                  className={`w-[20px] h-[20px] rounded-[5px] flex items-center justify-center flex-shrink-0 ${isNight
                     ? "bg-white/10 shadow-sm"
                     : "bg-[#FFF8F2] border border-white/60 shadow-[0_4px_10px_rgba(255,190,140,0.14)]"
                     }`}
                 >
                   <Users
                     className={isNight ? "text-purple-400" : "text-[#8B5CF6]"}
-                    size={7}
+                    size={10}
                     fill="currentColor"
                     strokeWidth={1}
                   />
@@ -117,14 +119,14 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
 
                 <div className="flex flex-col flex-1 min-w-0">
                   <span
-                    className={`text-[6px] font-[700] leading-tight truncate whitespace-nowrap ${isNight ? "text-white" : "text-[#2B2B2B]"
+                    className={`text-[9px] font-[700] leading-tight truncate whitespace-nowrap ${isNight ? "text-white" : "text-[#2B2B2B]"
                       }`}
                   >
                     Family Together
                   </span>
 
                   <span
-                    className={`text-[4px] font-[600] truncate whitespace-nowrap ${isNight ? "text-gray-400" : "text-[#333333]"
+                    className={`text-[7px] font-[600] truncate whitespace-nowrap ${isNight ? "text-gray-400" : "text-[#333333]"
                       }`}
                   >
                     {totalMembers} Members
@@ -136,12 +138,10 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
                 <div className="flex -space-x-1.5">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className={`relative rounded-full`}>
-                      <img
-                        src={`https://i.pravatar.cc/100?img=${i + 10}`}
-                        alt=""
-                        className={`w-[18px] h-[18px] rounded-full border-[1.5px] object-cover transition-transform hover:scale-105 z-10 relative ${isNight
-                          ? "border-[#1a0f2e]"
-                          : "border-[#FFF8F1] shadow-[0_4px_12px_rgba(255,180,120,0.25)]"
+                      <div
+                        className={`w-[18px] h-[18px] rounded-full border-[1.5px] transition-transform hover:scale-105 z-10 relative ${isNight
+                          ? "bg-white border-[#1a0f2e]"
+                          : "bg-white border-[#FFF8F1] shadow-[0_4px_12px_rgba(255,180,120,0.25)]"
                           }`}
                       />
                     </div>
@@ -168,14 +168,14 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
             <div className="relative z-10 flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div
-                  className={`w-[14px] h-[14px] rounded-[4px] flex items-center justify-center flex-shrink-0 ${isNight
+                  className={`w-[20px] h-[20px] rounded-[5px] flex items-center justify-center flex-shrink-0 ${isNight
                     ? "bg-white/10 shadow-sm"
                     : "bg-[#FFF8F2] border border-white/60 shadow-[0_4px_10px_rgba(255,190,140,0.14)]"
                     }`}
                 >
                   <ShieldCheck
                     className={isNight ? "text-emerald-400" : "text-[#16C784]"}
-                    size={7}
+                    size={10}
                     fill="currentColor"
                     strokeWidth={1}
                   />
@@ -183,14 +183,14 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
 
                 <div className="flex flex-col flex-1 min-w-0">
                   <span
-                    className={`text-[6px] font-[700] leading-tight truncate whitespace-nowrap ${isNight ? "text-white" : "text-[#2B2B2B]"
+                    className={`text-[9px] font-[700] leading-tight truncate whitespace-nowrap ${isNight ? "text-white" : "text-[#2B2B2B]"
                       }`}
                   >
                     All Members Safe
                   </span>
 
                   <span
-                    className={`text-[4px] font-[600] truncate whitespace-nowrap ${isNight ? "text-gray-400" : "text-[#404040]"
+                    className={`text-[7px] font-[600] truncate whitespace-nowrap ${isNight ? "text-gray-400" : "text-[#404040]"
                       }`}
                   >
                     Everyone is doing great
@@ -217,31 +217,53 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
 
           <div className="mt-auto flex flex-col gap-1">
             {/* Add Member Button */}
-            <button className="relative overflow-hidden w-full py-[5px] rounded-[12px] bg-gradient-to-r from-[#FF9333] via-[#FF6B5F] to-[#FF2F88] border border-white/20 shadow-[0_8px_24px_rgba(255,125,95,0.32)] flex items-center justify-center gap-1.5 text-white active:scale-[0.97] transition-all duration-200">
-              <div className="absolute inset-0 rounded-[12px] bg-gradient-to-b from-white/25 via-transparent to-transparent pointer-events-none" />
-              <Plus size={9} strokeWidth={2.5} className="relative z-10" />
-              <span className="relative z-10 text-[8px] font-bold">Add Family Member</span>
+            <button className={`relative overflow-hidden w-full py-[8px] rounded-[14px] flex items-center justify-center gap-2 text-white active:scale-[0.97] transition-all duration-200 ${isNight ? 'bg-gradient-to-r from-[#f97316] via-[#d946ef] to-[#8b5cf6] border-none shadow-[0_8px_24px_rgba(217,70,239,0.25)]' : 'bg-gradient-to-r from-[#FF9333] via-[#FF6B5F] to-[#FF2F88] border-none shadow-[0_8px_24px_rgba(255,125,95,0.32)]'}`}>
+              <div className="absolute inset-0 rounded-[14px] bg-gradient-to-b from-white/25 via-transparent to-transparent pointer-events-none" />
+              <Plus size={12} strokeWidth={2.5} className="relative z-10" />
+              <span className="relative z-10 text-[10px] font-bold tracking-wide">Add Family Member</span>
             </button>
 
-            {/* Bottom Actions Row - Exact Match */}
-            <div className="flex flex-row justify-between w-full gap-1">
+            {/* Bottom Actions Row - Premium (Small) */}
+            <div className="flex flex-row justify-between w-full gap-1 mt-0.5">
               {[
-                { icon: MapPin, label: 'Live\nLocation', color: isNight ? 'text-purple-400' : 'text-[#8B5CF6]' },
-                { icon: Shield, label: 'Protection\nScore', color: isNight ? 'text-blue-400' : 'text-[#3B82F6]' },
-                { icon: Bell, label: 'Alerts', color: isNight ? 'text-red-400' : 'text-[#FF6A4D]' },
-                { icon: MessageSquare, label: 'Messages', color: isNight ? 'text-emerald-400' : 'text-[#22C55E]' }
-              ].map((action, i) => (
-                <div key={i} className={`relative overflow-hidden flex flex-1 flex-col items-center justify-center gap-1 py-1 px-0 rounded-[10px] cursor-pointer transition-all duration-200 active:scale-[0.97] ${isNight ? 'bg-white/5 border border-white/5' : 'bg-[rgba(255,248,242,0.12)] backdrop-blur-[16px] shadow-[0_8px_25px_rgba(255,190,120,0.15)]'}`}>
-                  {!isNight && <div className="absolute inset-0 rounded-[10px] bg-gradient-to-b from-white/18 via-transparent to-transparent pointer-events-none" />}
+                { title: "Live\nLocation", subtitle: "Tracking", icon: MapPin, color: "from-violet-500 to-fuchsia-500", glow: "shadow-violet-500/30" },
+                { title: "Protection\nScore", subtitle: "Secure", icon: Shield, color: "from-cyan-500 to-sky-500", glow: "shadow-cyan-500/30" },
+                { title: "Alerts", subtitle: "Realtime", icon: Bell, color: "from-rose-500 to-orange-500", glow: "shadow-rose-500/30" },
+                { title: "Messages", subtitle: "Connected", icon: MessageSquare, color: "from-emerald-500 to-teal-500", glow: "shadow-emerald-500/30" }
+              ].map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={index}
+                    className={`group relative overflow-hidden rounded-[8px] border flex flex-col items-center flex-1 transition-all duration-300 hover:-translate-y-[1px] active:scale-[0.97] ${isNight ? 'bg-white/[0.04] border-white/10 hover:border-white/20 hover:bg-white/[0.07] py-1 px-0.5' : 'bg-white border-white/40 shadow-sm py-1 px-0.5'}`}
+                  >
+                    {/* Glow */}
+                    {isNight && (
+                      <div className={`absolute -top-3 left-1/2 h-6 w-6 -translate-x-1/2 rounded-full bg-gradient-to-r ${item.color} opacity-20 blur-xl group-hover:opacity-40 transition`} />
+                    )}
 
-                  <div className={`relative z-10 w-[14px] h-[14px] rounded-full flex items-center justify-center border shadow-[0_4px_12px_rgba(255,190,140,0.15)] ${isNight ? 'bg-white/10 border-white/10' : 'bg-[#FFF9F5] border-white/50'}`}>
-                    <action.icon className={action.color} size={7} fill="currentColor" strokeWidth={1} />
-                  </div>
-                  <span className={`relative z-10 text-[5px] tracking-tight font-[700] text-center w-full px-0 whitespace-pre-line leading-[1.1] ${isNight ? 'text-gray-300' : 'text-[#2F2F2F]'}`}>
-                    {action.label}
-                  </span>
-                </div>
-              ))}
+                    {/* Gradient Ring */}
+                    <div className={`mx-auto flex h-[15px] w-[15px] items-center justify-center rounded-full bg-gradient-to-br ${item.color} p-[1px] shadow-sm ${item.glow}`}>
+                      <div className={`flex h-full w-full items-center justify-center rounded-full ${isNight ? 'bg-[#0f1120]/90' : 'bg-white'}`}>
+                        <Icon size={7} strokeWidth={2.5} className={isNight ? 'text-white' : 'text-slate-700'} />
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <h3 className={`mt-0.5 whitespace-pre-line text-center text-[5px] font-bold leading-[1.1] tracking-wide ${isNight ? 'text-white' : 'text-slate-800'}`}>
+                      {item.title}
+                    </h3>
+
+                    {/* Subtitle */}
+                    <p className={`mt-0 text-[4px] font-semibold ${isNight ? 'text-white/45' : 'text-slate-400'}`}>
+                      {item.subtitle}
+                    </p>
+
+                    {/* Shine Effect */}
+                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:translate-x-full transition-transform duration-700" />
+                  </button>
+                );
+              })}
             </div>
           </div>
 

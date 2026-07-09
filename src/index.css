@@ -33,11 +33,15 @@
     min-height: -webkit-fill-available;
     /* 🛡️ BUTTER PROTOCOL: OPTIMIZED RENDERING */
     text-rendering: optimizeLegibility;
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
   }
 
   html {
     height: -webkit-fill-available;
     scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
   }
 
   h1 {
@@ -420,26 +424,17 @@ html.supercell-active {
 /* ================= STAR TWINKLE ================= */
 @keyframes starBlink {
   0%,100%{
-    opacity:.25;
-    transform:translate(-50%,-50%) rotate(45deg) scale(.55);
-    filter:brightness(.8);
-  }
-  15%{
-    opacity:.5;
-    transform:translate(-50%,-50%) rotate(45deg) scale(.75);
+    opacity: 0.1;
+    box-shadow: 0 0 0px rgba(255,255,255,0);
   }
   35%{
-    opacity:1;
-    transform:translate(-50%,-50%) rotate(45deg) scale(1.35);
-    filter:brightness(2.8);
-  }
-  50%{
-    opacity:.7;
-    transform:translate(-50%,-50%) rotate(45deg) scale(.9);
+    opacity: 1;
+    box-shadow: 0 0 1px rgba(255,255,255,1);
+    background-color: #ffffff;
   }
   70%{
-    opacity:.35;
-    transform:translate(-50%,-50%) rotate(45deg) scale(.6);
+    opacity: 0.2;
+    box-shadow: 0 0 1px rgba(255,255,255,0.2);
   }
 }
 

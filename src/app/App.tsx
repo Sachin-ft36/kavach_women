@@ -29,6 +29,7 @@ import { TabManager } from '../components/navigation/TabManager';
 import { BottomNavBar } from '../components/navigation/BottomNavBar';
 import { VerificationPendingGate } from '../components/onboarding/VerificationPendingGate';
 import { GuardianWaitingGate } from '../components/onboarding/GuardianWaitingGate';
+import { ImagePreloader } from '../components/performance/ImagePreloader';
 
 const Onboarding = React.lazy(() => import('../components/Onboarding'));
 const FakeCallUI = React.lazy(() => import('../components/FakeCallUI'));
@@ -198,6 +199,7 @@ export default function App() {
 
   return (
     <>
+      <ImagePreloader />
       <SOSConfirmationOverlay />
       <WarningOverlay />
       <BanOverlay />

@@ -242,7 +242,7 @@ export const StreakDetailSheet = ({ isOpen, onClose, isNight }: StreakDetailShee
               <div className="flex flex-col items-center pt-2 pb-4 relative">
                 {/* Background image blur */}
                 <img
-                  src={isNight ? '/assets/dashboard_assets/streak.png' : `/assets/dashboard_assets/${themeFolder}/streak.png`}
+                  src={isNight ? '/assets/dashboard_assets/night/streak.png' : `/assets/dashboard_assets/${themeFolder}/streak.png`}
                   className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none opacity-20 rounded-[20px]"
                   alt=""
                   style={{

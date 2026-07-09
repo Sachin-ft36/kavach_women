@@ -5,6 +5,7 @@ import { Home, FolderOpen, LayoutDashboard, Globe, Users, Upload, MapPin, BookOp
 import { NavButton } from '../NavButton';
 import { cn } from '../../lib/utils';
 import { useKavachStore } from '../../state/useKavachStore';
+import { useTimeTheme } from '../../hooks/useTimeTheme';
 import { toast } from 'sonner';
 import DailyCheckIn from '../safetimer/DailyCheckIn';
 import CheckInCamera from '../safetimer/CheckInCamera';
@@ -22,8 +23,8 @@ export function BottomNavBar({ isNavVisible }: Props) {
   const isMale = gender === 'male' || (profile as any)?.gender === 'male';
   const effectiveRole = (isMale && role === 'citizen') ? 'protector' : role;
 
-  const currentHour = new Date().getHours();
-  const isNight = currentHour >= 18 || currentHour < 5;
+  const { themeFolder } = useTimeTheme();
+  const isNight = themeFolder === 'night';
 
   if (effectiveRole === 'guardian') {
     return (

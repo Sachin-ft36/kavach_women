@@ -3,7 +3,7 @@ import {
   Camera, Sparkles, Sliders, ShieldCheck,
   RefreshCw, Check, Download, Trash2,
   Zap, FlipHorizontal, Moon, Layers, Mic, Music2, Video, Settings, Cpu,
-  Shield, Activity
+  Shield, Activity, ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useKavachStore } from '../../state/useKavachStore';
@@ -226,15 +226,13 @@ export default function CheckInCamera({ isOpen, onClose, onPhotoCaptured }: Chec
         {/* ════════════════ TOP BAR ════════════════ */}
         <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-4 pb-3 pointer-events-auto">
 
-          {/* KAVACH logo → closes camera */}
+          {/* Back button → closes camera */}
           <button onClick={(e) => { e.stopPropagation(); setIsCameraActive(false); onClose(); }}
             className="flex items-center gap-2 active:opacity-70 transition-opacity">
-            <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#7c3aed,#ec4899)', boxShadow: '0 0 14px rgba(168,85,247,0.6)' }}>
-              <Shield size={14} className="text-white" fill="white" />
+            <div className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <ArrowLeft size={18} className="text-white" />
             </div>
-            <span className="text-white font-black text-[14px] tracking-[0.15em] uppercase"
-              style={{ textShadow: '0 0 20px rgba(168,85,247,0.6)' }}>Kavach</span>
           </button>
 
           {/* LIVE pill */}

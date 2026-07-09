@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, LogOut, Zap, Shield, Eye, Bell, ShieldCheck, X, Phone, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useKavachStore } from '../../state/useKavachStore';
+import { useTimeTheme } from '../../hooks/useTimeTheme';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -60,8 +61,8 @@ export function Header({
   const isProtector = role === 'protector';
   const isOnDuty = userData?.isOnDuty || false;
 
-  const currentHour = new Date().getHours();
-  const isNight = currentHour >= 18 || currentHour < 5;
+  const { themeFolder } = useTimeTheme();
+  const isNight = themeFolder === 'night';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-[150] flex justify-center pointer-events-none">
@@ -91,11 +92,6 @@ export function Header({
             <p className={`text-[6.5px] font-extrabold uppercase tracking-[0.14em] mt-0.5 ${isNight ? 'text-[#8c7cff]' : 'text-slate-500'}`}>
               women safety network
             </p>
-            <div className="flex items-center gap-1 mt-1.5 w-max">
-              <ShieldCheck className="w-3 h-3 text-[#10b981]" strokeWidth={2.5} />
-              <span className="text-[10px] font-extrabold text-[#10b981] leading-none">You are Protected</span>
-              <span className="w-1.5 h-1.5 bg-[#10b981] rounded-full ml-0.5" />
-            </div>
           </div>
         </div>
 
@@ -113,18 +109,6 @@ export function Header({
             </button>
           )}
 
-          {/* Alerts Card Button */}
-          <button 
-            onClick={() => setActiveTab('history')}
-            className={`relative w-[48px] h-[44px] rounded-[12px] flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer border ${isNight ? 'bg-white/[0.03] border-white/5 hover:bg-white/10 text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'}`}
-          >
-            <Bell size={16} strokeWidth={2} />
-            <span className={`text-[8px] font-semibold ${isNight ? 'text-gray-300' : 'text-slate-500'}`}>Alerts</span>
-            <div className="absolute -top-1 -right-1 bg-[#ef4444] text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-lg border border-[#0d0c24]">
-              3
-            </div>
-          </button>
-
           {/* Profile Dropdown */}
           <div className="relative ml-0.5">
             <button 
@@ -132,17 +116,17 @@ export function Header({
               className="flex flex-col items-center gap-0.5 cursor-pointer border-none bg-transparent"
             >
               <div className="relative">
-                <div className="w-[32px] h-[32px] rounded-full border border-[#8c7cff]/40 overflow-hidden bg-[#1e1e38] flex items-center justify-center">
+                <div className="w-[26px] h-[26px] rounded-full border border-[#8c7cff]/40 overflow-hidden bg-[#1e1e38] flex items-center justify-center">
                   {userPhoto ? (
                     <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
                   ) : (
-                    <User size={14} className="text-slate-300" />
+                    <User size={12} className="text-slate-300" />
                   )}
                 </div>
-                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#00e676] rounded-full border border-[#09081a]" />
+                <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#00e676] rounded-full border border-[#09081a]" />
               </div>
-              <div className="flex items-center gap-0.5 mt-0.5">
-                <span className={`text-[8.5px] font-extrabold leading-none tracking-wide ${isNight ? 'text-white' : 'text-slate-800'}`}>{displayName?.split(' ')[0] || 'User'}</span>
+              <div className="flex items-center gap-0.5 mt-[2px]">
+                <span className={`text-[7.5px] font-extrabold leading-none tracking-wide ${isNight ? 'text-white' : 'text-slate-800'}`}>{displayName?.split(' ')[0] || 'User'}</span>
                 <svg className={`w-2 h-2 ${isNight ? 'text-gray-400' : 'text-slate-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points="6 9 12 15 18 9" />
                 </svg>

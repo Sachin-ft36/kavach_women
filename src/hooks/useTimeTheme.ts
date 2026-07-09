@@ -7,23 +7,23 @@ export function useTimeTheme() {
   const timeThemeOverride = useUIStore((state) => state.timeThemeOverride);
   
   const [autoTimeOfDay, setAutoTimeOfDay] = useState<TimeOfDay>('afternoon');
-  const [autoGreeting, setAutoGreeting] = useState('Good Afternoon ☀️');
+  const [autoGreeting, setAutoGreeting] = useState('Good Afternoon');
 
   useEffect(() => {
     const updateTime = () => {
       const hour = new Date().getHours();
       if (hour >= 5 && hour < 12) {
         setAutoTimeOfDay('morning');
-        setAutoGreeting('Good Morning ✨');
+        setAutoGreeting('Good Morning');
       } else if (hour >= 12 && hour < 17) {
         setAutoTimeOfDay('afternoon');
-        setAutoGreeting('Good Afternoon ☀️');
+        setAutoGreeting('Good Afternoon');
       } else if (hour >= 17 && hour < 20) {
         setAutoTimeOfDay('evening');
-        setAutoGreeting('Good Evening 🌙');
+        setAutoGreeting('Good Evening');
       } else {
         setAutoTimeOfDay('night');
-        setAutoGreeting('Good Night 🌙');
+        setAutoGreeting('Good Night');
       }
     };
 
@@ -39,10 +39,10 @@ export function useTimeTheme() {
   // Set appropriate greeting for manual overrides
   let greeting = autoGreeting;
   if (!isAuto) {
-    if (timeOfDay === 'morning') greeting = 'Good Morning ✨';
-    else if (timeOfDay === 'afternoon') greeting = 'Good Afternoon ☀️';
-    else if (timeOfDay === 'evening') greeting = 'Good Evening 🌙';
-    else greeting = 'Good Night 🌙';
+    if (timeOfDay === 'morning') greeting = 'Good Morning';
+    else if (timeOfDay === 'afternoon') greeting = 'Good Afternoon';
+    else if (timeOfDay === 'evening') greeting = 'Good Evening';
+    else greeting = 'Good Night';
   }
 
   // Helper to safely resolve the folder name (in case evening is not provided yet)
