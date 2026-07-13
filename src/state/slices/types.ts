@@ -1,6 +1,12 @@
 import { User as FirebaseUser } from 'firebase/auth';
 import { GeoPoint, UserProfile } from '../../types';
 
+export type { UserProfile };
+export type { IncidentRecord } from '../../types';
+export type { ZeroFIRRecord, SystemLog } from '../../engine/Audit';
+export type { JourneyRecord } from '../../engine/Incident';
+export type { LocationData } from '../../engine';
+
 export interface KavachState {
   user: FirebaseUser | null;
   profile: UserProfile | null;

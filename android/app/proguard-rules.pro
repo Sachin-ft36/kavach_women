@@ -1,21 +1,34 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# --- KAVACH CORE OBFUSCATION RULES ---
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line numbers for Crashlytics
+-keepattributes SourceFile,LineNumberTable
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor / Android Bridge
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.NativePlugin public class *
+-keep @com.getcapacitor.CapacitorPlugin public class *
+-keepclassmembers class * {
+  @com.getcapacitor.PluginMethod public *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Vosk Offline Speech Recognition (Native Libraries)
+-keep class org.vosk.** { *; }
+-keep class com.alphacephei.vosk.** { *; }
+-keep class net.java.dev.jna.** { *; }
+
+# Agora RTC SDK
+-keep class io.agora.** { *; }
+
+# OkHttp / Okio (SSL Pinning)
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-keep class okio.** { *; }
+
+# RootBeer (Root Detection)
+-keep class com.scottyab.rootbeer.** { *; }
+
+# App-specific Native Bridge
+-keep class com.kavach.app.KavachNative { *; }
+-keep class com.kavach.app.KavachService { *; }

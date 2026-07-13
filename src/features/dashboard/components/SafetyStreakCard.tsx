@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Flame, Check, RotateCcw, Zap, X, ChevronRight, Rocket, Sparkles } from 'lucide-react';
+import { Flame, Check, RotateCcw, Zap, X, ChevronRight, Rocket, Sparkles, ShieldCheck, Users, Car, Gift } from 'lucide-react';
 import { useTimeTheme } from '../../../hooks/useTimeTheme';
+import { useKavachStore } from '../../../state/useKavachStore';
 import { useStreakData, MILESTONES } from '../hooks/useStreakData';
 import { StreakDetailSheet } from './StreakDetailSheet';
 import { StreakPopups } from './StreakPopups';
@@ -25,7 +26,7 @@ const WeekTracker = ({ weekDays, isNight, nextMilestone, daysToNext, checkedInTo
       className="mt-auto w-full px-2.5 py-2 rounded-[14px] flex flex-col gap-1.5"
       style={{
         background: isNight
-          ? 'rgba(255,255,255,0.06)'
+          ? 'rgba(255,255,255,0.15)'
           : '#FDF8F0', // Creamy beige background matching design
         boxShadow: isNight ? 'none' : '0 2px 10px rgba(0,0,0,0.02)',
       }}
@@ -38,8 +39,8 @@ const WeekTracker = ({ weekDays, isNight, nextMilestone, daysToNext, checkedInTo
                 className={`text-[8px] font-bold tracking-wide ${day.isToday
                     ? isNight ? 'text-orange-400' : 'text-gray-800'
                     : day.status === 'completed'
-                      ? isNight ? 'text-white/60' : 'text-gray-700'
-                      : isNight ? 'text-white/30' : 'text-gray-500'
+                      ? isNight ? 'text-white/90' : 'text-gray-700'
+                      : isNight ? 'text-white/60' : 'text-gray-500'
                   }`}
               >
                 {labels[i]}
@@ -73,15 +74,15 @@ const WeekTracker = ({ weekDays, isNight, nextMilestone, daysToNext, checkedInTo
                 </div>
               ) : (
                 <div
-                  className={`w-[13px] h-[13px] rounded-full flex items-center justify-center ${isNight ? 'bg-white/10' : 'bg-gray-200'
+                  className={`w-[13px] h-[13px] rounded-full flex items-center justify-center ${isNight ? 'bg-white/25' : 'bg-gray-200'
                     }`}
                 >
                   {day.streakDayNumber !== null ? (
-                    <span className={`text-[6.5px] font-bold ${isNight ? 'text-white/40' : 'text-gray-500'}`}>
+                    <span className={`text-[6.5px] font-bold ${isNight ? 'text-white/80' : 'text-gray-500'}`}>
                       {day.streakDayNumber}
                     </span>
                   ) : (
-                    <div className="w-1 h-1 rounded-full bg-black/20" />
+                    <div className={`w-1 h-1 rounded-full ${isNight ? 'bg-white/50' : 'bg-black/20'}`} />
                   )}
                 </div>
               )}
@@ -112,6 +113,9 @@ const WeekTracker = ({ weekDays, isNight, nextMilestone, daysToNext, checkedInTo
 // ─── Main Card ─────────────────────────────────────────────────────────────────
 export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
   const { themeFolder } = useTimeTheme();
+  const { guardianCache } = useKavachStore();
+  const hasFamilyMember = guardianCache && guardianCache.length > 0;
+  const [hasTriedRideSafe, setHasTriedRideSafe] = useState(false);
   const {
     data,
     streakState,
@@ -132,10 +136,43 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
   const [showLevelUp, setShowLevelUp] = React.useState(false);
   const tierColors = exactMilestone ? TIER_COLORS[exactMilestone.tier] : null;
 
+  // Auto-transition to Active State if any Day 1 task is completed
+  React.useEffect(() => {
+    if (streakState === 'new') {
+      if (checkedInToday || hasFamilyMember || hasTriedRideSafe) {
+        const timer = setTimeout(() => {
+          if (!checkedInToday) {
+            doCheckIn();
+          }
+          startJourney();
+        }, 1200); // 1.2s delay to show the tick animation before transitioning
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [streakState, checkedInToday, hasFamilyMember, hasTriedRideSafe, doCheckIn, startJourney]);
+
+  const DYNAMIC_BACKGROUNDS = [
+    null, // 0 index
+    null, // Day 1 (Uses default local image)
+    "/assets/streak_bgs/bg_1.png",
+    "/assets/streak_bgs/bg_2.png",
+    "/assets/streak_bgs/bg_3.png",
+    "/assets/streak_bgs/bg_4.png",
+    "/assets/streak_bgs/bg_5.png",
+    "/assets/streak_bgs/bg_6.png"
+  ];
+
+  const currentDayIndex = streakState === 'new' ? 1 : Math.max(1, data.currentStreak || 1);
+  const dynamicImage = DYNAMIC_BACKGROUNDS[currentDayIndex % DYNAMIC_BACKGROUNDS.length];
+  
+  const bgSrc = dynamicImage || (isNight
+      ? '/assets/dashboard_assets/night/streak.png'
+      : `/assets/dashboard_assets/${themeFolder}/streak.png`);
+
   return (
     <>
       <div
-        className={`rounded-[24px] border flex flex-col relative overflow-hidden flex-1 h-full cursor-pointer active:scale-[0.98] transition-transform ${isNight
+        className={`rounded-[16px] border flex flex-col relative overflow-hidden flex-1 h-full cursor-pointer active:scale-[0.98] transition-transform ${isNight
             ? 'bg-[#0E0F16]/90 border-white/10'
             : 'bg-[#FFF8F1] border-white/45 shadow-[0_14px_45px_rgba(255,170,120,0.12)]'
           }`}
@@ -143,13 +180,9 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
       >
         {/* Background Image */}
         <img
-          src={
-            isNight
-              ? '/assets/dashboard_assets/night/streak.png'
-              : `/assets/dashboard_assets/${themeFolder}/streak.png`
-          }
+          src={bgSrc}
           alt="Streak background"
-          className={`absolute inset-0 w-full h-full object-cover object-[80%_center] pointer-events-none z-0 ${isNight ? 'opacity-100' : 'opacity-100'
+          className={`absolute inset-0 w-full h-full object-cover object-[80%_center] pointer-events-none z-0 ${isNight ? 'opacity-90' : 'opacity-100'
             } [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
         />
 
@@ -160,6 +193,13 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
               : 'bg-gradient-to-br from-[#FFE8D6]/15 via-transparent to-transparent'
             }`}
         />
+        
+        {/* Dark Overlay for Text Clarity (Night Only) */}
+        {isNight && <div className="absolute inset-0 pointer-events-none z-0 bg-black/30" />}
+        {/* Light Overlay for Text Clarity (Day Only) */}
+        {themeFolder === 'morning' && <div className="absolute inset-0 pointer-events-none z-0 bg-sky-100/40" />}
+        {/* Warm Overlay for Afternoon */}
+        {themeFolder === 'afternoon' && <div className="absolute inset-0 pointer-events-none z-0 bg-[#FFF0E5]/40" />}
 
         {/* Content */}
         <div className={`relative z-10 flex flex-col h-full p-4 pb-3 ${isNight ? 'drop-shadow-[0_2px_10px_rgba(0,0,0,1)]' : 'drop-shadow-sm'}`}>
@@ -180,145 +220,115 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
             >
               Safety Streak
             </span>
-            {/* 🛠️ TEMPORARY DEBUG BUTTON TO RESET STREAK */}
-            <button
-              onClick={(e) => { e.stopPropagation(); restartStreak(); }}
-              className={`absolute right-0 text-[9px] font-bold px-2 py-0.5 rounded-md shadow-sm transition-colors z-50 ${
-                isNight 
-                  ? 'bg-[#1a113a]/80 border border-[#3b2b73] text-[#c4b5fd] hover:bg-[#23154f]' 
-                  : 'bg-white border border-blue-100 text-[#1a73e8] active:bg-blue-50'
-              }`}
-            >
-              Reset
-            </button>
           </div>
 
           {/* ═══ STATE 1 — NEW USER ═══ */}
           {streakState === 'new' && (
             <>
               <h2
-                className={`text-[15px] font-black leading-tight mt-0.5 mb-2 ${isNight ? 'text-white' : 'text-[#2a2a2a] drop-shadow-[0_0_8px_rgba(255,255,255,1)]'
+                className={`text-[16px] font-black leading-tight mt-0 mb-1 ${isNight ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,1)]' : 'text-[#2a2a2a]'
                   }`}
               >
                 Start your<br />safety journey!
               </h2>
+              <p className={`text-[8.5px] font-bold leading-tight ${isNight ? 'text-white/90 drop-shadow-md' : 'text-[#2a2a2a]/90'} mb-auto`}>
+                Small steps today,<br />lifelong protection tomorrow.
+              </p>
 
-              <div className="flex flex-col gap-2.5 mb-3">
-                {[
-                  { title: 'Complete your first check-in', completed: true },
-                  { title: 'Add one family member', completed: false },
-                  { title: 'Try Ride Safe', completed: false },
-                ].map((task, i) => (
-                  <div
-                    key={i}
-                    className="group flex items-center gap-2.5 transition-all duration-300"
-                  >
-                    {/* Premium Status Circle */}
-                    <div
-                      className={`
-                        relative flex items-center justify-center
-                        w-3 h-3 rounded-full overflow-hidden
-                        transition-all duration-300 shrink-0
-                        ${
-                          task.completed
-                            ? isNight
-                              ? 'bg-gradient-to-br from-emerald-300 via-emerald-400 to-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.45)]'
-                              : 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 shadow-[0_3px_8px_rgba(16,185,129,0.28)]'
-                            : isNight
-                            ? 'bg-white/10 border border-white/20'
-                            : 'bg-white border border-slate-300'
-                        }
-                      `}
-                    >
-                      {task.completed ? (
-                        <svg
-                          viewBox="0 0 24 24"
-                          className="w-[7px] h-[7px]"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 12l4 4 10-10" />
-                        </svg>
-                      ) : (
-                        <>
-                          {/* Animated Ring */}
-                          <div
-                            className={`
-                              absolute inset-0 rounded-full
-                              border
-                              ${
-                                isNight
-                                  ? 'border-white/25'
-                                  : 'border-slate-300'
-                              }
-                            `}
-                          />
-
-                          {/* Pulse */}
-                          <div
-                            className={`
-                              absolute inset-0 rounded-full animate-ping opacity-40
-                              ${
-                                isNight
-                                  ? 'bg-white/10'
-                                  : 'bg-slate-300/30'
-                              }
-                            `}
-                          />
-
-                          {/* Center Dot */}
-                          <div
-                            className={`
-                              w-[3px] h-[3px] rounded-full
-                              ${
-                                isNight
-                                  ? 'bg-white/80'
-                                  : 'bg-slate-500'
-                              }
-                            `}
-                          />
-                        </>
-                      )}
+              {/* Tasks Container */}
+              <div className={`mt-auto w-full p-1 rounded-[10px] border flex flex-col gap-0.5 shadow-sm ${isNight ? 'bg-[#151923]/90 border-white/20 backdrop-blur-xl' : 'bg-white/95 border-white shadow-[0_-10px_30px_rgba(255,255,255,0.7)] backdrop-blur-md'}`}>
+                
+                {/* Task 1 */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); if (!checkedInToday) doCheckIn(); }}
+                  className={`flex justify-between items-center bg-gradient-to-r ${checkedInToday ? 'from-emerald-100/60' : 'from-emerald-50/50'} to-transparent p-[3px] rounded-[6px] ${!checkedInToday ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="w-[11px] h-[11px] rounded-full bg-emerald-100 flex items-center justify-center">
+                      <ShieldCheck size={6} className="text-emerald-600" />
                     </div>
+                    <span className={`text-[5.5px] font-extrabold whitespace-nowrap ${isNight ? 'text-white' : 'text-[#2a2a2a]'}`}>Complete your first check-in</span>
+                  </div>
+                  {checkedInToday ? (
+                    <div className="flex items-center text-emerald-500 bg-emerald-50 px-1 rounded-full border border-emerald-100">
+                      <span className="text-[5.5px] font-bold mr-[1px] text-emerald-600">1</span>
+                      <Check size={5} strokeWidth={3} />
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-gray-400">
+                      <span className="text-[5.5px] font-bold mr-0.5">0</span>
+                      <ChevronRight size={5} />
+                    </div>
+                  )}
+                </div>
 
-                    {/* Task */}
-                    <span
-                      className={`
-                        text-[7px] font-semibold tracking-[0.015em]
-                        transition-colors duration-300
-                        ${
-                          task.completed
-                            ? isNight
-                              ? 'text-white'
-                              : 'text-slate-900'
-                            : isNight
-                            ? 'text-white/72'
-                            : 'text-slate-600'
-                        }
-                      `}
-                    >
-                      {task.title}
+                {/* Task 2 */}
+                <div 
+                  className={`flex justify-between items-center bg-gradient-to-r ${hasFamilyMember ? 'from-blue-100/60' : 'from-blue-50/50'} to-transparent p-[3px] rounded-[6px]`}
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="w-[11px] h-[11px] rounded-full bg-blue-100 flex items-center justify-center border border-blue-200/50">
+                      <Users size={5} className="text-blue-600" />
+                    </div>
+                    <span className={`text-[5.5px] font-extrabold whitespace-nowrap ${isNight ? 'text-white' : 'text-[#2a2a2a]'}`}>Add one family member</span>
+                  </div>
+                  {hasFamilyMember ? (
+                    <div className="flex items-center text-blue-500 bg-blue-50 px-1 rounded-full border border-blue-100">
+                      <span className="text-[5.5px] font-bold mr-[1px] text-blue-600">1</span>
+                      <Check size={5} strokeWidth={3} />
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-gray-400">
+                      <span className="text-[5.5px] font-bold mr-0.5">0</span>
+                      <ChevronRight size={5} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Task 3 */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setHasTriedRideSafe(true); }}
+                  className={`flex justify-between items-center bg-gradient-to-r ${hasTriedRideSafe ? 'from-indigo-100/60' : 'from-indigo-50/50'} to-transparent p-[3px] rounded-[6px] ${!hasTriedRideSafe ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="w-[11px] h-[11px] rounded-full bg-indigo-100 flex items-center justify-center border border-indigo-200/50">
+                      <Car size={6} className="text-indigo-600" />
+                    </div>
+                    <span className={`text-[5.5px] font-extrabold whitespace-nowrap ${isNight ? 'text-white' : 'text-[#2a2a2a]'}`}>Try Ride Safe</span>
+                  </div>
+                  {hasTriedRideSafe ? (
+                    <div className="flex items-center text-indigo-500 bg-indigo-50 px-1 rounded-full border border-indigo-100">
+                      <span className="text-[5.5px] font-bold mr-[1px] text-indigo-600">1</span>
+                      <Check size={5} strokeWidth={3} />
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-gray-400">
+                      <span className="text-[5.5px] font-bold mr-0.5">0</span>
+                      <ChevronRight size={5} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="w-full h-[0.5px] bg-gray-200/80 my-0" />
+
+                {/* Bottom Banner */}
+                <div className="flex justify-between items-center gap-1 pt-0.5">
+                  <div className="flex items-center gap-1">
+                    <div className="w-[10px] h-[10px] flex items-center justify-center bg-red-100 rounded-[2px]">
+                      <Gift size={5} className="text-red-500" strokeWidth={2.5} />
+                    </div>
+                    <span className={`text-[4.5px] font-bold leading-[1.2] ${isNight ? 'text-white/80' : 'text-[#2a2a2a]/80'}`}>
+                      Complete any 1 task today<br/>to start your streak.
                     </span>
                   </div>
-                ))}
-              </div>
-
-              <div className="mt-auto">
-                <button
-                  onClick={(e) => { e.stopPropagation(); startJourney(); }}
-                  className={`w-full flex items-center justify-center gap-1.5 py-[7px] rounded-[12px] text-white text-[10.5px] font-bold active:scale-95 transition-transform ${
-                    isNight
-                      ? 'bg-gradient-to-r from-[#5a38f5] to-[#4054fc] shadow-[0_4px_14px_rgba(90,56,245,0.4)]'
-                      : 'bg-gradient-to-r from-[#2ecc71] to-[#27ae60] shadow-[0_4px_14px_rgba(46,204,113,0.4)]'
-                  }`}
-                >
-                  <Rocket size={12} fill={isNight ? "none" : "currentColor"} className={isNight ? "text-white" : ""} strokeWidth={isNight ? 2 : 1} />
-                  Start Today!
-                  {isNight && <Sparkles size={11} className="text-white/80 ml-0.5" />}
-                </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startJourney(); }}
+                    className="py-[2px] px-[5px] rounded-[4px] bg-gradient-to-br from-[#FF4E6B] to-[#FF216B] text-white flex flex-col items-center justify-center shadow-[0_3px_10px_rgba(255,78,107,0.3)] active:scale-95 transition-transform"
+                  >
+                    <span className="text-[6px] font-black leading-tight">Day 1</span>
+                    <span className="text-[3.5px] font-extrabold flex items-center gap-[0.5px] opacity-90">Starts Today <ChevronRight size={4} strokeWidth={4} /></span>
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -472,6 +482,7 @@ export const SafetyStreakCard = ({ isNight }: SafetyStreakCardProps) => {
         activePopup={activePopup}
         popupMilestone={popupMilestone}
         currentStreak={data.currentStreak}
+        longestStreak={data.longestStreak}
         onDismiss={dismissPopup}
         onCheckIn={doCheckIn}
         onRestart={restartStreak}

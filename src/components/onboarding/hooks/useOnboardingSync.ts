@@ -26,7 +26,7 @@ export function useOnboardingSync(
   onComplete: () => void,
   localGuardian?: any
 ) {
-  const { setRole: setStoreRole, setGender: setStoreGender, setLocalGuardian } = useKavachStore();
+  const { setRole: setStoreRole, setGender: setStoreGender } = useKavachStore();
   const [isFinishing, setIsFinishing] = useState(false);
 
   const finishOnboarding = async () => {
@@ -215,7 +215,6 @@ export function useOnboardingSync(
             }, { merge: true }).catch(() => {});
             
             localStorage.setItem('kavach_local_guardian', JSON.stringify(processedLocalGuardian));
-            setLocalGuardian(processedLocalGuardian);
           }
 
           if (guardians.length > 0) {

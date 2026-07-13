@@ -39,34 +39,35 @@ public class KavachAccessibilityService extends AccessibilityService {
         int action = event.getAction();
 
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (action == KeyEvent.ACTION_DOWN) {
-                // Prevent long-press auto-repeating from counting as multiple clicks
-                if (isVolumeDownHeld) {
+            switch (action) {
+                case KeyEvent.ACTION_DOWN:
+                    // Prevent long-press auto-repeating from counting as multiple clicks
+                    if (isVolumeDownHeld) {
+                        return false;
+                    }
+                    isVolumeDownHeld = true;
+
+                    long now = System.currentTimeMillis();
+
+                    if (clickCount == 0 || (now - firstClickTime > CLICK_WINDOW_MS)) {
+                        // Start new sequence
+                        clickCount = 1;
+                        firstClickTime = now;
+                    } else {
+                        clickCount++;
+                    }
+
+                    if (clickCount >= 3) {
+                        clickCount = 0;
+                        firstClickTime = 0;
+                        executeEmergencySequence();
+                    }
+
+                    // Do NOT consume the event entirely unless we want to disable volume control.
                     return false;
-                }
-                isVolumeDownHeld = true;
-
-                long now = System.currentTimeMillis();
-                
-                if (clickCount == 0 || (now - firstClickTime > CLICK_WINDOW_MS)) {
-                    // Start new sequence
-                    clickCount = 1;
-                    firstClickTime = now;
-                } else {
-                    clickCount++;
-                }
-
-                if (clickCount >= 3) {
-                    clickCount = 0;
-                    firstClickTime = 0;
-                    executeEmergencySequence();
-                }
-                
-                // Do NOT consume the event entirely unless we want to disable volume control.
-                return false; 
-            } else if (action == KeyEvent.ACTION_UP) {
-                isVolumeDownHeld = false;
-                return false;
+                case KeyEvent.ACTION_UP:
+                    isVolumeDownHeld = false;
+                    return false;
             }
         }
         return super.onKeyEvent(event);

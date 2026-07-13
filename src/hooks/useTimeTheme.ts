@@ -45,8 +45,8 @@ export function useTimeTheme() {
     else greeting = 'Good Night';
   }
 
-  // Helper to safely resolve the folder name (in case evening is not provided yet)
-  const themeFolder = timeOfDay === 'evening' ? 'afternoon' : timeOfDay;
+  // Helper to safely resolve the folder name
+  const themeFolder = timeOfDay;
 
   return { timeOfDay, themeFolder, greeting };
 }

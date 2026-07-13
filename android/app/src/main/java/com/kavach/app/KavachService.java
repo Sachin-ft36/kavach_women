@@ -5,8 +5,11 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import androidx.core.content.ContextCompat;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -49,11 +52,13 @@ import io.agora.rtc2.IRtcEngineEventHandler;
 import io.agora.rtc2.RtcEngine;
 import io.agora.rtc2.RtcEngineConfig;
 import io.agora.rtc2.ChannelMediaOptions;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
 
 public class KavachService extends Service implements SensorEventListener {
 
     private static final String TAG = "KavachService";
     private static final String CHANNEL_ID = "KavachServiceChannel_Silent";
+    private static final String SOS_CHANNEL_ID = "KavachSOSChannel_Emergency";
 
     // Action constants required by KavachMessagingService and KavachNative
     public static final String ACTION_START_SIREN = "com.kavach.app.ACTION_START_SIREN";
@@ -629,9 +634,23 @@ public class KavachService extends Service implements SensorEventListener {
         double gForce = Math.sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH;
 
         // 🛰️ DYNAMIC ADAPTIVE FILTERING:
-        // Pocket/Bag Mode: Threshold 6.5G force and requires 5 consecutive hits
-        // Normal Mode: Threshold 5.5G force and requires 5 consecutive hits (Filters casual TV sofa bouncing)
+        // Pocket/Bag Mode: Threshold 6.5G force
+        // Normal Mode: Threshold 5.5G force
+        // Battery Saver Mode: If < 20% battery, increase threshold by 1G to filter minor vibrations and save CPU
         float requiredForce = isPhoneInPocket ? 6.5f : 5.5f;
+        
+        try {
+            android.content.Intent batteryStatus = registerReceiver(null, new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (batteryStatus != null) {
+                int level = batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
+                int scale = batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1);
+                float batteryPct = level * 100 / (float)scale;
+                if (batteryPct < 20.0f) {
+                    requiredForce += 1.0f;
+                }
+            }
+        } catch (Exception ignored) {}
+
         int requiredShakes = 5;
 
         if (gForce > requiredForce) {
@@ -783,14 +802,14 @@ public class KavachService extends Service implements SensorEventListener {
             PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 999,
                     intent, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, SOS_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                    .setContentTitle("KAVACH SOS TRIGGERED")
+                    .setContentTitle("🚨 KAVACH SOS TRIGGERED 🚨")
                     .setContentText("Emergency Protocol Activated via " + source)
                     .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
                     .setFullScreenIntent(fullScreenPendingIntent, true)
-                    .setAutoCancel(true)
+                    .setAutoCancel(false)
                     .setOngoing(true);
 
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -1073,7 +1092,7 @@ public class KavachService extends Service implements SensorEventListener {
             PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 1002,
                     baseIntent, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0));
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, SOS_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_dialog_alert)
                     .setContentTitle("Safe Timer Expired!")
                     .setContentText("Enter PIN to confirm safety. Guardians will be alerted in 5 minutes.")
@@ -1279,7 +1298,12 @@ public class KavachService extends Service implements SensorEventListener {
                 }
             };
 
-            bleAdvertiser.startAdvertising(settings, data, advertiseCallback);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                bleAdvertiser.startAdvertising(settings, data, advertiseCallback);
+            } else {
+                Log.e(TAG, "BLE ADVERTISER: Missing BLUETOOTH_ADVERTISE permission.");
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "BLE ADVERTISER: Error setting up BLE advertising", e);
@@ -1289,7 +1313,10 @@ public class KavachService extends Service implements SensorEventListener {
     private void stopBleSOSAdvertising() {
         if (bleAdvertiser != null && advertiseCallback != null) {
             try {
-                bleAdvertiser.stopAdvertising(advertiseCallback);
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                    bleAdvertiser.stopAdvertising(advertiseCallback);
+                }
                 Log.i(TAG, "BLE ADVERTISER: SOS Beacon Advertising Stopped.");
             } catch (Exception e) {
                 Log.e(TAG, "BLE ADVERTISER: Error stopping advertising", e);
@@ -1347,9 +1374,14 @@ public class KavachService extends Service implements SensorEventListener {
                 }
             };
 
-            bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
-            isScanning = true;
-            Log.i(TAG, "BLE SCANNER: Aggressive Background Scan Engaged for 48e3e4a2-198c-4a31-90a1-9a746522bc01");
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+                bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+                isScanning = true;
+                Log.i(TAG, "BLE SCANNER: Aggressive Background Scan Engaged for 48e3e4a2-198c-4a31-90a1-9a746522bc01");
+            } else {
+                Log.e(TAG, "BLE SCANNER: Missing BLUETOOTH_SCAN permission.");
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "BLE SCANNER: Error launching scanner", e);
@@ -1460,23 +1492,33 @@ public class KavachService extends Service implements SensorEventListener {
                 }
             };
 
-            bleAdvertiser.startAdvertising(settings, data, hopCallback);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                bleAdvertiser.startAdvertising(settings, data, hopCallback);
+            }
             // Stop re-broadcasting after 60s to prevent air congestion
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 try {
-                    bleAdvertiser.stopAdvertising(hopCallback);
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                        ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                        bleAdvertiser.stopAdvertising(hopCallback);
+                    }
                 } catch (Exception ignored) {}
             }, 60000);
 
         } catch (Exception e) {
             Log.e(TAG, "BLE MESH: Re-broadcast fail", e);
+            FirebaseCrashlytics.getInstance().recordException(e);
         }
     }
 
     private void stopBackgroundBleScanner() {
         if (bleScanner != null && scanCallback != null) {
             try {
-                bleScanner.stopScan(scanCallback);
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+                    bleScanner.stopScan(scanCallback);
+                }
                 Log.i(TAG, "BLE SCANNER: Background scanning halted.");
             } catch (Exception e) {
                 Log.e(TAG, "BLE SCANNER: Error stopping scan", e);
@@ -1501,10 +1543,20 @@ public class KavachService extends Service implements SensorEventListener {
             restartServicePendingIntent = android.app.PendingIntent.getService(getApplicationContext(), 1, restartServiceIntent, pendingFlags);
         }
         android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
-        alarmService.set(
-            android.app.AlarmManager.ELAPSED_REALTIME,
-            android.os.SystemClock.elapsedRealtime() + 1000,
-            restartServicePendingIntent);
+        if (alarmService != null) {
+            long triggerAt = android.os.SystemClock.elapsedRealtime() + 1000;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmService.setExactAndAllowWhileIdle(
+                    android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    restartServicePendingIntent);
+            } else {
+                alarmService.set(
+                    android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    restartServicePendingIntent);
+            }
+        }
 
         Intent broadcastIntent = new Intent("com.kavach.app.RESTART_SENSOR");
         broadcastIntent.setPackage(getPackageName());
@@ -1513,18 +1565,29 @@ public class KavachService extends Service implements SensorEventListener {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager == null) return;
+
+            // 1. Silent Background Channel
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
                     "Kavach Tactical Background Engine",
                     NotificationManager.IMPORTANCE_MIN
             );
-            // Hide notification badge for stealth
             serviceChannel.setShowBadge(false);
-            serviceChannel.setDescription("Guarantees sensor arrays, voice triggers, and rescue handshakes stay processing continuously.");
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(serviceChannel);
-            }
+            serviceChannel.setDescription("Continuous sensor monitoring.");
+            manager.createNotificationChannel(serviceChannel);
+
+            // 2. High-Priority SOS Channel (Unblockable/Loud)
+            NotificationChannel sosChannel = new NotificationChannel(
+                    SOS_CHANNEL_ID,
+                    "Kavach Emergency Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            sosChannel.enableVibration(true);
+            sosChannel.setVibrationPattern(new long[]{0, 500, 200, 500});
+            sosChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            manager.createNotificationChannel(sosChannel);
         }
     }
 

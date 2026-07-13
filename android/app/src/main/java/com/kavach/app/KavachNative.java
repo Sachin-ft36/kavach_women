@@ -15,6 +15,7 @@ import android.media.RingtoneManager;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.os.SystemClock;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -822,6 +823,38 @@ public class KavachNative extends Plugin {
             Log.e(TAG, "Queue Decryption Failed", e);
             call.reject("Queue Decryption Failed", e);
         }
+    }
+
+    @PluginMethod
+    public void logCrashlyticsError(PluginCall call) {
+        String message = call.getString("message");
+        if (message != null) {
+            FirebaseCrashlytics.getInstance().log(message);
+            FirebaseCrashlytics.getInstance().recordException(new Exception(message));
+            call.resolve();
+        } else {
+            call.reject("Message required");
+        }
+    }
+
+    @PluginMethod
+    public void setCrashlyticsUser(PluginCall call) {
+        String userId = call.getString("userId");
+        if (userId != null) {
+            FirebaseCrashlytics.getInstance().setUserId(userId);
+            call.resolve();
+        } else {
+            call.reject("UserId required");
+        }
+    }
+
+    @PluginMethod
+    public void isDeviceSecure(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean isRooted = SecuritySentinel.isDeviceRooted(getContext());
+        ret.put("isRooted", isRooted);
+        ret.put("isEmulator", Build.PRODUCT.contains("sdk") || Build.MODEL.contains("Emulator"));
+        call.resolve(ret);
     }
 
     @PluginMethod

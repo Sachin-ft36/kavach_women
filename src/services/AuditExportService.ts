@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { IncidentRecord } from '../domain/Incident';
+import { IncidentRecord } from '../types';
 
 export const AuditExportService = {
   generatePDF: async (incident: IncidentRecord, evidenceLogs: any[] = []) => {

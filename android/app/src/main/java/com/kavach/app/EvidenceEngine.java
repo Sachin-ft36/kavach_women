@@ -35,29 +35,26 @@ public class EvidenceEngine {
         }
         
         // Decouple from the caller thread environment entirely
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    startTime = System.currentTimeMillis();
-                    Log.i(TAG, "BLACK-BOX: Initializing Forensic Capture for Alert: " + alertId);
+        new Thread(() -> {
+            try {
+                startTime = System.currentTimeMillis();
+                Log.i(TAG, "BLACK-BOX: Initializing Forensic Capture for Alert: " + alertId);
 
-                    // 1. Setup Private Hidden Directory
-                    File evidenceDir = new File(context.getApplicationContext().getFilesDir(), "evidence");
-                    if (!evidenceDir.exists()) {
-                        boolean created = evidenceDir.mkdirs();
-                        if (!created && !evidenceDir.exists()) {
-                            throw new RuntimeException("Failed to construct isolated local storage directories.");
-                        }
+                // 1. Setup Private Hidden Directory
+                File evidenceDir = new File(context.getApplicationContext().getFilesDir(), "evidence");
+                if (!evidenceDir.exists()) {
+                    boolean created = evidenceDir.mkdirs();
+                    if (!created && !evidenceDir.exists()) {
+                        throw new RuntimeException("Failed to construct isolated local storage directories.");
                     }
+                }
 
-                    // 2. Start Audio Forensic Recording
-                    startAudioRecording(context.getApplicationContext(), alertId, evidenceDir);
-                } catch (Exception e) {
-                    Log.e(TAG, "FORENSIC ENGINE CRITICAL FAILURE: " + e.getMessage());
-                    synchronized (STATE_LOCK) {
-                        isCapturing = false;
-                    }
+                // 2. Start Audio Forensic Recording
+                startAudioRecording(context.getApplicationContext(), alertId, evidenceDir);
+            } catch (Exception e) {
+                Log.e(TAG, "FORENSIC ENGINE CRITICAL FAILURE: " + e.getMessage());
+                synchronized (STATE_LOCK) {
+                    isCapturing = false;
                 }
             }
         }).start();

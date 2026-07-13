@@ -18,7 +18,7 @@ public class KavachMessagingService extends FirebaseMessagingService {
     private static final String TAG = "KavachMessaging";
 
     @Override
-    public void onMessageReceived(RemoteMessage remoteMessage) {
+    public void onMessageReceived(@androidx.annotation.NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
         Log.i(TAG, "SIGNAL RECEIVED: Processing background tactical data...");
 
@@ -27,7 +27,8 @@ public class KavachMessagingService extends FirebaseMessagingService {
         android.os.PowerManager.WakeLock wl = null;
         try {
             if (pm != null) {
-                wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP, "Kavach:FCMWakeup");
+                // Remove ACQUIRE_CAUSES_WAKEUP as it should be used with screen-on wakelocks, not PARTIAL_WAKE_LOCK
+                wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Kavach:FCMWakeup");
                 wl.acquire(10000); // Hold for 10 sec
             }
         } catch (Exception e) {
@@ -35,7 +36,7 @@ public class KavachMessagingService extends FirebaseMessagingService {
         }
 
         // Tactical Action Payload Check
-        if (remoteMessage.getData().size() > 0) {
+        if (!remoteMessage.getData().isEmpty()) {
             String action = remoteMessage.getData().get("action");
             String type = remoteMessage.getData().get("type");
             String customTitle = remoteMessage.getData().get("title");
@@ -100,12 +101,7 @@ public class KavachMessagingService extends FirebaseMessagingService {
         fullScreenIntent.putExtra("trigger", "FCM_ALERT");
 
         // 🔐 SECURE PENDINGINTENT FLAGS SETUP: Explicit separation matching API rules
-        int pendingIntentFlags;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-        } else {
-            pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-        }
+        int pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 0, fullScreenIntent, pendingIntentFlags);
 

@@ -17,7 +17,7 @@ const CRITICAL_IMAGES = [
   
   // Evening theme
   '/assets/dashboard_assets/evening/eveninghero.png',
-  '/assets/dashboard_assets/evening/background.png',
+  '/assets/dashboard_assets/evening/background.jpeg',
 ];
 
 export function ImagePreloader() {

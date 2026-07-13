@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+// @ts-ignore
 import { FirebaseCrashlytics } from '@capacitor-firebase/crashlytics';
 
 export class CrashlyticsService {

@@ -222,23 +222,23 @@ export default function Layout({ children, isGhostMode, onToggleGhost, activeTab
         onConfirm={confirmProtectorEnrollment}
       />
 
-      {role !== 'super_cell' && !isInterceptActive && !isOverlayActive && !isSOSBlocked && activeTab !== 'rewards' && (
-        <Header 
-          role={role}
-          isProfileOpen={isProfileOpen}
-          setIsProfileOpen={setIsProfileOpen}
-          userPhoto={userPhoto}
-          displayName={displayName}
-          userData={userData}
-          gender={gender}
-          onToggleGhost={onToggleGhost}
-          handleRoleSwitch={handleRoleSwitch}
-          handleLogout={handleLogout}
-        />
-      )}
+      {/* Header component deleted, but we keep profile drawer modal inside Layout */}
+      <Header
+        role={role}
+        isProfileOpen={isProfileOpen}
+        setIsProfileOpen={setIsProfileOpen}
+        userPhoto={userPhoto}
+        displayName={displayName}
+        userData={userData}
+        gender={gender}
+        onToggleGhost={onToggleGhost}
+        handleRoleSwitch={handleRoleSwitch}
+        handleLogout={handleLogout}
+      />
 
       <main className={cn("mx-auto pb-1 relative z-10", 
-        role === 'super_cell' || isOverlayActive ? "max-w-none px-0 h-full w-full" : (activeTab === 'rewards' ? "max-w-7xl pt-0" : "max-w-7xl pt-[64px]")
+        role === 'super_cell' || isOverlayActive ? "max-w-none px-0 h-full w-full" : 
+        "max-w-7xl pt-0"
       )}>
         {children}
 

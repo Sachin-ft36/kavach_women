@@ -266,6 +266,30 @@
   }
 }
 
+:root {
+  --app-bg: #080713;
+  --card-bg: #120F22;
+  --elevated-card-bg: #181228;
+  --border-color: #2D2347;
+  --purple: #A855F7;
+  --deep-purple: #7C3AED;
+  --green: #00F57A;
+  --blue: #2997FF;
+  --pink: #FF3CC7;
+  --orange: #FF7A00;
+  --red: #FF3131;
+  --gold: #FFB800;
+}
+
+body {
+  margin: 0;
+  background-color: var(--app-bg);
+  background-image: linear-gradient(180deg, #120B25 0%, #080713 100%);
+  color: #FFFFFF;
+  font-family: 'Outfit', sans-serif;
+  overflow-x: hidden;
+}
+
 .victim-pulse-container {
   display: flex;
   align-items: center;
@@ -480,3 +504,11 @@ html.supercell-active {
   50% { box-shadow: 0 0 0 6px rgba(0, 255, 102, 0); }
 }
 .animate-avatar-pulse { animation: avatar-pulse 2.5s ease-in-out infinite; }
+
+/* Streak Card Complex Background Glow */
+.streak-card-bg {
+  background: 
+    radial-gradient(circle at 80% 80%, rgba(139, 43, 226, 0.4) 0%, transparent 60%),
+    radial-gradient(circle at 20% 20%, rgba(75, 0, 130, 0.3) 0%, transparent 50%),
+    #0d0514;
+}

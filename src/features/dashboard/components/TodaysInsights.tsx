@@ -1,6 +1,5 @@
 import React from 'react';
-import { Plus, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
 import { useTimeTheme } from '../../../hooks/useTimeTheme';
 import { useKavachTheme } from '../../../providers/ThemeProvider';
 
@@ -30,11 +29,13 @@ export const TodaysInsights = ({
           alt="Insights Background"
           className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-0 ${isNight ? 'opacity-[0.85]' : 'opacity-[0.5]'}`}
         />
+        {/* Light Overlay for Text Clarity (Day Only) */}
+        {themeFolder === 'morning' && <div className="absolute inset-0 pointer-events-none z-0 bg-sky-100/50" />}
         {/* Gradient Overlay for Text Clarity */}
         <div className={`absolute inset-0 pointer-events-none z-0 ${isNight ? 'bg-gradient-to-br from-black/80 via-black/40 to-transparent' : 'bg-gradient-to-br from-white/90 via-white/60 to-transparent'}`} />
         <div className="flex justify-between items-center px-[2px] mt-0.5 relative z-10">
           <span className={`text-[9px] font-bold tracking-wider ${isNight ? 'text-white/90' : 'text-[#2d3748]'}`}>TODAY'S INSIGHTS</span>
-          <div className="flex items-center cursor-pointer group transition-opacity hover:opacity-80" onClick={() => toast.info("Insights history coming soon!")}>
+          <div className="flex items-center">
             <span className={`text-[7.5px] font-bold ${isNight ? 'text-[#c4b5fd]' : (themeFolder === 'afternoon' ? 'text-[#FF6B5F]' : 'text-[#16a34a]')}`}>View All &gt;</span>
           </div>
         </div>
@@ -56,7 +57,7 @@ export const TodaysInsights = ({
             <span className={`text-[8px] leading-tight ${isNight ? 'text-white/60' : 'text-[#4a5568] font-medium'}`}>Travel<br />Active</span>
             <div className="flex items-center mt-0.5 w-full gap-1">
               <div className="flex items-baseline gap-1">
-                <span className={`text-[20px] font-bold leading-none ${isNight ? 'text-white' : 'text-[#2563eb]'}`}>1</span>
+                <span className={`text-[20px] font-bold leading-none ${isNight ? 'text-white' : 'text-[#2563eb]'}`}>0</span>
                 <span className={`text-[8px] ${isNight ? 'text-white/40' : 'text-[#a0aec0] font-bold'}`}>TODAY</span>
               </div>
             </div>
@@ -66,7 +67,7 @@ export const TodaysInsights = ({
             <span className={`text-[8px] leading-tight ${isNight ? 'text-white/60' : 'text-[#4a5568] font-medium'}`}>Nearby<br />Protectors</span>
             <div className="flex items-center mt-0.5 w-full gap-1">
               <div className="flex items-baseline gap-1">
-                <span className={`text-[20px] font-bold leading-none ${isNight ? 'text-white' : 'text-[#7c3aed]'}`}>{verifiedProtectorCount || 12}</span>
+                <span className={`text-[20px] font-bold leading-none ${isNight ? 'text-white' : 'text-[#7c3aed]'}`}>{verifiedProtectorCount || 0}</span>
                 <span className={`text-[8px] font-bold ${isNight ? 'text-[#a855f7]' : 'text-[#9333ea]'}`}>HIGH</span>
               </div>
             </div>
@@ -107,6 +108,11 @@ export const TodaysInsights = ({
               border: 'none',
               color: '#FFFFFF',
               boxShadow: '0 8px 24px rgba(122,45,219,0.35), 0 0 20px rgba(240,67,138,0.15)'
+            } : themeFolder === 'afternoon' ? {
+              background: 'linear-gradient(135deg, #f97316 0%, #f59e0b 100%)',
+              border: 'none',
+              color: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(249,115,22,0.3)'
             } : {
               background: 'linear-gradient(135deg, #60A5FA 0%, #2563EB 100%)',
               border: 'none',

@@ -51,6 +51,12 @@ import { SafetyStreakCard } from '../features/dashboard/components/SafetyStreakC
 import { LiveSafetyFeed } from '../features/dashboard/components/LiveSafetyFeed';
 import { TodaysInsights } from '../features/dashboard/components/TodaysInsights';
 import { CommunityNearYou } from '../features/dashboard/components/CommunityNearYou';
+import { MoodCheckInCard } from '../features/dashboard/components/MoodCheckInCard';
+import { CalmSpaceCard } from '../features/dashboard/components/CalmSpaceCard';
+import { SafetyStoriesCard } from '../features/dashboard/components/SafetyStoriesCard';
+import { LiveActivityCard } from '../features/dashboard/components/LiveActivityCard';
+import { TodayStreakCard } from '../features/dashboard/components/TodayStreakCard';
+import { InviteCard } from '../features/dashboard/components/InviteCard';
 
 export default function DashboardScreen() {
   const { themeTokens } = useKavachTheme();
@@ -105,7 +111,7 @@ export default function DashboardScreen() {
   const [pairingMode, setPairingMode] = React.useState<'generate' | 'scan'>('generate');
   const [isActive, setIsActive] = React.useState(true);
   const [isAllToolsOpen, setIsAllToolsOpen] = React.useState(false);
-  const isGuardianOfSomeone = (profile as any)?.isGuardian || localStorage.getItem('kavach_is_guardian') === 'true' || true;
+  const isGuardianOfSomeone = (profile as any)?.isGuardian || localStorage.getItem('kavach_is_guardian') === 'true';
   const [safetyMode, setSafetyMode] = React.useState<'personal' | 'family'>('personal');
 
   const [updates, setUpdates] = React.useState<any[]>([]);
@@ -341,12 +347,14 @@ export default function DashboardScreen() {
   const isNight = timeOfDay === 'night';
 
   return (
-    <div className={`min-h-screen flex justify-center font-sans text-slate-200 transition-colors duration-1000`} style={{ background: isNight ? '#0a0518' : 'linear-gradient(180deg, #9AA8C6 0%, #F9EAD8 10%, #FBEAD6 22%, #FAEEE4 45%, #F7F3EE 70%, #ECE9EA 100%)' }}>
+    <div className={`min-h-screen flex justify-center font-sans text-slate-200 transition-colors duration-1000`} style={{ background: isNight ? '#080713' : 'linear-gradient(180deg, #9AA8C6 0%, #F9EAD8 10%, #FBEAD6 22%, #FAEEE4 45%, #F7F3EE 70%, #ECE9EA 100%)' }}>
       {/* Mobile Constraint Container */}
-      <div className={`w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col pb-0 transition-colors duration-1000`} style={{ background: isNight ? '#0a0518' : 'transparent' }}>
+      <div className={`w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col pb-0 transition-colors duration-1000`} style={{ background: isNight ? 'linear-gradient(180deg, #120B25 0%, #080713 100%)' : 'transparent' }}>
 
-        {/* Global Dashboard Background Image */}
-        <img src={isNight ? "/assets/dashboard_assets/night/livefeed.jpeg" : `/assets/dashboard_assets/${themeFolder}/background.${themeFolder === 'afternoon' ? 'png' : 'jpeg'}`} alt="Dashboard Background" className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-0 transition-opacity duration-1000 ${isNight ? 'opacity-100' : 'opacity-[0.85]'}`} />
+        {/* Global Dashboard Background Image (Only for Day mode) */}
+        {!isNight && (
+          <img src={`/assets/dashboard_assets/${themeFolder}/background.${themeFolder === 'afternoon' ? 'png' : 'jpeg'}`} alt="Dashboard Background" className="absolute inset-0 w-full h-full object-cover pointer-events-none z-0 transition-opacity duration-1000 opacity-[0.85]" />
+        )}
 
         {/* Abstract Background Glows */}
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-[#1E1B4B]/30 to-transparent pointer-events-none" />
@@ -355,61 +363,60 @@ export default function DashboardScreen() {
         <div className="flex-1 overflow-y-auto px-[6px] pt-1.5 space-y-[6px] pb-[200px] scrollbar-hide z-10 relative">
 
           {/* 🛡️ TOP HERO PREMIUM DASHBOARD BANNER */}
-          <DashboardHero
-            isNight={isNight}
-            protectionIndex={protectionIndex}
-            displayFamilyMembers={familyCircleList}
-            isRideActive={isRideActive}
-            updates={updates}
-            SHIELD_BASE64_IMAGE={SHIELD_BASE64_IMAGE}
-            toggleOverlay={toggleOverlay}
-            setIsFamilyCircleDetailOpen={setIsFamilyCircleDetailOpen}
-          />
+          <div className="mx-[-6px] mt-[-6px]">
+            <DashboardHero
+              isNight={isNight}
+              protectionIndex={protectionIndex}
+              displayFamilyMembers={familyCircleList}
+              isRideActive={isRideActive}
+              updates={updates}
+              SHIELD_BASE64_IMAGE={SHIELD_BASE64_IMAGE}
+              toggleOverlay={toggleOverlay}
+              setIsFamilyCircleDetailOpen={setIsFamilyCircleDetailOpen}
+            />
+          </div>
 
           {/* ⚡ QUICK SAFETY ACTIONS */}
           {safetyMode === 'personal' && (
-            <QuickActions
-              safetyMode={safetyMode}
-              isNight={isNight}
-              toggleOverlay={toggleOverlay}
-              setIsFakeCallHubOpen={setIsFakeCallHubOpen}
-              setIsSafeTimerOpen={setIsSafeTimerOpen}
-              setIsAllToolsOpen={setIsAllToolsOpen}
-              setIsRideSafeOpen={setIsRideSafeOpen}
-            />
+            <>
+              <QuickActions
+                safetyMode={safetyMode}
+                isNight={isNight}
+                toggleOverlay={toggleOverlay}
+                setIsFakeCallHubOpen={setIsFakeCallHubOpen}
+                setIsSafeTimerOpen={setIsSafeTimerOpen}
+                setIsAllToolsOpen={setIsAllToolsOpen}
+                setIsRideSafeOpen={setIsRideSafeOpen}
+              />
+
+              {/* 8. MOOD CHECK-IN & CALM SPACE CARDS (Stacked vertically for full width) */}
+              <div className="flex flex-row gap-[8px] w-full px-[6px] mt-1.5">
+                <div className="flex-1 min-w-0">
+                  <MoodCheckInCard isNight={isNight} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CalmSpaceCard isNight={isNight} />
+                </div>
+              </div>
+
+              {/* 9. INVITE CARD (Directly below Mood/Calm row) */}
+              <InviteCard isNight={isNight} />
+            </>
           )}
 
           {/* 🏡 PERSONAL SAFETY DASHBOARD CONTENT */}
           {safetyMode === 'personal' && (
-            <div className="flex flex-col gap-4 w-full font-sans z-10">
-
-              {/* 2x2 GRID (Separated with radius) */}
-              <div className="flex flex-col gap-[6px] w-full">
-                {/* ROW 1: 👨‍👩‍👧 FAMILY CIRCLE & STREAK */}
-                <div className="flex flex-row gap-[6px] w-full h-[290px]">
-                  {/* LEFT SIDE: Family Circle */}
-                  <div className="flex-1 min-w-0 h-full">
-                    <InteractiveFamilyCircle onViewAll={() => toggleOverlay(setIsFamilyCircleDetailOpen, true)} isNight={isNight} />
+            <div className="flex flex-col gap-0 w-full font-sans z-10 mt-1.5">
+              {/* 2x2 GRID (4 beautiful cards matching user mockup screenshot) */}
+              <div className="flex flex-col gap-[8px] w-full px-[6px]">
+                {/* ROW 1: LIVE ACTIVITY & TODAY'S STREAK */}
+                <div className="flex flex-row gap-[8px] w-full">
+                  <div className="flex-1 min-w-0">
+                    <LiveActivityCard isNight={isNight} />
                   </div>
-
-                  {/* RIGHT SIDE: Safety Streak */}
-                  <div className="flex-1 flex flex-col min-w-0 h-full">
-                    <SafetyStreakCard isNight={isNight} />
+                  <div className="flex-1 min-w-0">
+                    <TodayStreakCard isNight={isNight} />
                   </div>
-                </div>
-
-                {/* ROW 2: 🏡 LIVE FEED & INSIGHTS */}
-                <div className="flex flex-row gap-[6px] w-full">
-                  {/* LIVE SAFETY FEED */}
-                  <LiveSafetyFeed isNight={isNight} />
-
-                  {/* RIGHT COLUMN: TODAY'S INSIGHTS */}
-                  <TodaysInsights
-                    isNight={isNight}
-                    displayFamilyMembers={displayFamilyMembers}
-                    verifiedProtectorCount={verifiedProtectorCount}
-                    setIsAddMemberSheetOpen={setIsAddMemberSheetOpen}
-                  />
                 </div>
               </div>
 
@@ -420,7 +427,6 @@ export default function DashboardScreen() {
                 setIsNearbyHubOpen={setIsNearbyHubOpen}
                 toggleOverlay={toggleOverlay}
               />
-
             </div>
           )}
 
@@ -488,11 +494,8 @@ export default function DashboardScreen() {
                 animation: wave 2.5s infinite;
               }
             `}} />
-        </div>
-
-        {/* 🚨 FIXED SOS DOCK — sits above the bottom navbar, never scrolls */}
-        <div className="fixed bottom-[82px] left-0 right-0 z-[999998] flex justify-center pointer-events-none px-[6px]">
-          <div className="w-full max-w-md mx-auto pointer-events-auto">
+          {/* 🚨 SOS BUTTON — integrated into the scrollable Home feed instead of floating fixed above the bottom navbar */}
+          <div className="w-full px-[6px] mt-2 mb-6 pointer-events-auto">
             <SOSButton forceIsNight={isNight} />
           </div>
         </div>

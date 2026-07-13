@@ -35,7 +35,7 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
           <img
             src={isNight ? "/assets/dashboard_assets/night/family.png" : `/assets/dashboard_assets/${themeFolder}/family.png`}
             alt="Family"
-            className={`absolute left-1/2 -translate-x-1/2 -top-16 w-[130%] h-auto opacity-100 [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
+            className={`absolute left-1/2 -translate-x-1/2 ${themeFolder === 'afternoon' ? '-top-8' : '-top-16'} w-[130%] h-auto opacity-100 [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
             style={{
               WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)',
               maskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)'
@@ -44,6 +44,15 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
         </div>
         {/* Subtle Gradient overlay for readability */}
         <div className={`absolute inset-0 bg-gradient-to-b ${isNight ? 'from-[#0a0514]/70 via-[#0a0514]/0 to-[#0a0514]/90' : 'from-white/15 via-transparent to-transparent'}`} />
+        
+        {/* Dark Overlay for Text Clarity (Night Only) */}
+        {isNight && <div className="absolute inset-0 bg-black/30" />}
+        {/* Light Overlay for Text Clarity (Day Only) */}
+        {themeFolder === 'morning' && <div className="absolute inset-0 bg-sky-100/40" />}
+        {/* Warm Overlay for Afternoon */}
+        {themeFolder === 'afternoon' && <div className="absolute inset-0 bg-[#FFF0E5]/40" />}
+        {/* Sunset Overlay for Evening */}
+        {themeFolder === 'evening' && <div className="absolute inset-0 bg-[#FFF3EB]/65" />}
       </div>
 
 
@@ -61,7 +70,7 @@ export default function InteractiveFamilyCircle({ onViewAll, isNight = true }: I
             </span>
           </div>
 
-          <h2 className={`text-[15px] font-black leading-tight tracking-tight mt-1 drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] ${isNight ? 'text-white' : 'text-[#14234b]'}`}>
+          <h2 className={`text-[22px] font-black leading-[1.05] tracking-tight mt-1 drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.15)] ${isNight ? 'text-white' : 'text-[#14234b]'}`}>
             Your Family,<br />
             <span className={isNight ? 'text-[#a855f7]' : 'bg-gradient-to-r from-[#e81cff] to-[#ff6b00] bg-clip-text text-transparent drop-shadow-none'}>
               Protected

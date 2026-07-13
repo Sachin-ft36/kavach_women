@@ -1,8 +1,9 @@
 import React from 'react';
-import { Shield, ShieldCheck, HelpCircle, ArrowUpRight, Bell, User, Clock, Users, Sun, Moon, Info, Menu, CalendarCheck, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { Bell, User, Info, ChevronRight, Camera, Flame, Check, CloudSun } from 'lucide-react';
 import { useTimeTheme } from '../../../hooks/useTimeTheme';
 import { useKavachStore } from '../../../state/useKavachStore';
+
+import { PremiumCheckInCard } from './PremiumCheckInCard';
 
 interface DashboardHeroProps {
   isNight: boolean;
@@ -21,225 +22,248 @@ export const DashboardHero = React.memo(({
   displayFamilyMembers,
   isRideActive,
   updates,
-  SHIELD_BASE64_IMAGE,
   toggleOverlay,
   setIsFamilyCircleDetailOpen
 }: DashboardHeroProps) => {
-  const { profile } = useKavachStore();
-  const userName = profile?.name || 'User';
+  const { profile, user } = useKavachStore();
+  
+  // Dynamic user name from DB or fallback
+  const userName = profile?.name || profile?.displayName || user?.displayName || 'Sachin';
+  const displayFirstName = userName.split(' ')[0];
 
-  const { greeting, themeFolder } = useTimeTheme();
+  const { themeFolder, greeting } = useTimeTheme();
 
-  // Generate 150 small stars for the top 30% of the sky
-  const stars = React.useMemo(() => {
-    return Array.from({ length: 80 }).map((_, i) => ({
-      id: i,
-      top: `${Math.random() * 40}%`,
-      left: `${Math.random() * 100}%`,
-      size: `${Math.random() * 1 + 0.5}px`, // 0.5px to 1.5px so it's physically visible
-      animationDuration: `${Math.random() * 3 + 1.5}s`,
-      animationDelay: `${Math.random() * 3}s`,
-      opacity: Math.random() * 0.6 + 0.4, // 0.4 to 1.0 opacity
-    }));
+  // Streak data for Check-in Card (normally calculated dynamically, fallback to 18)
+  const currentStreak = 18;
+
+  // Set header font style via google fonts
+  React.useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Pacifico&family=Outfit:wght@400;600;800;900&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
   }, []);
 
   return (
-    <div 
-      className={`w-full rounded-[32px] relative z-10 overflow-hidden transition-all duration-500 ${isNight ? 'border bg-transparent border-[#2a1758] shadow-[0_20px_40px_rgba(65,20,120,0.2)]' : 'border-0 backdrop-blur-[40px] bg-[#FFF9F2]/95 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.1)]'}`}
-      style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden', willChange: 'transform, opacity', contain: 'layout paint' }}
-    >
+    <div className="w-full flex flex-col gap-[6px] font-sans">
+      
+      {/* ─── 2. HERO LAYOUT (Image + Integrated Top Header & Floating Greeting/Score) ─── */}
+      <div 
+        className={`w-full rounded-none relative overflow-hidden transition-all duration-500 border-0 bg-transparent`}
+        style={{ height: '215px' }}
+      >
+        {/* Hero Background Image (Fixed 300px, center center) */}
+        <img
+          src={isNight ? "/assets/dashboard_assets/night/nighthero.jpeg?v=2" : `/assets/dashboard_assets/${themeFolder}/${themeFolder}hero.${themeFolder === 'afternoon' ? 'jpeg' : 'png'}`}
+          alt="Hero Background"
+          className="absolute inset-0 w-full h-full object-cover object-[center_55%] pointer-events-none z-0 contrast-[1.25] saturate-[1.2] brightness-[0.95]"
+        />
 
-      {/* Hero Background Image (Dictates the height) */}
-      <img
-        src={isNight ? "/assets/dashboard_assets/night/nighthero.png?v=2" : `/assets/dashboard_assets/${themeFolder}/${themeFolder}hero.${themeFolder === 'afternoon' ? 'jpeg' : 'png'}`}
-        alt="Hero Background"
-        className={`w-full h-[270px] rounded-[32px] object-cover ${themeFolder === 'afternoon' ? 'object-[85%_center]' : 'object-center'} block pointer-events-none z-0 ${isNight ? 'opacity-100 mix-blend-normal' : 'opacity-100 mix-blend-normal'} [image-rendering:-webkit-optimize-contrast] contrast-[1.25] saturate-[1.2] brightness-[0.95]`}
-      />
+        {/* Left-to-right dark overlay for text legibility (more opacity on the left where text is located) */}
+        <div className="absolute inset-0 z-[4] pointer-events-none bg-gradient-to-r from-black/60 via-black/25 to-transparent" />
 
-      {/* Subtle Overlay for better text readability */}
-      <div className={`absolute inset-0 z-[5] pointer-events-none ${isNight ? 'hidden' : 'bg-gradient-to-b from-white/30 via-transparent to-transparent'}`} />
+        {/* Bottom Dark Gradient Fade for Text Legibility */}
+        <div className="absolute inset-0 z-[5] pointer-events-none bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-      {/* Content overlay container */}
-      <div className="absolute inset-0 px-4 pt-4 pb-2 flex flex-col justify-between z-10 w-full h-full">
-
-        {/* Real Moonlight Glow Effect (Top-Left) */}
-        <div className={`hidden absolute top-[-60px] left-[-60px] w-[200px] h-[200px] rounded-full blur-[60px] opacity-30 pointer-events-none z-0 ${isNight ? 'bg-[#e0e7ff]' : 'bg-[#fef08a]'}`} />
-
-        {/* Dynamic Small Blinking Stars (Top 50%) */}
-        {isNight && (
-          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-            {stars.map((star) => (
-              <div
-                key={star.id}
-                className="absolute bg-white rounded-full"
-                style={{
-                  top: star.top,
-                  left: star.left,
-                  width: star.size,
-                  height: star.size,
-                  opacity: star.opacity,
-                  animation: `starBlink ${star.animationDuration} ease-in-out infinite`,
-                  animationDelay: star.animationDelay,
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Animated Sunlight Bloom (Morning Only) */}
-        {!isNight && (
-          <div className="absolute -top-20 -right-10 w-[250px] h-[250px] bg-[#FFD7B2]/40 rounded-full blur-[60px] animate-sunlight-breathe z-0 pointer-events-none mix-blend-screen" />
-        )}
-
-        {/* Animated Clouds (Morning Only) */}
-        {!isNight && (
-          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden mix-blend-overlay opacity-80">
-            <div className="absolute top-[15%] left-[10%] w-[140px] h-[35px] bg-white/70 rounded-full blur-[12px] animate-cloud-drift" />
-            <div className="absolute top-[30%] right-[15%] w-[100px] h-[25px] bg-white/60 rounded-full blur-[10px] animate-cloud-drift" style={{ animationDelay: '-15s', animationDuration: '45s' }} />
-          </div>
-        )}
-
-        {/* Overlay gradient to ensure text remains readable */}
-        <div className={`absolute inset-0 bg-gradient-to-r pointer-events-none z-0 hidden`} />
-
-        {/* Subtle Shaded Vignette Overlay */}
-        <div className={`absolute inset-0 z-0 pointer-events-none hidden`} />
-
-        {/* Apple-style Subtle Noise Texture */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.04] mix-blend-multiply" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }} />
-        {/* Top Action Row (Absolute Top) */}
-        <div className="absolute top-3 left-0 w-full px-3 flex justify-between items-start z-30">
-          <div className={`text-[9px] font-semibold tracking-wide flex items-center gap-1 ${isNight ? 'text-white' : 'text-slate-800'}`}>
-            {greeting.includes('Morning') && <span>✨</span>}
-            {greeting.includes('Afternoon') && <span>☀️</span>}
-            {greeting.includes('Evening') && <span>🌙</span>}
-            {greeting.includes('Night') && <span>🌙</span>}
-            <span className="ml-0.5">{greeting}</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 -mt-0.5">
-            <button className={`relative w-6 h-6 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-95 cursor-pointer ${isNight ? 'bg-[#180c33]/80 border border-[#4d288a] text-white shadow-[0_0_8px_rgba(100,40,180,0.4)]' : 'bg-white text-black shadow-sm'}`}>
-              <Bell size={10} strokeWidth={2.5} />
-              <span className="absolute -top-0.5 -right-0.5 w-[10px] h-[10px] bg-red-500 border-[1.5px] border-white text-white text-[5px] font-black rounded-full flex items-center justify-center shadow-sm">
-                3
-              </span>
-            </button>
-            <button
-              onClick={() => toast.success("Menu opened")}
-              className={`w-6 h-6 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-95 cursor-pointer ${isNight ? 'bg-[#180c33]/80 border border-[#4d288a] text-white shadow-[0_0_8px_rgba(100,40,180,0.4)]' : 'bg-white text-black shadow-sm'}`}
-            >
-              <Menu size={10} strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
-
-        {/* Main Content: Left Column & Right Column */}
-        <div className="flex flex-row justify-between items-start w-full relative z-20 mt-5">
-
-          {/* LEFT COLUMN: Data & Stats */}
-          <div className="flex-1 flex flex-col text-left shrink-0 mt-0.5">
-            <p className={`text-[11px] font-semibold tracking-tight leading-none mb-0.5 ${isNight ? 'text-white' : 'text-slate-800'}`}>Hello,</p>
-            <h1 className={`text-[26px] font-black flex items-center gap-1 mt-0 tracking-tight truncate w-full leading-[1.1] pb-1.5 ${isNight ? 'text-white' : 'text-[#0f172a]'}`}>
-              {userName} <span className="text-[16px] origin-bottom-right inline-block ml-0.5">👋</span>
-            </h1>
-
-            {/* Everyone is Safe Badge */}
-            <div className={`mt-3 flex items-center gap-1 px-2 py-0.5 rounded-full ${isNight ? 'bg-[#061e12]/80 border border-[#00ff66]/20 shadow-[0_4px_12px_rgba(0,255,102,0.1)]' : 'bg-[#e9fdf4]/80 backdrop-blur-md border border-[#00c262]/40'} w-fit`}>
-              <ShieldCheck size={9} className={isNight ? "text-[#00ff66]" : "text-[#00c262]"} strokeWidth={2.5} />
-              <span className={isNight ? "text-[#00ff66]" : "text-[#00c262]"} style={{ fontSize: '7px' }}>•</span>
-              <span className={`text-[8.5px] font-bold ${isNight ? 'text-[#00ff66]' : 'text-[#00c262]'}`}>
-                Everyone is Safe
-              </span>
+        {/* Contents Overlays Container */}
+        <div className="absolute inset-0 px-[2%] pt-3 pb-2 flex flex-col justify-between z-10 w-full h-full">
+          <div className="flex items-center justify-between w-full relative z-35 pb-0.5">
+            {/* LEFT: Branding/Logo */}
+            <div className="flex items-center gap-1">
+              {/* Premium Shield Vector */}
+              <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+                <svg className="w-full h-full drop-shadow-[0_0_6px_rgba(168,85,247,0.5)]" viewBox="0 0 100 100" fill="none">
+                  {/* Shield frame */}
+                  <path d="M50 10C68 18 78 20 85 24V52C85 71.5 50 88 50 88C50 88 15 71.5 15 52V24C22 20 32 18 50 10Z" fill="url(#shieldBgGrad)" stroke="#c084fc" strokeWidth="3" />
+                  {/* Glowing star in center */}
+                  <polygon points="50,32 54.5,45 68,45 57,53 61,66 50,58 39,66 43,53 32,45 45.5,45" fill="#ffffff" className="animate-pulse" />
+                  <defs>
+                    <linearGradient id="shieldBgGrad" x1="50" y1="10" x2="50" y2="88" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#2e1a47" />
+                      <stop offset="1" stopColor="#0f091a" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              
+              {/* KAVACH Title */}
+              <span className="text-[10px] font-black tracking-wider text-white leading-none">KAVACH</span>
+              
+              {/* Vertical Divider line */}
+              <div className="h-3 w-[1px] bg-white/15" />
+              
+              {/* Two-line Slogan */}
+              <div className="flex flex-col text-left">
+                <span className="text-[5.5px] font-semibold text-purple-300 leading-tight">Your Safety.</span>
+                <span className="text-[5.5px] font-semibold text-white/80 leading-tight">Our Mission.</span>
+              </div>
             </div>
 
-          </div>
-
-        </div>
-
-        <div className="mt-auto flex flex-col gap-2 w-full z-20 relative">
-          
-          {/* Protection Score Box (Glassmorphism) - Moved to bottom */}
-          <div className={`translate-y-3 backdrop-blur-md rounded-[16px] py-3 px-4 flex items-center justify-between gap-4 w-fit border ${isNight ? 'bg-[#0f1123]/95 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]' : 'bg-white/80 border-white shadow-[0_4px_16px_-4px_rgba(0,0,0,0.08)]'}`}>
-            <div className="flex flex-col text-left gap-1.5">
-              <div className="flex items-center gap-1">
-                <span className={`text-[7.5px] font-bold leading-none uppercase tracking-widest ${isNight ? 'text-white/60' : 'text-slate-800'}`}>
-                  Protection Score
+            {/* RIGHT: Notifications & 24px Profile Avatar */}
+            <div className="flex items-center gap-2">
+              <button className="relative w-6 h-6 rounded-full flex items-center justify-center bg-black/35 border border-white/10 text-white shadow-lg backdrop-blur-sm">
+                <Bell size={9} strokeWidth={2.5} />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border border-white text-white text-[6px] font-black rounded-full flex items-center justify-center shadow-sm">
+                  3
                 </span>
-                <Info size={9} className={isNight ? "text-white/40" : "text-slate-500"} strokeWidth={2} />
+              </button>
+              
+              {/* User Profile Avatar (24px Cutout) */}
+              <div 
+                onClick={() => {
+                  document.dispatchEvent(new CustomEvent('OPEN_PROFILE_MODAL'));
+                }}
+                className="relative w-[24px] h-[24px] rounded-full p-[1px] bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center shadow-md cursor-pointer active:scale-95 transition-transform"
+              >
+                <div className="w-full h-full rounded-full overflow-hidden bg-[#1e1e38]">
+                  {profile?.displayPhotoUrl || profile?.photoUrl ? (
+                    <img src={profile.displayPhotoUrl || profile.photoUrl} className="w-full h-full object-cover" alt="Profile" />
+                  ) : (
+                    <User size={10} className="text-slate-300" />
+                  )}
+                </div>
+                {/* Green Online Indicator */}
+                <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#00ff66] rounded-full border border-[#09081a]" />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className={`text-[22px] font-black leading-none tracking-tighter ${isNight ? 'text-white' : 'text-[#1e293b]'}`}>{protectionIndex}%</span>
-                <ArrowUpRight size={12} className={isNight ? "text-[#00ff66]" : "text-[#00c262]"} strokeWidth={3.5} />
+            </div>
+          </div>
+          
+          {/* Bottom Row: Greeting Left side, Floating Protection Score Card aligned right side */}
+          <div className="flex justify-between items-end w-full mt-auto mb-10">
+            {/* Greeting Column */}
+            <div className="flex flex-col text-left">
+              <p 
+                className="text-[28px] font-medium tracking-tight leading-none -rotate-2 origin-left"
+                style={{ 
+                  fontFamily: "'Kaushan Script', cursive",
+                  color: '#ffffff',
+                  textShadow: isNight ? 'none' : '0 2px 10px rgba(0,0,0,0.2)',
+                }}
+              >
+                {greeting},
+              </p>
+              <h2 
+                className={`text-[32px] font-bold mt-0.5 mb-1 select-none tracking-tight flex items-center gap-1 bg-clip-text text-transparent -rotate-3 origin-left ${
+                  isNight
+                    ? 'bg-gradient-to-r from-[#ff5cb3] via-[#ff7eb3] to-[#e056fd]'
+                    : 'bg-gradient-to-r from-[#FF2D87] via-[#FF2D55] to-[#FF0099]'
+                }`}
+                style={{ fontFamily: "'Kaushan Script', cursive" }}
+              >
+                {displayFirstName}!
+                <span className="text-[18px] origin-bottom-right inline-block animate-wave ml-1">👋</span>
+              </h2>
+              <p className="text-[11px] font-semibold text-white/95 mt-0.5 leading-snug pl-1.5">
+                Let's make today<br />
+                <span style={{ color: isNight ? '#00c853' : '#00E676' }} className="font-semibold italic">safe</span> &amp; <span style={{ color: isNight ? '#ffd600' : '#00CFFF' }} className="font-semibold italic">amazing!</span>
+              </p>
+            </div>
+
+            {/* FLOATING PROTECTION SCORE CARD (Reference Style: Glassmorphism with circular progress + shield) */}
+            <div className={`w-[150px] h-[100px] backdrop-blur-xl border rounded-[18px] p-2.5 flex flex-col justify-between shrink-0 transition-colors duration-500 ${
+              isNight 
+                ? 'bg-[#181228]/95 border-[#5C33D6]/30 shadow-[0_12px_40px_rgba(0,0,0,0.5)]' 
+                : 'bg-white border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.06)]'
+            }`}>
+              {/* Top Row: Title + Info Icon */}
+              <div className="flex items-center justify-between w-full">
+                <span className={`text-[8px] font-black tracking-widest uppercase ${isNight ? 'text-white' : 'text-slate-800'}`}>PROTECTION SCORE</span>
+                <Info size={8} className={isNight ? 'text-white/40' : 'text-slate-400'} />
               </div>
-              <span className={`text-[8px] font-semibold leading-none ${isNight ? 'text-white/60' : 'text-slate-500'}`}>You're doing great!</span>
-            </div>
-            <div className="relative w-[44px] h-[44px] flex items-center justify-center shrink-0">
-              <div className={`absolute inset-0 rounded-full ${isNight ? 'shadow-[0_0_10px_rgba(0,255,102,0.2)] animate-slow-pulse' : 'bg-[#00c262]/5 animate-slow-pulse'}`} />
-              <svg className="w-full h-full overflow-visible z-10" viewBox="0 0 36 36">
-                <path className={isNight ? "text-[#00ff66]/30" : "text-[#00c262]/20"} strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path className={isNight ? "text-[#00ff66]" : "text-[#00c262]"} strokeDasharray={`${protectionIndex}, 100`} strokeWidth="3.5" stroke="currentColor" fill="none" strokeLinecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center z-10">
-                <ShieldCheck size={16} className={isNight ? "text-[#fbbf24]" : "text-[#00c262]"} strokeWidth={2.5} />
+
+              {/* Middle Row: Score values on left, Circular progress on right */}
+              <div className="flex items-center justify-between w-full mt-1">
+                <div className="flex flex-col text-left">
+                  <div className="flex items-baseline gap-0.5">
+                    <span className={`text-[20px] font-black tracking-tighter leading-none ${isNight ? 'text-[#00F57A]' : 'text-[#00C853]'}`}>{protectionIndex}%</span>
+                    <span className={`text-[7.5px] font-black leading-none ${isNight ? 'text-[#00F57A]' : 'text-[#00C853]'}`}>▲ 12%</span>
+                  </div>
+
+                  {/* Segmented Progress Bars (Pills) */}
+                  <div className="flex gap-[1px] w-[58px] mt-1.5">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div 
+                        key={i} 
+                        className={`h-[3px] flex-1 rounded-[0.5px] ${
+                          i < Math.round((protectionIndex / 100) * 10) 
+                            ? isNight ? 'bg-[#00F57A]' : 'bg-[#00C853]'
+                            : isNight ? 'bg-[#3C3355]' : 'bg-slate-100'
+                        }`} 
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Side: Animated Circular Progress with Shield/Star */}
+                <div className="relative w-[46px] h-[46px] flex items-center justify-center shrink-0">
+                  {/* Outer circle track (Dashed technological style) */}
+                  <svg className="w-full h-full rotate-[-90deg] overflow-visible" viewBox="0 0 36 36">
+                    {/* Track Background */}
+                    <circle cx="18" cy="18" r="16" stroke={isNight ? 'rgba(168,85,247,0.12)' : 'rgba(0,0,0,0.04)'} strokeWidth="3" fill="none" />
+                    
+                    {/* Semi-transparent Tech Dashed Guideline */}
+                    <circle cx="18" cy="18" r="16" stroke={isNight ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'} strokeWidth="5" strokeDasharray="3, 3" fill="none" />
+                    
+                    {/* Glowing Active Progress Ring */}
+                    <circle 
+                      cx="18" 
+                      cy="18" 
+                      r="16" 
+                      stroke="url(#progressGradHero)" 
+                      strokeWidth="3.5" 
+                      fill="none" 
+                      strokeDasharray={`${protectionIndex}, 100`} 
+                      strokeLinecap="round" 
+                      style={{
+                        filter: `drop-shadow(0 0 6px ${isNight ? '#21D4FD' : '#00CFFF'}cc)`
+                      }}
+                    />
+                    <defs>
+                      <linearGradient id="progressGradHero" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#21D4FD" />
+                        <stop offset="50%" stopColor="#00E676" />
+                        <stop offset="100%" stopColor="#7C4DFF" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  
+                  {/* Shield with Star in center */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center transition-all ${
+                      isNight ? 'bg-[#21D4FD]/10' : 'bg-sky-50'
+                    }`}>
+                      <svg className={`w-3.5 h-3.5 ${isNight ? 'text-[#21D4FD]' : 'text-sky-600'} drop-shadow-[0_0_4px_rgba(61,168,255,0.4)]`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="rgba(61,168,255,0.1)" />
+                        <polygon points="12,7 13.5,10.5 17,10.5 14,12.5 15,16 12,14 9,16 10,12.5 7,10.5 10.5,10.5" fill="currentColor" stroke="none" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* View Details Bottom Row */}
+              <div 
+                onClick={() => useKavachStore.getState().setActiveTab('safety_readiness')}
+                className={`flex items-center justify-between w-full mt-1.5 pt-1.5 border-t cursor-pointer ${isNight ? 'border-white/5' : 'border-slate-100'}`}
+              >
+                <span className={`text-[8.5px] font-bold tracking-wide ${isNight ? 'text-white/80' : 'text-slate-600'}`}>View Details</span>
+                <ChevronRight size={9} className={isNight ? 'text-white/85' : 'text-slate-600'} strokeWidth={2.5} />
               </div>
             </div>
-          </div>
-
-          {/* Bottom Row: Mini Items (Apple Glass Style) */}
-          <div className="py-2 flex items-center justify-between gap-1.5 w-full">
-
-          {/* FAMILY SAFE */}
-          <div
-            className={`flex-[1.1] flex items-center gap-1.5 justify-start cursor-pointer min-w-0 backdrop-blur-md rounded-[12px] py-3.5 px-2 border transition-transform active:scale-95 ${isNight ? 'bg-[#101225]/95 border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]' : 'bg-white/95 border-white shadow-sm'}`}
-            onClick={() => toggleOverlay(setIsFamilyCircleDetailOpen, true)}
-          >
-            <div className={`w-[22px] h-[22px] rounded-[6px] flex items-center justify-center shrink-0 ${isNight ? 'bg-purple-500/20' : 'bg-[#f3e8ff]'}`}>
-              <Users size={13} className={isNight ? "text-purple-400" : "text-[#9333ea]"} />
-            </div>
-            <div className="flex flex-col text-left min-w-0 leading-none justify-center">
-              <span className={`text-[8.5px] font-semibold tracking-wide truncate w-full ${isNight ? 'text-white/60' : 'text-[#334155]'}`}>Family</span>
-              <span className={`text-[10.5px] font-black mt-1 truncate w-full ${isNight ? 'text-[#00ff66]' : 'text-[#00c262]'}`}>
-                {displayFamilyMembers && displayFamilyMembers.length > 0 ? `${displayFamilyMembers.length}/${displayFamilyMembers.length}` : '4/4'}
-              </span>
-            </div>
-          </div>
-
-          {/* NEXT CHECK-IN */}
-          <div className={`flex-[1.25] flex items-center gap-1.5 justify-start cursor-pointer min-w-0 backdrop-blur-md rounded-[12px] py-3.5 px-2 border transition-transform active:scale-95 ${isNight ? 'bg-[#101225]/95 border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]' : 'bg-white/95 border-white shadow-sm'}`}>
-            <div className={`w-[22px] h-[22px] rounded-[6px] flex items-center justify-center shrink-0 ${isNight ? 'bg-blue-500/20' : 'bg-[#e0f2fe]'}`}>
-              <Clock size={13} className={isNight ? "text-blue-400" : "text-[#2563eb]"} />
-            </div>
-            <div className="flex flex-col text-left min-w-0 leading-none justify-center">
-              <span className={`text-[8.5px] font-semibold tracking-wide truncate w-full ${isNight ? 'text-white/60' : 'text-[#334155]'}`}>Next Check-in</span>
-              <span className={`text-[10.5px] font-black mt-1 truncate w-full ${isNight ? 'text-white' : 'text-[#0f172a]'}`}>
-                {isRideActive ? 'In Ride' : (isNight ? '8:30 PM' : '8:30 AM')}
-              </span>
-            </div>
-          </div>
-
-          {/* NIGHT CHECK-IN / LAST CHECK-IN */}
-          <div
-            className={`flex-[1.25] flex items-center gap-1.5 justify-start cursor-pointer min-w-0 backdrop-blur-md rounded-[12px] py-3.5 px-2 border transition-transform active:scale-95 ${isNight ? 'bg-[#101225]/95 border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]' : 'bg-white/95 border-white shadow-sm'}`}
-            onClick={() => toggleOverlay(setIsFamilyCircleDetailOpen, true)}
-          >
-            <div className={`w-[22px] h-[22px] rounded-[6px] flex items-center justify-center shrink-0 ${isNight ? 'bg-emerald-500/20' : 'bg-[#dcfce7]'}`}>
-              <CalendarCheck size={13} className={isNight ? "text-emerald-400" : "text-[#16a34a]"} strokeWidth={2.5} />
-            </div>
-            <div className="flex flex-col text-left min-w-0 leading-none justify-center">
-              <span className={`text-[8.5px] font-semibold tracking-wide truncate w-full ${isNight ? 'text-white/60' : 'text-[#334155]'}`}>{isNight ? 'Last Check-in' : 'Night Check-in'}</span>
-              <span className={`text-[10.5px] font-black mt-1 truncate w-full ${isNight ? 'text-white' : 'text-[#0f172a]'}`}>
-                {updates && updates.length > 0 ? updates[0].time : (isNight ? '7:21 PM' : '7:12 AM')}
-              </span>
-            </div>
-          </div>
-
-          {/* VIEW ALL BUTTON */}
-          <div className={`flex items-center justify-center shrink-0 border rounded-full px-3 py-2 cursor-pointer shadow-sm ml-0.5 transition-colors ${isNight ? 'bg-[#1a113a]/80 border-[#3b2b73] hover:bg-[#23154f]' : 'bg-gradient-to-r from-sky-400 to-[#2563eb] border-none hover:opacity-90'}`} onClick={() => toast.info("History coming soon!")}>
-            <ChevronRight size={18} className={isNight ? 'text-[#c4b5fd]' : 'text-white'} strokeWidth={2.5} />
           </div>
         </div>
       </div>
+
+      {/* ─── 3. PREMIUM CHECK-IN CARD ─── */}
+      <div className="px-[6px]">
+        <PremiumCheckInCard
+          isNight={isNight}
+          displayFamilyMembers={displayFamilyMembers}
+          currentStreak={currentStreak}
+          toggleOverlay={toggleOverlay}
+          setIsFamilyCircleDetailOpen={setIsFamilyCircleDetailOpen}
+        />
+      </div>
     </div>
-  </div>
-);
+  );
 });

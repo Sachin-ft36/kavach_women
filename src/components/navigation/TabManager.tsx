@@ -22,6 +22,9 @@ import ProtectorGuideScreen from '../../screens/ProtectorGuideScreen';
 import ProtectorGrievanceScreen from '../../screens/ProtectorGrievanceScreen';
 import ProtectorHistoryScreen from '../../screens/ProtectorHistoryScreen';
 import GuardianHistoryScreen from '../../screens/GuardianHistoryScreen';
+import CalmSpaceScreen from '../../screens/CalmSpaceScreen';
+import SafetyReadinessScreen from '../../screens/SafetyReadinessScreen';
+import TalkToSomeoneScreen from '../../screens/TalkToSomeoneScreen';
 
 interface TabManagerProps {
   isGhostMode: boolean;
@@ -42,10 +45,10 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
   const isMale = gender === 'male' || (profile as any)?.gender === 'male';
   const effectiveRole = (isMale && role === 'citizen') ? 'protector' : role;
 
-  const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history', 'rewards'];
-  const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history'];
-  const guardianStack = ['dashboard', 'radar', 'history', 'rewards'];
-  const adminStack = ['dashboard', 'map', 'vault', 'history'];
+  const citizenStack = ['dashboard', 'radar', 'map', 'sos', 'vault', 'contacts', 'history', 'rewards', 'calm_space', 'safety_readiness', 'talk_to_someone'];
+  const protectorStack = ['dashboard', 'radar', 'rewards', 'guide', 'grievance', 'protector_history', 'safety_readiness', 'talk_to_someone'];
+  const guardianStack = ['dashboard', 'radar', 'history', 'rewards', 'safety_readiness', 'talk_to_someone'];
+  const adminStack = ['dashboard', 'map', 'vault', 'history', 'safety_readiness', 'talk_to_someone'];
 
   const currentStack =
     effectiveRole === 'guardian' ? guardianStack :
@@ -98,9 +101,9 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
       case 'vault': 
         return <div key="vault" style={containerStyle}><SmartSafetyTools /></div>;
       case 'contacts': 
-        return <div key="contacts" style={containerStyle}><FamilyCircleDetail isOpen={true} onClose={() => useKavachStore.getState().setActiveTab('dashboard')} /></div>;
+        return <div key="contacts" style={containerStyle}><FamilyProtectionOverview /></div>;
       case 'radar': 
-        return <div key="radar" style={containerStyle}><FamilyProtectionOverview /></div>;
+        return <div key="radar" style={containerStyle}><FamilyCircleDetail isOpen={true} onClose={() => useKavachStore.getState().setActiveTab('dashboard')} /></div>;
       case 'rewards': 
         return (
           <div key="rewards" style={containerStyle} className="w-full min-h-screen">
@@ -122,6 +125,12 @@ export function TabManager({ isGhostMode, onToggleGhost }: TabManagerProps) {
         return <div key="grievance" style={containerStyle} className="max-w-4xl mx-auto px-4"><ProtectorGrievanceScreen /></div>;
       case 'protector_history': 
         return <div key="protector_history" style={containerStyle} className="max-w-4xl mx-auto px-4"><ProtectorHistoryScreen /></div>;
+      case 'calm_space':
+        return <div key="calm_space" style={containerStyle}><CalmSpaceScreen /></div>;
+      case 'safety_readiness':
+        return <div key="safety_readiness" style={containerStyle}><SafetyReadinessScreen /></div>;
+      case 'talk_to_someone':
+        return <div key="talk_to_someone" style={containerStyle}><TalkToSomeoneScreen /></div>;
       default: 
         return null;
     }

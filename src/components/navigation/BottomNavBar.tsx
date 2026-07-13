@@ -341,7 +341,37 @@ export function BottomNavBar({ isNavVisible }: Props) {
                 Tools
               </span>
               <div
-                className={`absolute -bottom-[8px] w-6 h-0.5 rounded-full transition-all duration-300 ${activeTab === 'vault' && !isDailyCheckInOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                className={`absolute -bottom-[8px]. w-6 h-0.5 rounded-full transition-all duration-300 ${activeTab === 'vault' && !isDailyCheckInOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                  } ${isNight ? 'bg-[#a855f7] shadow-[0_0_8px_#a855f7]' : 'bg-[#9333ea]'}`}
+              />
+            </button>
+
+            {/* You (Profile) Tab */}
+            <button
+              onClick={() => {
+                setActiveTab('rewards');
+                setIsDailyCheckInOpen(false);
+              }}
+              className="flex flex-col items-center justify-center w-12 cursor-pointer relative gap-1 group border-none bg-transparent"
+            >
+              <User
+                size={16}
+                strokeWidth={activeTab === 'rewards' && !isDailyCheckInOpen ? 2.5 : 2}
+                className={`transition-all duration-300 ${activeTab === 'rewards' && !isDailyCheckInOpen
+                    ? (isNight ? 'text-[#a855f7] drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]' : 'text-[#9333ea]')
+                    : (isNight ? 'text-white/60 group-hover:text-white' : 'text-[#64748b] group-hover:text-[#334155]')
+                  }`}
+              />
+              <span
+                className={`text-[9.5px] transition-colors duration-300 ${activeTab === 'rewards' && !isDailyCheckInOpen 
+                    ? (isNight ? 'text-[#a855f7] font-bold' : 'text-[#9333ea] font-bold') 
+                    : (isNight ? 'text-white/60' : 'text-[#64748b]')
+                  }`}
+              >
+                You
+              </span>
+              <div
+                className={`absolute -bottom-[8px] w-6 h-0.5 rounded-full transition-all duration-300 ${activeTab === 'rewards' && !isDailyCheckInOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
                   } ${isNight ? 'bg-[#a855f7] shadow-[0_0_8px_#a855f7]' : 'bg-[#9333ea]'}`}
               />
             </button>
